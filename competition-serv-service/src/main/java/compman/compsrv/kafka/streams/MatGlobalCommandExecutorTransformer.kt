@@ -1,0 +1,188 @@
+package compman.compsrv.kafka.streams
+
+import compman.compsrv.kafka.topics.CompetitionServiceTopics
+import compman.compsrv.model.competition.CompetitionDashboardState
+import compman.compsrv.model.es.commands.Command
+import compman.compsrv.model.es.commands.CommandType
+import compman.compsrv.model.es.events.EventHolder
+import compman.compsrv.model.es.events.EventType
+import compman.compsrv.model.schedule.DashboardPeriod
+import compman.compsrv.service.StateQueryService
+import org.apache.kafka.streams.kstream.ValueTransformer
+import org.apache.kafka.streams.processor.ProcessorContext
+import org.apache.kafka.streams.state.KeyValueStore
+import org.slf4j.LoggerFactory
+import java.time.Instant
+import java.time.format.DateTimeFormatter
+import java.util.*
+
+class MatGlobalCommandExecutorTransformer(private val stateStoreName: String,
+                                          private val stateQueryService: StateQueryService) : ValueTransformer<Command, Array<EventHolder>> {
+
+    companion object {
+        private val log = LoggerFactory.getLogger(MatGlobalCommandExecutorTransformer::class.java)
+    }
+
+    private lateinit var stateStore: KeyValueStore<String, CompetitionDashboardState>
+    private lateinit var context: ProcessorContext
+
+    override fun init(context: ProcessorContext?) {
+        this.context = context ?: throw IllegalStateException("Context cannot be null")
+        stateStore = (context.getStateStore(stateStoreName)
+                ?: throw IllegalStateException("Cannot get stateStore store $stateStoreName")) as KeyValueStore<String, CompetitionDashboardState>
+    }
+
+
+    override fun transform(command: Command?): Array<EventHolder> {
+        return try {
+            log.info("Executing a mat command: $command, partition: ${context.partition()}, offset: ${context.offset()}")
+            if (command?.competitionId != null) {
+                val competitionId = command.competitionId
+                val state = stateStore.get(competitionId)
+                val validationErrors = canExecuteCommand(state, command)
+                if (validationErrors.isEmpty()) {
+                    val (newState, events) = executeCommand(command, state, context.offset(), context.partition())
+                    if (events.any { it.type != EventType.ERROR_EVENT } && (newState != null || events.any { it.type == EventType.DASHBOARD_STATE_DELETED })) {
+                        stateStore.put(competitionId, newState?.setEventOffset(context.offset())?.setEventPartition(context.partition()))
+                    }
+                    events.toTypedArray()
+                } else {
+                    log.warn("Not executed, command validation failed.  \nCommand: $command. \nState: $state. \nPartition: ${context.partition()}. \nOffset: ${context.offset()}, errors: $validationErrors")
+                    arrayOf(EventHolder(command.competitionId, command.categoryId, command.matId, EventType.ERROR_EVENT, mapOf("errors" to validationErrors))
+                            .setCommandPartition(context.partition())
+                            .setCommandOffset(context.offset()))
+                }
+            } else {
+                log.warn("Did not execute because either command is null (${command == null}) or competition id is wrong: ${command?.competitionId}")
+                arrayOf(EventHolder(command?.competitionId
+                        ?: "null", command?.categoryId, command?.matId, EventType.ERROR_EVENT,
+                        mapOf("error" to "Did not execute command $command because either it is null (${command == null}) or competition id is wrong: ${command?.competitionId}"))
+                        .setCommandPartition(context.partition())
+                        .setCommandOffset(context.offset()))
+            }
+        } catch (e: Throwable) {
+            log.error("Error while processing command: $command", e)
+            arrayOf(EventHolder(command?.competitionId
+                    ?: "null", command?.categoryId, command?.matId, EventType.ERROR_EVENT, mapOf("error" to "${e.message}"))
+                    .setCommandPartition(context.partition())
+                    .setCommandOffset(context.offset()))
+        }
+    }
+
+    private fun executeCommand(command: Command, state: CompetitionDashboardState?, offset: Long, partition: Int): Pair<CompetitionDashboardState?, List<EventHolder>> {
+        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.competitionId, command.categoryId, command.matId
+                ?: "null", type, payload)
+                .setCommandOffset(offset)
+                .setCommandPartition(partition)
+
+        fun createErrorEvent(error: String) = EventHolder(command.competitionId, command.categoryId, command.matId
+                ?: "null", EventType.ERROR_EVENT, mapOf("error" to error))
+                .setCommandOffset(offset)
+                .setCommandPartition(partition)
+
+        return when (command.type) {
+            CommandType.CHECK_MAT_OBSOLETE -> {
+                if (state == null) {
+                    state to listOf(createEvent(EventType.MAT_DELETED, command.payload ?: emptyMap()))
+                } else {
+                    val periodId = command.payload?.get("periodId").toString()
+                    val period = state.periods.find { it.id == periodId }
+                    if (period == null) {
+                        state to listOf(createEvent(EventType.MAT_DELETED, command.payload ?: emptyMap()))
+                    } else if (!period.matIds.contains(command.matId)) {
+                        state to listOf(createEvent(EventType.MAT_DELETED, command.payload ?: emptyMap()))
+                    } else {
+                        state to emptyList()
+                    }
+                }
+            }
+            CommandType.INIT_DASHBOARD_STATE_COMMAND -> {
+                val competitionProperties = stateQueryService.getCompetitionProperties(competitionId = command.competitionId)
+                if (state == null) {
+                    if (competitionProperties != null) {
+                        val periods = competitionProperties.schedule?.periods
+                        if (periods?.isEmpty() == false) {
+                            val dbPeriods = periods.map {
+                                val periodId = it.id
+                                val mats = (0 until it.numberOfMats).map { i -> "$periodId-mat-$i" }
+                                DashboardPeriod(periodId, it.name, mats.toTypedArray(), Date.from(Instant.from(DateTimeFormatter.ISO_INSTANT.parse(it.startTime))), false)
+                            }
+                            val newState = CompetitionDashboardState(context.offset(), context.partition(), competitionProperties.competitionId, dbPeriods.toSet(), competitionProperties)
+                            newState to listOf(createEvent(EventType.DASHBOARD_STATE_INITIALIZED, mapOf("state" to newState))) + dbPeriods.map {
+                                createEvent(EventType.PERIOD_INITIALIZED, mapOf("period" to it))
+                                        .setMetadata(mapOf(LeaderProcessStreams.ROUTING_METADATA_KEY to CompetitionServiceTopics.MATS_GLOBAL_INTERNAL_EVENTS_TOPIC_NAME))
+                            }
+                        } else {
+                            state to listOf(createErrorEvent("Periods are missing."))
+                        }
+                    } else {
+                        state to listOf(createErrorEvent("Could not find competition properties"))
+                    }
+                } else {
+                    state to listOf(createErrorEvent("State already initialized: $state"))
+                }
+            }
+            CommandType.DELETE_DASHBOARD_STATE_COMMAND -> {
+                val deletedState = stateStore.delete(command.competitionId)
+                val deletedMats = deletedState?.periods?.map {
+                    createEvent(EventType.DASHBOARD_PERIOD_DELETED, mapOf("period" to it))
+                            .setMetadata(mapOf(LeaderProcessStreams.ROUTING_METADATA_KEY to CompetitionServiceTopics.MATS_GLOBAL_INTERNAL_EVENTS_TOPIC_NAME))
+                } ?: emptyList()
+                null to (listOf(createEvent(EventType.DASHBOARD_STATE_DELETED, emptyMap())) + deletedMats)
+            }
+            CommandType.INIT_PERIOD_COMMAND -> {
+                val periodId = command.payload?.get("periodId")
+                val period = state?.periods?.find { it.id == periodId }
+                if (period != null) {
+                    state.upsertPeriod(period.setActive(true)) to listOf(createEvent(EventType.PERIOD_INITIALIZED, mapOf("period" to period)))
+                } else {
+                    state to listOf(createErrorEvent("Did not find period with id $periodId"))
+                }
+            }
+            CommandType.DELETE_PERIOD_COMMAND -> {
+                val periodId = command.payload?.get("periodId")
+                val period = state?.periods?.find { it.id == periodId }
+                if (period != null) {
+                    state.deletePeriod(period.id) to listOf(createEvent(EventType.DASHBOARD_PERIOD_DELETED, mapOf("period" to period)))
+                } else {
+                    state to listOf(createErrorEvent("Did not find period with id $periodId"))
+                }
+            }
+            CommandType.ADD_UNDISPATCHED_MAT_COMMAND -> {
+                if (state != null) {
+                    val periodId = command.payload?.get("periodId")?.toString()
+                    if (periodId != null) {
+                        val period = state.periods.find { it.id == periodId }
+                        if (period != null) {
+                            val matId = "$periodId-mat-undispatched"
+                            val newPeriod = period.addMat(matId)
+                            state.upsertPeriod(newPeriod) to listOf(createEvent(EventType.UNDISPATCHED_MAT_ADDED, (command.payload
+                                    ?: emptyMap()) + mapOf("matId" to matId)).setMatId(matId))
+                        } else {
+                            state to listOf(createErrorEvent("Did not find period with id $periodId"))
+                        }
+                    } else {
+                        state to listOf(createErrorEvent("Period ID is null"))
+                    }
+                } else {
+                    state to listOf(createErrorEvent("state is null"))
+                }
+            }
+            else -> state to listOf(createErrorEvent("Unknown command: ${command.type}"))
+        }
+    }
+
+    private fun canExecuteCommand(state: CompetitionDashboardState?, command: Command?): List<String> {
+        /*(state == null || state.eventOffset < context.offset()) &&*/
+        return emptyList()
+    }
+
+    override fun close() {
+        try {
+            stateStore.close()
+        } catch (e: Exception) {
+            log.warn("Error while closing store.", e)
+        }
+    }
+
+}
