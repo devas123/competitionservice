@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} %black{[%t]} [%X{competitionId}] %cyan{%-5level} %c{1.} - %msg%n%throwable"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <logger name="org.apache.kafka" level="DEBUG"/>
+        <logger name="org.apache.zookeeper" level="WARN"/>
+        <logger name="kafka" level="WARN" />
+        <Root level="info">
+            <AppenderRef ref="Console"/>
+        </Root>
+    </Loggers>
+</Configuration>
