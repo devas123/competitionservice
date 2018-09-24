@@ -26,11 +26,6 @@
 
         <dependency>
             <groupId>competitions-mgr</groupId>
-            <artifactId>utils</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>competitions-mgr</groupId>
             <artifactId>competition-serv-model</artifactId>
             <exclusions>
                 <exclusion>
