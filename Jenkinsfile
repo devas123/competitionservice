@@ -3,7 +3,7 @@ node {
     checkout scm
     stage('deploy') {
         docker.image('maven:3-alpine').inside('-v /root/.m2:/root/.m2') {
-            sh 'mvn deploy'
+            sh 'mvn -s /root/.m2/settings.xml deploy'
         }
     }
 }
