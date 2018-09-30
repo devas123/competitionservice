@@ -16,7 +16,7 @@ import org.springframework.web.filter.CommonsRequestLoggingFilter
 @EnableConfigurationProperties(KafkaProperties::class, CommunicationProperties::class, ClusterConfigurationProperties::class)
 @EnableFeignClients
 @EnableMongoRepositories
-open class CompetitionServiceApplication {
+class CompetitionServiceApplication {
     companion object {
         @JvmStatic fun main(args: Array<String>) {
             SpringApplication.run(CompetitionServiceApplication::class.java, *args)
@@ -24,7 +24,7 @@ open class CompetitionServiceApplication {
     }
 
     @Bean
-    open fun logFilter(): CommonsRequestLoggingFilter {
+    fun logFilter(): CommonsRequestLoggingFilter {
         val filter = CommonsRequestLoggingFilter()
         filter.setIncludeQueryString(true)
         filter.setIncludePayload(true)

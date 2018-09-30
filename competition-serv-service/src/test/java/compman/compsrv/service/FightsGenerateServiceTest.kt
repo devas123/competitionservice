@@ -1,10 +1,11 @@
 package compman.compsrv.service
 
-import compman.compsrv.json.ObjectMapperFactory
 import compman.compsrv.model.competition.*
 import org.junit.Test
 import java.math.BigDecimal
 import java.util.*
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 
 
 class FightsGenerateServiceTest {
@@ -18,11 +19,16 @@ class FightsGenerateServiceTest {
 
     @Test
     fun testGenerateFights() {
-        val mapper = ObjectMapperFactory.createObjectMapper()
         val competitors = FightsGenerateService.generateRandomCompetitorsForCategory(50, 30, category, competitionId)
         val fights = fightsGenerateService.generatePlayOff(competitors, competitionId)
 
-        println(mapper.writeValueAsString(fights))
+        fights.forEach {
+            assertEquals(competitionId, it.competitionId)
+            assertEquals(FightStage.PENDING, it.stage)
+            assertNotNull(it.round)
+            assertNotNull(it.numberInRound)
+            assertNotNull(it.numberOnMat)
+        }
 
     }
 }

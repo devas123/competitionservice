@@ -4,15 +4,13 @@ import com.compman.starter.properties.KafkaProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import compman.compsrv.config.ClusterConfiguration;
 import compman.compsrv.config.ClusterConfigurationProperties;
-import compman.compsrv.config.ClusterConfigurationProperties.Zookeeper;
 import compman.compsrv.json.ObjectMapperFactory;
+import compman.compsrv.kafka.EmbeddedSingleNodeKafkaCluster;
 import compman.compsrv.kafka.serde.CommandSerializer;
 import compman.compsrv.kafka.topics.CompetitionServiceTopics;
 import compman.compsrv.model.competition.*;
 import compman.compsrv.model.es.commands.Command;
 import compman.compsrv.model.es.commands.CommandType;
-import compman.compsrv.repository.CategoryStateRepository;
-import compman.compsrv.kafka.EmbeddedSingleNodeKafkaCluster;
 import compman.compsrv.service.CategoryStateService;
 import compman.compsrv.service.RestApi;
 import compman.compsrv.service.ScheduleService;
@@ -35,7 +33,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -55,10 +52,6 @@ import javax.validation.constraints.NotNull;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -74,8 +67,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public final class ZookeeperSessionTest {
 
     private static ObjectMapper mapper = ObjectMapperFactory.INSTANCE.createObjectMapper();
-    @Autowired
-    private RestApi clusterManager;
 
 
     public static class RandomPortInitailizer
@@ -96,9 +87,6 @@ public final class ZookeeperSessionTest {
             }
         }
     }
-
-    @MockBean
-    private CategoryStateRepository categoryStateRepository;
 
     private static final String LEADER_CHANGELOG_TOPIC = "leader-changelog";
     private static final String APPLICATION_ID = "test.app";
@@ -122,8 +110,6 @@ public final class ZookeeperSessionTest {
 
     @BeforeClass
     public static void init() {
-//        mapper.registerModule(new Jdk8Module());
-//        mapper.registerModule(new KotlinModule());
         mapper.findAndRegisterModules();
     }
 
@@ -152,20 +138,6 @@ public final class ZookeeperSessionTest {
         return temp;
     }
 
-    private static ClusterConfigurationProperties createClusterprops(int localPort) {
-        ClusterConfigurationProperties clusterProps = new ClusterConfigurationProperties();
-        clusterProps.setAdvertisedPort(localPort);
-        clusterProps.setAdvertisedHost("localhost");
-        clusterProps.setEnableCluster(true);
-        Zookeeper zookeeper = clusterProps.getZookeeper();
-        zookeeper.setWorkersPath("/workers");
-        zookeeper.setElectionPath("/election");
-        zookeeper.setConnectTimeout(3000L);
-        zookeeper.setNamespace("/compservice");
-        zookeeper.setSessionTimeout(30000);
-        zookeeper.setConnectionString(CLUSTER.zookeeperConnect());
-        return clusterProps;
-    }
 
     private static KafkaProperties createKafkaProps(int localPort) {
         KafkaProperties kafkaProps = new KafkaProperties();
@@ -196,17 +168,8 @@ public final class ZookeeperSessionTest {
     @Ignore
     @Test
     public final void testZookeeperSession() throws Exception {
-//        Mockito.when(categoryStateRepository.getLatestSnapshot(Mockito.anyString())).thenReturn(null);
-//        Mockito.doNothing().when(categoryStateRepository).saveSnapshot(Mockito.any(CategoryState.class));
-
         int port1 = randomFreeLocalPort();
-        int port2 = randomFreeLocalPort();
-        int port3 = randomFreeLocalPort();
-        KafkaProperties kafkaProps = createKafkaProps(port1);
-
-//        ZookeeperSession zk1 = new ZookeeperSession(createClusterprops(port1), createKafkaProps(port1), categoryStateRepository, eventRepository, competitionStateService);
-//        ZookeeperSession zk2 = new ZookeeperSession(createClusterprops(port2), createKafkaProps(port2), categoryStateRepository, eventRepository, competitionStateService);
-//        ZookeeperSession zk3 = new ZookeeperSession(createClusterprops(port3), createKafkaProps(port3), categoryStateRepository, eventRepository, competitionStateService);
+       KafkaProperties kafkaProps = createKafkaProps(port1);
 
         CuratorFramework curatorFramework = CuratorFrameworkFactory.builder()
                 .connectString(CLUSTER.zookeeperConnect())
@@ -229,19 +192,8 @@ public final class ZookeeperSessionTest {
             sleep(1000);
         }
 
-//        Assert.assertEquals(4, curatorFramework.getChildren().forPath(zk1.getWorkersPath()).size());
-//        Assert.assertEquals(4, curatorFramework.getChildren().forPath(zk1.getElectionPath()).size());
-//
-//        log.info("" + curatorFramework.getChildren().forPath(zk1.getWorkersPath()));
-//        log.info("" + curatorFramework.getChildren().forPath(zk1.getElectionPath()));
-//        log.info(new String(curatorFramework.getData().forPath(zk1.getNodeDescriptionNode())));
-//        log.info(new String(curatorFramework.getData().forPath(zk2.getNodeDescriptionNode())));
-//        log.info(new String(curatorFramework.getData().forPath(zk3.getNodeDescriptionNode())));
-//        log.info(new String(curatorFramework.getData().forPath(zk3.getNodeDescriptionNode().substring(0, zk3.getNodeDescriptionNode().lastIndexOf("/")) + "/compsrv_0000000000")));
-
         KafkaProducer<String, Command> producer = new KafkaProducer<>(kafkaProps.getProducer().getProperties(), new StringSerializer(), new CommandSerializer());
         CompetitionProperties pr1 = new CompetitionProperties(COMPETITION1, COMPETITION1, "valera@protas.ru");
-        CompetitionProperties pr2 = new CompetitionProperties(COMPETITION2, COMPETITION2, "valera@protas.ru");
         producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, COMPETITION1, new Command(COMPETITION1, CommandType.CREATE_COMPETITION_COMMAND,
                 "", mapper.convertValue(new CompetitionState(COMPETITION1, new CategoryState[3], pr1), LinkedHashMap.class))));
         producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, COMPETITION2, new Command(COMPETITION2, CommandType.CREATE_COMPETITION_COMMAND,
@@ -261,11 +213,6 @@ public final class ZookeeperSessionTest {
             sleep(1000);
         }
         log.info("Topics created: " + topics);
-
-//        log.info("compsrv_000000000: " + new String(curatorFramework.getData().forPath(zk3.getElectionPath() + "/compsrv_0000000000")));
-//        log.info(zk1.getElectionNode() + ": " + new String(curatorFramework.getData().forPath(zk1.getElectionNode())));
-//        log.info(zk2.getElectionNode() + ": " + new String(curatorFramework.getData().forPath(zk2.getElectionNode())));
-//        log.info(zk3.getElectionNode() + ": " + new String(curatorFramework.getData().forPath(zk3.getElectionNode())));
 
         Category[] categories = {
                 new Category(BjjAgeDivisions.INSTANCE.getADULT(), "FEMALE", COMPETITION2, UUID.randomUUID().toString(), new Weight("Light", new BigDecimal("76.0")), BeltType.BLACK, new BigDecimal(10)),
@@ -312,37 +259,16 @@ public final class ZookeeperSessionTest {
             TestCase.assertNotNull(result);
         });
 
-//        sleep(100000000000000L);
         producer.close(1, TimeUnit.SECONDS);
         adminClient.close(1, TimeUnit.SECONDS);
         sleep(1000);
-//        zk1.close();
-//        sleep(300);
-//        zk2.close();
-//        sleep(300);
-//        zk3.close();
     }
-
-    @Autowired
-    private CategoryStateService competitionStateService;
 
     public static void main(String[] args) throws Exception {
         CLUSTER.start();
-//        int localPort = randomFreeLocalPort();
-//        KafkaProperties kafkaProps = createKafkaProps(localPort);
-//
-//        CategoryStateRepository categoryStateRepository = Mockito.mock(CategoryStateRepository.class);
-//        CategoryStateService competitionStateService = Mockito.mock(CategoryStateService.class);
-//        ZookeeperSession zk1 = new ZookeeperSession(createClusterprops(localPort), kafkaProps, categoryStateRepository, competitionStateService);
         Runtime.getRuntime().addShutdownHook(new Thread(CLUSTER::stop));
-//        Runtime.getRuntime().addShutdownHook(new Thread(zk1::close));
         log.info("Zookeeper Connect: " + CLUSTER.zookeeperConnect());
         log.info("Bootstrap servers: " + CLUSTER.bootstrapServers());
-        Path gatewayConfigFile = Paths.get("gateway-service", "src", "main", "resources", "application-dev.properties");
-        Path compsrvConfigFile = Paths.get("competitionservice", "competition-serv-service", "src", "main", "resources", "application-dev.properties");
-        Files.write(gatewayConfigFile, Arrays.asList(("cluster.zookeeper.connection-string=" + CLUSTER.zookeeperConnect()), ("kafka.bootstrap-servers=" + CLUSTER.bootstrapServers())), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        Files.write(compsrvConfigFile, Arrays.asList(("cluster.zookeeper.connection-string=" + CLUSTER.zookeeperConnect()), ("kafka.bootstrap-servers=" + CLUSTER.bootstrapServers())), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-//        Files.write(configFile, , StandardOpenOption.APPEND);
         Thread.sleep(10000000);
         CLUSTER.stop();
     }
