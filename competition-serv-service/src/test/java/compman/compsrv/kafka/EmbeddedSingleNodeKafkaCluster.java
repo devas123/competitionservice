@@ -42,7 +42,7 @@ import java.util.Set;
 public class EmbeddedSingleNodeKafkaCluster extends ExternalResource {
 
     private static final Logger log = LoggerFactory.getLogger(EmbeddedSingleNodeKafkaCluster.class);
-    private static final int DEFAULT_BROKER_PORT = 0; // 0 results in a random port being selected
+    private static final int DEFAULT_BROKER_PORT = 50812; // 0 results in a random port being selected
 
     private ZooKeeperEmbedded zookeeper;
     private KafkaZkClient zkUtils = null;

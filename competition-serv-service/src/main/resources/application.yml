@@ -1,3 +1,4 @@
+
 security:
   oauth2:
     client:
@@ -11,13 +12,8 @@ security:
 
 
 spring:
-  application:
-    name: competition-service
-  kafka:
-    bootstrap-servers:
-
-
-
+  profiles:
+    active: el-zookeeper
 server:
   servlet.context-path: /competitions
   port: 8082

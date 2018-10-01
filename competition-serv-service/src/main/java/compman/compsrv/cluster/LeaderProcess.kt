@@ -7,32 +7,23 @@ import compman.compsrv.kafka.streams.LeaderProcessStreams
 import compman.compsrv.kafka.streams.MetadataService
 import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.model.competition.Category
-import compman.compsrv.model.competition.CompetitionDashboardState
 import compman.compsrv.model.competition.CompetitionProperties
 import compman.compsrv.model.competition.CompetitionStatus
 import compman.compsrv.service.ScheduleService
 import compman.compsrv.service.StateQueryService
-import org.apache.curator.framework.imps.CuratorFrameworkState
 import org.apache.kafka.clients.admin.AdminClientConfig
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
-import org.apache.zookeeper.KeeperException
-import org.apache.zookeeper.WatchedEvent
-import org.apache.zookeeper.Watcher
 import org.slf4j.LoggerFactory
 import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 
-class LeaderProcess(private val zookeeperSession: ZookeeperSession,
-                    private val prefix: String,
-                    private val znode: String,
-                    listenerString: String,
-                    private val closingListener: ClosingListener,
+class LeaderProcess(listenerString: String,
                     scheduleService: ScheduleService,
                     kafkaProperties: KafkaProperties,
-                    stateQueryService: StateQueryService) : Watcher {
+                    stateQueryService: StateQueryService) {
 
     companion object {
         private val log = LoggerFactory.getLogger(LeaderProcess::class.java)
@@ -77,40 +68,11 @@ class LeaderProcess(private val zookeeperSession: ZookeeperSession,
 
 
 
-
-    override fun process(event: WatchedEvent?) {
-        if (!dead && zookeeperSession.zk.state == CuratorFrameworkState.STARTED) {
-            event?.also {
-                when (it.type) {
-                    Watcher.Event.EventType.None ->
-                        when (it.state) {
-                            Watcher.Event.KeeperState.Expired -> {
-                                dead = true
-                                closingListener.workerClosing(KeeperException.Code.SESSIONEXPIRED)
-                            }
-                            else -> {
-                                znode.let { _ ->
-                                    zookeeperSession.zk.children.usingWatcher(this).forPath(prefix)
-                                }
-                            }
-                        }
-                    else -> {
-                        log.info("Got event ${event.type}, skipping")
-                        zookeeperSession.zk.children.usingWatcher(this).forPath(prefix)
-                    }
-                }
-            }
-        } else {
-            log.warn("Got an event to process but either i am dead ($dead), or ZK session is not STARTED (${zookeeperSession.zk.state})")
-        }
-    }
-
     private fun readCompProperties(statuses: Array<CompetitionStatus>?) = leaderProcessStreams.readCompProperties(statuses)
 
     fun start() {
         if (!dead) {
             log.info("Starting the leader process.")
-            zookeeperSession.zk.children.usingWatcher(this@LeaderProcess).forPath(prefix)
             leaderProcessStreams.start()
         } else {
             log.warn("Cannot start leader process, because it is dead. Please create a new one. ")
