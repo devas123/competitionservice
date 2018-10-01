@@ -15,8 +15,21 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 
 class ZookeeperLeaderElection(clusterConfigurationProperties: ClusterConfigurationProperties) : LeaderElection, ConnectionStateListener, Watcher {
+
     override fun registerListener(listener: LeadershipListener): Boolean {
-        return leadershipListeners.add(listener)
+        stateLock.lock()
+        try {
+            if (connected) {
+                if (isLeader()) {
+                    listener.onGranted()
+                } else {
+                    listener.onRevoked()
+                }
+            }
+            return leadershipListeners.add(listener)
+        } finally {
+            stateLock.unlock()
+        }
     }
 
     override fun removeListener(listener: LeadershipListener): Boolean {
@@ -131,12 +144,22 @@ class ZookeeperLeaderElection(clusterConfigurationProperties: ClusterConfigurati
     override fun stop() = close()
 
     override fun stateChanged(client: CuratorFramework?, newState: ConnectionState?) {
-        if (newState == ConnectionState.LOST) {
-            leadershipListeners.forEach { it.onRevoked() }
-            client?.close()
-            close()
+        stateLock.lock()
+        try {
+            if (newState == ConnectionState.LOST) {
+                leadershipListeners.forEach { it.onRevoked() }
+                client?.close()
+                close()
+            } else if (newState == ConnectionState.RECONNECTED) {
+                val kk = zk.checkExists().forPath(electionNode)
+                if (kk == null) {
+                    doLeaderElection()
+                }
+            }
+            connected = newState?.isConnected ?: false
+        } finally {
+            stateLock.unlock()
         }
-        connected = newState?.isConnected ?: false
     }
 
     private fun close() {

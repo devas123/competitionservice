@@ -109,7 +109,6 @@ class ZookeeperSession(private val clusterConfigurationProperties: ClusterConfig
         workerProcess.start()
         Runtime.getRuntime().addShutdownHook(thread(start = false) { close() })
         stateQueryService = StateQueryService(this, restTemplate, clusterConfigurationProperties)
-        leaderElection
         leaderElection.registerListener(this)
     }
 

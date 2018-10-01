@@ -3,11 +3,10 @@ package compman.compsrv.service
 import com.compmanager.model.payment.RegistrationStatus
 import compman.compsrv.model.competition.*
 import org.springframework.stereotype.Component
-import java.time.LocalDate
 import java.util.*
 
 @Component
-open class FightsGenerateService {
+class FightsGenerateService {
 
     companion object {
         private val names = arrayOf("Vasya", "Kolya", "Petya", "Sasha", "Vanya", "Semen", "Grisha", "Kot", "Evgen", "Prohor", "Evgrat", "Stas", "Andrey", "Marina")
