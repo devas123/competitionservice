@@ -17,7 +17,7 @@ import org.springframework.data.mongodb.core.query.Update
 import org.springframework.stereotype.Component
 
 @Component
-open class CategoryStateRepository(@Autowired private val mongoTemplate: MongoTemplate) {
+class CategoryStateRepository(@Autowired private val mongoTemplate: MongoTemplate) {
 
 
     companion object {

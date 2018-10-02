@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component
 
 
 @Component
-open class FightRepository(@Autowired private val mongoTemplate: MongoTemplate) {
+class FightRepository(@Autowired private val mongoTemplate: MongoTemplate) {
 
     companion object {
         private const val COLLECTION_NAME = "fights"

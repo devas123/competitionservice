@@ -10,7 +10,7 @@ import org.springframework.data.mongodb.core.query.Query
 import org.springframework.stereotype.Component
 
 @Component
-open class CompetitionStateRepository(@Autowired private val mongoTemplate: MongoTemplate) {
+class CompetitionStateRepository(@Autowired private val mongoTemplate: MongoTemplate) {
 
 
     companion object {

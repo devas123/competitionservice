@@ -6,9 +6,9 @@ import compman.compsrv.model.es.commands.CommandType
 import org.springframework.stereotype.Component
 
 @Component
-open class CategoryCommandsValidatorRegistry(private val validators: List<CategoryCommandValidator>) {
+class CategoryCommandsValidatorRegistry(private val validators: List<CategoryCommandValidator>) {
 
-    open fun validate(command: Command?, categoryState: CategoryState?): List<String> {
+    fun validate(command: Command?, categoryState: CategoryState?): List<String> {
         val result = mutableListOf<String>()
         if (command == null) {
             result.add("Command is null.")

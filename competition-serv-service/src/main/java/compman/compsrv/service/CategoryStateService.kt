@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component
 
 
 @Component
-open class CategoryStateService constructor(private val fightsGenerateService: FightsGenerateService) {
+class CategoryStateService constructor(private val fightsGenerateService: FightsGenerateService) {
 
     companion object {
         private val mapper: ObjectMapper = ObjectMapperFactory.createObjectMapper()

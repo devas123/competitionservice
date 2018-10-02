@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 @Component
-open class AddCategoryValidator : CategoryCommandValidator {
+class AddCategoryValidator : CategoryCommandValidator {
     companion object {
         private val log = LoggerFactory.getLogger(AddCategoryValidator::class.java)
     }

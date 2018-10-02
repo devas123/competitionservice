@@ -14,7 +14,7 @@ import java.util.*
 import kotlin.collections.ArrayList
 
 @Component
-open class ScheduleService {
+class ScheduleService {
 
     companion object {
         fun createPeriodId(competitionId: String) = "$competitionId-period-${UUID.randomUUID()}"
