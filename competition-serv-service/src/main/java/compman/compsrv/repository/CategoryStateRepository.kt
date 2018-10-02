@@ -1,7 +1,6 @@
 package compman.compsrv.repository
 
 import compman.compsrv.model.competition.CategoryState
-import compman.compsrv.model.schedule.Schedule
 import org.bson.Document
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -13,7 +12,6 @@ import org.springframework.data.mongodb.core.index.CompoundIndexDefinition
 import org.springframework.data.mongodb.core.index.Index
 import org.springframework.data.mongodb.core.query.Criteria
 import org.springframework.data.mongodb.core.query.Query
-import org.springframework.data.mongodb.core.query.Update
 import org.springframework.stereotype.Component
 
 @Component
