@@ -12,9 +12,9 @@ import java.util.*
 import kotlin.collections.ArrayList
 
 @Component
-open class FightService constructor(private val fightRepository: FightRepository,
-                                    private val participantsService: AccountServiceClient,
-                                    private val generateService: FightsGenerateService) : FightServiceProvider {
+class FightService constructor(private val fightRepository: FightRepository,
+                               private val participantsService: AccountServiceClient,
+                               private val generateService: FightsGenerateService) : FightServiceProvider {
     override fun generateAbsoluteCategory(message: GenerateAbsoluteMessage): List<FightDescription>? {
         val arrc = ArrayList<Competitor>().apply { addAll(message.competitors) }
         return generateService.generateRoundsForCategory(message.category, arrc.shuffle(), message.competitionId).map { it.copy(competitionId = message.competitionId) }

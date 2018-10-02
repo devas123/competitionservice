@@ -6,9 +6,9 @@ import compman.compsrv.model.es.commands.CommandType
 import org.springframework.stereotype.Component
 
 @Component
-open class MatCommandsValidatorRegistry(private val validators: List<MatCommandValidator> = emptyList()) {
+class MatCommandsValidatorRegistry(private val validators: List<MatCommandValidator> = emptyList()) {
 
-    open fun validate(command: Command?, matState: MatState?): List<String> {
+    fun validate(command: Command?, matState: MatState?): List<String> {
         val result = mutableListOf<String>()
         if (command == null) {
             result.add("Command is null.")

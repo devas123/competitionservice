@@ -10,7 +10,7 @@ import org.springframework.data.mongodb.core.query.Update
 import org.springframework.stereotype.Component
 
 @Component
-open class CompetiotionPropertiesRepository(private val mongoTemplate: MongoTemplate, private val crudRepository: CompetitionPropertiesCrudRepository) {
+class CompetiotionPropertiesRepository(private val mongoTemplate: MongoTemplate, private val crudRepository: CompetitionPropertiesCrudRepository) {
     companion object {
         const val COMPETITION_ID = "competitionId"
     }

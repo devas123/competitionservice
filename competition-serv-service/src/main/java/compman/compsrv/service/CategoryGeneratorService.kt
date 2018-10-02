@@ -6,8 +6,8 @@ import java.math.BigDecimal
 import java.util.*
 
 @Component
-open class CategoryGeneratorService {
-    open fun createDefaultBjjCategories(competitionId: String): List<Category> {
+class CategoryGeneratorService {
+    fun createDefaultBjjCategories(competitionId: String): List<Category> {
         val adultMaleRooster = Category(BjjAgeDivisions.ADULT, Gender.MALE, competitionId, UUID.randomUUID().toString(), Weight(Weight.ROOSTER, BigDecimal("57.5")), BeltType.WHITE, BigDecimal(5))
         val adultMaleLightFeather = adultMaleRooster.setWeight(Weight(Weight.LIGHT_FEATHER, BigDecimal("64")))
         val adultMaleFeather = adultMaleRooster.setWeight(Weight(Weight.FEATHER, BigDecimal("70")))

@@ -1,7 +1,10 @@
 package compman.compsrv.service
 
 import com.compmanager.model.payment.RegistrationStatus
-import compman.compsrv.model.competition.*
+import compman.compsrv.model.competition.Academy
+import compman.compsrv.model.competition.Category
+import compman.compsrv.model.competition.Competitor
+import compman.compsrv.model.competition.FightDescription
 import org.springframework.stereotype.Component
 import java.util.*
 

@@ -8,7 +8,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.cloud.openfeign.EnableFeignClients
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.PropertySource
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories
 import org.springframework.web.filter.CommonsRequestLoggingFilter
 

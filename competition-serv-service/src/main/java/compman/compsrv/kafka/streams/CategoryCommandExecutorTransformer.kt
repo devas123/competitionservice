@@ -2,7 +2,6 @@ package compman.compsrv.kafka.streams
 
 import compman.compsrv.cluster.ZookeeperSession
 import compman.compsrv.json.ObjectMapperFactory
-import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.competition.CategoryState
 import compman.compsrv.model.competition.Competitor
 import compman.compsrv.model.es.commands.Command
@@ -13,7 +12,6 @@ import compman.compsrv.service.CategoryStateService
 import compman.compsrv.validators.CategoryCommandsValidatorRegistry
 import org.apache.kafka.streams.kstream.ValueTransformer
 import org.apache.kafka.streams.processor.ProcessorContext
-import org.apache.kafka.streams.processor.PunctuationType
 import org.apache.kafka.streams.state.KeyValueStore
 import org.slf4j.LoggerFactory
 
