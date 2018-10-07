@@ -8,32 +8,20 @@ import compman.compsrv.model.es.events.EventHolder
 import compman.compsrv.model.es.events.EventType
 import compman.compsrv.model.schedule.DashboardPeriod
 import compman.compsrv.service.StateQueryService
-import org.apache.kafka.streams.kstream.ValueTransformer
-import org.apache.kafka.streams.processor.ProcessorContext
-import org.apache.kafka.streams.state.KeyValueStore
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.*
 
-class MatGlobalCommandExecutorTransformer(private val stateStoreName: String,
-                                          private val stateQueryService: StateQueryService) : ValueTransformer<Command, Array<EventHolder>> {
+class MatGlobalCommandExecutorTransformer(stateStoreName: String,
+                                          private val stateQueryService: StateQueryService,
+                                          producerProperties: Properties) : StateForwardingValueTransformer<Command, Array<EventHolder>, CompetitionDashboardState>(stateStoreName, CompetitionServiceTopics.DASHBOARD_STATE_CHANGELOG_TOPIC_NAME, producerProperties) {
 
     companion object {
         private val log = LoggerFactory.getLogger(MatGlobalCommandExecutorTransformer::class.java)
     }
 
-    private lateinit var stateStore: KeyValueStore<String, CompetitionDashboardState>
-    private lateinit var context: ProcessorContext
-
-    override fun init(context: ProcessorContext?) {
-        this.context = context ?: throw IllegalStateException("Context cannot be null")
-        stateStore = (context.getStateStore(stateStoreName)
-                ?: throw IllegalStateException("Cannot get stateStore store $stateStoreName")) as KeyValueStore<String, CompetitionDashboardState>
-    }
-
-
-    override fun transform(command: Command?): Array<EventHolder> {
+    override fun doTransform(command: Command?): Triple<String?, CompetitionDashboardState?, Array<EventHolder>?> {
         return try {
             log.info("Executing a mat command: $command, partition: ${context.partition()}, offset: ${context.offset()}")
             if (command?.competitionId != null) {
@@ -45,27 +33,27 @@ class MatGlobalCommandExecutorTransformer(private val stateStoreName: String,
                     if (events.any { it.type != EventType.ERROR_EVENT } && (newState != null || events.any { it.type == EventType.DASHBOARD_STATE_DELETED })) {
                         stateStore.put(competitionId, newState?.setEventOffset(context.offset())?.setEventPartition(context.partition()))
                     }
-                    events.toTypedArray()
+                    Triple(competitionId, newState, events.toTypedArray())
                 } else {
                     log.warn("Not executed, command validation failed.  \nCommand: $command. \nState: $state. \nPartition: ${context.partition()}. \nOffset: ${context.offset()}, errors: $validationErrors")
-                    arrayOf(EventHolder(command.competitionId, command.categoryId, command.matId, EventType.ERROR_EVENT, mapOf("errors" to validationErrors))
+                    Triple(null, null, arrayOf(EventHolder(command.competitionId, command.categoryId, command.matId, EventType.ERROR_EVENT, mapOf("errors" to validationErrors))
                             .setCommandPartition(context.partition())
-                            .setCommandOffset(context.offset()))
+                            .setCommandOffset(context.offset())))
                 }
             } else {
                 log.warn("Did not execute because either command is null (${command == null}) or competition id is wrong: ${command?.competitionId}")
-                arrayOf(EventHolder(command?.competitionId
+                Triple(null, null, arrayOf(EventHolder(command?.competitionId
                         ?: "null", command?.categoryId, command?.matId, EventType.ERROR_EVENT,
                         mapOf("error" to "Did not execute command $command because either it is null (${command == null}) or competition id is wrong: ${command?.competitionId}"))
                         .setCommandPartition(context.partition())
-                        .setCommandOffset(context.offset()))
+                        .setCommandOffset(context.offset())))
             }
         } catch (e: Throwable) {
             log.error("Error while processing command: $command", e)
-            arrayOf(EventHolder(command?.competitionId
+            Triple(null, null, arrayOf(EventHolder(command?.competitionId
                     ?: "null", command?.categoryId, command?.matId, EventType.ERROR_EVENT, mapOf("error" to "${e.message}"))
                     .setCommandPartition(context.partition())
-                    .setCommandOffset(context.offset()))
+                    .setCommandOffset(context.offset())))
         }
     }
 

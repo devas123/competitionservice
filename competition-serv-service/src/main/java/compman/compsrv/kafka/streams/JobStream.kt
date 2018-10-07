@@ -64,6 +64,8 @@ class JobStream(kafkaProperties: KafkaProperties, competitionStateService: Categ
         adminProps[AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG] = kafkaProperties.bootstrapServers
         adminClient = KafkaAdminUtils(adminProps)
 
+        adminClient.createTopicIfMissing(CompetitionServiceTopics.MAT_STATE_CHANGELOG_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor, compacted = true)
+        adminClient.createTopicIfMissing(CompetitionServiceTopics.CATEGORY_STATE_CHANGELOG_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor, compacted = true)
         adminClient.createTopicIfMissing(CompetitionServiceTopics.CATEGORIES_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
         adminClient.createTopicIfMissing(CompetitionServiceTopics.CATEGORIES_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
         adminClient.createTopicIfMissing(CompetitionServiceTopics.MATS_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
@@ -72,6 +74,20 @@ class JobStream(kafkaProperties: KafkaProperties, competitionStateService: Categ
         val producerProperties = Properties().apply { putAll(kafkaProperties.producer.properties) }
         producerProperties[ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG] = StringSerializer::class.java.canonicalName
         producerProperties[ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG] = CommandSerializer::class.java.canonicalName
+
+        val catStateForwardingProducerProperties = Properties()
+                .apply { putAll(kafkaProperties.producer.properties) }
+                .apply {
+                    put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer::class.java.canonicalName)
+                    put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, CategoryStateSerializer::class.java.canonicalName)
+                }
+        val matStateForwardingProducerProperties = Properties()
+                .apply { putAll(kafkaProperties.producer.properties) }
+                .apply {
+                    put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer::class.java.canonicalName)
+                    put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, MatStateSerializer::class.java.canonicalName)
+                }
+
 
         internalCommandProducer = KafkaProducer(producerProperties)
 
@@ -92,7 +108,7 @@ class JobStream(kafkaProperties: KafkaProperties, competitionStateService: Categ
         builder.addStateStore(matStateStoreBuilder)
         val categoryCommands = builder.stream<String, Command>(CompetitionServiceTopics.CATEGORIES_COMMANDS_TOPIC_NAME, Consumed.with(Serdes.String(), CommandSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
         val categoryEvents = categoryCommands
-                .transformValues(ValueTransformerSupplier { CategoryCommandExecutorTransformer(CATEGORY_STATE_STORE_NAME, competitionStateService, zookeeperSession, categoryCommandsValidatorRegistry) }, CATEGORY_STATE_STORE_NAME)
+                .transformValues(ValueTransformerSupplier { CategoryCommandExecutorTransformer(CATEGORY_STATE_STORE_NAME, competitionStateService, zookeeperSession, categoryCommandsValidatorRegistry, catStateForwardingProducerProperties) }, CATEGORY_STATE_STORE_NAME)
         categoryEvents.filter { _, value -> value != null && !value.isEmpty() }
                 .flatMapValues { value -> value.toList() }
                 .peek { key, value -> log.info("Produced a category event: $key -> $value") }
@@ -100,7 +116,7 @@ class JobStream(kafkaProperties: KafkaProperties, competitionStateService: Categ
 
         val matCommands = builder.stream<String, Command>(CompetitionServiceTopics.MATS_COMMANDS_TOPIC_NAME, Consumed.with(Serdes.String(), CommandSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
         val matEvents = matCommands
-                .transformValues(ValueTransformerSupplier { MatCommandExecutorTransformer(MAT_STATE_STORE_NAME, matCommandsValidatorRegistry) }, MAT_STATE_STORE_NAME)
+                .transformValues(ValueTransformerSupplier { MatCommandExecutorTransformer(MAT_STATE_STORE_NAME, matCommandsValidatorRegistry, matStateForwardingProducerProperties) }, MAT_STATE_STORE_NAME)
         matEvents.filter { _, value -> value != null && !value.isEmpty() }
                 .flatMapValues { value -> value.toList() }
                 .peek { key, value -> log.info("Produced a mat event: $key -> $value") }
