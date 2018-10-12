@@ -1,6 +1,7 @@
 package compman.compsrv.kafka.streams
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.brackets.BracketDescriptor
 import compman.compsrv.model.competition.Category
 import compman.compsrv.model.competition.CompetitionProperties
@@ -14,30 +15,20 @@ import compman.compsrv.model.es.events.EventType
 import compman.compsrv.model.schedule.ScheduleProperties
 import compman.compsrv.service.ScheduleService
 import compman.compsrv.service.StateQueryService
-import org.apache.kafka.streams.kstream.ValueTransformer
-import org.apache.kafka.streams.processor.ProcessorContext
-import org.apache.kafka.streams.state.KeyValueStore
 import org.slf4j.LoggerFactory
 import java.math.BigDecimal
+import java.util.*
 
-class GlobalCompetitionCommandExecutorTransformer(private val stateStoreName: String,
+class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
                                                   private val scheduleService: ScheduleService,
                                                   private val stateQueryService: StateQueryService,
-                                                  private val mapper: ObjectMapper) : ValueTransformer<Command, EventHolder> {
+                                                  private val mapper: ObjectMapper,
+                                                  producerProperties: Properties)
+    : StateForwardingValueTransformer<Command, EventHolder, CompetitionProperties>(stateStoreName, CompetitionServiceTopics.COMPETITION_STATE_CHANGELOG_TOPIC_NAME, producerProperties) {
 
     companion object {
         private val log = LoggerFactory.getLogger(GlobalCompetitionCommandExecutorTransformer::class.java)
 
-    }
-
-    private lateinit var stateStore: KeyValueStore<String, CompetitionProperties>
-    private lateinit var context: ProcessorContext
-
-
-    override fun init(context: ProcessorContext?) {
-        this.context = context ?: throw IllegalStateException("Context cannot be null")
-        stateStore = (context.getStateStore(stateStoreName)
-                ?: throw IllegalStateException("Cannot get stateStore store $stateStoreName")) as KeyValueStore<String, CompetitionProperties>
     }
 
     private fun getProperties(competitionId: String): CompetitionProperties? {
@@ -62,18 +53,10 @@ class GlobalCompetitionCommandExecutorTransformer(private val stateStoreName: St
         return categories.map { it.categoryId!! to it.fightDuration }.toMap()
     }
 
-
-    override fun transform(command: Command?): EventHolder? {
-        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(
-                command?.competitionId ?: "null",
-                command?.categoryId,
-                command?.matId, type, payload)
-                .setCommandOffset(context.offset())
-                .setCommandPartition(context.partition())
-
-        fun createErrorEvent(error: String) = EventHolder(command?.competitionId ?: "null",
-                command?.categoryId,
-                command?.matId,
+    override fun doTransform(command: Command?): Triple<String?, CompetitionProperties?, EventHolder?> {
+        fun createErrorEvent(error: String) = EventHolder(command!!.correlatioId, command.competitionId,
+                command.categoryId,
+                command.matId,
                 EventType.ERROR_EVENT, mapOf("error" to error))
                 .setCommandOffset(context.offset())
                 .setCommandPartition(context.partition())
@@ -88,19 +71,21 @@ class GlobalCompetitionCommandExecutorTransformer(private val stateStoreName: St
                     } else {
                         stateStore.delete(command.competitionId)
                     }
-                    event.setCommandOffset(context.offset())
+                    Triple(command.competitionId, newProperties, event.setCommandOffset(context.offset()))
                 } else {
                     log.warn("Not executed: command is $command, state is $properties, partition: ${context.partition()}, offset: ${context.offset()}")
-                    null
+                    Triple(null, null, null)
                 }
             } else {
                 log.warn("Did not execute because command is null")
-                null
+                Triple(null, null, null)
+
             }
         } catch (e: Throwable) {
             log.error("Error while processing command: $command", e)
-            createErrorEvent("${e.message}")
+            Triple(null, null, createErrorEvent("${e.message}"))
         }
+
     }
 
     private fun canExecuteCommand(command: Command?): Boolean {
@@ -134,12 +119,12 @@ class GlobalCompetitionCommandExecutorTransformer(private val stateStoreName: St
     }
 
     private fun executeCommand(command: Command, properties: CompetitionProperties?, offset: Long, partition: Int): Pair<CompetitionProperties?, EventHolder> {
-        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.competitionId, command.categoryId
+        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, type, payload)
                 .setCommandOffset(offset)
                 .setCommandPartition(partition)
 
-        fun createErrorEvent(error: String) = EventHolder(command.competitionId, command.categoryId
+        fun createErrorEvent(error: String) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, EventType.ERROR_EVENT, mapOf("error" to error))
                 .setCommandOffset(offset)
                 .setCommandPartition(partition)

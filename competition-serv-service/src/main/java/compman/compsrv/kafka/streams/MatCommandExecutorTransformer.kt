@@ -1,6 +1,7 @@
 package compman.compsrv.kafka.streams
 
 import compman.compsrv.json.ObjectMapperFactory
+import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.competition.FightDescription
 import compman.compsrv.model.competition.MatState
 import compman.compsrv.model.es.commands.Command
@@ -8,32 +9,22 @@ import compman.compsrv.model.es.commands.CommandType
 import compman.compsrv.model.es.events.EventHolder
 import compman.compsrv.model.es.events.EventType
 import compman.compsrv.validators.MatCommandsValidatorRegistry
-import org.apache.kafka.streams.kstream.ValueTransformer
-import org.apache.kafka.streams.processor.ProcessorContext
-import org.apache.kafka.streams.state.KeyValueStore
 import org.slf4j.LoggerFactory
+import java.util.*
 
-class MatCommandExecutorTransformer(private val stateStoreName: String,
-                                    private val validators: MatCommandsValidatorRegistry) : ValueTransformer<Command, Array<EventHolder>> {
+class MatCommandExecutorTransformer(stateStoreName: String,
+                                    private val validators: MatCommandsValidatorRegistry,
+                                    producerProperties: Properties) : StateForwardingValueTransformer<Command, Array<EventHolder>, MatState>(stateStoreName, CompetitionServiceTopics.MAT_STATE_CHANGELOG_TOPIC_NAME, producerProperties) {
 
     companion object {
         private val log = LoggerFactory.getLogger(MatCommandExecutorTransformer::class.java)
     }
-
-    private lateinit var stateStore: KeyValueStore<String, MatState>
-    private lateinit var context: ProcessorContext
     private val mapper = ObjectMapperFactory.createObjectMapper()
 
-    override fun init(context: ProcessorContext?) {
-        this.context = context ?: throw IllegalStateException("Context cannot be null")
-        stateStore = (context.getStateStore(stateStoreName)
-                ?: throw IllegalStateException("Cannot get stateStore store $stateStoreName")) as KeyValueStore<String, MatState>
-    }
 
-
-    override fun transform(command: Command?): Array<EventHolder> {
+    override fun doTransform(command: Command?): Triple<String?, MatState?, Array<EventHolder>?> {
         fun createEvent(type: EventType, payload: Map<String, Any?>?) =
-                EventHolder(command?.competitionId ?: "null", command?.categoryId, command?.matId, type, payload)
+                EventHolder(command!!.correlatioId, command.competitionId, command.categoryId, command.matId, type, payload)
                         .setCommandPartition(context.partition())
                         .setCommandOffset(context.offset())
         return try {
@@ -47,29 +38,29 @@ class MatCommandExecutorTransformer(private val stateStoreName: String,
                     if (events.any { it.type != EventType.ERROR_EVENT } && (newState != null || events.any { it.type == EventType.CATEGORY_STATE_DELETED })) {
                         stateStore.put(matId, newState?.setEventOffset(context.offset())?.setEventPartition(context.partition()))
                     }
-                    events.toTypedArray()
+                    Triple(matId, newState, events.toTypedArray())
                 } else {
                     log.warn("Not executed, command validation failed.  \nCommand: $command. \nState: $state. \nPartition: ${context.partition()}. \nOffset: ${context.offset()}, errors: $validationErrors")
-                    arrayOf(createEvent(EventType.ERROR_EVENT, mapOf("errors" to validationErrors)))
+                    Triple(null, null, arrayOf(createEvent(EventType.ERROR_EVENT, mapOf("errors" to validationErrors))))
                 }
             } else {
                 log.warn("Did not execute because either command is null (${command == null}) or competition id is wrong: ${command?.competitionId}")
-                arrayOf(createEvent(EventType.ERROR_EVENT,
-                        mapOf("error" to "Did not execute command $command because either it is null (${command == null}) or competition id is wrong: ${command?.competitionId}")))
+                Triple(null, null, arrayOf(createEvent(EventType.ERROR_EVENT,
+                        mapOf("error" to "Did not execute command $command because either it is null (${command == null}) or competition id is wrong: ${command?.competitionId}"))))
             }
         } catch (e: Throwable) {
             log.error("Error while processing command: $command", e)
-            arrayOf(createEvent(EventType.ERROR_EVENT, mapOf("error" to "${e.message}")))
+            Triple(null, null, arrayOf(createEvent(EventType.ERROR_EVENT, mapOf("error" to "${e.message}"))))
         }
     }
 
     private fun executeCommand(command: Command, state: MatState?, offset: Long, partition: Int): Pair<MatState?, List<EventHolder>> {
-        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.competitionId, command.categoryId
+        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, type, payload)
                 .setCommandOffset(offset)
                 .setCommandPartition(partition)
 
-        fun createErrorEvent(error: String) = EventHolder(command.competitionId, command.categoryId
+        fun createErrorEvent(error: String) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, EventType.ERROR_EVENT, mapOf("error" to error))
                 .setCommandOffset(offset)
                 .setCommandPartition(partition)

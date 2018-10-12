@@ -38,7 +38,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
-class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val scheduleService: ScheduleService, private val stateQueryService: StateQueryService, kafkaProperties: KafkaProperties) {
+class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val scheduleService: ScheduleService, private val stateQueryService: StateQueryService, private val kafkaProperties: KafkaProperties) {
 
     companion object {
         private val log = LoggerFactory.getLogger(LeaderProcessStreams::class.java)
@@ -56,8 +56,10 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
     val metadataService: MetadataService
 
     init {
-        val properties = Properties().apply { putAll(kafkaProperties.streamProperties) }
+        val streamProperties = Properties().apply { putAll(kafkaProperties.streamProperties) }
 
+        adminClient.createTopicIfMissing(CompetitionServiceTopics.COMPETITION_STATE_CHANGELOG_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor, compacted = true)
+        adminClient.createTopicIfMissing(CompetitionServiceTopics.DASHBOARD_STATE_CHANGELOG_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor, compacted = true)
         val categoriesCommandsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.CATEGORIES_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
         val competitionsCommandsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
         val competitionsEventsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.COMPETITIONS_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
@@ -68,7 +70,7 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
         val matsGlobalInternalEventsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.MATS_GLOBAL_INTERNAL_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
         val builder = createStreamsBuilder(competitionsCommandsTopic, competitionsEventsTopic, categoriesCommandsTopic, competitionsInternalEventsTopic)
         val topology = addMatsCommandsProcessing(builder, matsCommandsTopic, matsGlobalCommandsTopic, matsGlobalEventsTopic, matsGlobalInternalEventsTopic).build()
-        streamOfCompetitions = KafkaStreams(topology, properties)
+        streamOfCompetitions = KafkaStreams(topology, streamProperties)
         metadataService = MetadataService(streamOfCompetitions)
         Runtime.getRuntime().addShutdownHook(thread(start = false) { adminClient.close() })
         Runtime.getRuntime().addShutdownHook(thread(start = false) { streamOfCompetitions.close(10, TimeUnit.SECONDS) })
@@ -88,7 +90,8 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
                             val catStateKeyValue = it.next()
                             if (catStateKeyValue.value != null) {
                                 val competitionId = catStateKeyValue.value.competitionId
-                                internalCommandProducer.send(ProducerRecord(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, competitionId, Command(competitionId, CommandType.CHECK_DASHBOARD_OBSOLETE, null, null, emptyMap())))
+                                internalCommandProducer.send(ProducerRecord(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, competitionId, Command(competitionId,
+                                        CommandType.CHECK_DASHBOARD_OBSOLETE, null, null, emptyMap())))
                             }
                         } catch (e: Throwable) {
                             log.error("Exception while checking for dashboard obsolete", e)
@@ -103,6 +106,13 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
     }
 
     private fun createStreamsBuilder(competitionsCommandsTopic: String, competitionsEventsTopic: String, categoriesCommandsTopic: String, competitionsInternalEventsTopic: String): StreamsBuilder {
+        val compPropForwardingProducerProps = Properties()
+                .apply { putAll(kafkaProperties.producer.properties) }
+                .apply {
+                    put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer::class.java.canonicalName)
+                    put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, CompetitionPropsSerializer::class.java.canonicalName)
+                }
+
         val builder = StreamsBuilder()
         val propsStoreBuilder = Stores.keyValueStoreBuilder(Stores.persistentKeyValueStore(COMPETITION_PROPERTIES_STORE_NAME),
                 Serdes.String(),
@@ -116,10 +126,11 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
                     GlobalCompetitionCommandExecutorTransformer(COMPETITION_PROPERTIES_STORE_NAME,
                             scheduleService,
                             stateQueryService,
-                            mapper)
+                            mapper,
+                            compPropForwardingProducerProps)
                 }, COMPETITION_PROPERTIES_STORE_NAME)
                 .filterNot { _, value -> value == null || value.type == EventType.DUMMY }
-                .to({_, event, _ -> KafkaAdminUtils.getEventRouting(event, competitionsInternalEventsTopic) }, Produced.with(Serdes.String(), EventSerde()))
+                .to({ _, event, _ -> KafkaAdminUtils.getEventRouting(event, competitionsInternalEventsTopic) }, Produced.with(Serdes.String(), EventSerde()))
 
         val internalEventsStream = builder.stream<String, EventHolder>(competitionsInternalEventsTopic, Consumed.with(Serdes.String(), EventSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
 
@@ -199,16 +210,27 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
     }
 
     private fun addMatsCommandsProcessing(builder: StreamsBuilder, matsCommandsTopic: String, matsGlobalCommandsTopic: String, matsGlobalEventsTopic: String, matsGlobalInternalEventsTopic: String): StreamsBuilder {
-        val propsStoreBuilder = Stores.keyValueStoreBuilder(Stores.persistentKeyValueStore(COMPETITION_DASHBOARD_STATE_STORE_NAME),
+
+        val dashboardStateForwardingProducerProps = Properties()
+                .apply { putAll(kafkaProperties.producer.properties) }
+                .apply {
+                    put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer::class.java.canonicalName)
+                    put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, CompetitionDashboardStateSerializer::class.java.canonicalName)
+                }
+
+
+        val dashboardStateStoreBuilder = Stores.keyValueStoreBuilder(Stores.persistentKeyValueStore(COMPETITION_DASHBOARD_STATE_STORE_NAME),
                 Serdes.String(),
                 Serdes.serdeFrom(CompetitionDashboardStateSerializer(), CompetitionDashboardStateDeserializer()))
-        builder.addStateStore(propsStoreBuilder)
+        builder.addStateStore(dashboardStateStoreBuilder)
         val matsGlobalCommands = builder.stream<String, Command>(matsGlobalCommandsTopic, Consumed.with(Serdes.String(), CommandSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
+
+
 
         matsGlobalCommands
                 .filter { key, value -> value != null && !key.isNullOrBlank() }
                 .transformValues(ValueTransformerSupplier {
-                    MatGlobalCommandExecutorTransformer(COMPETITION_DASHBOARD_STATE_STORE_NAME, stateQueryService)
+                    MatGlobalCommandExecutorTransformer(COMPETITION_DASHBOARD_STATE_STORE_NAME, stateQueryService, dashboardStateForwardingProducerProps)
                 }, COMPETITION_DASHBOARD_STATE_STORE_NAME)
                 .flatMapValues { value -> value.toList() }
                 .filterNot { _, value -> value == null || value.type == EventType.DUMMY }
