@@ -136,7 +136,10 @@ class JobStream(kafkaProperties: KafkaProperties, competitionStateService: Categ
                             if (catStateKeyValue.value != null) {
                                 val competititonId = catStateKeyValue.value.category.competitionId
                                 val categoryId = catStateKeyValue.key
-                                internalCommandProducer.send(ProducerRecord(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, competititonId, Command(competititonId, CommandType.CHECK_CATEGORY_OBSOLETE, categoryId, null, emptyMap())))
+                                internalCommandProducer.send(ProducerRecord(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME,
+                                        competititonId, Command(UUID.randomUUID().toString(),
+                                        competititonId,
+                                        CommandType.CHECK_CATEGORY_OBSOLETE, categoryId, null, emptyMap())))
                             }
                         } catch (e: Throwable) {
                             log.error("Exception while checking for category obsolete", e)
@@ -151,7 +154,8 @@ class JobStream(kafkaProperties: KafkaProperties, competitionStateService: Categ
                             if (matStateKeyValue.value != null) {
                                 val competititonId = matStateKeyValue.value.competitionId
                                 val matId = matStateKeyValue.key
-                                internalCommandProducer.send(ProducerRecord(CompetitionServiceTopics.MATS_GLOBAL_COMMANDS_TOPIC_NAME, competititonId, Command(competititonId, CommandType.CHECK_MAT_OBSOLETE, null, matId, emptyMap())))
+                                internalCommandProducer.send(ProducerRecord(CompetitionServiceTopics.MATS_GLOBAL_COMMANDS_TOPIC_NAME, competititonId, Command(UUID.randomUUID().toString(),
+                                        competititonId, CommandType.CHECK_MAT_OBSOLETE, null, matId, emptyMap())))
                             }
                         } catch (e: Throwable) {
                             log.error("Exception while checking for mat obsolete", e)

@@ -22,6 +22,15 @@ class MatGlobalCommandExecutorTransformer(stateStoreName: String,
     }
 
     override fun doTransform(command: Command?): Triple<String?, CompetitionDashboardState?, Array<EventHolder>?> {
+        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command!!.correlatioId, command.competitionId, command.categoryId
+                ?: "null", command.matId, type, payload)
+                .setCommandOffset(context.offset())
+                .setCommandPartition(context.partition())
+
+        fun createErrorEvent(error: String) = EventHolder(command!!.correlatioId, command.competitionId, command.categoryId
+                ?: "null", command.matId, EventType.ERROR_EVENT, mapOf("error" to error))
+                .setCommandOffset(context.offset())
+                .setCommandPartition(context.partition())
         return try {
             log.info("Executing a mat command: $command, partition: ${context.partition()}, offset: ${context.offset()}")
             if (command?.competitionId != null) {
@@ -36,34 +45,25 @@ class MatGlobalCommandExecutorTransformer(stateStoreName: String,
                     Triple(competitionId, newState, events.toTypedArray())
                 } else {
                     log.warn("Not executed, command validation failed.  \nCommand: $command. \nState: $state. \nPartition: ${context.partition()}. \nOffset: ${context.offset()}, errors: $validationErrors")
-                    Triple(null, null, arrayOf(EventHolder(command.competitionId, command.categoryId, command.matId, EventType.ERROR_EVENT, mapOf("errors" to validationErrors))
-                            .setCommandPartition(context.partition())
-                            .setCommandOffset(context.offset())))
+                    Triple(null, null, arrayOf(createEvent(EventType.ERROR_EVENT, mapOf("errors" to validationErrors))))
                 }
             } else {
                 log.warn("Did not execute because either command is null (${command == null}) or competition id is wrong: ${command?.competitionId}")
-                Triple(null, null, arrayOf(EventHolder(command?.competitionId
-                        ?: "null", command?.categoryId, command?.matId, EventType.ERROR_EVENT,
-                        mapOf("error" to "Did not execute command $command because either it is null (${command == null}) or competition id is wrong: ${command?.competitionId}"))
-                        .setCommandPartition(context.partition())
-                        .setCommandOffset(context.offset())))
+                Triple(null, null, arrayOf(createErrorEvent("Did not execute command $command because either it is null (${command == null}) or competition id is wrong: ${command?.competitionId}")))
             }
         } catch (e: Throwable) {
             log.error("Error while processing command: $command", e)
-            Triple(null, null, arrayOf(EventHolder(command?.competitionId
-                    ?: "null", command?.categoryId, command?.matId, EventType.ERROR_EVENT, mapOf("error" to "${e.message}"))
-                    .setCommandPartition(context.partition())
-                    .setCommandOffset(context.offset())))
+            Triple(null, null, arrayOf(createErrorEvent(e.message ?: e::class.java.canonicalName)))
         }
     }
 
     private fun executeCommand(command: Command, state: CompetitionDashboardState?, offset: Long, partition: Int): Pair<CompetitionDashboardState?, List<EventHolder>> {
-        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.competitionId, command.categoryId, command.matId
+        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId, command.matId
                 ?: "null", type, payload)
                 .setCommandOffset(offset)
                 .setCommandPartition(partition)
 
-        fun createErrorEvent(error: String) = EventHolder(command.competitionId, command.categoryId, command.matId
+        fun createErrorEvent(error: String) = EventHolder(command.correlatioId, command.competitionId, command.categoryId, command.matId
                 ?: "null", EventType.ERROR_EVENT, mapOf("error" to error))
                 .setCommandOffset(offset)
                 .setCommandPartition(partition)

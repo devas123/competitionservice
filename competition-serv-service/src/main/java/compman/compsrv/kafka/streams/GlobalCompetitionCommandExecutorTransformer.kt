@@ -54,9 +54,9 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
     }
 
     override fun doTransform(command: Command?): Triple<String?, CompetitionProperties?, EventHolder?> {
-        fun createErrorEvent(error: String) = EventHolder(command?.competitionId ?: "null",
-                command?.categoryId,
-                command?.matId,
+        fun createErrorEvent(error: String) = EventHolder(command!!.correlatioId, command.competitionId,
+                command.categoryId,
+                command.matId,
                 EventType.ERROR_EVENT, mapOf("error" to error))
                 .setCommandOffset(context.offset())
                 .setCommandPartition(context.partition())
@@ -119,12 +119,12 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
     }
 
     private fun executeCommand(command: Command, properties: CompetitionProperties?, offset: Long, partition: Int): Pair<CompetitionProperties?, EventHolder> {
-        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.competitionId, command.categoryId
+        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, type, payload)
                 .setCommandOffset(offset)
                 .setCommandPartition(partition)
 
-        fun createErrorEvent(error: String) = EventHolder(command.competitionId, command.categoryId
+        fun createErrorEvent(error: String) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, EventType.ERROR_EVENT, mapOf("error" to error))
                 .setCommandOffset(offset)
                 .setCommandPartition(partition)

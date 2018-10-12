@@ -6,20 +6,22 @@ import org.springframework.data.annotation.PersistenceConstructor
 
 data class EventHolder @JsonCreator
 @PersistenceConstructor
-constructor(@JsonProperty("competitionId") val competitionId: String,
-            @JsonProperty("categoryId") val categoryId: String?,
-            @JsonProperty("matId") val matId: String?,
-            @JsonProperty("type") val type: EventType,
-            @JsonProperty("eventOffset") val eventOffset: Long,
-            @JsonProperty("eventPartition") val eventPartition: Int,
-            @JsonProperty("commandOffset") val commandOffset: Long,
-            @JsonProperty("commandPartition") val commandPartition: Int,
-            @JsonProperty("payload") var payload: Map<String, Any?>?,
-            @JsonProperty("metadata") val metadata: Map<String, Any>?) {
+constructor(
+        @JsonProperty("correlationId") val correlationId: String,
+        @JsonProperty("competitionId") val competitionId: String,
+        @JsonProperty("categoryId") val categoryId: String?,
+        @JsonProperty("matId") val matId: String?,
+        @JsonProperty("type") val type: EventType,
+        @JsonProperty("eventOffset") val eventOffset: Long,
+        @JsonProperty("eventPartition") val eventPartition: Int,
+        @JsonProperty("commandOffset") val commandOffset: Long,
+        @JsonProperty("commandPartition") val commandPartition: Int,
+        @JsonProperty("payload") var payload: Map<String, Any?>?,
+        @JsonProperty("metadata") val metadata: Map<String, Any>?) {
     @JsonProperty("timestamp")
     val timestamp: Long = System.currentTimeMillis()
 
-    constructor(competitionId: String, categoryId: String?, matId: String?, type: EventType, payload: Map<String, Any?>?) : this(competitionId, categoryId, matId, type, -1L, -1, -1L, -1, payload, emptyMap())
+    constructor(correlationId: String, competitionId: String, categoryId: String?, matId: String?, type: EventType, payload: Map<String, Any?>?) : this(correlationId, competitionId, categoryId, matId, type, -1L, -1, -1L, -1, payload, emptyMap())
 
     fun setCommandOffset(commandOffset: Long) = copy(commandOffset = commandOffset)
     fun setCommandPartition(commandPartition: Int) = copy(commandPartition = commandPartition)

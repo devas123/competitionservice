@@ -90,7 +90,8 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
                             val catStateKeyValue = it.next()
                             if (catStateKeyValue.value != null) {
                                 val competitionId = catStateKeyValue.value.competitionId
-                                internalCommandProducer.send(ProducerRecord(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, competitionId, Command(competitionId, CommandType.CHECK_DASHBOARD_OBSOLETE, null, null, emptyMap())))
+                                internalCommandProducer.send(ProducerRecord(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, competitionId, Command(competitionId,
+                                        CommandType.CHECK_DASHBOARD_OBSOLETE, null, null, emptyMap())))
                             }
                         } catch (e: Throwable) {
                             log.error("Exception while checking for dashboard obsolete", e)

@@ -24,7 +24,7 @@ class MatCommandExecutorTransformer(stateStoreName: String,
 
     override fun doTransform(command: Command?): Triple<String?, MatState?, Array<EventHolder>?> {
         fun createEvent(type: EventType, payload: Map<String, Any?>?) =
-                EventHolder(command?.competitionId ?: "null", command?.categoryId, command?.matId, type, payload)
+                EventHolder(command!!.correlatioId, command.competitionId, command.categoryId, command.matId, type, payload)
                         .setCommandPartition(context.partition())
                         .setCommandOffset(context.offset())
         return try {
@@ -55,12 +55,12 @@ class MatCommandExecutorTransformer(stateStoreName: String,
     }
 
     private fun executeCommand(command: Command, state: MatState?, offset: Long, partition: Int): Pair<MatState?, List<EventHolder>> {
-        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.competitionId, command.categoryId
+        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, type, payload)
                 .setCommandOffset(offset)
                 .setCommandPartition(partition)
 
-        fun createErrorEvent(error: String) = EventHolder(command.competitionId, command.categoryId
+        fun createErrorEvent(error: String) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, EventType.ERROR_EVENT, mapOf("error" to error))
                 .setCommandOffset(offset)
                 .setCommandPartition(partition)

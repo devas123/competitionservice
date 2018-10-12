@@ -28,7 +28,8 @@ class CategoryCommandExecutorTransformer(stateStoreName: String, private val cat
 
     override fun doTransform(command: Command?): Triple<String?, CategoryState?, Array<EventHolder>?> {
         fun createEvent(type: EventType, payload: Map<String, Any?>?) =
-                EventHolder(command?.competitionId ?: "null", command?.categoryId, command?.matId, type, payload)
+                EventHolder(command?.correlatioId ?: throw IllegalArgumentException("Command is null"),
+                        command.competitionId, command.categoryId, command.matId, type, payload)
                         .setCommandPartition(context.partition())
                         .setCommandOffset(context.offset())
         return try {
