@@ -17,25 +17,19 @@ import compman.compsrv.service.ScheduleService
 import compman.compsrv.service.StateQueryService
 import org.slf4j.LoggerFactory
 import java.math.BigDecimal
-import java.util.*
 
 class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
                                                   private val scheduleService: ScheduleService,
                                                   private val stateQueryService: StateQueryService,
-                                                  private val mapper: ObjectMapper,
-                                                  producerProperties: Properties)
-    : StateForwardingValueTransformer<Command, EventHolder, CompetitionProperties>(stateStoreName, CompetitionServiceTopics.COMPETITION_STATE_CHANGELOG_TOPIC_NAME, producerProperties) {
+                                                  private val mapper: ObjectMapper)
+    : StateForwardingValueTransformer<CompetitionProperties>(stateStoreName, CompetitionServiceTopics.COMPETITION_STATE_CHANGELOG_TOPIC_NAME) {
+
+    override fun getKey(command: Command?): String = command?.competitionId
+            ?: throw IllegalArgumentException("No competition Id. $command")
 
     companion object {
         private val log = LoggerFactory.getLogger(GlobalCompetitionCommandExecutorTransformer::class.java)
 
-    }
-
-    private fun getProperties(competitionId: String): CompetitionProperties? {
-        if (stateStore[competitionId] == null) {
-            log.warn("There are no properties for competition $competitionId")
-        }
-        return stateStore[competitionId]
     }
 
     private fun getCategoryState(categoryId: String) = stateQueryService.getCategoryState(categoryId)
@@ -53,27 +47,19 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
         return categories.map { it.categoryId!! to it.fightDuration }.toMap()
     }
 
-    override fun doTransform(command: Command?): Triple<String?, CompetitionProperties?, EventHolder?> {
+    override fun doTransform(currentState: CompetitionProperties?, command: Command?): Triple<String?, CompetitionProperties?, List<EventHolder>?> {
         fun createErrorEvent(error: String) = EventHolder(command!!.correlatioId, command.competitionId,
                 command.categoryId,
                 command.matId,
                 EventType.ERROR_EVENT, mapOf("error" to error))
-                .setCommandOffset(context.offset())
-                .setCommandPartition(context.partition())
         return try {
             log.info("Executing a command: $command, partition: ${context.partition()}, offset: ${context.offset()}")
             if (command != null) {
-                val properties = getProperties(command.competitionId)
-                if (canExecuteCommand(command)) {
-                    val (newProperties, event) = executeCommand(command, properties, context.offset(), context.partition())
-                    if (newProperties != null) {
-                        stateStore.put(command.competitionId, newProperties)
-                    } else {
-                        stateStore.delete(command.competitionId)
-                    }
-                    Triple(command.competitionId, newProperties, event.setCommandOffset(context.offset()))
+                if (canExecuteCommand(currentState, command)) {
+                    val (newProperties, event) = executeCommand(command, currentState)
+                    Triple(command.competitionId, newProperties, listOf(event))
                 } else {
-                    log.warn("Not executed: command is $command, state is $properties, partition: ${context.partition()}, offset: ${context.offset()}")
+                    log.warn("Not executed: command is $command, state is $currentState, partition: ${context.partition()}, offset: ${context.offset()}")
                     Triple(null, null, null)
                 }
             } else {
@@ -83,26 +69,24 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
             }
         } catch (e: Throwable) {
             log.error("Error while processing command: $command", e)
-            Triple(null, null, createErrorEvent("${e.message}"))
+            Triple(null, null, listOf(createErrorEvent("${e.message}")))
         }
 
     }
 
-    private fun canExecuteCommand(command: Command?): Boolean {
+    private fun canExecuteCommand(props: CompetitionProperties?, command: Command?): Boolean {
         return when (command?.type) {
             CommandType.CHECK_CATEGORY_OBSOLETE -> {
                 true
             }
             CommandType.START_COMPETITION_COMMAND -> {
-                val props = stateStore[command.competitionId]
                 props?.status != CompetitionStatus.STARTED
             }
             CommandType.ADD_COMPETITOR_COMMAND -> {
-                val props = stateStore[command.competitionId]
                 val competitor = mapper.convertValue(command.payload, Competitor::class.java)
                 !competitor?.email.isNullOrBlank() && props?.registeredIds?.contains(competitor.email) != true
             }
-            CommandType.CREATE_COMPETITION_COMMAND -> this.stateStore[command.competitionId] == null
+            CommandType.CREATE_COMPETITION_COMMAND -> props == null
             CommandType.CHANGE_COMPETITOR_CATEGORY_COMMAND -> {
                 return try {
                     val payload = command.payload!!
@@ -118,16 +102,12 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
         }
     }
 
-    private fun executeCommand(command: Command, properties: CompetitionProperties?, offset: Long, partition: Int): Pair<CompetitionProperties?, EventHolder> {
+    private fun executeCommand(command: Command, properties: CompetitionProperties?): Pair<CompetitionProperties?, EventHolder> {
         fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, type, payload)
-                .setCommandOffset(offset)
-                .setCommandPartition(partition)
 
         fun createErrorEvent(error: String) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, EventType.ERROR_EVENT, mapOf("error" to error))
-                .setCommandOffset(offset)
-                .setCommandPartition(partition)
 
         if (properties == null) {
             return when (command.type) {
@@ -136,7 +116,7 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
                 }
                 CommandType.CREATE_COMPETITION_COMMAND -> {
                     val payload = command.payload!!
-                    val tmpProps = CompetitionProperties(command.competitionId, payload["competitionName" +
+                    val tmpProps = CompetitionProperties(command.correlatioId, command.competitionId, payload["competitionName" +
                             ""].toString(), payload["creatorId"].toString())
                     val newproperties = tmpProps.applyProperties(payload)
                     newproperties to createEvent(EventType.COMPETITION_CREATED, mapOf("properties" to newproperties))
@@ -238,14 +218,4 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
             }
         }
     }
-
-    override fun close() {
-        try {
-            stateStore.close()
-        } catch (e: Exception) {
-            log.warn("Exception while closing store." +
-                    "", e)
-        }
-    }
-
 }

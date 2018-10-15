@@ -31,6 +31,7 @@ import org.apache.kafka.streams.kstream.Consumed
 import org.apache.kafka.streams.kstream.Produced
 import org.apache.kafka.streams.kstream.ValueTransformerSupplier
 import org.apache.kafka.streams.state.QueryableStoreTypes
+import org.apache.kafka.streams.state.ReadOnlyKeyValueStore
 import org.apache.kafka.streams.state.Stores
 import org.slf4j.LoggerFactory
 import java.util.*
@@ -45,6 +46,7 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
         const val COMPETITION_PROPERTIES_STORE_NAME = "competition_properties"
         const val COMPETITION_DASHBOARD_STATE_STORE_NAME = "competition_dashboard_state"
         const val ROUTING_METADATA_KEY = "routing"
+        const val CORRELATION_ID_KEY = "correlationId"
         const val KEY_METADATA_KEY = "key"
     }
 
@@ -106,13 +108,6 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
     }
 
     private fun createStreamsBuilder(competitionsCommandsTopic: String, competitionsEventsTopic: String, categoriesCommandsTopic: String, competitionsInternalEventsTopic: String): StreamsBuilder {
-        val compPropForwardingProducerProps = Properties()
-                .apply { putAll(kafkaProperties.producer.properties) }
-                .apply {
-                    put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer::class.java.canonicalName)
-                    put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, CompetitionPropsSerializer::class.java.canonicalName)
-                }
-
         val builder = StreamsBuilder()
         val propsStoreBuilder = Stores.keyValueStoreBuilder(Stores.persistentKeyValueStore(COMPETITION_PROPERTIES_STORE_NAME),
                 Serdes.String(),
@@ -126,9 +121,9 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
                     GlobalCompetitionCommandExecutorTransformer(COMPETITION_PROPERTIES_STORE_NAME,
                             scheduleService,
                             stateQueryService,
-                            mapper,
-                            compPropForwardingProducerProps)
+                            mapper)
                 }, COMPETITION_PROPERTIES_STORE_NAME)
+                .flatMapValues { value -> value.toList() }
                 .filterNot { _, value -> value == null || value.type == EventType.DUMMY }
                 .to({ _, event, _ -> KafkaAdminUtils.getEventRouting(event, competitionsInternalEventsTopic) }, Produced.with(Serdes.String(), EventSerde()))
 
@@ -210,15 +205,6 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
     }
 
     private fun addMatsCommandsProcessing(builder: StreamsBuilder, matsCommandsTopic: String, matsGlobalCommandsTopic: String, matsGlobalEventsTopic: String, matsGlobalInternalEventsTopic: String): StreamsBuilder {
-
-        val dashboardStateForwardingProducerProps = Properties()
-                .apply { putAll(kafkaProperties.producer.properties) }
-                .apply {
-                    put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer::class.java.canonicalName)
-                    put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, CompetitionDashboardStateSerializer::class.java.canonicalName)
-                }
-
-
         val dashboardStateStoreBuilder = Stores.keyValueStoreBuilder(Stores.persistentKeyValueStore(COMPETITION_DASHBOARD_STATE_STORE_NAME),
                 Serdes.String(),
                 Serdes.serdeFrom(CompetitionDashboardStateSerializer(), CompetitionDashboardStateDeserializer()))
@@ -230,7 +216,7 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
         matsGlobalCommands
                 .filter { key, value -> value != null && !key.isNullOrBlank() }
                 .transformValues(ValueTransformerSupplier {
-                    MatGlobalCommandExecutorTransformer(COMPETITION_DASHBOARD_STATE_STORE_NAME, stateQueryService, dashboardStateForwardingProducerProps)
+                    MatGlobalCommandExecutorTransformer(COMPETITION_DASHBOARD_STATE_STORE_NAME, stateQueryService)
                 }, COMPETITION_DASHBOARD_STATE_STORE_NAME)
                 .flatMapValues { value -> value.toList() }
                 .filterNot { _, value -> value == null || value.type == EventType.DUMMY }
@@ -323,16 +309,18 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
 
     fun readCompProperties(statuses: Array<CompetitionStatus>?): Array<CompetitionProperties> {
         val store = getCompetitionPropertiesStore()
-        return store.all().use {
-            it.asSequence()
-                    .map { kv ->
-                        log.info("${kv.key} -> ${kv.value}")
-                        kv.value
-                    }
-                    .filter { cp ->
-                        statuses == null || statuses.contains(cp.status)
-                    }.toList().toTypedArray()
-        }
+        return store?.let { keyValueStore ->
+            keyValueStore.all().use {
+                it.asSequence()
+                        .map { kv ->
+                            log.info("${kv.key} -> ${kv.value}")
+                            kv.value
+                        }
+                        .filter { cp ->
+                            statuses == null || statuses.contains(cp.status)
+                        }.toList().toTypedArray()
+            }
+        } ?: emptyArray()
     }
 
     fun start() {
@@ -365,7 +353,7 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
     fun getCompetitionProperties(competitionId: String): CompetitionProperties? {
         try {
             val store = getCompetitionPropertiesStore()
-            return store.get(competitionId)
+            return store?.get(competitionId)
         } catch (e: Exception) {
             log.error("Exception while getting properties for competition with id $competitionId", e)
             log.info("Metadata for store $COMPETITION_PROPERTIES_STORE_NAME: ${metadataService.streamsMetadataForStore(COMPETITION_PROPERTIES_STORE_NAME)}")
@@ -384,7 +372,7 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
         }
     }
 
-    fun getCompetitionPropertiesStore() =
+    private fun getCompetitionPropertiesStore(): ReadOnlyKeyValueStore<String, CompetitionProperties>? =
             streamOfCompetitions.store(COMPETITION_PROPERTIES_STORE_NAME, QueryableStoreTypes.keyValueStore<String, CompetitionProperties>())
 
     private fun getDashboardStateStore() =

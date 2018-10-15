@@ -14,59 +14,47 @@ import java.time.format.DateTimeFormatter
 import java.util.*
 
 class MatGlobalCommandExecutorTransformer(stateStoreName: String,
-                                          private val stateQueryService: StateQueryService,
-                                          producerProperties: Properties) : StateForwardingValueTransformer<Command, Array<EventHolder>, CompetitionDashboardState>(stateStoreName, CompetitionServiceTopics.DASHBOARD_STATE_CHANGELOG_TOPIC_NAME, producerProperties) {
+                                          private val stateQueryService: StateQueryService) : StateForwardingValueTransformer<CompetitionDashboardState>(stateStoreName, CompetitionServiceTopics.DASHBOARD_STATE_CHANGELOG_TOPIC_NAME) {
+    override fun getKey(command: Command?) = command?.competitionId!!
 
     companion object {
         private val log = LoggerFactory.getLogger(MatGlobalCommandExecutorTransformer::class.java)
     }
 
-    override fun doTransform(command: Command?): Triple<String?, CompetitionDashboardState?, Array<EventHolder>?> {
+    override fun doTransform(currentState: CompetitionDashboardState?, command: Command?): Triple<String?, CompetitionDashboardState?, List<EventHolder>?> {
         fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command!!.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, type, payload)
-                .setCommandOffset(context.offset())
-                .setCommandPartition(context.partition())
 
         fun createErrorEvent(error: String) = EventHolder(command!!.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, EventType.ERROR_EVENT, mapOf("error" to error))
-                .setCommandOffset(context.offset())
-                .setCommandPartition(context.partition())
         return try {
             log.info("Executing a mat command: $command, partition: ${context.partition()}, offset: ${context.offset()}")
             if (command?.competitionId != null) {
                 val competitionId = command.competitionId
-                val state = stateStore.get(competitionId)
-                val validationErrors = canExecuteCommand(state, command)
+                val validationErrors = canExecuteCommand(currentState, command)
                 if (validationErrors.isEmpty()) {
-                    val (newState, events) = executeCommand(command, state, context.offset(), context.partition())
-                    if (events.any { it.type != EventType.ERROR_EVENT } && (newState != null || events.any { it.type == EventType.DASHBOARD_STATE_DELETED })) {
-                        stateStore.put(competitionId, newState?.setEventOffset(context.offset())?.setEventPartition(context.partition()))
-                    }
-                    Triple(competitionId, newState, events.toTypedArray())
+                    val (newState, events) = executeCommand(command, currentState)
+                    Triple(competitionId, newState, events)
                 } else {
-                    log.warn("Not executed, command validation failed.  \nCommand: $command. \nState: $state. \nPartition: ${context.partition()}. \nOffset: ${context.offset()}, errors: $validationErrors")
-                    Triple(null, null, arrayOf(createEvent(EventType.ERROR_EVENT, mapOf("errors" to validationErrors))))
+                    log.warn("Not executed, command validation failed.  \nCommand: $command. \nState: $currentState. \nPartition: ${context.partition()}. \nOffset: ${context.offset()}, errors: $validationErrors")
+                    Triple(null, null, listOf(createEvent(EventType.ERROR_EVENT, mapOf("errors" to validationErrors))))
                 }
             } else {
                 log.warn("Did not execute because either command is null (${command == null}) or competition id is wrong: ${command?.competitionId}")
-                Triple(null, null, arrayOf(createErrorEvent("Did not execute command $command because either it is null (${command == null}) or competition id is wrong: ${command?.competitionId}")))
+                Triple(null, null, listOf(createErrorEvent("Did not execute command $command because either it is null (${command == null}) or competition id is wrong: ${command?.competitionId}")))
             }
         } catch (e: Throwable) {
             log.error("Error while processing command: $command", e)
-            Triple(null, null, arrayOf(createErrorEvent(e.message ?: e::class.java.canonicalName)))
+            Triple(null, null, listOf(createErrorEvent(e.message ?: e::class.java.canonicalName)))
         }
     }
 
-    private fun executeCommand(command: Command, state: CompetitionDashboardState?, offset: Long, partition: Int): Pair<CompetitionDashboardState?, List<EventHolder>> {
+    private fun executeCommand(command: Command, state: CompetitionDashboardState?): Pair<CompetitionDashboardState?, List<EventHolder>> {
         fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId, command.matId
                 ?: "null", type, payload)
-                .setCommandOffset(offset)
-                .setCommandPartition(partition)
 
         fun createErrorEvent(error: String) = EventHolder(command.correlatioId, command.competitionId, command.categoryId, command.matId
                 ?: "null", EventType.ERROR_EVENT, mapOf("error" to error))
-                .setCommandOffset(offset)
-                .setCommandPartition(partition)
 
         return when (command.type) {
             CommandType.CHECK_MAT_OBSOLETE -> {
@@ -95,7 +83,7 @@ class MatGlobalCommandExecutorTransformer(stateStoreName: String,
                                 val mats = (0 until it.numberOfMats).map { i -> "$periodId-mat-$i" }
                                 DashboardPeriod(periodId, it.name, mats.toTypedArray(), Date.from(Instant.from(DateTimeFormatter.ISO_INSTANT.parse(it.startTime))), false)
                             }
-                            val newState = CompetitionDashboardState(context.offset(), context.partition(), competitionProperties.competitionId, dbPeriods.toSet(), competitionProperties)
+                            val newState = CompetitionDashboardState(command.correlatioId, competitionProperties.competitionId, dbPeriods.toSet(), competitionProperties)
                             newState to listOf(createEvent(EventType.DASHBOARD_STATE_INITIALIZED, mapOf("state" to newState))) + dbPeriods.map {
                                 createEvent(EventType.PERIOD_INITIALIZED, mapOf("period" to it))
                                         .setMetadata(mapOf(LeaderProcessStreams.ROUTING_METADATA_KEY to CompetitionServiceTopics.MATS_GLOBAL_INTERNAL_EVENTS_TOPIC_NAME))
@@ -111,8 +99,7 @@ class MatGlobalCommandExecutorTransformer(stateStoreName: String,
                 }
             }
             CommandType.DELETE_DASHBOARD_STATE_COMMAND -> {
-                val deletedState = stateStore.delete(command.competitionId)
-                val deletedMats = deletedState?.periods?.map {
+                val deletedMats = state?.periods?.map {
                     createEvent(EventType.DASHBOARD_PERIOD_DELETED, mapOf("period" to it))
                             .setMetadata(mapOf(LeaderProcessStreams.ROUTING_METADATA_KEY to CompetitionServiceTopics.MATS_GLOBAL_INTERNAL_EVENTS_TOPIC_NAME))
                 } ?: emptyList()
@@ -164,13 +151,4 @@ class MatGlobalCommandExecutorTransformer(stateStoreName: String,
         /*(state == null || state.eventOffset < context.offset()) &&*/
         return emptyList()
     }
-
-    override fun close() {
-        try {
-            stateStore.close()
-        } catch (e: Exception) {
-            log.warn("Error while closing store.", e)
-        }
-    }
-
 }
