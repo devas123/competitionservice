@@ -1,45 +1,71 @@
 package compman.compsrv.kafka.streams
 
-import compman.compsrv.cluster.StateChangelogForwarder
-import kotlinx.coroutines.experimental.Dispatchers
-import kotlinx.coroutines.experimental.GlobalScope
-import kotlinx.coroutines.experimental.launch
+import compman.compsrv.model.es.commands.Command
+import compman.compsrv.model.es.events.EventHolder
+import compman.compsrv.model.es.events.EventType
 import org.apache.kafka.streams.kstream.ValueTransformer
 import org.apache.kafka.streams.processor.ProcessorContext
 import org.apache.kafka.streams.state.KeyValueStore
-import java.util.*
+import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicInteger
 
-abstract class StateForwardingValueTransformer<ComType, EvType, StateType>(private val stateStoreName: String, changelogTopicname: String, producerProperties: Properties) : ValueTransformer<ComType, EvType> {
+abstract class StateForwardingValueTransformer<StateType>(private val stateStoreName: String, private val stateForawrdingTopic: String) : ValueTransformer<Command, List<EventHolder>> {
 
 
-    private val forwarder = StateChangelogForwarder<String, StateType>(changelogTopicname, producerProperties)
+    private val log = LoggerFactory.getLogger(this.javaClass)
 
-    protected lateinit var stateStore: KeyValueStore<String, StateType>
+
+    private lateinit var stateStore: KeyValueStore<String, StateType>
     protected lateinit var context: ProcessorContext
-
+    private val updatesCounter = AtomicInteger(0)
 
     override fun init(context: ProcessorContext?) {
         this.context = context ?: throw IllegalStateException("Context cannot be null")
         stateStore = (context.getStateStore(stateStoreName)
                 ?: throw IllegalStateException("Cannot get stateStore store $stateStoreName")) as KeyValueStore<String, StateType>
+    }
 
-        stateStore.all().use {
-            GlobalScope.launch(Dispatchers.Unconfined) {
-                while (it.hasNext()) {
-                    val kv = it.next()
-                    forwarder.send(kv.key, kv.value)
+    private fun getState(competitionId: String): StateType? {
+        if (stateStore[competitionId] == null) {
+            log.warn("There are no properties for competition $competitionId")
+        }
+        return stateStore[competitionId]
+    }
+
+    override fun transform(command: Command): List<EventHolder>? {
+        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
+                ?: "null", command.matId, type, payload)
+                .setCommandOffset(context.offset())
+                .setCommandPartition(context.partition())
+                .setMetadata(mapOf(LeaderProcessStreams.ROUTING_METADATA_KEY to stateForawrdingTopic, LeaderProcessStreams.CORRELATION_ID_KEY to command.correlatioId))
+        try {
+            val currentState = getState(getKey(command))
+            val triple = doTransform(currentState, command)
+            return if (triple.first != null && updatesCounter.getAndIncrement() % 10 == 0 && triple.third != null && triple.third?.any { it.type == EventType.ERROR_EVENT } == false) {
+                if (triple.second != null) {
+                    stateStore.put(command.competitionId, triple.second)
+                } else {
+                    stateStore.delete(command.competitionId)
                 }
+                triple.third!! + createEvent(EventType.INTERNAL_STATE_SNAPSHOT_CREATED, mapOf("state" to triple.second))
+            } else {
+                triple.third
             }
+        } catch(e: Throwable) {
+            log.error("Exception: ", e)
+            return null
         }
     }
 
-    override fun transform(value: ComType?): EvType? {
-        val triple = doTransform(value)
-        if (triple.first != null) {
-            GlobalScope.launch(Dispatchers.Unconfined) { forwarder.send(triple.first!!, triple.second) }
+    override fun close() {
+        try {
+            stateStore.close()
+        } catch (e: Exception) {
+            log.warn("Exception while closing store." +
+                    "", e)
         }
-        return triple.third
     }
 
-    abstract fun doTransform(command: ComType?): Triple<String?, StateType?, EvType?>
+    abstract fun getKey(command: Command?): String
+    abstract fun doTransform(currentState: StateType?, command: Command?): Triple<String?, StateType?, List<EventHolder>?>
 }
