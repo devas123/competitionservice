@@ -201,7 +201,7 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
         val c = getPayloadAs(command.payload?.get("category"), Category::class.java)
         return if (c != null && command.categoryId != null) {
             val category = c.setCategoryId(command.categoryId!!)
-            val state = CategoryState(-1L, -1, category, null, emptySet())
+            val state = CategoryState(command.correlatioId, category, null, emptySet())
             state to listOf(createEvent(command, EventType.CATEGORY_STATE_ADDED, mapOf("categoryState" to state)))
         } else {
             null to listOf(createEvent(command, EventType.ERROR_EVENT, mapOf<String, Any?>(

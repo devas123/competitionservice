@@ -24,15 +24,13 @@ class MatCommandExecutorTransformer(stateStoreName: String,
     override fun doTransform(currentState: MatState?, command: Command?): Triple<String?, MatState?, List<EventHolder>?> {
         fun createEvent(type: EventType, payload: Map<String, Any?>?) =
                 EventHolder(command!!.correlatioId, command.competitionId, command.categoryId, command.matId, type, payload)
-                        .setCommandPartition(context.partition())
-                        .setCommandOffset(context.offset())
         return try {
             log.info("Executing a mat command: $command, partition: ${context.partition()}, offset: ${context.offset()}")
             if (command?.matId != null) {
                 val matId = command.matId!!
                 val validationErrors = canExecuteCommand(currentState, command)
                 if (validationErrors.isEmpty()) {
-                    val (newState, events) = executeCommand(command, currentState, context.offset(), context.partition())
+                    val (newState, events) = executeCommand(command, currentState)
                     Triple(matId, newState, events)
                 } else {
                     log.warn("Not executed, command validation failed.  \nCommand: $command. \nState: $currentState. \nPartition: ${context.partition()}. \nOffset: ${context.offset()}, errors: $validationErrors")
@@ -49,20 +47,16 @@ class MatCommandExecutorTransformer(stateStoreName: String,
         }
     }
 
-    private fun executeCommand(command: Command, state: MatState?, offset: Long, partition: Int): Pair<MatState?, List<EventHolder>> {
+    private fun executeCommand(command: Command, state: MatState?): Pair<MatState?, List<EventHolder>> {
         fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, type, payload)
-                .setCommandOffset(offset)
-                .setCommandPartition(partition)
 
         fun createErrorEvent(error: String) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, EventType.ERROR_EVENT, mapOf("error" to error))
-                .setCommandOffset(offset)
-                .setCommandPartition(partition)
 
         return when (command.type) {
             CommandType.INIT_MAT_STATE_COMMAND -> {
-                val matState = MatState(command.matId!!, command.payload?.get("periodId").toString(), command.competitionId)
+                val matState = MatState(command.correlatioId, command.matId!!, command.payload?.get("periodId").toString(), command.competitionId)
                 if (command.payload?.containsKey("matFights") == true) {
                     val fights = mapper.convertValue(command.payload?.get("matFights"), Array<FightDescription>::class.java)
                     val newState = matState.setFights(fights)

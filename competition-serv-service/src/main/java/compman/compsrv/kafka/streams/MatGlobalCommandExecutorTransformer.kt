@@ -24,20 +24,16 @@ class MatGlobalCommandExecutorTransformer(stateStoreName: String,
     override fun doTransform(currentState: CompetitionDashboardState?, command: Command?): Triple<String?, CompetitionDashboardState?, List<EventHolder>?> {
         fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command!!.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, type, payload)
-                .setCommandOffset(context.offset())
-                .setCommandPartition(context.partition())
 
         fun createErrorEvent(error: String) = EventHolder(command!!.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, EventType.ERROR_EVENT, mapOf("error" to error))
-                .setCommandOffset(context.offset())
-                .setCommandPartition(context.partition())
         return try {
             log.info("Executing a mat command: $command, partition: ${context.partition()}, offset: ${context.offset()}")
             if (command?.competitionId != null) {
                 val competitionId = command.competitionId
                 val validationErrors = canExecuteCommand(currentState, command)
                 if (validationErrors.isEmpty()) {
-                    val (newState, events) = executeCommand(command, currentState, context.offset(), context.partition())
+                    val (newState, events) = executeCommand(command, currentState)
                     Triple(competitionId, newState, events)
                 } else {
                     log.warn("Not executed, command validation failed.  \nCommand: $command. \nState: $currentState. \nPartition: ${context.partition()}. \nOffset: ${context.offset()}, errors: $validationErrors")
@@ -53,16 +49,12 @@ class MatGlobalCommandExecutorTransformer(stateStoreName: String,
         }
     }
 
-    private fun executeCommand(command: Command, state: CompetitionDashboardState?, offset: Long, partition: Int): Pair<CompetitionDashboardState?, List<EventHolder>> {
+    private fun executeCommand(command: Command, state: CompetitionDashboardState?): Pair<CompetitionDashboardState?, List<EventHolder>> {
         fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId, command.matId
                 ?: "null", type, payload)
-                .setCommandOffset(offset)
-                .setCommandPartition(partition)
 
         fun createErrorEvent(error: String) = EventHolder(command.correlatioId, command.competitionId, command.categoryId, command.matId
                 ?: "null", EventType.ERROR_EVENT, mapOf("error" to error))
-                .setCommandOffset(offset)
-                .setCommandPartition(partition)
 
         return when (command.type) {
             CommandType.CHECK_MAT_OBSOLETE -> {
@@ -91,7 +83,7 @@ class MatGlobalCommandExecutorTransformer(stateStoreName: String,
                                 val mats = (0 until it.numberOfMats).map { i -> "$periodId-mat-$i" }
                                 DashboardPeriod(periodId, it.name, mats.toTypedArray(), Date.from(Instant.from(DateTimeFormatter.ISO_INSTANT.parse(it.startTime))), false)
                             }
-                            val newState = CompetitionDashboardState(context.offset(), context.partition(), competitionProperties.competitionId, dbPeriods.toSet(), competitionProperties)
+                            val newState = CompetitionDashboardState(command.correlatioId, competitionProperties.competitionId, dbPeriods.toSet(), competitionProperties)
                             newState to listOf(createEvent(EventType.DASHBOARD_STATE_INITIALIZED, mapOf("state" to newState))) + dbPeriods.map {
                                 createEvent(EventType.PERIOD_INITIALIZED, mapOf("period" to it))
                                         .setMetadata(mapOf(LeaderProcessStreams.ROUTING_METADATA_KEY to CompetitionServiceTopics.MATS_GLOBAL_INTERNAL_EVENTS_TOPIC_NAME))

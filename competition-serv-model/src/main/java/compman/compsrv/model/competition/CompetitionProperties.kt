@@ -12,6 +12,7 @@ import java.util.*
 data class CompetitionProperties @PersistenceConstructor @JsonCreator
 constructor(
         @Id @JsonView(Views.Short::class) @JsonProperty("competitionId") val competitionId: String,
+        @JsonView(Views.Short::class) @JsonProperty("correlationId") val correlationId: String,
         @JsonView(Views.Short::class) @JsonProperty("creatorId") val creatorId: String,
         @JsonView(Views.Short::class) @JsonProperty("staffIds") val staffIds: Array<String>,
         @JsonView(Views.Short::class) @JsonProperty("emailNotificationsEnabled") val emailNotificationsEnabled: Boolean?,
@@ -29,7 +30,8 @@ constructor(
         @JsonView(Views.Short::class) @JsonProperty("categories") val categories: Set<Category>?,
         @JsonView(Views.Short::class) @JsonProperty("mats") val mats: Set<String>?,
         @JsonView(Views.Short::class) @JsonProperty("registrationOpen") val registrationOpen: Boolean?) {
-    constructor(competitionId: String, competitionName: String, creatorId: String) : this(
+    constructor(competitionId: String, correlationId: String, competitionName: String, creatorId: String) : this(
+            correlationId = correlationId,
             creatorId = creatorId,
             staffIds = emptyArray<String>(),
             competitionId = competitionId,
@@ -62,6 +64,7 @@ constructor(
     }
 
     fun applyProperties(props: Map<String, Any?>?) = if (props != null) copy(
+            correlationId = props["correlationId"] as? String ?: correlationId,
             bracketsPublished = props["bracketsPublished"] as? Boolean ?: bracketsPublished,
             registrationOpen = props["registrationOpen"] as? Boolean ?: registrationOpen,
             startDate = parseDate(props["startDate"], startDate),
@@ -92,6 +95,7 @@ constructor(
         other as CompetitionProperties
 
         if (competitionId != other.competitionId) return false
+        if (correlationId != other.correlationId) return false
         if (creatorId != other.creatorId) return false
         if (!Arrays.equals(staffIds, other.staffIds)) return false
         if (emailNotificationsEnabled != other.emailNotificationsEnabled) return false
@@ -112,6 +116,7 @@ constructor(
     override fun hashCode(): Int {
         var result = competitionId.hashCode()
         result = 31 * result + creatorId.hashCode()
+        result = 31 * result + correlationId.hashCode()
         result = 31 * result + Arrays.hashCode(staffIds)
         result = 31 * result + (emailNotificationsEnabled?.hashCode() ?: 0)
         result = 31 * result + competitionName.hashCode()

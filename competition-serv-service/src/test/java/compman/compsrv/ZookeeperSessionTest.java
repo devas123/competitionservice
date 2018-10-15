@@ -193,11 +193,12 @@ public final class ZookeeperSessionTest {
         }
 
         KafkaProducer<String, Command> producer = new KafkaProducer<>(kafkaProps.getProducer().getProperties(), new StringSerializer(), new CommandSerializer());
-        CompetitionProperties pr1 = new CompetitionProperties(COMPETITION1, COMPETITION1, "valera@protas.ru");
+        CompetitionProperties pr1 = new CompetitionProperties(UUID.randomUUID().toString(), COMPETITION1, COMPETITION1, "valera@protas.ru");
+        CompetitionProperties pr2 = new CompetitionProperties(UUID.randomUUID().toString(), COMPETITION2, COMPETITION2, "valera@protas.ru");
         producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, COMPETITION1, new Command(COMPETITION1, CommandType.CREATE_COMPETITION_COMMAND,
-                "", mapper.convertValue(new CompetitionState(COMPETITION1, new CategoryState[3], pr1), LinkedHashMap.class))));
+                "", mapper.convertValue(pr1, LinkedHashMap.class))));
         producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, COMPETITION2, new Command(COMPETITION2, CommandType.CREATE_COMPETITION_COMMAND,
-                "", mapper.convertValue(new CompetitionState(COMPETITION2, new CategoryState[3], pr1), LinkedHashMap.class))));
+                "", mapper.convertValue(pr2, LinkedHashMap.class))));
 
         producer.flush();
 

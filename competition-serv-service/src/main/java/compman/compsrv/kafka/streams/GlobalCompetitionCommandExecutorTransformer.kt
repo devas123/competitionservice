@@ -52,14 +52,12 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
                 command.categoryId,
                 command.matId,
                 EventType.ERROR_EVENT, mapOf("error" to error))
-                .setCommandOffset(context.offset())
-                .setCommandPartition(context.partition())
         return try {
             log.info("Executing a command: $command, partition: ${context.partition()}, offset: ${context.offset()}")
             if (command != null) {
                 if (canExecuteCommand(currentState, command)) {
-                    val (newProperties, event) = executeCommand(command, currentState, context.offset(), context.partition())
-                    Triple(command.competitionId, newProperties, listOf(event.setCommandOffset(context.offset())))
+                    val (newProperties, event) = executeCommand(command, currentState)
+                    Triple(command.competitionId, newProperties, listOf(event))
                 } else {
                     log.warn("Not executed: command is $command, state is $currentState, partition: ${context.partition()}, offset: ${context.offset()}")
                     Triple(null, null, null)
@@ -104,16 +102,12 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
         }
     }
 
-    private fun executeCommand(command: Command, properties: CompetitionProperties?, offset: Long, partition: Int): Pair<CompetitionProperties?, EventHolder> {
+    private fun executeCommand(command: Command, properties: CompetitionProperties?): Pair<CompetitionProperties?, EventHolder> {
         fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, type, payload)
-                .setCommandOffset(offset)
-                .setCommandPartition(partition)
 
         fun createErrorEvent(error: String) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
                 ?: "null", command.matId, EventType.ERROR_EVENT, mapOf("error" to error))
-                .setCommandOffset(offset)
-                .setCommandPartition(partition)
 
         if (properties == null) {
             return when (command.type) {
@@ -122,7 +116,7 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
                 }
                 CommandType.CREATE_COMPETITION_COMMAND -> {
                     val payload = command.payload!!
-                    val tmpProps = CompetitionProperties(command.competitionId, payload["competitionName" +
+                    val tmpProps = CompetitionProperties(command.correlatioId, command.competitionId, payload["competitionName" +
                             ""].toString(), payload["creatorId"].toString())
                     val newproperties = tmpProps.applyProperties(payload)
                     newproperties to createEvent(EventType.COMPETITION_CREATED, mapOf("properties" to newproperties))
