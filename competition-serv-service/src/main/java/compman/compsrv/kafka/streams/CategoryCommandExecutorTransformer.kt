@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory
 class CategoryCommandExecutorTransformer(stateStoreName: String, private val categoryStateService: CategoryStateService,
                                          private val zookeeperSession: ZookeeperSession,
                                          private val validators: CategoryCommandsValidatorRegistry) : StateForwardingValueTransformer<CategoryState>(stateStoreName, CompetitionServiceTopics.CATEGORY_STATE_CHANGELOG_TOPIC_NAME) {
-    override fun updateCorrelationId(currentState: CategoryState, command: Command): CategoryState = currentState.copy(correlationId = command.correlatioId)
+    override fun updateCorrelationId(currentState: CategoryState, command: Command): CategoryState = currentState.copy(correlationId = command.correlatioId!!)
 
     override fun getStateKey(command: Command?): String = command?.categoryId ?: throw IllegalArgumentException("Category Id not provided. $command")
 

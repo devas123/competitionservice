@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory
 class MatCommandExecutorTransformer(stateStoreName: String,
                                     private val validators: MatCommandsValidatorRegistry) : StateForwardingValueTransformer<MatState>(stateStoreName, CompetitionServiceTopics.MAT_STATE_CHANGELOG_TOPIC_NAME) {
     override fun getStateKey(command: Command?) = command?.matId!!
-    override fun updateCorrelationId(currentState: MatState, command: Command): MatState = currentState.copy(correlationId = command.correlatioId)
+    override fun updateCorrelationId(currentState: MatState, command: Command): MatState = currentState.copy(correlationId = command.correlatioId!!)
 
     companion object {
         private val log = LoggerFactory.getLogger(MatCommandExecutorTransformer::class.java)
@@ -24,7 +24,7 @@ class MatCommandExecutorTransformer(stateStoreName: String,
 
     override fun doTransform(currentState: MatState?, command: Command?): Triple<String?, MatState?, List<EventHolder>?> {
         fun createEvent(type: EventType, payload: Map<String, Any?>?) =
-                EventHolder(command!!.correlatioId, command.competitionId, command.categoryId, command.matId, type, payload)
+                EventHolder(command!!.correlatioId!!, command.competitionId, command.categoryId, command.matId, type, payload)
         return try {
             log.info("Executing a mat command: $command, partition: ${context.partition()}, offset: ${context.offset()}")
             if (command?.matId != null) {
@@ -49,15 +49,15 @@ class MatCommandExecutorTransformer(stateStoreName: String,
     }
 
     private fun executeCommand(command: Command, state: MatState?): Pair<MatState?, List<EventHolder>> {
-        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
+        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId!!, command.competitionId, command.categoryId
                 ?: "null", command.matId, type, payload)
 
-        fun createErrorEvent(error: String) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
+        fun createErrorEvent(error: String) = EventHolder(command.correlatioId!!, command.competitionId, command.categoryId
                 ?: "null", command.matId, EventType.ERROR_EVENT, mapOf("error" to error))
 
         return when (command.type) {
             CommandType.INIT_MAT_STATE_COMMAND -> {
-                val matState = MatState(command.correlatioId, command.matId!!, command.payload?.get("periodId").toString(), command.competitionId)
+                val matState = MatState(command.correlatioId!!, command.matId!!, command.payload?.get("periodId").toString(), command.competitionId)
                 if (command.payload?.containsKey("matFights") == true) {
                     val fights = mapper.convertValue(command.payload?.get("matFights"), Array<FightDescription>::class.java)
                     val newState = matState.setFights(fights)
