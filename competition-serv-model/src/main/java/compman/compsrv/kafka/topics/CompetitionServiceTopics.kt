@@ -2,7 +2,7 @@ package compman.compsrv.kafka.topics
 
 object CompetitionServiceTopics {
     const val COMPETITION_STATE_CHANGELOG_TOPIC_NAME = "competition-properties-changelog"
-    const val CATEGORY_STATE_CHANGELOG_TOPIC_NAME = "categorystate-changelog"
+    const val CATEGORY_STATE_CHANGELOG_TOPIC_NAME = "category-state-changelog"
     const val MAT_STATE_CHANGELOG_TOPIC_NAME = "mat-state-changelog"
     const val DASHBOARD_STATE_CHANGELOG_TOPIC_NAME = "dashboard-state-changelog"
     const val CATEGORIES_COMMANDS_TOPIC_NAME = "categorystate-commands"

@@ -24,7 +24,10 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
                                                   private val mapper: ObjectMapper)
     : StateForwardingValueTransformer<CompetitionProperties>(stateStoreName, CompetitionServiceTopics.COMPETITION_STATE_CHANGELOG_TOPIC_NAME) {
 
-    override fun getKey(command: Command?): String = command?.competitionId
+    override fun updateCorrelationId(currentState: CompetitionProperties, command: Command): CompetitionProperties = currentState.copy(correlationId = command.correlatioId)
+
+
+    override fun getStateKey(command: Command?): String = command?.competitionId
             ?: throw IllegalArgumentException("No competition Id. $command")
 
     companion object {

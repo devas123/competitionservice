@@ -13,7 +13,8 @@ import org.slf4j.LoggerFactory
 
 class MatCommandExecutorTransformer(stateStoreName: String,
                                     private val validators: MatCommandsValidatorRegistry) : StateForwardingValueTransformer<MatState>(stateStoreName, CompetitionServiceTopics.MAT_STATE_CHANGELOG_TOPIC_NAME) {
-    override fun getKey(command: Command?) = command?.matId!!
+    override fun getStateKey(command: Command?) = command?.matId!!
+    override fun updateCorrelationId(currentState: MatState, command: Command): MatState = currentState.copy(correlationId = command.correlatioId)
 
     companion object {
         private val log = LoggerFactory.getLogger(MatCommandExecutorTransformer::class.java)

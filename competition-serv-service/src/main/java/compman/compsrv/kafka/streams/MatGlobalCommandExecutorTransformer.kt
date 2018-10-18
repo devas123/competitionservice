@@ -15,7 +15,8 @@ import java.util.*
 
 class MatGlobalCommandExecutorTransformer(stateStoreName: String,
                                           private val stateQueryService: StateQueryService) : StateForwardingValueTransformer<CompetitionDashboardState>(stateStoreName, CompetitionServiceTopics.DASHBOARD_STATE_CHANGELOG_TOPIC_NAME) {
-    override fun getKey(command: Command?) = command?.competitionId!!
+    override fun getStateKey(command: Command?) = command?.competitionId!!
+    override fun updateCorrelationId(currentState: CompetitionDashboardState, command: Command): CompetitionDashboardState = currentState.copy(correlationId = command.correlatioId)
 
     companion object {
         private val log = LoggerFactory.getLogger(MatGlobalCommandExecutorTransformer::class.java)
