@@ -24,7 +24,10 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
                                                   private val mapper: ObjectMapper)
     : StateForwardingValueTransformer<CompetitionProperties>(stateStoreName, CompetitionServiceTopics.COMPETITION_STATE_CHANGELOG_TOPIC_NAME) {
 
-    override fun getKey(command: Command?): String = command?.competitionId
+    override fun updateCorrelationId(currentState: CompetitionProperties, command: Command): CompetitionProperties = currentState.copy(correlationId = command.correlatioId!!)
+
+
+    override fun getStateKey(command: Command?): String = command?.competitionId
             ?: throw IllegalArgumentException("No competition Id. $command")
 
     companion object {
@@ -48,7 +51,7 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
     }
 
     override fun doTransform(currentState: CompetitionProperties?, command: Command?): Triple<String?, CompetitionProperties?, List<EventHolder>?> {
-        fun createErrorEvent(error: String) = EventHolder(command!!.correlatioId, command.competitionId,
+        fun createErrorEvent(error: String) = EventHolder(command!!.correlatioId!!, command.competitionId,
                 command.categoryId,
                 command.matId,
                 EventType.ERROR_EVENT, mapOf("error" to error))
@@ -103,10 +106,10 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
     }
 
     private fun executeCommand(command: Command, properties: CompetitionProperties?): Pair<CompetitionProperties?, EventHolder> {
-        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
+        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId!!, command.competitionId, command.categoryId
                 ?: "null", command.matId, type, payload)
 
-        fun createErrorEvent(error: String) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
+        fun createErrorEvent(error: String) = EventHolder(command.correlatioId!!, command.competitionId, command.categoryId
                 ?: "null", command.matId, EventType.ERROR_EVENT, mapOf("error" to error))
 
         if (properties == null) {
@@ -116,7 +119,7 @@ class GlobalCompetitionCommandExecutorTransformer(stateStoreName: String,
                 }
                 CommandType.CREATE_COMPETITION_COMMAND -> {
                     val payload = command.payload!!
-                    val tmpProps = CompetitionProperties(command.correlatioId, command.competitionId, payload["competitionName" +
+                    val tmpProps = CompetitionProperties(command.correlatioId!!, command.competitionId, payload["competitionName" +
                             ""].toString(), payload["creatorId"].toString())
                     val newproperties = tmpProps.applyProperties(payload)
                     newproperties to createEvent(EventType.COMPETITION_CREATED, mapOf("properties" to newproperties))

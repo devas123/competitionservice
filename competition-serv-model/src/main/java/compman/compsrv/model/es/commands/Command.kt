@@ -10,13 +10,13 @@ import java.util.*
 data class Command @JsonCreator
 @PersistenceConstructor
 constructor(
-        @JsonProperty("correlationId") val correlatioId: String,
+        @JsonProperty("correlationId") val correlatioId: String?,
         @JsonProperty("competitionId") val competitionId: String,
-            @JsonProperty("type") val type: CommandType,
-            @JsonProperty("categoryId") val categoryId: String?,
-            @JsonProperty("matId") val matId: String?,
-            @JsonProperty("payload") val payload: Map<String, Any?>?,
-            @JsonProperty("metadata") val metadata: Map<String, Any>?) {
+        @JsonProperty("type") val type: CommandType,
+        @JsonProperty("categoryId") val categoryId: String?,
+        @JsonProperty("matId") val matId: String?,
+        @JsonProperty("payload") val payload: Map<String, Any?>?,
+        @JsonProperty("metadata") val metadata: Map<String, Any>?) {
     @JsonProperty("timestamp")
     val timestamp: Long = System.currentTimeMillis()
 

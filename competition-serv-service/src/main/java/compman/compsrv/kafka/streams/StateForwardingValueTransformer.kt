@@ -33,11 +33,11 @@ abstract class StateForwardingValueTransformer<StateType>(private val stateStore
     }
 
     override fun transform(command: Command): List<EventHolder>? {
-        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId
+        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId!!, command.competitionId, command.categoryId
                 ?: "null", command.matId, type, payload)
-                .setMetadata(mapOf(LeaderProcessStreams.ROUTING_METADATA_KEY to stateForawrdingTopic, LeaderProcessStreams.CORRELATION_ID_KEY to command.correlatioId))
+                .setMetadata(mapOf(LeaderProcessStreams.ROUTING_METADATA_KEY to stateForawrdingTopic, LeaderProcessStreams.CORRELATION_ID_KEY to command.correlatioId!!))
         try {
-            val currentState = getState(getKey(command))
+            val currentState = getState(getStateKey(command))
             val triple = doTransform(currentState, command)
             return if (triple.first != null && updatesCounter.getAndIncrement() % 10 == 0 && triple.third != null && triple.third?.any { it.type == EventType.ERROR_EVENT } == false) {
                 if (triple.second != null) {
@@ -45,7 +45,7 @@ abstract class StateForwardingValueTransformer<StateType>(private val stateStore
                 } else {
                     stateStore.delete(command.competitionId)
                 }
-                triple.third!! + createEvent(EventType.INTERNAL_STATE_SNAPSHOT_CREATED, mapOf("state" to triple.second))
+                triple.third!! + createEvent(EventType.INTERNAL_STATE_SNAPSHOT_CREATED, mapOf("state" to triple.second?.let { updateCorrelationId(it, command) }))
             } else {
                 triple.third
             }
@@ -63,7 +63,8 @@ abstract class StateForwardingValueTransformer<StateType>(private val stateStore
                     "", e)
         }
     }
+    abstract fun updateCorrelationId(currentState: StateType, command: Command): StateType
 
-    abstract fun getKey(command: Command?): String
+    abstract fun getStateKey(command: Command?): String
     abstract fun doTransform(currentState: StateType?, command: Command?): Triple<String?, StateType?, List<EventHolder>?>
 }

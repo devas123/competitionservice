@@ -15,17 +15,18 @@ import java.util.*
 
 class MatGlobalCommandExecutorTransformer(stateStoreName: String,
                                           private val stateQueryService: StateQueryService) : StateForwardingValueTransformer<CompetitionDashboardState>(stateStoreName, CompetitionServiceTopics.DASHBOARD_STATE_CHANGELOG_TOPIC_NAME) {
-    override fun getKey(command: Command?) = command?.competitionId!!
+    override fun getStateKey(command: Command?) = command?.competitionId!!
+    override fun updateCorrelationId(currentState: CompetitionDashboardState, command: Command): CompetitionDashboardState = currentState.copy(correlationId = command.correlatioId!!)
 
     companion object {
         private val log = LoggerFactory.getLogger(MatGlobalCommandExecutorTransformer::class.java)
     }
 
     override fun doTransform(currentState: CompetitionDashboardState?, command: Command?): Triple<String?, CompetitionDashboardState?, List<EventHolder>?> {
-        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command!!.correlatioId, command.competitionId, command.categoryId
+        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command!!.correlatioId!!, command.competitionId, command.categoryId
                 ?: "null", command.matId, type, payload)
 
-        fun createErrorEvent(error: String) = EventHolder(command!!.correlatioId, command.competitionId, command.categoryId
+        fun createErrorEvent(error: String) = EventHolder(command!!.correlatioId!!, command.competitionId, command.categoryId
                 ?: "null", command.matId, EventType.ERROR_EVENT, mapOf("error" to error))
         return try {
             log.info("Executing a mat command: $command, partition: ${context.partition()}, offset: ${context.offset()}")
@@ -50,10 +51,10 @@ class MatGlobalCommandExecutorTransformer(stateStoreName: String,
     }
 
     private fun executeCommand(command: Command, state: CompetitionDashboardState?): Pair<CompetitionDashboardState?, List<EventHolder>> {
-        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId, command.competitionId, command.categoryId, command.matId
+        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId!!, command.competitionId, command.categoryId, command.matId
                 ?: "null", type, payload)
 
-        fun createErrorEvent(error: String) = EventHolder(command.correlatioId, command.competitionId, command.categoryId, command.matId
+        fun createErrorEvent(error: String) = EventHolder(command.correlatioId!!, command.competitionId, command.categoryId, command.matId
                 ?: "null", EventType.ERROR_EVENT, mapOf("error" to error))
 
         return when (command.type) {
@@ -83,7 +84,7 @@ class MatGlobalCommandExecutorTransformer(stateStoreName: String,
                                 val mats = (0 until it.numberOfMats).map { i -> "$periodId-mat-$i" }
                                 DashboardPeriod(periodId, it.name, mats.toTypedArray(), Date.from(Instant.from(DateTimeFormatter.ISO_INSTANT.parse(it.startTime))), false)
                             }
-                            val newState = CompetitionDashboardState(command.correlatioId, competitionProperties.competitionId, dbPeriods.toSet(), competitionProperties)
+                            val newState = CompetitionDashboardState(command.correlatioId!!, competitionProperties.competitionId, dbPeriods.toSet(), competitionProperties)
                             newState to listOf(createEvent(EventType.DASHBOARD_STATE_INITIALIZED, mapOf("state" to newState))) + dbPeriods.map {
                                 createEvent(EventType.PERIOD_INITIALIZED, mapOf("period" to it))
                                         .setMetadata(mapOf(LeaderProcessStreams.ROUTING_METADATA_KEY to CompetitionServiceTopics.MATS_GLOBAL_INTERNAL_EVENTS_TOPIC_NAME))
