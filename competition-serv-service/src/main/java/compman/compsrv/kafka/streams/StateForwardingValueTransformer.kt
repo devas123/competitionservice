@@ -33,9 +33,9 @@ abstract class StateForwardingValueTransformer<StateType>(private val stateStore
     }
 
     override fun transform(command: Command): List<EventHolder>? {
-        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlatioId!!, command.competitionId, command.categoryId
+        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlationId!!, command.competitionId, command.categoryId
                 ?: "null", command.matId, type, payload)
-                .setMetadata(mapOf(LeaderProcessStreams.ROUTING_METADATA_KEY to stateForawrdingTopic, LeaderProcessStreams.CORRELATION_ID_KEY to command.correlatioId!!))
+                .setMetadata(mapOf(LeaderProcessStreams.ROUTING_METADATA_KEY to stateForawrdingTopic, LeaderProcessStreams.CORRELATION_ID_KEY to command.correlationId!!))
         try {
             val currentState = getState(getStateKey(command))
             val triple = doTransform(currentState, command)
