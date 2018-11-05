@@ -4,6 +4,7 @@ import com.compman.starter.properties.KafkaProperties
 import compman.compsrv.kafka.streams.JobStream
 import compman.compsrv.model.competition.MatState
 import compman.compsrv.service.CategoryStateService
+import compman.compsrv.service.MatStateService
 import compman.compsrv.validators.CategoryCommandsValidatorRegistry
 import compman.compsrv.validators.MatCommandsValidatorRegistry
 import org.apache.kafka.streams.state.HostInfo
@@ -12,9 +13,8 @@ import java.util.concurrent.locks.ReentrantLock
 
 class WorkerProcess(private val kafkaProperties: KafkaProperties,
                     private val competitionStateService: CategoryStateService,
+                    private val matStateService: MatStateService,
                     private val hostInfo: HostInfo,
-                    private val zookeeperSession: ZookeeperSession,
-                    private val validators: CategoryCommandsValidatorRegistry,
                     private val matCommandsValidatorRegistry: MatCommandsValidatorRegistry) {
 
     companion object {
@@ -55,7 +55,7 @@ class WorkerProcess(private val kafkaProperties: KafkaProperties,
         }
     }
 
-    private fun createJob() = JobStream(kafkaProperties, competitionStateService, hostInfo, zookeeperSession, validators, matCommandsValidatorRegistry)
+    private fun createJob() = JobStream(kafkaProperties, competitionStateService, matStateService, hostInfo, matCommandsValidatorRegistry)
 
     fun getMetadataService() = job.metadataService
 

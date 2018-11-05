@@ -8,10 +8,7 @@ import compman.compsrv.model.competition.CategoryState
 import compman.compsrv.model.competition.CompetitionProperties
 import compman.compsrv.model.competition.CompetitionStatus
 import compman.compsrv.model.competition.MatState
-import compman.compsrv.service.CategoryStateService
-import compman.compsrv.service.ScheduleService
-import compman.compsrv.service.StateQueryService
-import compman.compsrv.validators.CategoryCommandsValidatorRegistry
+import compman.compsrv.service.*
 import compman.compsrv.validators.MatCommandsValidatorRegistry
 import org.apache.kafka.common.serialization.Serdes
 import org.apache.kafka.streams.state.HostInfo
@@ -21,15 +18,13 @@ import kotlin.concurrent.thread
 
 class ZookeeperSession(private val clusterConfigurationProperties: ClusterConfigurationProperties,
                        private val kafkaProperties: KafkaProperties,
-                       private val competitionStateService: CategoryStateService,
-                       private val scheduleService: ScheduleService,
+                       private val categoryStateService: CategoryStateService,
+                       private val competitionStateService: CompetitionPropertiesService,
+                       private val dashboardStateService: DashboardStateService,
+                       private val matStateService: MatStateService,
                        private val restTemplate: RestTemplate,
-                       private val validators: CategoryCommandsValidatorRegistry,
                        private val matCommandsValidatorRegistry: MatCommandsValidatorRegistry,
                        private val leaderElection: LeaderElection) : LeadershipListener {
-    private var retriesLeft = 10
-
-
     private lateinit var workerProcess: WorkerProcess
     private lateinit var leaderProcess: LeaderProcess
     lateinit var stateQueryService: StateQueryService
@@ -38,7 +33,7 @@ class ZookeeperSession(private val clusterConfigurationProperties: ClusterConfig
 
     override fun onGranted() {
         if (!::leaderProcess.isInitialized) {
-            leaderProcess = LeaderProcess(listenerStr, scheduleService, kafkaProperties, stateQueryService)
+            leaderProcess = LeaderProcess(listenerStr, kafkaProperties, stateQueryService, competitionStateService, dashboardStateService)
             leaderProcess.start()
         }
     }
@@ -83,14 +78,6 @@ class ZookeeperSession(private val clusterConfigurationProperties: ClusterConfig
         private val log = LoggerFactory.getLogger(ZookeeperSession::class.java)
     }
 
-    private fun reconnect() {
-        if (retriesLeft-- > 0) {
-            init()
-        } else {
-            log.warn("Too many retries, cannot reconnect...")
-        }
-    }
-
     fun getCompetitionProperties(competitionId: String): CompetitionProperties? =
             if (leaderElection.isConnected()) {
                 leaderProcess.getCompetitionProperties(competitionId)
@@ -101,10 +88,9 @@ class ZookeeperSession(private val clusterConfigurationProperties: ClusterConfig
     private fun init() {
         workerProcess = WorkerProcess(
                 kafkaProperties,
-                competitionStateService,
+                categoryStateService,
+                matStateService,
                 HostInfo(clusterConfigurationProperties.advertisedHost, clusterConfigurationProperties.advertisedPort),
-                this,
-                validators,
                 matCommandsValidatorRegistry)
         workerProcess.start()
         Runtime.getRuntime().addShutdownHook(thread(start = false) { close() })

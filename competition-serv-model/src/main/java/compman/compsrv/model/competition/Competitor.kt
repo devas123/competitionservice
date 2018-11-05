@@ -12,7 +12,7 @@ import java.util.*
 data class Competitor
 @PersistenceConstructor
 @JsonCreator
-constructor(@JsonProperty("email") val email: String,
+constructor(@JsonProperty("id") val id: String,
             @JsonProperty("userId") val userId: String?,
             @JsonProperty("firstName") val firstName: String,
             @JsonProperty("lastName") val lastName: String,
@@ -26,10 +26,10 @@ constructor(@JsonProperty("email") val email: String,
     fun setRegistrationStatus(registrationStatus: RegistrationStatus) = copy(registrationStatus = registrationStatus)
 
     override fun equals(other: Any?) = if (other is Competitor) {
-        email == other.email
+        id == other.id
     } else {
         false
     }
 
-    override fun hashCode() = email.hashCode()
+    override fun hashCode() = id.hashCode()
 }

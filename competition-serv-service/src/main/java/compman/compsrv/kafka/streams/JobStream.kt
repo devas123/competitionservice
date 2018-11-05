@@ -10,6 +10,7 @@ import compman.compsrv.model.competition.MatState
 import compman.compsrv.model.es.commands.Command
 import compman.compsrv.model.es.commands.CommandType
 import compman.compsrv.service.CategoryStateService
+import compman.compsrv.service.MatStateService
 import compman.compsrv.validators.CategoryCommandsValidatorRegistry
 import compman.compsrv.validators.MatCommandsValidatorRegistry
 import org.apache.kafka.clients.admin.AdminClientConfig
@@ -35,9 +36,9 @@ import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 
-class JobStream(kafkaProperties: KafkaProperties, competitionStateService: CategoryStateService, private val hostInfo: HostInfo,
-                private val zookeeperSession: ZookeeperSession,
-                private val categoryCommandsValidatorRegistry: CategoryCommandsValidatorRegistry,
+class JobStream(kafkaProperties: KafkaProperties, categoryStateService: CategoryStateService,
+                private val matStateService: MatStateService,
+                private val hostInfo: HostInfo,
                 private val matCommandsValidatorRegistry: MatCommandsValidatorRegistry) {
 
     companion object {
@@ -66,10 +67,10 @@ class JobStream(kafkaProperties: KafkaProperties, competitionStateService: Categ
 
         adminClient.createTopicIfMissing(CompetitionServiceTopics.MAT_STATE_CHANGELOG_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor, compacted = true)
         adminClient.createTopicIfMissing(CompetitionServiceTopics.CATEGORY_STATE_CHANGELOG_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor, compacted = true)
-        adminClient.createTopicIfMissing(CompetitionServiceTopics.CATEGORIES_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
-        adminClient.createTopicIfMissing(CompetitionServiceTopics.CATEGORIES_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
-        adminClient.createTopicIfMissing(CompetitionServiceTopics.MATS_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
-        adminClient.createTopicIfMissing(CompetitionServiceTopics.MATS_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
+        adminClient.createTopicIfMissing(CompetitionServiceTopics.CATEGORY_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
+        adminClient.createTopicIfMissing(CompetitionServiceTopics.CATEGORY_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
+        adminClient.createTopicIfMissing(CompetitionServiceTopics.MAT_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
+        adminClient.createTopicIfMissing(CompetitionServiceTopics.MAT_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
 
         val producerProperties = Properties().apply { putAll(kafkaProperties.producer.properties) }
         producerProperties[ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG] = StringSerializer::class.java.canonicalName
@@ -93,21 +94,21 @@ class JobStream(kafkaProperties: KafkaProperties, competitionStateService: Categ
                 Serdes.serdeFrom(MatStateSerializer(), MatStateDeserializer()))
         builder.addStateStore(categoryStateStoreBuilder)
         builder.addStateStore(matStateStoreBuilder)
-        val categoryCommands = builder.stream<String, Command>(CompetitionServiceTopics.CATEGORIES_COMMANDS_TOPIC_NAME, Consumed.with(Serdes.String(), CommandSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
+        val categoryCommands = builder.stream<String, Command>(CompetitionServiceTopics.CATEGORY_COMMANDS_TOPIC_NAME, Consumed.with(Serdes.String(), CommandSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
         val categoryEvents = categoryCommands
-                .transformValues(ValueTransformerSupplier { CategoryCommandExecutorTransformer(CATEGORY_STATE_STORE_NAME, competitionStateService, zookeeperSession, categoryCommandsValidatorRegistry) }, CATEGORY_STATE_STORE_NAME)
+                .transformValues(ValueTransformerSupplier { CategoryCommandExecutorTransformer(CATEGORY_STATE_STORE_NAME, categoryStateService) }, CATEGORY_STATE_STORE_NAME)
         categoryEvents.filter { _, value -> value != null && !value.isEmpty() }
                 .flatMapValues { value -> value.toList() }
                 .peek { key, value -> log.info("Produced a category event: $key -> $value") }
-                .to({ _, event, _ -> KafkaAdminUtils.getEventRouting(event, CompetitionServiceTopics.CATEGORIES_EVENTS_TOPIC_NAME) }, Produced.with(Serdes.String(), EventSerde()))
+                .to({ _, event, _ -> KafkaAdminUtils.getEventRouting(event, CompetitionServiceTopics.CATEGORY_EVENTS_TOPIC_NAME) }, Produced.with(Serdes.String(), EventSerde()))
 
-        val matCommands = builder.stream<String, Command>(CompetitionServiceTopics.MATS_COMMANDS_TOPIC_NAME, Consumed.with(Serdes.String(), CommandSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
+        val matCommands = builder.stream<String, Command>(CompetitionServiceTopics.MAT_COMMANDS_TOPIC_NAME, Consumed.with(Serdes.String(), CommandSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
         val matEvents = matCommands
-                .transformValues(ValueTransformerSupplier { MatCommandExecutorTransformer(MAT_STATE_STORE_NAME, matCommandsValidatorRegistry) }, MAT_STATE_STORE_NAME)
+                .transformValues(ValueTransformerSupplier { MatCommandExecutorTransformer(MAT_STATE_STORE_NAME, matCommandsValidatorRegistry, matStateService) }, MAT_STATE_STORE_NAME)
         matEvents.filter { _, value -> value != null && !value.isEmpty() }
                 .flatMapValues { value -> value.toList() }
                 .peek { key, value -> log.info("Produced a mat event: $key -> $value") }
-                .to({ _, event, _ -> KafkaAdminUtils.getEventRouting(event, CompetitionServiceTopics.MATS_EVENTS_TOPIC_NAME) }, Produced.with(Serdes.String(), EventSerde()))
+                .to({ _, event, _ -> KafkaAdminUtils.getEventRouting(event, CompetitionServiceTopics.MAT_EVENTS_TOPIC_NAME) }, Produced.with(Serdes.String(), EventSerde()))
 
         topology = builder.build()
         streams = KafkaStreams(topology, streamProperties)
@@ -123,7 +124,7 @@ class JobStream(kafkaProperties: KafkaProperties, competitionStateService: Categ
                             if (catStateKeyValue.value != null) {
                                 val competititonId = catStateKeyValue.value.category.competitionId
                                 val categoryId = catStateKeyValue.key
-                                internalCommandProducer.send(ProducerRecord(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME,
+                                internalCommandProducer.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME,
                                         competititonId, Command(UUID.randomUUID().toString(),
                                         competititonId,
                                         CommandType.CHECK_CATEGORY_OBSOLETE, categoryId, null, emptyMap())))
@@ -141,7 +142,7 @@ class JobStream(kafkaProperties: KafkaProperties, competitionStateService: Categ
                             if (matStateKeyValue.value != null) {
                                 val competititonId = matStateKeyValue.value.competitionId
                                 val matId = matStateKeyValue.key
-                                internalCommandProducer.send(ProducerRecord(CompetitionServiceTopics.MATS_GLOBAL_COMMANDS_TOPIC_NAME, competititonId, Command(UUID.randomUUID().toString(),
+                                internalCommandProducer.send(ProducerRecord(CompetitionServiceTopics.DASHBOARD_COMMANDS_TOPIC_NAME, competititonId, Command(UUID.randomUUID().toString(),
                                         competititonId, CommandType.CHECK_MAT_OBSOLETE, null, matId, emptyMap())))
                             }
                         } catch (e: Throwable) {

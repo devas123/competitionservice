@@ -83,12 +83,12 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
                     .filter { it.categoryId != null }.mapNotNull { category ->
                         getCategoryState(String(Base64.getEncoder().encode(category.categoryId?.toByteArray(StandardCharsets.UTF_8)), StandardCharsets.UTF_8))
                     }.firstOrNull { categoryState ->
-                        categoryState.competitors.any { it.email == decodedFighterId }
+                        categoryState.competitors.any { it.id == decodedFighterId }
                     }
-            categoryState?.competitors?.find { it.email == decodedFighterId }
+            categoryState?.competitors?.find { it.id == decodedFighterId }
         } else {
             val categoryState = getCategoryState(String(Base64.getEncoder().encode(categoryId.toByteArray(StandardCharsets.UTF_8)), StandardCharsets.UTF_8))
-            categoryState?.competitors?.find { it.email == decodedFighterId }
+            categoryState?.competitors?.find { it.id == decodedFighterId }
         }
     }
 

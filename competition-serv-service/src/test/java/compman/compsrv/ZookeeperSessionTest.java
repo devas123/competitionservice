@@ -186,7 +186,7 @@ public final class ZookeeperSessionTest {
 
         Set<String> topics = adminClient.listTopics().names().get();
 
-        while (topics == null || !topics.contains(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME)) {
+        while (topics == null || !topics.contains(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME)) {
             log.info("Waiting for global competition commands topics to be created. Current topics are: " + topics);
             topics = adminClient.listTopics().names().get();
             sleep(1000);
@@ -195,9 +195,9 @@ public final class ZookeeperSessionTest {
         KafkaProducer<String, Command> producer = new KafkaProducer<>(kafkaProps.getProducer().getProperties(), new StringSerializer(), new CommandSerializer());
         CompetitionProperties pr1 = new CompetitionProperties(UUID.randomUUID().toString(), COMPETITION1, COMPETITION1, "valera@protas.ru");
         CompetitionProperties pr2 = new CompetitionProperties(UUID.randomUUID().toString(), COMPETITION2, COMPETITION2, "valera@protas.ru");
-        producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, COMPETITION1, new Command(COMPETITION1, CommandType.CREATE_COMPETITION_COMMAND,
+        producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, COMPETITION1, new Command(COMPETITION1, CommandType.CREATE_COMPETITION_COMMAND,
                 "", mapper.convertValue(pr1, LinkedHashMap.class))));
-        producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, COMPETITION2, new Command(COMPETITION2, CommandType.CREATE_COMPETITION_COMMAND,
+        producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, COMPETITION2, new Command(COMPETITION2, CommandType.CREATE_COMPETITION_COMMAND,
                 "", mapper.convertValue(pr2, LinkedHashMap.class))));
 
         producer.flush();
@@ -206,7 +206,7 @@ public final class ZookeeperSessionTest {
 
         topics = adminClient.listTopics().names().get();
 
-        String comp2commandsTopic = CompetitionServiceTopics.CATEGORIES_COMMANDS_TOPIC_NAME;
+        String comp2commandsTopic = CompetitionServiceTopics.CATEGORY_COMMANDS_TOPIC_NAME;
 
         while (topics == null || !topics.contains(comp2commandsTopic)) {
             log.info("Waiting for competition topics to be created. Current topics are: " + topics);

@@ -8,12 +8,19 @@ import compman.compsrv.model.brackets.BracketDescriptor
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class CategoryState @JsonCreator constructor(@JsonProperty("correlationId") val correlationId: String,
                                                   @JsonProperty("category") val category: Category,
+                                                  @JsonProperty("status") val status: CategoryStateStatus,
                                                   @JsonProperty("brackets") val brackets: BracketDescriptor?,
                                                   @JsonProperty("competitors") val competitors: Set<Competitor>) {
 
+    constructor(correlationId: String,
+                category: Category,
+                brackets: BracketDescriptor?,
+                competitors: Set<Competitor>): this(correlationId, category, CategoryStateStatus.INITIALIZED, brackets, competitors)
+
+
 
     fun addCompetitor(competitor: Competitor) = copy(competitors = competitors + competitor.copy(category = this.category))
-    fun removeCompetitor(email: String) = copy(competitors = competitors.asSequence().filter { it.email != email }.toSet())
+    fun removeCompetitor(email: String) = copy(competitors = competitors.asSequence().filter { it.id != email }.toSet())
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false

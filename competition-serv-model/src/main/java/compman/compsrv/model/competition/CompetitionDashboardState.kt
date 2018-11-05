@@ -9,11 +9,10 @@ data class CompetitionDashboardState @PersistenceConstructor @JsonCreator
 constructor(
         @JsonProperty("correlationId") val correlationId: String,
         @JsonProperty("competitionId") val competitionId: String,
-        @JsonProperty("periods") val periods: Set<DashboardPeriod>,
-        @JsonProperty("properties") val properties: CompetitionProperties?) {
+        @JsonProperty("periods") val periods: Set<DashboardPeriod>) {
 
     override fun toString(): String {
-        return "CompetitionDashboardState(competitionId='$competitionId', periods=$periods, properties=$properties)"
+        return "CompetitionDashboardState(competitionId='$competitionId', periods=$periods)"
     }
 
     fun upsertPeriod(period: DashboardPeriod) = if (periods.contains(period)) {

@@ -12,12 +12,14 @@ import compman.compsrv.model.competition.CompetitionStatus
 import compman.compsrv.model.competition.Competitor
 import compman.compsrv.model.dto.CategoryDTO
 import compman.compsrv.model.es.commands.Command
+import compman.compsrv.model.es.commands.CommandScope
 import compman.compsrv.model.es.commands.CommandType
 import compman.compsrv.model.es.events.EventHolder
 import compman.compsrv.model.es.events.EventType
 import compman.compsrv.model.schedule.DashboardPeriod
 import compman.compsrv.model.schedule.Schedule
-import compman.compsrv.service.ScheduleService
+import compman.compsrv.service.CompetitionPropertiesService
+import compman.compsrv.service.DashboardStateService
 import compman.compsrv.service.StateQueryService
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerConfig
@@ -39,7 +41,10 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
-class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val scheduleService: ScheduleService, private val stateQueryService: StateQueryService, private val kafkaProperties: KafkaProperties) {
+class LeaderProcessStreams(private val adminClient: KafkaAdminUtils,
+                           private val competitionStateService: CompetitionPropertiesService,
+                           private val dashboardStateService: DashboardStateService,
+                           private val stateQueryService: StateQueryService, private val kafkaProperties: KafkaProperties) {
 
     companion object {
         private val log = LoggerFactory.getLogger(LeaderProcessStreams::class.java)
@@ -62,14 +67,14 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
 
         adminClient.createTopicIfMissing(CompetitionServiceTopics.COMPETITION_STATE_CHANGELOG_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor, compacted = true)
         adminClient.createTopicIfMissing(CompetitionServiceTopics.DASHBOARD_STATE_CHANGELOG_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor, compacted = true)
-        val categoriesCommandsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.CATEGORIES_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
-        val competitionsCommandsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
-        val competitionsEventsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.COMPETITIONS_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
-        val competitionsInternalEventsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.COMPETITIONS_INTERNAL_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
-        val matsCommandsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.MATS_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
-        val matsGlobalCommandsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.MATS_GLOBAL_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
-        val matsGlobalEventsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.MATS_GLOBAL_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
-        val matsGlobalInternalEventsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.MATS_GLOBAL_INTERNAL_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
+        val categoriesCommandsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.CATEGORY_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
+        val competitionsCommandsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
+        val competitionsEventsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
+        val competitionsInternalEventsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.COMPETITION_INTERNAL_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
+        val matsCommandsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.MAT_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
+        val matsGlobalCommandsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.DASHBOARD_COMMANDS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
+        val matsGlobalEventsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.DASHBOARD_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
+        val matsGlobalInternalEventsTopic = adminClient.createTopicIfMissing(CompetitionServiceTopics.MAT_GLOBAL_INTERNAL_EVENTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
         val builder = createStreamsBuilder(competitionsCommandsTopic, competitionsEventsTopic, categoriesCommandsTopic, competitionsInternalEventsTopic)
         val topology = addMatsCommandsProcessing(builder, matsCommandsTopic, matsGlobalCommandsTopic, matsGlobalEventsTopic, matsGlobalInternalEventsTopic).build()
         streamOfCompetitions = KafkaStreams(topology, streamProperties)
@@ -92,7 +97,7 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
                             val catStateKeyValue = it.next()
                             if (catStateKeyValue.value != null) {
                                 val competitionId = catStateKeyValue.value.competitionId
-                                internalCommandProducer.send(ProducerRecord(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, competitionId, Command(competitionId,
+                                internalCommandProducer.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId, Command(competitionId,
                                         CommandType.CHECK_DASHBOARD_OBSOLETE, null, null, emptyMap())))
                             }
                         } catch (e: Throwable) {
@@ -113,14 +118,29 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
                 Serdes.String(),
                 Serdes.serdeFrom(CompetitionPropsSerializer(), CompetitionPropsDeserializer()))
         builder.addStateStore(propsStoreBuilder)
-        val competitionCommands = builder.stream<String, Command>(competitionsCommandsTopic, Consumed.with(Serdes.String(), CommandSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
+        val allCommands = builder.stream<String, Command>(competitionsCommandsTopic, Consumed.with(Serdes.String(), CommandSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
+                .filter { key, value -> value != null && !key.isNullOrBlank() }
+
+
+        val competitionCommands = allCommands.filter { _, value ->
+            value.type.scopes.contains(CommandScope.COMPETITION)
+        }
+
+        val categoryCommands = allCommands.filter { _, value ->
+            value.type.scopes.contains(CommandScope.CATEGORY)
+        }
+
+        val matCommands = allCommands.filter { _, value ->
+            value.type.scopes.contains(CommandScope.MAT)
+        }
+
+        categoryCommands.selectKey { _, value -> value.categoryId }.to(CompetitionServiceTopics.CATEGORY_COMMANDS_TOPIC_NAME)
+        matCommands.selectKey { _, value -> value.matId }.to(CompetitionServiceTopics.MAT_COMMANDS_TOPIC_NAME)
 
         competitionCommands
-                .filter { key, value -> value != null && !key.isNullOrBlank() }
                 .transformValues(ValueTransformerSupplier {
                     GlobalCompetitionCommandExecutorTransformer(COMPETITION_PROPERTIES_STORE_NAME,
-                            scheduleService,
-                            stateQueryService,
+                            competitionStateService,
                             mapper)
                 }, COMPETITION_PROPERTIES_STORE_NAME)
                 .flatMapValues { value -> value.toList() }
@@ -144,8 +164,6 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
                 }
                 .flatMapValues { value ->
                     when (value.type) {
-                        EventType.INTERNAL_COMPETITOR_ADDED -> listOf(Command(value.competitionId, CommandType.ADD_COMPETITOR_COMMAND, value.categoryId, value.payload))
-                        EventType.INTERNAL_COMPETITOR_REMOVED -> listOf(Command(value.competitionId, CommandType.REMOVE_COMPETITOR_COMMAND, value.categoryId, value.payload))
                         EventType.INTERNAL_ALL_BRACKETS_DROPPED -> {
                             try {
                                 if (value.payload != null && value.payload?.containsKey("categories") == true) {
@@ -192,7 +210,7 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
                             val categories = value.payload?.get("categories") as? List<*>
                             (categories?.map { Command(value.competitionId, CommandType.DELETE_CATEGORY_STATE_COMMAND, it.toString(), emptyMap()) }
                                     ?: emptyList()) + Command(value.competitionId, CommandType.DELETE_DASHBOARD_STATE_COMMAND, null, null, emptyMap())
-                                    .setMetadata(mapOf(ROUTING_METADATA_KEY to CompetitionServiceTopics.MATS_GLOBAL_COMMANDS_TOPIC_NAME))
+                                    .setMetadata(mapOf(ROUTING_METADATA_KEY to CompetitionServiceTopics.DASHBOARD_COMMANDS_TOPIC_NAME))
                         }
                         else -> listOf(Command(value.competitionId, CommandType.DUMMY_COMMAND, value.categoryId, emptyMap()))
                     }
@@ -216,7 +234,7 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
         matsGlobalCommands
                 .filter { key, value -> value != null && !key.isNullOrBlank() }
                 .transformValues(ValueTransformerSupplier {
-                    MatGlobalCommandExecutorTransformer(COMPETITION_DASHBOARD_STATE_STORE_NAME, stateQueryService)
+                    MatGlobalCommandExecutorTransformer(COMPETITION_DASHBOARD_STATE_STORE_NAME, dashboardStateService)
                 }, COMPETITION_DASHBOARD_STATE_STORE_NAME)
                 .flatMapValues { value -> value.toList() }
                 .filterNot { _, value -> value == null || value.type == EventType.DUMMY }
@@ -248,7 +266,7 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
                         EventType.MAT_DELETED -> {
                             listOf(Command(event.competitionId, CommandType.DELETE_MAT_STATE_COMMAND, event.categoryId, event.matId, event.payload))
                         }
-                        EventType.PERIOD_INITIALIZED -> {
+                        EventType.DASHBOARD_PERIOD_INITIALIZED -> {
                             val period = mapper.convertValue(event.payload?.get("period"), DashboardPeriod::class.java)
                             val props = stateQueryService.getCompetitionProperties(event.competitionId)!!
                             val schedulePeriod = props.schedule?.periods?.find { it.id == period.id }
@@ -271,7 +289,7 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
                                                     CommandType.ADD_UNDISPATCHED_MAT_COMMAND,
                                                     event.categoryId,
                                                     mapOf("periodId" to period.id, "matFights" to undispatchedFights))
-                                                    .setMetadata(mapOf(ROUTING_METADATA_KEY to CompetitionServiceTopics.MATS_GLOBAL_COMMANDS_TOPIC_NAME))
+                                                    .setMetadata(mapOf(ROUTING_METADATA_KEY to CompetitionServiceTopics.DASHBOARD_COMMANDS_TOPIC_NAME))
                                 } else {
                                     commands
                                 }
@@ -298,8 +316,8 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils, private val
         value?.metadata?.containsKey(ROUTING_METADATA_KEY) == true -> {
             val routing = value.metadata?.get(ROUTING_METADATA_KEY)
             when (routing) {
-                CompetitionServiceTopics.MATS_GLOBAL_COMMANDS_TOPIC_NAME -> value.competitionId
-                CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME -> value.competitionId
+                CompetitionServiceTopics.DASHBOARD_COMMANDS_TOPIC_NAME -> value.competitionId
+                CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME -> value.competitionId
                 else -> defaultKey
             }
         }

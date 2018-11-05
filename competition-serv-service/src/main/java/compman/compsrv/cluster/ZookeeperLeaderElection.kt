@@ -19,7 +19,7 @@ class ZookeeperLeaderElection(clusterConfigurationProperties: ClusterConfigurati
     override fun registerListener(listener: LeadershipListener): Boolean {
         stateLock.lock()
         try {
-            if (connected) {
+            if (isConnected()) {
                 if (isLeader()) {
                     listener.onGranted()
                 } else {
@@ -38,19 +38,14 @@ class ZookeeperLeaderElection(clusterConfigurationProperties: ClusterConfigurati
 
     private val leadershipListeners = CopyOnWriteArrayList<LeadershipListener>()
 
-    override fun isConnected() = connected
+    override fun isConnected() = zk.zookeeperClient.isConnected
 
     companion object {
         private val log = LoggerFactory.getLogger(ZookeeperLeaderElection::class.java)
     }
 
     @Volatile
-    var connected = false
-        private set
-
-    @Volatile
-    var leader = false
-        private set
+    private var leader = false
 
     private val zk: CuratorFramework
 
@@ -79,14 +74,13 @@ class ZookeeperLeaderElection(clusterConfigurationProperties: ClusterConfigurati
             curatorFramework.connectionStateListenable.addListener(this)
             curatorFramework.start()
             curatorFramework.blockUntilConnected(connectTimeout.toInt(), TimeUnit.MILLISECONDS)
-            connected = true
             return curatorFramework
         } finally {
             stateLock.unlock()
         }
     }
 
-    private fun createElectionNode(): String = if (connected) {
+    private fun createElectionNode(): String = if (isConnected()) {
         ZkUtils.createNode(zk, "$electionPath/compsrv_", CreateMode.EPHEMERAL_SEQUENTIAL)
     } else {
         throw IllegalStateException("Not connected. ")
@@ -96,7 +90,7 @@ class ZookeeperLeaderElection(clusterConfigurationProperties: ClusterConfigurati
     private fun doLeaderElection() {
         stateLock.lock()
         try {
-            if (connected) {
+            if (isConnected()) {
                 val candidates = zk.children.forPath(electionPath)
                 val id = electionNode.split("_").last().toLong(10)
                 if (candidates?.isNotEmpty() == true) {
@@ -126,7 +120,7 @@ class ZookeeperLeaderElection(clusterConfigurationProperties: ClusterConfigurati
 
 
     override fun process(event: WatchedEvent?) {
-        if (connected) {
+        if (isConnected()) {
             event?.also {
                 if (it.type == Watcher.Event.EventType.NodeDeleted) {
                     log.info("My local leader node has been deleted. Checking if the leader has changed.")
@@ -156,7 +150,6 @@ class ZookeeperLeaderElection(clusterConfigurationProperties: ClusterConfigurati
                     doLeaderElection()
                 }
             }
-            connected = newState?.isConnected ?: false
         } finally {
             stateLock.unlock()
         }
@@ -169,7 +162,6 @@ class ZookeeperLeaderElection(clusterConfigurationProperties: ClusterConfigurati
         } catch (e: Exception) {
             log.warn("Exception while closing zookeeper session", e)
         } finally {
-            connected = false
             leader = false
             stateLock.unlock()
         }

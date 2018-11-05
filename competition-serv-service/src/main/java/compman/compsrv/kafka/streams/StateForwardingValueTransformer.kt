@@ -3,13 +3,14 @@ package compman.compsrv.kafka.streams
 import compman.compsrv.model.es.commands.Command
 import compman.compsrv.model.es.events.EventHolder
 import compman.compsrv.model.es.events.EventType
+import compman.compsrv.service.ICommandProcessingService
 import org.apache.kafka.streams.kstream.ValueTransformer
 import org.apache.kafka.streams.processor.ProcessorContext
 import org.apache.kafka.streams.state.KeyValueStore
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicInteger
 
-abstract class StateForwardingValueTransformer<StateType>(private val stateStoreName: String, private val stateForawrdingTopic: String) : ValueTransformer<Command, List<EventHolder>> {
+abstract class StateForwardingValueTransformer<StateType>(private val stateStoreName: String, private val stateForawrdingTopic: String, private val commandProcessingService: ICommandProcessingService<StateType, Command, EventHolder>) : ValueTransformer<Command, List<EventHolder>> {
 
 
     private val log = LoggerFactory.getLogger(this.javaClass)
@@ -33,25 +34,28 @@ abstract class StateForwardingValueTransformer<StateType>(private val stateStore
     }
 
     override fun transform(command: Command): List<EventHolder>? {
-        fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlationId!!, command.competitionId, command.categoryId
-                ?: "null", command.matId, type, payload)
-                .setMetadata(mapOf(LeaderProcessStreams.ROUTING_METADATA_KEY to stateForawrdingTopic, LeaderProcessStreams.CORRELATION_ID_KEY to command.correlationId!!))
-        try {
-            val currentState = getState(getStateKey(command))
-            val triple = doTransform(currentState, command)
-            return if (triple.first != null && updatesCounter.getAndIncrement() % 10 == 0 && triple.third != null && triple.third?.any { it.type == EventType.ERROR_EVENT } == false) {
-                if (triple.second != null) {
-                    stateStore.put(command.competitionId, triple.second)
-                } else {
-                    stateStore.delete(command.competitionId)
+        return try {
+            val stateKey = getStateKey(command)
+            val currentState = getState(stateKey)
+            val validationErrors = canExecuteCommand(currentState, command)
+            if (validationErrors.isEmpty()) {
+                val eventsToApply = commandProcessingService.process(command, currentState)
+                val (newState, eventsToSend) = commandProcessingService.batchApply(eventsToApply, currentState)
+                if (eventsToSend.isNotEmpty() && !eventsToSend.any { it.type == EventType.ERROR_EVENT }) {
+                    if (newState != null) {
+                        stateStore.put(stateKey, newState)
+                    } else {
+                        stateStore.delete(stateKey)
+                    }
                 }
-                triple.third!! + createEvent(EventType.INTERNAL_STATE_SNAPSHOT_CREATED, mapOf("state" to triple.second?.let { updateCorrelationId(it, command) }))
+                eventsToSend
             } else {
-                triple.third
+                log.error("Command not valid: ${validationErrors.joinToString(separator = ",")}")
+                emptyList()
             }
         } catch(e: Throwable) {
             log.error("Exception: ", e)
-            return null
+            emptyList()
         }
     }
 
@@ -63,8 +67,7 @@ abstract class StateForwardingValueTransformer<StateType>(private val stateStore
                     "", e)
         }
     }
-    abstract fun updateCorrelationId(currentState: StateType, command: Command): StateType
-
     abstract fun getStateKey(command: Command?): String
-    abstract fun doTransform(currentState: StateType?, command: Command?): Triple<String?, StateType?, List<EventHolder>?>
+
+    open fun canExecuteCommand(state: StateType?, command: Command?): List<String> = emptyList()
 }

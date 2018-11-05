@@ -10,22 +10,27 @@ security:
     resource:
       user-info-uri: http://localhost:5000/uaa/users/current
 
+#Profiles:
+#el-zookeeper: manual leader election with zookeeper
+#el-curator: leader election with curator's recipe
+#dev - developer's profile (for test instances of zookeeper and kafka)
 
 spring:
   profiles:
-    active: el-zookeeper
+    active: el-curator
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      username: compman
+      password: compManagerPassword
+      database: compservice
+      authentication-database: admin
 server:
   servlet.context-path: /competitions
   port: 8082
 
-mongodb:
-  host: localhost
-  username: compman
-  password: compManagerPassword
-  database: compservice
-  port: 27017
-  admindb: admin
-  auth: false
+mongodb.auth: false
 
 communication:
   frontend-callback-url: http://localhost:8080/

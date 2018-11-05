@@ -17,19 +17,19 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
 @Profile("!mongo-embed")
 @EnableMongoRepositories(basePackages = ["com.compservice.data"])
 class MongodbConfig : AbstractMongoConfiguration() {
-    @Value("\${mongodb.host}")
+    @Value("\${spring.data.mongodb.host}")
     var mongohost = "localhost"
 
-    @Value("\${mongodb.database}")
+    @Value("\${spring.data.mongodb.database}")
     var mongoDatabaseName = "competitionmanager"
 
-    @Value("\${mongodb.username}")
+    @Value("\${spring.data.mongodb.username}")
     var mongousername = "compman"
 
-    @Value("\${mongodb.password}")
+    @Value("\${spring.data.mongodb.password}")
     var mongopassword = "compManagerPassword"
 
-    @Value("\${mongodb.admindb}")
+    @Value("\${spring.data.mongodb.authentication-database}")
     val mongoadminDb = "admin"
 
     @Value("\${mongodb.auth}")
@@ -42,11 +42,11 @@ class MongodbConfig : AbstractMongoConfiguration() {
 
     @Bean
     override fun mongoClient(): MongoClient {
-        if (mongoAuth) {
+        return if (mongoAuth) {
             val credantials: MongoCredential = MongoCredential.createCredential(mongousername, mongoadminDb, mongopassword.toCharArray())
-            return MongoClient(ServerAddress(mongohost), credantials, null)
+            MongoClient(ServerAddress(mongohost), credantials, null)
         } else {
-            return MongoClient(mongohost)
+            MongoClient(mongohost)
         }
     }
 

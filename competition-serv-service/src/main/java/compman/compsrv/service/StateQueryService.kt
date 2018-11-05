@@ -42,7 +42,7 @@ class StateQueryService(private val zookeeperSession: ZookeeperSession, private 
         null
     }
 
-    fun doGetHostForMat(decodedMatId: String) = try {
+    private fun doGetHostForMat(decodedMatId: String) = try {
         val zks = getZookeeperSession()
         zks.getHostForMat(decodedMatId)
     } catch (e: Exception) {

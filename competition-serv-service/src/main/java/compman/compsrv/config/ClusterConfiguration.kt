@@ -1,11 +1,11 @@
 package compman.compsrv.config
 
 import com.compman.starter.properties.KafkaProperties
+import compman.compsrv.cluster.CuratorLeaderElection
 import compman.compsrv.cluster.LeaderElection
 import compman.compsrv.cluster.ZookeeperLeaderElection
 import compman.compsrv.cluster.ZookeeperSession
-import compman.compsrv.service.CategoryStateService
-import compman.compsrv.service.ScheduleService
+import compman.compsrv.service.*
 import compman.compsrv.validators.CategoryCommandsValidatorRegistry
 import compman.compsrv.validators.MatCommandsValidatorRegistry
 import org.springframework.context.annotation.Bean
@@ -20,7 +20,10 @@ class ClusterConfiguration {
     @Bean(destroyMethod = "close")
     fun zookeeperSession(clusterConfigurationProperties: ClusterConfigurationProperties,
                          kafkaProperties: KafkaProperties,
-                         competitionStateService: CategoryStateService,
+                         categoryStateService: CategoryStateService,
+                         competitionPropertiesService: CompetitionPropertiesService,
+                         matStateService: MatStateService,
+                         dashboardStateService: DashboardStateService,
                          scheduleService: ScheduleService,
                          restTemplate: RestTemplate,
                          matCommandsValidatorRegistry: MatCommandsValidatorRegistry,
@@ -28,10 +31,11 @@ class ClusterConfiguration {
                          leaderElection: LeaderElection) =
             ZookeeperSession(clusterConfigurationProperties,
                     kafkaProperties,
-                    competitionStateService,
-                    scheduleService,
+                    categoryStateService,
+                    competitionPropertiesService,
+                    dashboardStateService,
+                    matStateService,
                     restTemplate,
-                    validatorRegistry,
                     matCommandsValidatorRegistry,
                     leaderElection)
 
@@ -41,5 +45,9 @@ class ClusterConfiguration {
     @Bean
     @Profile("el-zookeeper")
     fun zookeeperLeaderElection(clusterConfigurationProperties: ClusterConfigurationProperties) = ZookeeperLeaderElection(clusterConfigurationProperties)
+
+    @Bean
+    @Profile("el-curator")
+    fun curatorLeaderElection(clusterConfigurationProperties: ClusterConfigurationProperties) = CuratorLeaderElection(clusterConfigurationProperties)
 
 }

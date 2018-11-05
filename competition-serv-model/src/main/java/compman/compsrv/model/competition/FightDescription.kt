@@ -105,15 +105,15 @@ constructor(@JsonProperty("fightId") val fightId: String,
         val needToShift = competitors.size == 2
         return if (index == 0) {
             if (needToShift) {
-                copy(competitors = arrayOf(CompScore(competitor, Score(competitor.email)), competitors[1]))
+                copy(competitors = arrayOf(CompScore(competitor, Score(competitor.id)), competitors[1]))
             } else {
-                copy(competitors = arrayOf(CompScore(competitor, Score(competitor.email)), competitors[0]))
+                copy(competitors = arrayOf(CompScore(competitor, Score(competitor.id)), competitors[0]))
             }
         } else if (index == 1) {
             if (needToShift) {
-                copy(competitors = arrayOf(competitors[0], CompScore(competitor, Score(competitor.email))))
+                copy(competitors = arrayOf(competitors[0], CompScore(competitor, Score(competitor.id))))
             } else {
-                copy(competitors = competitors + CompScore(competitor, Score(competitor.email)))
+                copy(competitors = competitors + CompScore(competitor, Score(competitor.id)))
             }
         } else {
             this
@@ -121,11 +121,11 @@ constructor(@JsonProperty("fightId") val fightId: String,
     }
 
     fun pushCompetitor(competitor: Competitor): FightDescription {
-        if (competitor.email == "fake") {
+        if (competitor.id == "fake") {
             return this
         }
         if (competitors.size < 2) {
-            return copy(competitors = competitors + CompScore(competitor, Score(competitor.email)))
+            return copy(competitors = competitors + CompScore(competitor, Score(competitor.id)))
         } else {
             throw RuntimeException("Fight is already packed. Cannot add competitors")
         }

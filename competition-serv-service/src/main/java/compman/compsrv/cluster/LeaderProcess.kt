@@ -9,6 +9,8 @@ import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.model.competition.Category
 import compman.compsrv.model.competition.CompetitionProperties
 import compman.compsrv.model.competition.CompetitionStatus
+import compman.compsrv.service.CompetitionPropertiesService
+import compman.compsrv.service.DashboardStateService
 import compman.compsrv.service.ScheduleService
 import compman.compsrv.service.StateQueryService
 import org.apache.kafka.clients.admin.AdminClientConfig
@@ -21,9 +23,10 @@ import kotlin.concurrent.thread
 
 
 class LeaderProcess(listenerString: String,
-                    scheduleService: ScheduleService,
                     kafkaProperties: KafkaProperties,
-                    stateQueryService: StateQueryService) {
+                    stateQueryService: StateQueryService,
+                    competitionStateService: CompetitionPropertiesService,
+                    dashboardStateService: DashboardStateService) {
 
     companion object {
         private val log = LoggerFactory.getLogger(LeaderProcess::class.java)
@@ -60,7 +63,7 @@ class LeaderProcess(listenerString: String,
 
         //Stream
 
-        leaderProcessStreams = LeaderProcessStreams(adminClient, scheduleService, stateQueryService, kafkaProperties)
+        leaderProcessStreams = LeaderProcessStreams(adminClient, competitionStateService, dashboardStateService, stateQueryService, kafkaProperties)
         metadataService = leaderProcessStreams.metadataService
 
         Runtime.getRuntime().addShutdownHook(thread(start = false) { producer.close(10, TimeUnit.SECONDS) })
@@ -89,7 +92,7 @@ class LeaderProcess(listenerString: String,
 
     fun getCompetitionProperties(competitionId: String) = leaderProcessStreams.getCompetitionProperties(competitionId)
     fun getCompetitions(status: CompetitionStatus?, creatorId: String?): Array<CompetitionProperties> = readCompProperties(status?.let { arrayOf(it) }).filter { creatorId.isNullOrBlank() || it.creatorId == creatorId }.toTypedArray()
-    fun getCategories(competitionId: String): List<Category>? = getCompetitionProperties(competitionId)?.categories?.toList()
+    fun getCategories(competitionId: String): List<Category>? = emptyList() //TODO: implement
     fun getDashboardState(competitionId: String) = leaderProcessStreams.getDashboardState(competitionId)
 }
 

@@ -14,10 +14,10 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
 @Profile("mongo-embed")
 @EnableMongoRepositories(basePackages = ["com.compservice.data"])
 class MongodbMockConfig : AbstractMongoConfiguration() {
-    @Value("\${mongodb.host}")
+    @Value("\${spring.data.mongodb.host}")
     var mongohost = "localhost"
 
-    @Value("\${mongodb.database}")
+    @Value("\${spring.data.mongodb.database}")
     var mongoDatabaseName = "compman"
 
 

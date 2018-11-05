@@ -26,8 +26,6 @@ constructor(
         @JsonView(Views.Public::class) @JsonProperty("schedule") val schedule: Schedule?,
         @JsonView(Views.Public::class) @JsonProperty("status") val status: CompetitionStatus,
         @JsonView(Views.Short::class) @JsonProperty("endDate") val endDate: Date?,
-        @JsonView(Views.Internal::class) @JsonProperty("registeredIds") val registeredIds: Set<String>,
-        @JsonView(Views.Short::class) @JsonProperty("categories") val categories: Set<Category>?,
         @JsonView(Views.Short::class) @JsonProperty("mats") val mats: Set<String>?,
         @JsonView(Views.Short::class) @JsonProperty("registrationOpen") val registrationOpen: Boolean?) {
     constructor(competitionId: String, correlationId: String, competitionName: String, creatorId: String) : this(
@@ -47,9 +45,7 @@ constructor(
             schedulePublished = false,
             status = CompetitionStatus.CREATED,
             promoCodes = emptyList(),
-            categories = emptySet(),
-            mats = emptySet(),
-            registeredIds = emptySet())
+            mats = emptySet())
 
     fun setCompetitionId(competitionId: String) = if (competitionId.isNotBlank()) copy(competitionId = competitionId) else this
 
@@ -79,13 +75,6 @@ constructor(
             status = (props["status"] as? CompetitionStatus) ?: status) else {
         this
     }
-
-    fun addCategory(category: Category) = copy(categories = (categories ?: emptySet()) + category)
-    fun deleteCategory(categoryId: String) = copy(categories = (categories
-            ?: emptySet()).filter { it.categoryId != categoryId }.toSet())
-
-    fun addRegisteredId(id: String) = copy(registeredIds = registeredIds + id)
-    fun deleteRegisteredId(id: String) = copy(registeredIds = registeredIds - id)
 
     fun setStatus(status: CompetitionStatus) = copy(status = status)
     override fun equals(other: Any?): Boolean {
