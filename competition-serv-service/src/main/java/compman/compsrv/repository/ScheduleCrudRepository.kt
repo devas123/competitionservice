@@ -1,8 +1,8 @@
 package compman.compsrv.repository
 
 import compman.compsrv.model.schedule.Schedule
-import org.springframework.data.mongodb.repository.MongoRepository
-import org.springframework.stereotype.Component
+import org.springframework.data.repository.CrudRepository
+import org.springframework.stereotype.Repository
 
-@Component
-interface ScheduleCrudRepository : MongoRepository<Schedule, String>
+@Repository
+interface ScheduleCrudRepository : CrudRepository<Schedule, String>

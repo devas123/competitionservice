@@ -1,0 +1,12 @@
+cluster.zookeeper.connection-string: 127.0.0.1:50787
+kafka.bootstrap-servers: localhost:50812
+
+
+server:
+  port: 8083
+
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: update

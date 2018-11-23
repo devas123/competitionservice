@@ -1,6 +1,6 @@
 package compman.compsrv.service
 
-import compman.compsrv.cluster.ZookeeperSession
+import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.config.ClusterConfigurationProperties
 import compman.compsrv.kafka.HostStoreInfo
 import compman.compsrv.model.competition.*
@@ -14,7 +14,7 @@ import java.nio.charset.StandardCharsets
 import java.util.*
 import javax.ws.rs.NotFoundException
 
-class StateQueryService(private val zookeeperSession: ZookeeperSession, private val restTemplate: RestTemplate, clusterConfigurationProperties: ClusterConfigurationProperties) {
+class StateQueryService(private val zookeeperSession: ClusterSession, private val restTemplate: RestTemplate, clusterConfigurationProperties: ClusterConfigurationProperties) {
 
     companion object {
         private val log = LoggerFactory.getLogger(StateQueryService::class.java)
@@ -35,7 +35,7 @@ class StateQueryService(private val zookeeperSession: ZookeeperSession, private 
 
 
     fun doGetHostForCategory(decodedCatId: String) = try {
-        val zks = getZookeeperSession()
+        val zks = clusterSession()
         zks.getHostForCategory(decodedCatId)
     } catch (e: Exception) {
         log.warn("Could not find metadata for category $decodedCatId", e)
@@ -43,17 +43,17 @@ class StateQueryService(private val zookeeperSession: ZookeeperSession, private 
     }
 
     private fun doGetHostForMat(decodedMatId: String) = try {
-        val zks = getZookeeperSession()
+        val zks = clusterSession()
         zks.getHostForMat(decodedMatId)
     } catch (e: Exception) {
         log.warn("Could not find metadata for mat $decodedMatId", e)
         null
     }
 
-    private fun getZookeeperSession() = zookeeperSession
-    fun getCompetitionProperties(competitionId: String?): CompetitionProperties? {
+    private fun clusterSession() = zookeeperSession
+    fun getCompetitionProperties(competitionId: String?): CompetitionState? {
         return if (competitionId != null) {
-            getZookeeperSession().getCompetitionProperties(competitionId)
+            clusterSession().getCompetitionProperties(competitionId)
         } else {
             null
         }
@@ -61,14 +61,14 @@ class StateQueryService(private val zookeeperSession: ZookeeperSession, private 
 
     fun getSchedule(competitionId: String?): Schedule? {
         return if (competitionId != null) {
-            getZookeeperSession().getCompetitionProperties(competitionId)?.schedule
+            clusterSession().getCompetitionProperties(competitionId)?.schedule
         } else {
             null
         }
     }
 
     fun getCategoryState(categoryId: String): CategoryState? {
-        val zks = getZookeeperSession()
+        val zks = clusterSession()
         log.info("Getting state for category $categoryId")
         val hostStoreInfo = doGetHostForCategory(categoryId)
         return if (hostStoreInfo != null && thisHost(hostStoreInfo)) {
@@ -83,38 +83,22 @@ class StateQueryService(private val zookeeperSession: ZookeeperSession, private 
     }
 
     fun getCompetitions(status: CompetitionStatus?, creatorId: String?): Array<CompetitionPropertiesDTO> {
-        val zks = getZookeeperSession()
-        return zks.getCompetitions(status, creatorId).map { CompetitionPropertiesDTO(it.setSchedule(null)) }.toTypedArray()
+        val zks = clusterSession()
+        return zks.getCompetitions(status, creatorId).map { CompetitionPropertiesDTO(it.withSchedule(null)) }.toTypedArray()
 
     }
 
     fun getCategories(competitionId: String): Array<CategoryDTO> {
-        val zks = getZookeeperSession()
+        val zks = clusterSession()
         val categories = zks.getCategoriesForCompetition(competitionId) ?: emptyArray()
         return categories
-                .filter { !it.categoryId.isNullOrBlank() }
-                .mapNotNull { getCategoryState(it.categoryId!!) }
+                .filter { !it.id.isBlank() }
+                .mapNotNull { getCategoryState(it.id) }
                 .map { CategoryDTO(it) }.toTypedArray()
     }
 
     fun getDashboardState(competitionId: String): CompetitionDashboardState? {
-        val zks = getZookeeperSession()
+        val zks = clusterSession()
         return zks.getDashboardState(competitionId)
-    }
-
-    fun getMatState(matId: String): MatState? {
-        val zks = getZookeeperSession()
-        log.info("Getting mat state for mat $matId")
-        val hostStoreInfo = doGetHostForMat(matId)
-        return if (hostStoreInfo != null && thisHost(hostStoreInfo)) {
-            zks.getMatState(matId)
-        } else if (hostStoreInfo != null) {
-            val encodedMatId = Base64.getEncoder().encodeToString(matId.toByteArray(StandardCharsets.UTF_8))
-            restTemplate.getForObject("http://${hostStoreInfo.host}:${hostStoreInfo.port}/competitions/cluster/store/matstate?matId=$encodedMatId", MatState::class.java)
-                    ?: throw RuntimeException("Could not get category state from $hostStoreInfo for category: $matId")
-        } else {
-            throw NotFoundException("Could not find store metadata for category $matId")
-        }
-
     }
 }

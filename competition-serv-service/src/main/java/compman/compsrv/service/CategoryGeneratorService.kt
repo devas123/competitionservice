@@ -7,8 +7,8 @@ import java.util.*
 
 @Component
 class CategoryGeneratorService {
-    fun createDefaultBjjCategories(competitionId: String): List<Category> {
-        val adultMaleRooster = Category(BjjAgeDivisions.ADULT, Gender.MALE, competitionId, UUID.randomUUID().toString(), Weight(Weight.ROOSTER, BigDecimal("57.5")), BeltType.WHITE, BigDecimal(5))
+    fun createDefaultBjjCategories(competitionId: String): List<CategoryDescriptor> {
+        val adultMaleRooster = CategoryDescriptor("BJJ", BjjAgeDivisions.ADULT, Gender.MALE, Weight(Weight.ROOSTER, BigDecimal("57.5")), BeltType.WHITE, UUID.randomUUID().toString(), BigDecimal(5))
         val adultMaleLightFeather = adultMaleRooster.setWeight(Weight(Weight.LIGHT_FEATHER, BigDecimal("64")))
         val adultMaleFeather = adultMaleRooster.setWeight(Weight(Weight.FEATHER, BigDecimal("70")))
         val adultMaleLight = adultMaleRooster.setWeight(Weight(Weight.LIGHT, BigDecimal("76")))
@@ -18,7 +18,7 @@ class CategoryGeneratorService {
         val adultMaleSuperHeavy = adultMaleRooster.setWeight(Weight(Weight.SUPER_HEAVY, BigDecimal("100.5")))
         val adultMaleUltraHeavy = adultMaleRooster.setWeight(Weight(Weight.ULTRA_HEAVY, BigDecimal("300")))
 
-        val adultFemaleRooster = Category(BjjAgeDivisions.ADULT, Gender.FEMALE, competitionId, UUID.randomUUID().toString(), Weight(Weight.ROOSTER, BigDecimal("48.5")), BeltType.WHITE, BigDecimal(5))
+        val adultFemaleRooster = CategoryDescriptor("BJJ", BjjAgeDivisions.ADULT, Gender.FEMALE, Weight(Weight.ROOSTER, BigDecimal("48.5")), BeltType.WHITE, UUID.randomUUID().toString(), BigDecimal(5))
         val adultFemaleLightFeather = adultFemaleRooster.setWeight(Weight(Weight.LIGHT_FEATHER, BigDecimal("53.5")))
         val adultFemaleFeather = adultFemaleRooster.setWeight(Weight(Weight.FEATHER, BigDecimal("58.5")))
         val adultFemaleLight = adultFemaleRooster.setWeight(Weight(Weight.LIGHT, BigDecimal("64")))

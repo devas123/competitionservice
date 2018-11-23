@@ -1,53 +1,48 @@
 package compman.compsrv.config
 
-import com.compman.starter.properties.KafkaProperties
-import compman.compsrv.cluster.CuratorLeaderElection
-import compman.compsrv.cluster.LeaderElection
-import compman.compsrv.cluster.ZookeeperLeaderElection
-import compman.compsrv.cluster.ZookeeperSession
-import compman.compsrv.service.*
-import compman.compsrv.validators.CategoryCommandsValidatorRegistry
-import compman.compsrv.validators.MatCommandsValidatorRegistry
+import compman.compsrv.cluster.ClusterSession
+import compman.compsrv.service.StateQueryService
+import compman.compsrv.service.saga.SagaManager
+import io.scalecube.cluster.Cluster
+import io.scalecube.cluster.ClusterConfig
+import org.slf4j.LoggerFactory
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.Profile
+import org.springframework.context.annotation.DependsOn
 import org.springframework.web.client.RestTemplate
+import kotlin.concurrent.thread
 
 @Configuration
-class ClusterConfiguration {
+@EnableConfigurationProperties(ClusterConfigurationProperties::class)
+open class ClusterConfiguration {
+
+    companion object {
+        private val log = LoggerFactory.getLogger(ClusterConfiguration::class.java)
+    }
 
 
-    @Bean(destroyMethod = "close")
-    fun zookeeperSession(clusterConfigurationProperties: ClusterConfigurationProperties,
-                         kafkaProperties: KafkaProperties,
-                         categoryStateService: CategoryStateService,
-                         competitionPropertiesService: CompetitionPropertiesService,
-                         matStateService: MatStateService,
-                         dashboardStateService: DashboardStateService,
-                         scheduleService: ScheduleService,
-                         restTemplate: RestTemplate,
-                         matCommandsValidatorRegistry: MatCommandsValidatorRegistry,
-                         validatorRegistry: CategoryCommandsValidatorRegistry,
-                         leaderElection: LeaderElection) =
-            ZookeeperSession(clusterConfigurationProperties,
-                    kafkaProperties,
-                    categoryStateService,
-                    competitionPropertiesService,
-                    dashboardStateService,
-                    matStateService,
+    @Bean(destroyMethod = "shutdown")
+    open fun cluster(clusterConfigurationProperties: ClusterConfigurationProperties): Cluster {
+        val clusterConfig = ClusterConfig.defaultConfig()
+        val cluster = Cluster.joinAwait(clusterConfig)
+        Runtime.getRuntime().addShutdownHook(thread(start = false) { cluster.shutdown() })
+        log.info("Started instance at ${cluster.address().host()}:${cluster.address().port()}")
+        return cluster
+    }
+
+    @Bean
+    @DependsOn("cluster")
+    open fun zookeeperSession(clusterConfigurationProperties: ClusterConfigurationProperties,
+                              restTemplate: RestTemplate,
+                              cluster: Cluster) =
+            ClusterSession(clusterConfigurationProperties,
                     restTemplate,
-                    matCommandsValidatorRegistry,
-                    leaderElection)
+                    cluster)
 
     @Bean
-    fun stateQueryService(zookeeperSession: ZookeeperSession) = zookeeperSession.stateQueryService
+    open fun sagaFactory(stateQueryService: StateQueryService) = SagaManager(stateQueryService)
 
     @Bean
-    @Profile("el-zookeeper")
-    fun zookeeperLeaderElection(clusterConfigurationProperties: ClusterConfigurationProperties) = ZookeeperLeaderElection(clusterConfigurationProperties)
-
-    @Bean
-    @Profile("el-curator")
-    fun curatorLeaderElection(clusterConfigurationProperties: ClusterConfigurationProperties) = CuratorLeaderElection(clusterConfigurationProperties)
-
+    open fun stateQueryService(zookeeperSession: ClusterSession) = zookeeperSession.stateQueryService
 }

@@ -1,7 +1,6 @@
 package compman.compsrv.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.json.ObjectMapperFactory
 import compman.compsrv.model.brackets.BracketDescriptor
 import compman.compsrv.model.brackets.BracketType
 import compman.compsrv.model.competition.*
@@ -10,17 +9,17 @@ import compman.compsrv.model.es.commands.Command
 import compman.compsrv.model.es.commands.CommandType
 import compman.compsrv.model.es.events.EventHolder
 import compman.compsrv.model.es.events.EventType
+import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.model.schedule.MatScheduleContainer
+import compman.compsrv.repository.CompetitionPropertiesCrudRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 
 @Component
-class CategoryStateService constructor(private val fightsGenerateService: FightsGenerateService) : ICommandProcessingService<CategoryState, Command, EventHolder> {
-
-    companion object {
-        private val mapper: ObjectMapper = ObjectMapperFactory.createObjectMapper()
-    }
+class CategoryStateService constructor(private val fightsGenerateService: FightsGenerateService, private val mapper: ObjectMapper, private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository) : ICommandProcessingService<CategoryState, Command, EventHolder> {
 
     override fun apply(event: EventHolder, state: CategoryState?): Pair<CategoryState?, List<EventHolder>> {
         return if (state != null) {
@@ -107,8 +106,8 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
         val competitor = getPayloadAs(command.payload?.get("fighter"), Competitor::class.java)
         val newCategory = getPayloadAs(command.payload?.get("newCategory"), CategoryDTO::class.java)
         return if (newCategory != null && categoryState != null && competitor != null) {
-            val newCompetitor = competitor.copy(category = newCategory.toCategory())
-            if (newCategory.categoryId == categoryState.category.categoryId) {
+            val newCompetitor = competitor.copy(categoryId = newCategory.categoryId)
+            if (newCategory.categoryId == categoryState.category.id) {
 //                val newState = categoryState.addCompetitor(newCompetitor)
                 listOf(createEvent(command, EventType.COMPETITOR_ADDED, mapper.convertValue(newCompetitor, Map::class.java) as Map<String, Any?>))
             } else {
@@ -125,7 +124,7 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
     private fun applyCompetitorAddedEvent(categoryState: CategoryState, event: EventHolder): Pair<CategoryState, List<EventHolder>> {
         val competitor = getPayloadAs(event.payload, Competitor::class.java)
         return if (competitor != null) {
-            val newCompetitor = competitor.copy(category = categoryState.category)
+            val newCompetitor = competitor.copy(categoryId = categoryState.category.id)
             val newState = categoryState.addCompetitor(newCompetitor)
             newState to listOf(event)
         } else {
@@ -148,7 +147,7 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
         val updatedSourceFight = getPayloadAs(event.payload?.get("updatedSourceFight"), FightDescription::class.java)
         val updatedTargetFight = getPayloadAs(event.payload?.get("updatedTargetFight"), FightDescription::class.java)
         return if (updatedSourceFight != null && updatedTargetFight != null) {
-            val newState = categoryState.withBrackets(categoryState.brackets!!.setFights((categoryState.brackets!!.fights.filter { f -> f.fightId != updatedSourceFight.fightId && f.fightId != updatedTargetFight.fightId }
+            val newState = categoryState.withBrackets(categoryState.brackets!!.setFights((categoryState.brackets!!.fights.filter { f -> f.id != updatedSourceFight.id && f.id != updatedTargetFight.id }
                     + updatedSourceFight
                     + updatedTargetFight).toTypedArray()))
             newState to listOf(event)
@@ -163,11 +162,11 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
             val fromFightId = command.payload?.get("sourceFightId")?.toString()
             val toFightId = command.payload?.get("targetFightId")?.toString()
             val index = command.payload?.get("index")?.toString()?.toInt()
-            if (competitorId.isNullOrBlank() || fromFightId.isNullOrBlank() || toFightId.isNullOrBlank() || categoryState.brackets?.fights == null || categoryState.brackets?.fights?.isEmpty() == true) {
+            if (competitorId.isNullOrBlank() || fromFightId.isNullOrBlank() || toFightId.isNullOrBlank() || categoryState.brackets?.fights == null || categoryState.brackets.fights.isEmpty()) {
                 return listOf(createErrorEvent(command, "competitor ID or source fight ID or target fight ID is null."))
             }
-            val sourceFight = categoryState.brackets?.fights?.find { it.fightId == fromFightId }
-            val targetFight = categoryState.brackets?.fights?.find { it.fightId == toFightId }
+            val sourceFight = categoryState.brackets.fights.find { it.id == fromFightId }
+            val targetFight = categoryState.brackets.fights.find { it.id == toFightId }
             if (sourceFight != null && targetFight != null) {
                 val compScorePair = sourceFight.competitors.find { it.competitor.id == competitorId }
                 if (compScorePair != null) {
@@ -213,19 +212,19 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
     private fun doUpdateCategoryFights(categoryState: CategoryState?, command: Command): List<EventHolder> {
         val matScheduleContainers = getPayloadAs(command.payload?.get("fightsByMats"), Array<MatScheduleContainer>::class.java)
         val matIdToFight = matScheduleContainers?.map { it.matId to it.fights }?.toMap()
-        fun getMat(fightId: String) = matIdToFight?.entries?.find { entry -> entry.value.find { it.fightId == fightId } != null }?.key
+        fun getMat(fightId: String) = matIdToFight?.entries?.find { entry -> entry.value.find { it.fight.id == fightId } != null }?.key
                 ?: ""
 
         val fights = matScheduleContainers?.flatMap { it.fights }
         val updatedFights = fights
                 ?.mapNotNull {
-                    categoryState?.brackets?.fights?.find { fd -> fd.fightId == it.fightId }
-                            ?.setStartTime(it.startTime)
-                            ?.setNumberOnMat(it.orderOnTheMat)
-                            ?.setMat(getMat(it.fightId))
+                    categoryState?.brackets?.fights?.find { fd -> fd.id == it.fight.id }
+                            ?.setStartTime(ZonedDateTime.ofInstant(it.startTime.toInstant(), ZoneId.of(categoryState.competition.timeZone)))
+                            ?.setNumberOnMat(it.fightNumber)
+                            ?.setMat(getMat(it.fight.id))
                 }
                 ?: emptyList()
-        val notUpdatedFights = categoryState?.brackets?.fights?.filterNot { f -> updatedFights.any { it.fightId == f.fightId } == true }
+        val notUpdatedFights = categoryState?.brackets?.fights?.filterNot { f -> updatedFights.any { it.id == f.id } }
                 ?: emptyList()
         val newFights = notUpdatedFights + updatedFights
 //        return categoryState?.withBrackets(categoryState.brackets?.setFights(newFights.toTypedArray())) to listOf(createEvent(command, EventType.FIGHTS_START_TIME_UPDATED, mapOf("newFights" to newFights)))
@@ -245,7 +244,7 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
         val fights = getPayloadAs(event.payload?.get("fights"), Array<FightDescription>::class.java)
         val bracketType = getPayloadAs(event.payload?.get("bracketType"), BracketType::class.java)
         return if (fights != null) {
-            categoryState.withBrackets(BracketDescriptor(bracketType ?: BracketType.SINGLE_ELIMINATION, fights)) to listOf(event)
+            categoryState.withBrackets(BracketDescriptor(categoryState.id, categoryState.competition.id, bracketType ?: BracketType.SINGLE_ELIMINATION, fights)) to listOf(event)
         } else {
             categoryState to emptyList()
         }
@@ -254,9 +253,8 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
 
     private fun doGenerateBrackets(categoryState: CategoryState?, command: Command): List<EventHolder> {
         val fights = fightsGenerateService.generatePlayOff(categoryState?.competitors?.toList(), command.competitionId)
-        val bracketType = BracketType.valueOf(command.payload?.get("bracketType")?.toString()
-                ?: BracketType.SINGLE_ELIMINATION.name)
-//        return categoryState?.withBrackets(BracketDescriptor(bracketType, fights.toTypedArray())) to listOf(createEvent(command, EventType.BRACKETS_GENERATED, mapOf("fights" to fights)))
+//        val bracketType = BracketType.valueOf(command.payload?.get("bracketType")?.toString()
+//                ?: BracketType.SINGLE_ELIMINATION.name)
         return listOf(createEvent(command, EventType.BRACKETS_GENERATED, mapOf("fights" to fights)))
     }
 
@@ -289,10 +287,11 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
     }
 
     private fun processInitCategoryStateCommand(command: Command): List<EventHolder> {
-        val c = getPayloadAs(command.payload?.get("category"), Category::class.java)
+        val c = getPayloadAs(command.payload?.get("category"), CategoryDescriptor::class.java)
         return if (c != null && command.categoryId != null) {
-            val category = c.setCategoryId(command.categoryId!!)
-            val state = CategoryState(command.correlationId!!, category, null, emptySet())
+            val category = c.copy(id = command.categoryId)
+            val competition = competitionPropertiesCrudRepository.getOne(command.competitionId)
+            val state = CategoryState(command.categoryId, competition, category, CategoryStateStatus.INITIALIZED, null, emptySet())
             listOf(createEvent(command, EventType.CATEGORY_STATE_INITIALIZED, mapOf("categoryState" to state)))
         } else {
             listOf(createEvent(command, EventType.ERROR_EVENT, mapOf<String, Any?>(
@@ -319,7 +318,7 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
     private fun doCreateFakeCompetitors(categoryState: CategoryState?, command: Command): List<EventHolder> {
         val numberOfCompetitors = command.payload?.get("numberOfCompetitors")?.toString()?.toInt() ?: 50
         val numberOfAcademies = command.payload?.get("numberOfAcademies")?.toString()?.toInt() ?: 30
-        val fakeCompetitors = FightsGenerateService.generateRandomCompetitorsForCategory(numberOfCompetitors, numberOfAcademies, categoryState!!.category, categoryState.category.competitionId)
+        val fakeCompetitors = FightsGenerateService.generateRandomCompetitorsForCategory(numberOfCompetitors, numberOfAcademies, categoryState!!.category, categoryState.competition.id)
         val finalCategoryState = fakeCompetitors.fold(categoryState) { acc, competitor -> acc.addCompetitor(competitor) }
         val events = fakeCompetitors.map {
             createEvent(command, EventType.COMPETITOR_ADDED, mapper.convertValue(it, Map::class.java) as? Map<String, Any?>?

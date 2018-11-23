@@ -16,25 +16,36 @@ security:
 #dev - developer's profile (for test instances of zookeeper and kafka)
 
 spring:
-  profiles:
-    active: el-curator
-  data:
-    mongodb:
-      host: localhost
-      port: 27017
-      username: compman
-      password: compManagerPassword
-      database: compservice
-      authentication-database: admin
+#    mongodb:
+#      host: localhost
+#      port: 27017
+#      username: compman
+#      password: compManagerPassword
+#      database: compservice
+#      authentication-database: admin
+  cache:
+    jcache:
+      config: classpath:ehcache.xml
+  datasource:
+    url: jdbc:mysql://localhost:3306/competition?serverTimezone=UTC
+    username: admin
+    password: admin
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+
+
 server:
   servlet.context-path: /competitions
   port: 8082
 
-mongodb.auth: false
-
 communication:
   frontend-callback-url: http://localhost:8080/
   account-service: http://localhost:8089/
+  query-service: http://localhost:8089/
 
 
 cluster:

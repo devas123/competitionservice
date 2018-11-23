@@ -6,16 +6,15 @@ import compman.compsrv.json.ObjectMapperFactory
 import compman.compsrv.kafka.streams.LeaderProcessStreams
 import compman.compsrv.kafka.streams.MetadataService
 import compman.compsrv.kafka.utils.KafkaAdminUtils
-import compman.compsrv.model.competition.Category
-import compman.compsrv.model.competition.CompetitionProperties
+import compman.compsrv.model.competition.CategoryState
+import compman.compsrv.model.competition.CompetitionState
 import compman.compsrv.model.competition.CompetitionStatus
-import compman.compsrv.service.CompetitionPropertiesService
-import compman.compsrv.service.DashboardStateService
-import compman.compsrv.service.ScheduleService
+import compman.compsrv.service.CompetitionStateService
 import compman.compsrv.service.StateQueryService
 import org.apache.kafka.clients.admin.AdminClientConfig
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.streams.StreamsBuilder
 import org.slf4j.LoggerFactory
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -25,8 +24,8 @@ import kotlin.concurrent.thread
 class LeaderProcess(listenerString: String,
                     kafkaProperties: KafkaProperties,
                     stateQueryService: StateQueryService,
-                    competitionStateService: CompetitionPropertiesService,
-                    dashboardStateService: DashboardStateService) {
+                    competitionStateService: CompetitionStateService,
+                    streamsBuilder: StreamsBuilder) {
 
     companion object {
         private val log = LoggerFactory.getLogger(LeaderProcess::class.java)
@@ -63,7 +62,7 @@ class LeaderProcess(listenerString: String,
 
         //Stream
 
-        leaderProcessStreams = LeaderProcessStreams(adminClient, competitionStateService, dashboardStateService, stateQueryService, kafkaProperties)
+        leaderProcessStreams = LeaderProcessStreams(adminClient, kafkaProperties, streamsBuilder)
         metadataService = leaderProcessStreams.metadataService
 
         Runtime.getRuntime().addShutdownHook(thread(start = false) { producer.close(10, TimeUnit.SECONDS) })
@@ -91,8 +90,8 @@ class LeaderProcess(listenerString: String,
     }
 
     fun getCompetitionProperties(competitionId: String) = leaderProcessStreams.getCompetitionProperties(competitionId)
-    fun getCompetitions(status: CompetitionStatus?, creatorId: String?): Array<CompetitionProperties> = readCompProperties(status?.let { arrayOf(it) }).filter { creatorId.isNullOrBlank() || it.creatorId == creatorId }.toTypedArray()
-    fun getCategories(competitionId: String): List<Category>? = emptyList() //TODO: implement
+    fun getCompetitions(status: CompetitionStatus?, creatorId: String?): Array<CompetitionState> = readCompProperties(status?.let { arrayOf(it) }).filter { creatorId.isNullOrBlank() || it.properties.creatorId == creatorId }.toTypedArray()
+    fun getCategories(competitionId: String): List<CategoryState>? = leaderProcessStreams.getCompetitionProperties(competitionId)?.categories
     fun getDashboardState(competitionId: String) = leaderProcessStreams.getDashboardState(competitionId)
 }
 

@@ -2,14 +2,16 @@ package compman.compsrv.service
 
 import com.compmanager.model.payment.RegistrationStatus
 import compman.compsrv.model.competition.Academy
-import compman.compsrv.model.competition.Category
+import compman.compsrv.model.competition.CategoryDescriptor
 import compman.compsrv.model.competition.Competitor
 import compman.compsrv.model.competition.FightDescription
+import compman.compsrv.model.exceptions.CategoryNotFoundException
+import compman.compsrv.repository.CategoryDescriptorCrudRepository
 import org.springframework.stereotype.Component
 import java.util.*
 
 @Component
-class FightsGenerateService {
+class FightsGenerateService(private val categoryCrudRepository: CategoryDescriptorCrudRepository) {
 
     companion object {
         private val names = arrayOf("Vasya", "Kolya", "Petya", "Sasha", "Vanya", "Semen", "Grisha", "Kot", "Evgen", "Prohor", "Evgrat", "Stas", "Andrey", "Marina")
@@ -32,7 +34,7 @@ class FightsGenerateService {
                     .append(generateRandomString(validChars, random, 4)).toString()
         }
 
-        fun generateRandomCompetitorsForCategory(size: Int, academies: Int = 20, category: Category, competitionId: String): List<Competitor> {
+        fun generateRandomCompetitorsForCategory(size: Int, academies: Int = 20, category: CategoryDescriptor, competitionId: String): List<Competitor> {
             val random = Random()
             val result = ArrayList<Competitor>()
             for (k in 1 until size + 1) {
@@ -43,7 +45,7 @@ class FightsGenerateService {
                         surnames[random.nextInt(surnames.size)],
                         Date(),
                         Academy("Academy${random.nextInt(academies)}", emptyList()).id,
-                        category,
+                        category.id,
                         competitionId,
                         RegistrationStatus.UNKNOWN,
                         null))
@@ -89,8 +91,8 @@ class FightsGenerateService {
 //    }
 
     fun generatePlayOff(competitors: List<Competitor>?, competitionId: String): List<FightDescription> = ArrayList<FightDescription>().apply {
-        competitors?.filter { !it.category.categoryId.isNullOrBlank() }?.groupBy { it.category }?.forEach { category, categoryCompetitors ->
-            addAll(generateRoundsForCategory(category, ArrayList<Competitor>().apply { addAll(categoryCompetitors.sortedBy { it.timestamp }) }, competitionId))
+        competitors?.filter { !it.categoryId.isBlank() }?.groupBy { it.categoryId }?.forEach { category, categoryCompetitors ->
+            addAll(generateRoundsForCategory(category, ArrayList<Competitor>().apply { addAll(categoryCompetitors) }, competitionId))
         }
 //        createAbsoluteCategoryData(competitors, competitionId).forEach { category, categoryCompetitors ->
 //            addAll(generateRoundsForCategory(category, ArrayList<Competitor>().apply { addAll(categoryCompetitors.sortedBy { it.timestamp }) }, competitionId))
@@ -98,16 +100,16 @@ class FightsGenerateService {
     }
 
 
-    fun generateRoundsForCategory(category: Category, competitors: ArrayList<Competitor>, competitionId: String) = ArrayList<FightDescription>().apply {
+    fun generateRoundsForCategory(categoryId: String, competitors: ArrayList<Competitor>, competitionId: String) = ArrayList<FightDescription>().apply {
         if (competitors.size == 1) {
             add(FightDescription(
-                    fightId = createFightId(competitionId, category.categoryId, 1, 0),
-                    categoryId = category.categoryId!!,
+                    fightId = createFightId(competitionId, categoryId, 1, 0),
+                    categoryId = categoryId,
                     round = 1,
                     winFight = null,
                     competitionId = competitionId,
                     numberInRound = 0)
-                    .setDuration(calculateDuration(category))
+                    .setDuration(calculateDuration(categoryId))
                     .pushCompetitor(competitors.removeAt(0)))
         } else {
             var qualifiyngCount = 0
@@ -115,12 +117,12 @@ class FightsGenerateService {
                 (Math.log(clearCompetitorsSize.toDouble()) / Math.log(2.0)).toInt().let { rounds ->
                     if ((competitors.size and (competitors.size - 1)) != 0) {
                         qualifiyngCount = competitors.size - clearCompetitorsSize
-                        addAll(fightsForRound(0, category, clearCompetitorsSize, 0, competitors, competitionId)) //if need only hard counted fights in round 0  then instead of clearCompetitorsSize need to pass competitors.size-clearCompetitorsSize
+                        addAll(fightsForRound(0, categoryId, clearCompetitorsSize, 0, competitors, competitionId)) //if need only hard counted fights in round 0  then instead of clearCompetitorsSize need to pass competitors.size-clearCompetitorsSize
                     }
                     var size = clearCompetitorsSize / 2
                     repeat(rounds + 1) {
                         if (it != 0) {
-                            addAll(fightsForRound(it, category, size, if (it == 1) qualifiyngCount else 0, competitors, competitionId))
+                            addAll(fightsForRound(it, categoryId, size, if (it == 1) qualifiyngCount else 0, competitors, competitionId))
                             size /= 2
                         }
                     }
@@ -131,28 +133,28 @@ class FightsGenerateService {
 
     private fun createFightId(competitionId: String, categoryId: String?, rount: Int, number: Int) = "$competitionId-$categoryId-$rount-$number"
 
-    private fun fightsForRound(round: Int, category: Category, fightsSize: Int, qualifyingCount: Int = 0, competitors: ArrayList<Competitor>, competitionId: String) = ArrayList<FightDescription>().apply {
+    private fun fightsForRound(round: Int, categoryId: String, fightsSize: Int, qualifyingCount: Int = 0, competitors: ArrayList<Competitor>, competitionId: String) = ArrayList<FightDescription>().apply {
 
         var nextCounter = 0
         var nextFightNumber = 0
         val competitorsSize = competitors.size
         fun createOddFightId(it: Int) =
-                if (round != 1 || (it * 2) < qualifyingCount) createFightId(competitionId, category.categoryId, round - 1, it * 2) else null
+                if (round != 1 || (it * 2) < qualifyingCount) createFightId(competitionId, categoryId, round - 1, it * 2) else null
 
         fun createEvenFightId(it: Int) =
-                if (round != 1 || (it * 2) + 1 < qualifyingCount) createFightId(competitionId, category.categoryId, round - 1, (it * 2) + 1) else null
+                if (round != 1 || (it * 2) + 1 < qualifyingCount) createFightId(competitionId, categoryId, round - 1, (it * 2) + 1) else null
 
         repeat(fightsSize) { index ->
             if (nextCounter > 1) {
                 nextCounter = 0; nextFightNumber++
             }
             var fight = FightDescription(
-                    fightId = createFightId(competitionId, category.categoryId, round, index),
-                    categoryId = category.categoryId!!,
+                    fightId = createFightId(competitionId, categoryId, round, index),
+                    categoryId = categoryId!!,
                     round = round,
                     numberInRound = index,
-                    winFight = createFightId(competitionId, category.categoryId, round + 1, nextFightNumber),
-                    competitionId = competitionId).setDuration(calculateDuration(category))
+                    winFight = createFightId(competitionId, categoryId, round + 1, nextFightNumber),
+                    competitionId = competitionId).setDuration(calculateDuration(categoryId))
             if (round != 0) {
                 createOddFightId(index)?.let {
                     fight = fight.copy(parentId1 = it)
@@ -171,7 +173,7 @@ class FightsGenerateService {
                     }
                 }
                 if (index == 0 && competitorsSize == 3 && round == 0) {
-                    fight = fight.copy(loseFight = createFightId(competitionId, category.categoryId, round, index + 1))
+                    fight = fight.copy(loseFight = createFightId(competitionId, categoryId, round, index + 1))
                 }
             } else if (index == 1 && competitorsSize == 3) {
                 fight = fight.pushCompetitor(competitors.removeAt(0))
@@ -183,7 +185,7 @@ class FightsGenerateService {
     }
 
 
-    private fun calculateDuration(category: Category) = category.fightDuration.toLong()
+    private fun calculateDuration(categoryId: String) = categoryCrudRepository.findById(categoryId).map { it.fightDuration.toLong() }.orElseThrow { CategoryNotFoundException("Category not found for id: $categoryId") }
 
     private fun nearestPowTwo(number: Int): Int {
         if ((number and -number) == number) {

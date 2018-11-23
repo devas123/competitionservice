@@ -4,7 +4,6 @@ import compman.compsrv.cluster.PageResponse
 import compman.compsrv.kafka.HostStoreInfo
 import compman.compsrv.model.brackets.BracketDescriptor
 import compman.compsrv.model.competition.*
-import compman.compsrv.model.dto.MatDTO
 import compman.compsrv.model.schedule.Schedule
 import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.RequestMapping
@@ -13,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.nio.charset.StandardCharsets
 import java.util.*
-import kotlin.math.min
 
 @RestController
 @RequestMapping("/cluster")
@@ -93,7 +91,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     }
 
     @RequestMapping("/store/comprops", method = [RequestMethod.GET])
-    fun getCompetitionProperties(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionProperties(competitionId)?.setSchedule(null)
+    fun getCompetitionProperties(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionProperties(competitionId)?.withSchedule(null)
 
 
     @RequestMapping("/store/metadata", method = [RequestMethod.GET])
@@ -142,7 +140,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     }
 
     @RequestMapping("/store/defaultcategories", method = [RequestMethod.GET])
-    fun getDefaultCategories(@RequestParam("sportsId") sportsId: String?, @RequestParam("competitionId") competitionId: String?): List<Category> {
+    fun getDefaultCategories(@RequestParam("sportsId") sportsId: String?, @RequestParam("competitionId") competitionId: String?): List<CategoryDescriptor> {
         return if (sportsId.isNullOrBlank() || competitionId.isNullOrBlank()) {
             log.warn("Sports id is $sportsId, competition ID is $competitionId.")
             emptyList()
@@ -161,51 +159,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
         }
     }
 
-    @RequestMapping("/store/matstate", method = [RequestMethod.GET])
-    fun getMatState(@RequestParam("matId") matId: String): MatState? = stateQueryService.getMatState(Base64.getDecoder().decode(matId).toString(StandardCharsets.UTF_8))
-
-    @RequestMapping("/store/matfights", method = [RequestMethod.GET])
-    fun queryMatFights(@RequestParam("matId") matId: String, @RequestParam("maxResults") maxResults: Int?, @RequestParam("queryString") queryString: String?): Array<FightDescription> {
-        val fights = stateQueryService.getMatState(Base64.getDecoder().decode(matId).toString(StandardCharsets.UTF_8))?.fights?.filter(::fightReady)?.toTypedArray()
-                ?: emptyArray()
-        val filteredFights = if (queryString.isNullOrBlank() || queryString == "undefined" || queryString == "null") {
-            fights
-        } else {
-            fights.filter { fight ->
-                fight.competitors.any {
-                    it.competitor.firstName.contains(queryString!!, ignoreCase = true)
-                            || it.competitor.lastName.contains(queryString, ignoreCase = true)
-                            || it.competitor.academy?.contains(queryString, ignoreCase = true) == true
-                }
-            }.toTypedArray()
-        }
-        return filteredFights.take(min(maxResults ?: 10, fights.size)).toTypedArray()
-    }
-
     private fun fightReady(fight: FightDescription) = fight.stage != FightStage.FINISHED && fight.competitors.isNotEmpty() && fight.competitors.all { Schedule.compNotEmpty(it.competitor) }
-
-
-    @RequestMapping("/store/mats", method = [RequestMethod.GET])
-    fun getPeriodMats(@RequestParam("competitionId") competitionId: String?, @RequestParam("periodId") periodId: String?): Array<MatDTO>? {
-        return if (!competitionId.isNullOrBlank() && !periodId.isNullOrBlank()) {
-            val dashboardState = stateQueryService.getDashboardState(competitionId!!)
-            val period = dashboardState?.periods?.find { it.id == periodId }
-            if (period != null) {
-                val mats = period.matIds.mapNotNull { matId -> stateQueryService.getMatState(matId) }
-                mats.map { mat ->
-                    val topFiveFights = mat.fights
-                            .filter(::fightReady)
-                            .sortedBy { it.numberOnMat ?: Int.MAX_VALUE }
-                            .take(5)
-                    MatDTO(mat.matId, mat.periodId, mat.fights.size, topFiveFights.toTypedArray())
-                }.toTypedArray()
-            } else {
-                emptyArray()
-            }
-        } else {
-            emptyArray()
-        }
-    }
 
 
 }
