@@ -1,7 +1,6 @@
 package compman.compsrv.service
 
 import compman.compsrv.cluster.PageResponse
-import compman.compsrv.kafka.HostStoreInfo
 import compman.compsrv.model.brackets.BracketDescriptor
 import compman.compsrv.model.competition.*
 import compman.compsrv.model.schedule.Schedule
@@ -14,7 +13,7 @@ import java.nio.charset.StandardCharsets
 import java.util.*
 
 @RestController
-@RequestMapping("/cluster")
+@RequestMapping("/api/v1")
 class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
               private val stateQueryService: StateQueryService) {
 
@@ -43,7 +42,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
 
 
     @RequestMapping("/store/categorystate", method = [RequestMethod.GET])
-    fun getCategoryState(@RequestParam("categoryId") categoryId: String): CategoryState? = stateQueryService.getCategoryState(Base64.getDecoder().decode(categoryId).toString(StandardCharsets.UTF_8))
+    fun getCategoryState(@RequestParam("competitionId") competitionId: String, @RequestParam("categoryId") categoryId: String): CategoryState? = stateQueryService.getCategoryState(Base64.getDecoder().decode(competitionId).toString(StandardCharsets.UTF_8), Base64.getDecoder().decode(categoryId).toString(StandardCharsets.UTF_8))
 
 
     @RequestMapping("/store/competitors", method = [RequestMethod.GET])
@@ -52,8 +51,8 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
                        @RequestParam("pageSize") pageSize: Int?,
                        @RequestParam("pageNumber") pageNumber: Int?): PageResponse<Competitor> {
         val categories = getCategories(competitionId)
-        var competitors = categories.filter { it.categoryId != null }.mapNotNull { category ->
-            stateQueryService.getCategoryState(category.categoryId!!)
+        var competitors = categories.mapNotNull { category ->
+            stateQueryService.getCategoryState(competitionId, category.categoryId)
         }.flatMap { categoryState ->
             categoryState.competitors
         }.toTypedArray()
@@ -77,33 +76,24 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
         }
         val decodedFighterId = String(Base64.getDecoder().decode(competitorId))
         return if (categoryId == "null" || categoryId.isEmpty()) {
-            val categoryState = getCategories(competitionId)
-                    .filter { it.categoryId != null }.mapNotNull { category ->
-                        getCategoryState(String(Base64.getEncoder().encode(category.categoryId?.toByteArray(StandardCharsets.UTF_8)), StandardCharsets.UTF_8))
+            val categoryState = getCategories(competitionId).mapNotNull { category ->
+                        getCategoryState(
+                                String(Base64.getEncoder().encode(competitionId.toByteArray(StandardCharsets.UTF_8)), StandardCharsets.UTF_8),
+                                String(Base64.getEncoder().encode(category.categoryId.toByteArray(StandardCharsets.UTF_8)), StandardCharsets.UTF_8))
                     }.firstOrNull { categoryState ->
                         categoryState.competitors.any { it.id == decodedFighterId }
                     }
             categoryState?.competitors?.find { it.id == decodedFighterId }
         } else {
-            val categoryState = getCategoryState(String(Base64.getEncoder().encode(categoryId.toByteArray(StandardCharsets.UTF_8)), StandardCharsets.UTF_8))
+            val categoryState = getCategoryState(
+                    String(Base64.getEncoder().encode(competitionId.toByteArray(StandardCharsets.UTF_8)), StandardCharsets.UTF_8),
+                    String(Base64.getEncoder().encode(categoryId.toByteArray(StandardCharsets.UTF_8)), StandardCharsets.UTF_8))
             categoryState?.competitors?.find { it.id == decodedFighterId }
         }
     }
 
     @RequestMapping("/store/comprops", method = [RequestMethod.GET])
-    fun getCompetitionProperties(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionProperties(competitionId)?.withSchedule(null)
-
-
-    @RequestMapping("/store/metadata", method = [RequestMethod.GET])
-    fun getHostForCategory(@RequestParam("categoryId") categoryId: String): HostStoreInfo? {
-        val decodedCatId = String(Base64.getDecoder().decode(categoryId), StandardCharsets.UTF_8)
-        log.info("Getting metadata for category $decodedCatId")
-        return stateQueryService.doGetHostForCategory(decodedCatId)
-    }
-
-
-    @RequestMapping("/store/competitions", method = [RequestMethod.GET])
-    fun getCompetitions(@RequestParam("status") status: CompetitionStatus?, @RequestParam("creatorId") creatorId: String?) = stateQueryService.getCompetitions(status, creatorId)
+    fun getCompetitionProperties(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionProperties(competitionId)
 
     @RequestMapping("/store/categories", method = [RequestMethod.GET])
     fun getCategories(@RequestParam("competitionId") competitionId: String) = stateQueryService.getCategories(competitionId)
@@ -117,11 +107,11 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
             if (categoryId.isNullOrBlank()) {
                 val categories = getCategories(competitionId!!)
                 categories.mapNotNull { cat ->
-                    cat.categoryId?.let { getCategoryState(it) }?.brackets
+                    getCategoryState(competitionId, cat.categoryId)?.brackets
                 }.toTypedArray()
             } else {
                 //get brackets for category
-                getCategoryState(categoryId!!)?.brackets?.let {
+                getCategoryState(competitionId!!, categoryId!!)?.brackets?.let {
                     arrayOf(it)
                 } ?: emptyArray()
             }

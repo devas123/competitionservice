@@ -3,7 +3,6 @@ package compman.compsrv.model.competition
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.util.*
 import javax.persistence.*
 
 @Entity
@@ -110,15 +109,15 @@ data class FightDescription(
         val needToShift = competitors.size == 2
         return if (index == 0) {
             if (needToShift) {
-                copy(competitors = arrayOf(CompScore(competitor, Score(competitor.id)), competitors[1]))
+                copy(competitors = arrayOf(CompScore(competitor, Score()), competitors[1]))
             } else {
-                copy(competitors = arrayOf(CompScore(competitor, Score(competitor.id)), competitors[0]))
+                copy(competitors = arrayOf(CompScore(competitor, Score()), competitors[0]))
             }
         } else if (index == 1) {
             if (needToShift) {
-                copy(competitors = arrayOf(competitors[0], CompScore(competitor, Score(competitor.id))))
+                copy(competitors = arrayOf(competitors[0], CompScore(competitor, Score())))
             } else {
-                copy(competitors = competitors + CompScore(competitor, Score(competitor.id)))
+                copy(competitors = competitors + CompScore(competitor, Score()))
             }
         } else {
             this
@@ -130,7 +129,7 @@ data class FightDescription(
             return this
         }
         if (competitors.size < 2) {
-            return copy(competitors = competitors + CompScore(competitor, Score(competitor.id)))
+            return copy(competitors = competitors + CompScore(competitor, Score()))
         } else {
             throw RuntimeException("Fight is already packed. Cannot add competitors")
         }

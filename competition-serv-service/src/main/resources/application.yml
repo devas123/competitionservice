@@ -54,8 +54,7 @@ cluster:
     connect-timeout: 10000
     session-timeout: 20000
   enable-cluster: true
-  advertised-host: "localhost"
-  advertised-port: ${server.port}
+  advertised-port: 60390
 
 kafka:
   bootstrap-servers: 127.0.0.1:65332

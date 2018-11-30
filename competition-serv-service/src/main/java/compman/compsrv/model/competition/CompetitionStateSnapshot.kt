@@ -1,13 +1,14 @@
 package compman.compsrv.model.competition
 
-import javax.persistence.*
+import javax.persistence.Entity
+import javax.persistence.GeneratedValue
+import javax.persistence.Id
 
 
 @Entity
 class CompetitionStateSnapshot(
-        @Id @GeneratedValue(strategy = GenerationType.AUTO) val id: Long? = null,
+        @Id @GeneratedValue val id: Long? = null,
         val competitionId: String,
         val eventPartition: Int,
         val eventOffset: Long,
-        @Column(columnDefinition = "BINARY(32) NOT NULL")
         val state: ByteArray)

@@ -5,8 +5,16 @@ kafka.bootstrap-servers: localhost:50812
 server:
   port: 8083
 
-
 spring:
   jpa:
     hibernate:
       ddl-auto: update
+
+management:
+  server:
+    port: 9002
+
+cluster:
+  advertised-port: 60391
+  cluster-seed:
+    - 127.0.0.1:60390

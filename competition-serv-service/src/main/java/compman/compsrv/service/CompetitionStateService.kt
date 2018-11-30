@@ -9,6 +9,7 @@ import compman.compsrv.model.es.commands.Command
 import compman.compsrv.model.es.commands.CommandType
 import compman.compsrv.model.es.events.EventHolder
 import compman.compsrv.model.es.events.EventType
+import compman.compsrv.model.es.events.payload.CompetitionPropertiesUpdatedPayload
 import compman.compsrv.model.schedule.Schedule
 import compman.compsrv.model.schedule.ScheduleProperties
 import compman.compsrv.repository.*
@@ -18,15 +19,15 @@ import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 
 @Component
-open class CompetitionStateService(private val scheduleService: ScheduleService,
-                                   private val stateQueryService: StateQueryService,
-                                   private val fightRepository: FightCrudRepository,
-                                   private val competitorCrudRepository: CompetitorCrudRepository,
-                                   private val categoryCrudRepository: CategoryCrudRepository,
-                                   private val competitionStateCrudRepository: CompetitionStateCrudRepository,
-                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
-                                   private val bracketsCrudRepository: BracketsCrudRepository,
-                                   private val mapper: ObjectMapper) : ICommandProcessingService<CompetitionState, Command, EventHolder> {
+class CompetitionStateService(private val scheduleService: ScheduleService,
+                              private val stateQueryService: StateQueryService,
+                              private val fightRepository: FightCrudRepository,
+                              private val competitorCrudRepository: CompetitorCrudRepository,
+                              private val categoryCrudRepository: CategoryCrudRepository,
+                              private val competitionStateCrudRepository: CompetitionStateCrudRepository,
+                              private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
+                              private val bracketsCrudRepository: BracketsCrudRepository,
+                              private val mapper: ObjectMapper) : ICommandProcessingService<CompetitionState, Command, EventHolder> {
 
     private fun getAllBrackets(competitionId: String): List<BracketDescriptor> {
         val competitionState = competitionStateCrudRepository.findById(competitionId)
@@ -50,7 +51,7 @@ open class CompetitionStateService(private val scheduleService: ScheduleService,
     @Transactional(propagation = Propagation.REQUIRED)
     override fun apply(event: EventHolder, state: CompetitionState?): Pair<CompetitionState?, List<EventHolder>> {
         fun createErrorEvent(error: String) = EventHolder(event.correlationId, event.competitionId, event.categoryId
-                ?: "null", event.matId, EventType.ERROR_EVENT, mapOf("error" to error))
+                ?: "null", event.matId, EventType.ERROR_EVENT, mapper.writeValueAsBytes(mapOf("error" to error)))
         return try {
             val ns = when (event.type) {
                 EventType.COMPETITION_DELETED -> {
@@ -58,7 +59,7 @@ open class CompetitionStateService(private val scheduleService: ScheduleService,
 
                 }
                 EventType.COMPETITION_CREATED -> {
-                    val newstate = getPayloadAs(event.payload?.get("state"), CompetitionState::class.java)
+                    val newstate = getPayloadAs(event.payload, CompetitionState::class.java)
                     newstate to listOf(event)
                 }
                 EventType.DUMMY -> {
@@ -71,17 +72,17 @@ open class CompetitionStateService(private val scheduleService: ScheduleService,
                     state?.withSchedule(null) to listOf(event)
                 }
                 EventType.SCHEDULE_GENERATED -> {
-                    val schedule = getPayloadAs(event.payload?.get("schedule"), Schedule::class.java)
+                    val schedule = getPayloadAs(event.payload, Schedule::class.java)
                     val newProps = state?.withSchedule(schedule)
                     newProps to listOf(event)
                 }
                 EventType.COMPETITION_PROPERTIES_UPDATED -> {
-                    val payload = event.payload!!
-                    val newProps = state?.withProperties(state.properties.applyProperties(payload))
+                    val payload = getPayloadAs(event.payload, CompetitionPropertiesUpdatedPayload::class.java)
+                    val newProps = state?.withProperties(state.properties.applyProperties(payload?.properties))
                     newProps to listOf(event)
                 }
                 in listOf(EventType.COMPETITION_STARTED, EventType.COMPETITION_STOPPED, EventType.COMPETITION_PUBLISHED, EventType.COMPETITION_UNPUBLISHED) -> {
-                    val status = getPayloadAs(event.payload?.get("status"), CompetitionStatus::class.java)
+                    val status = getPayloadAs(event.payload, CompetitionStatus::class.java)
                     if (status != null) {
                         state?.withStatus(status) to listOf(event)
                     } else {
@@ -102,18 +103,18 @@ open class CompetitionStateService(private val scheduleService: ScheduleService,
 
     override fun process(command: Command, state: CompetitionState?): List<EventHolder> {
         fun executeCommand(command: Command, state: CompetitionState?): EventHolder {
-            fun createEvent(type: EventType, payload: Map<String, Any?>) = EventHolder(command.correlationId!!, command.competitionId, command.categoryId
-                    ?: "null", command.matId, type, payload)
+            fun createEvent(type: EventType, payload: Any?) = EventHolder(command.correlationId, command.competitionId, command.categoryId
+                    ?: "null", command.matId, type, mapper.writeValueAsBytes(payload))
 
-            fun createErrorEvent(error: String) = EventHolder(command.correlationId!!, command.competitionId, command.categoryId
-                    ?: "null", command.matId, EventType.ERROR_EVENT, mapOf("error" to error))
+            fun createErrorEvent(error: String) = EventHolder(command.correlationId, command.competitionId, command.categoryId
+                    ?: "null", command.matId, EventType.ERROR_EVENT, mapper.writeValueAsBytes(mapOf("error" to error)))
 
             return when (command.type) {
                 CommandType.CHECK_DASHBOARD_OBSOLETE -> {
                     if (state == null) {
-                        createEvent(EventType.COMPETITION_DELETED, emptyMap())
+                        createEvent(EventType.COMPETITION_DELETED, emptyMap<Any, Any>())
                     } else {
-                        createEvent(EventType.DUMMY, emptyMap())
+                        createEvent(EventType.DUMMY, emptyMap<Any, Any>())
                     }
                 }
                 CommandType.CREATE_COMPETITION_COMMAND -> {
@@ -125,9 +126,9 @@ open class CompetitionStateService(private val scheduleService: ScheduleService,
                 }
                 CommandType.CHECK_CATEGORY_OBSOLETE -> {
                     if (state == null) {
-                        createEvent(EventType.CATEGORY_DELETED, command.payload ?: emptyMap())
+                        createEvent(EventType.CATEGORY_DELETED, command.payload ?: emptyMap<Any, Any>())
                     } else {
-                        createEvent(EventType.DUMMY, emptyMap())
+                        createEvent(EventType.DUMMY, emptyMap<Any, Any>())
                     }
                 }
                 CommandType.CHANGE_COMPETITOR_CATEGORY_COMMAND -> {
@@ -135,7 +136,7 @@ open class CompetitionStateService(private val scheduleService: ScheduleService,
                 }
                 CommandType.DROP_ALL_BRACKETS_COMMAND -> {
                     if (state?.properties?.bracketsPublished != true) {
-                        val categories = stateQueryService.getCategories(command.competitionId).mapNotNull { it.categoryId }
+                        val categories = stateQueryService.getCategories(command.competitionId).map { it.categoryId }
                         val newPayload = (command.payload ?: emptyMap()) + ("categories" to categories)
                         createEvent(EventType.DROP_ALL_BRACKETS_SAGA_STARTED, newPayload)
                     } else {
@@ -145,7 +146,7 @@ open class CompetitionStateService(private val scheduleService: ScheduleService,
                 CommandType.DROP_SCHEDULE_COMMAND -> {
                     if (state?.properties?.schedulePublished != true) {
                         createEvent(EventType.SCHEDULE_DROPPED, command.payload
-                                ?: emptyMap())
+                                ?: emptyMap<Any, Any>())
                     } else {
                         createErrorEvent("Cannot drop schedule, it is already published.")
                     }
@@ -173,7 +174,7 @@ open class CompetitionStateService(private val scheduleService: ScheduleService,
                 }
                 CommandType.DELETE_COMPETITION_COMMAND -> {
                     val categories = stateQueryService.getCategories(command.competitionId)
-                    createEvent(EventType.COMPETITION_DELETED, mapOf("categories" to categories.mapNotNull { it.categoryId }))
+                    createEvent(EventType.COMPETITION_DELETED, mapOf("categories" to categories.map { it.categoryId }))
                 }
                 else -> {
                     createEvent(EventType.ERROR_EVENT, mapOf("error" to "Unknown or invalid command ${command.type}, properties: $state"))

@@ -50,11 +50,11 @@ class SagaEventProcessor(private val sagaStoreName: String, private val sagaMana
     }
 
     private fun getSagaKey(value: EventHolder): String {
-        return value.metadata?.get("saga_key").toString()
+        return value.findMetadataByKey("saga_key").toString()
     }
 
     private fun getSagaType(value: EventHolder): String {
-        return value.metadata?.get("saga_type").toString()
+        return value.findMetadataByKey("saga_type").toString()
     }
 
     private fun getSaga(value: EventHolder?): Saga? {

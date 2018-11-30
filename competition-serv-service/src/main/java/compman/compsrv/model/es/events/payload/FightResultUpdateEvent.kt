@@ -1,4 +1,4 @@
-package compman.compsrv.model.es.events
+package compman.compsrv.model.es.events.payload
 
 import compman.compsrv.model.competition.FightDescription
 import compman.compsrv.model.competition.FightResult

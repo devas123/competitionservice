@@ -1,10 +1,16 @@
 package compman.compsrv.config
 
+import com.compman.starter.properties.KafkaProperties
 import compman.compsrv.cluster.ClusterSession
+import compman.compsrv.kafka.utils.KafkaAdminUtils
+import compman.compsrv.repository.CategoryCrudRepository
+import compman.compsrv.repository.CompetitionStateCrudRepository
 import compman.compsrv.service.StateQueryService
 import compman.compsrv.service.saga.SagaManager
 import io.scalecube.cluster.Cluster
 import io.scalecube.cluster.ClusterConfig
+import io.scalecube.transport.Address
+import io.scalecube.transport.TransportConfig
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -15,7 +21,7 @@ import kotlin.concurrent.thread
 
 @Configuration
 @EnableConfigurationProperties(ClusterConfigurationProperties::class)
-open class ClusterConfiguration {
+class ClusterConfiguration {
 
     companion object {
         private val log = LoggerFactory.getLogger(ClusterConfiguration::class.java)
@@ -23,26 +29,46 @@ open class ClusterConfiguration {
 
 
     @Bean(destroyMethod = "shutdown")
-    open fun cluster(clusterConfigurationProperties: ClusterConfigurationProperties): Cluster {
-        val clusterConfig = ClusterConfig.defaultConfig()
+    fun cluster(clusterConfigurationProperties: ClusterConfigurationProperties): Cluster {
+        val memberHost = if (clusterConfigurationProperties.advertisedHost?.isBlank() != false || clusterConfigurationProperties.advertisedHost == "localhost") {
+            ClusterConfig.DEFAULT_MEMBER_HOST
+        } else {
+            clusterConfigurationProperties.advertisedHost
+        }
+        val clusterSeed = clusterConfigurationProperties.clusterSeed?.mapNotNull { s -> Address.from(s) } ?: emptyList()
+        val clusterConfig = ClusterConfig.builder()
+                .transportConfig(TransportConfig.builder()
+                        .port(clusterConfigurationProperties.advertisedPort).build())
+                .seedMembers(clusterSeed)
+                .memberHost(memberHost)
+                .build()
         val cluster = Cluster.joinAwait(clusterConfig)
         Runtime.getRuntime().addShutdownHook(thread(start = false) { cluster.shutdown() })
         log.info("Started instance at ${cluster.address().host()}:${cluster.address().port()}")
+        log.info("Members of the cluster: ")
+        cluster.members()?.forEach {
+            log.info("${it.id()} -> ${it.address()}")
+        }
         return cluster
     }
 
-    @Bean
+    @Bean(initMethod = "init")
     @DependsOn("cluster")
-    open fun zookeeperSession(clusterConfigurationProperties: ClusterConfigurationProperties,
-                              restTemplate: RestTemplate,
-                              cluster: Cluster) =
+    fun clusterSession(clusterConfigurationProperties: ClusterConfigurationProperties,
+                       restTemplate: RestTemplate,
+                       cluster: Cluster,
+                       adminClient: KafkaAdminUtils,
+                       competitionStateCrudRepository: CompetitionStateCrudRepository,
+                       categoryStateCrudRepository: CategoryCrudRepository,
+                       kafkaProperties: KafkaProperties) =
             ClusterSession(clusterConfigurationProperties,
                     restTemplate,
-                    cluster)
+                    cluster,
+                    adminClient, competitionStateCrudRepository, categoryStateCrudRepository, kafkaProperties)
 
     @Bean
-    open fun sagaFactory(stateQueryService: StateQueryService) = SagaManager(stateQueryService)
+    fun sagaFactory(stateQueryService: StateQueryService) = SagaManager(stateQueryService)
 
     @Bean
-    open fun stateQueryService(zookeeperSession: ClusterSession) = zookeeperSession.stateQueryService
+    fun stateQueryService(clusterSession: ClusterSession, clusterConfigurationProperties: ClusterConfigurationProperties) = StateQueryService(clusterSession, clusterConfigurationProperties)
 }

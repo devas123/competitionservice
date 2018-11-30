@@ -4,6 +4,7 @@ import com.compman.starter.properties.KafkaProperties
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.client.QueryServiceClient
 import compman.compsrv.kafka.serde.EventDeserializer
+import compman.compsrv.kafka.streams.CompetitionProcessingStreamsBuilderFactory
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.competition.CompetitionState
 import compman.compsrv.model.competition.CompetitionStateSnapshot
@@ -14,17 +15,21 @@ import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringDeserializer
+import org.apache.kafka.streams.KafkaStreams
+import org.apache.kafka.streams.state.QueryableStoreTypes
 import org.springframework.stereotype.Component
 import java.time.Duration
 import java.util.*
-import javax.ws.rs.NotFoundException
 
 @Component
 class CompetitionStateResolver(private val queryServiceClient: QueryServiceClient,
                                private val kafkaProperties: KafkaProperties,
                                private val competitionStateSnapshotService: CompetitionStateSnapshotService,
                                private val competitionStateService: CompetitionStateService,
+                               streams: KafkaStreams,
                                private val mapper: ObjectMapper) {
+
+    private val stateStore = streams.store(CompetitionProcessingStreamsBuilderFactory.COMPETITION_STATE_SNAPSHOT_STORE_NAME, QueryableStoreTypes.keyValueStore<String, CompetitionStateSnapshot>())
 
     private val consumerProperties = Properties().apply {
         putAll(kafkaProperties.consumer.properties)
@@ -33,10 +38,10 @@ class CompetitionStateResolver(private val queryServiceClient: QueryServiceClien
         setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, EventDeserializer::class.java.canonicalName)
     }
 
-    fun resolveLatestCompetitionState(competitionId: String): CompetitionState {
-        val localStateSnapshot = competitionStateSnapshotService.getSnapshot(competitionId)
-        val stateSnapshot = localStateSnapshot.orElseGet { queryServiceClient.getCompetitionStateSnapshot(competitionId) }
-        if (stateSnapshot != null) {
+    fun resolveLatestCompetitionState(competitionId: String): Optional<CompetitionState> {
+        val localStateSnapshot = Optional.ofNullable(stateStore.get(competitionId))
+        val stateSnapshot = localStateSnapshot.orElseGet { competitionStateSnapshotService.getSnapshot(competitionId).orElse(queryServiceClient.getCompetitionStateSnapshot(competitionId)) }
+        return if (stateSnapshot != null) {
             val consumer = KafkaConsumer<String, EventHolder>(consumerProperties)
             consumer.use { cons ->
                 val topicPartition = TopicPartition(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME, stateSnapshot.eventPartition)
@@ -62,10 +67,10 @@ class CompetitionStateResolver(private val queryServiceClient: QueryServiceClien
                     cons.commitSync()
                 }
                 competitionStateSnapshotService.saveSnapshot(CompetitionStateSnapshot(null, competitionId, stateSnapshot.eventPartition, lastOffset, mapper.writeValueAsBytes(snapshot)))
-                return snapshot
+                Optional.of(snapshot)
             }
         } else {
-            throw NotFoundException("No state snapshot for competition with id: $competitionId")
+            Optional.empty()
         }
     }
 }

@@ -10,7 +10,7 @@ import java.util.*
 data class Command @JsonCreator
 @PersistenceConstructor
 constructor(
-        @JsonProperty("correlationId") val correlationId: String?,
+        @JsonProperty("correlationId") val correlationId: String,
         @JsonProperty("competitionId") val competitionId: String,
         @JsonProperty("type") val type: CommandType,
         @JsonProperty("categoryId") val categoryId: String?,

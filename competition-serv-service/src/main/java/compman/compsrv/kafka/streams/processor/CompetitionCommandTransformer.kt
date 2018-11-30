@@ -1,6 +1,7 @@
 package compman.compsrv.kafka.streams.processor
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.model.competition.CompetitionState
 import compman.compsrv.model.competition.CompetitionStatus
 import compman.compsrv.model.competition.Competitor
@@ -9,21 +10,24 @@ import compman.compsrv.model.es.commands.Command
 import compman.compsrv.model.es.commands.CommandType
 import compman.compsrv.repository.CompetitionStateRepository
 import compman.compsrv.service.CompetitionStateService
+import compman.compsrv.service.resolver.CompetitionStateResolver
 import org.slf4j.LoggerFactory
 import java.util.*
 import javax.persistence.OptimisticLockException
 
-class CompetitionCommandProcessor(stateStoreName: String,
-                                  competitionStateService: CompetitionStateService,
-                                  private val competitionStateRepository: CompetitionStateRepository,
-                                  private val mapper: ObjectMapper)
-    : StateForwardingCommandProcessor<CompetitionState>(stateStoreName, competitionStateService) {
+class CompetitionCommandTransformer(competitionStateService: CompetitionStateService,
+                                    private val competitionStateRepository: CompetitionStateRepository,
+                                    private val competitionStateResolver: CompetitionStateResolver,
+                                    private val mapper: ObjectMapper,
+                                    clusterSession: ClusterSession)
+    : StateForwardingCommandTransformer(competitionStateService, clusterSession, mapper) {
+
 
     override fun getState(id: String): Optional<CompetitionState> {
-        return competitionStateRepository.findById(id)
+        return competitionStateResolver.resolveLatestCompetitionState(id)
     }
 
-    override fun saveState(state: CompetitionState) {
+    override fun saveState(readOnlyKey: String, state: CompetitionState) {
         var success = false
         while (!success) {
             success = try {
@@ -42,14 +46,11 @@ class CompetitionCommandProcessor(stateStoreName: String,
     override fun close() {
     }
 
-    override fun getStateKey(command: Command?): String = command?.competitionId
-            ?: throw IllegalArgumentException("No competition Id. $command")
-
     companion object {
-        private val log = LoggerFactory.getLogger(CompetitionCommandProcessor::class.java)
+        private val log = LoggerFactory.getLogger(CompetitionCommandTransformer::class.java)
     }
 
-    override fun canExecuteCommand(state: CompetitionState?, command: Command?): List<String>{
+    override fun canExecuteCommand(state: CompetitionState?, command: Command?): List<String> {
         return when (command?.type) {
             CommandType.START_COMPETITION_COMMAND -> {
                 if (state?.status != CompetitionStatus.STARTED) {

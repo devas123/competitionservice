@@ -21,7 +21,6 @@ data class Competitor(
         val competitionId: String,
         val registrationStatus: RegistrationStatus?,
         val promo: String?) {
-    fun setRegistrationStatus(registrationStatus: RegistrationStatus) = copy(registrationStatus = registrationStatus)
 
     override fun equals(other: Any?) = if (other is Competitor) {
         id == other.id

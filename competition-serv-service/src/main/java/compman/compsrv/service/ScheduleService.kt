@@ -154,15 +154,15 @@ class ScheduleService {
 
 
     fun generateSchedule(properties: ScheduleProperties, brackets: List<BracketDescriptor>, fightDurations: Map<String, BigDecimal>): Schedule {
-        fun getNumberOfFights(categoryId: String): Int {
-            val categoryBrackets = brackets
-                    .filter { it.fights.any { f -> f.categoryId == categoryId } }
-            val categoryCompetitors = categoryBrackets.flatMap { it.fights.toList() }.flatMap { fight -> fight.competitors.map { it.competitor } }.toSet()
-            return brackets
-                    .filter { it.fights.any { f -> f.categoryId == categoryId } }
-                    .map { bracketDescriptor -> bracketDescriptor.fights.filter { !Schedule.obsoleteFight(it, categoryCompetitors.size == 3) }.size }
-                    .fold(0) { acc, i -> acc + i }
-        }
+//        fun getNumberOfFights(categoryId: String): Int {
+//            val categoryBrackets = brackets
+//                    .filter { it.fights.any { f -> f.categoryId == categoryId } }
+//            val categoryCompetitors = categoryBrackets.flatMap { it.fights.toList() }.flatMap { fight -> fight.competitors.map { it.competitor } }.toSet()
+//            return brackets
+//                    .filter { it.fights.any { f -> f.categoryId == categoryId } }
+//                    .map { bracketDescriptor -> bracketDescriptor.fights.filter { !Schedule.obsoleteFight(it, categoryCompetitors.size == 3) }.size }
+//                    .fold(0) { acc, i -> acc + i }
+//        }
 
 
         if (properties.periodPropertiesList.isNotEmpty()) {

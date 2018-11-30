@@ -1,4 +1,4 @@
-package compman.compsrv.model.es.events
+package compman.compsrv.model.es.events.payload
 
 /**
  * Created by ezabavno on 31.05.2017.

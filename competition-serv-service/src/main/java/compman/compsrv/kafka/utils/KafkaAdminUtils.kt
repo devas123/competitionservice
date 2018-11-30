@@ -22,11 +22,7 @@ class KafkaAdminUtils(adminProps: Properties) {
             defaultTopic
         }
 
-        fun getEventRouting(eventHolder: EventHolder?, defaultTopic: String) = if (eventHolder?.metadata?.containsKey(ROUTING_METADATA_KEY) == true) {
-            eventHolder.metadata[ROUTING_METADATA_KEY].toString()
-        } else {
-            defaultTopic
-        }
+        fun getEventRouting(eventHolder: EventHolder?, defaultTopic: String) = eventHolder?.findMetadataByKey(ROUTING_METADATA_KEY) ?: defaultTopic
     }
 
     private val kafkaAdminClient: AdminClient = KafkaAdminClient.create(adminProps)
