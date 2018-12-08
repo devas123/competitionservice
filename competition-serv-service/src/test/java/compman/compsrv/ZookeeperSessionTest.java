@@ -199,9 +199,9 @@ public final class ZookeeperSessionTest {
         CompetitionState pr1 = new CompetitionState(id1, new CompetitionProperties(id1, COMPETITION1, ""));
         CompetitionState pr2 = new CompetitionState(id2, new CompetitionProperties(id2, COMPETITION2, ""));
         producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, COMPETITION1, new Command(COMPETITION1, CommandType.CREATE_COMPETITION_COMMAND,
-                "", mapper.convertValue(pr1, LinkedHashMap.class))));
+                "", mapper.writeValueAsBytes(pr1))));
         producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, COMPETITION2, new Command(COMPETITION2, CommandType.CREATE_COMPETITION_COMMAND,
-                "", mapper.convertValue(pr2, LinkedHashMap.class))));
+                "", mapper.writeValueAsBytes(pr2))));
 
         producer.flush();
 
@@ -219,11 +219,17 @@ public final class ZookeeperSessionTest {
         log.info("Topics created: " + topics);
 
         CategoryDescriptor[] categories = {};
-        for (int i = 0; i < 30; i++) {
-            CategoryDescriptor cat = categories[i % categories.length];
-            producer.send(new ProducerRecord<>(comp2commandsTopic, COMPETITION2, new Command(COMPETITION2, CommandType.ADD_CATEGORY_COMMAND, cat.getId(), mapper.convertValue(cat, LinkedHashMap.class))));
-            sleep(10);
-        }
+//        for (int i = 0; i < 30; i++) {
+//            int ind = 0;
+//            if (categories.length == 0) {
+//                ind = i;
+//            } else {
+//                ind = i % categories.length;
+//            }
+//            CategoryDescriptor cat = categories[i % (categories.length == 0 ? 1 : categories.length)];
+//            producer.send(new ProducerRecord<>(comp2commandsTopic, COMPETITION2, new Command(COMPETITION2, CommandType.ADD_CATEGORY_COMMAND, cat.getId(), mapper.writeValueAsBytes(cat))));
+//            sleep(10);
+//        }
 
         producer.flush();
 

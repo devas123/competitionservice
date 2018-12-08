@@ -43,7 +43,7 @@ abstract class StateForwardingCommandTransformer(
     override fun transform(readOnlyKey: String, command: Command): List<EventHolder>? {
         return try {
             val currentStateOpt = getState(readOnlyKey)
-            currentStateOpt.map {currentState ->
+            currentStateOpt.map { currentState ->
                 val validationErrors = canExecuteCommand(currentState, command)
                 if (validationErrors.isEmpty()) {
                     val eventsToApply = commandProcessingService.process(command, currentState)
@@ -66,7 +66,7 @@ abstract class StateForwardingCommandTransformer(
                     emptyList()
                 }
             }.orElse(emptyList())
-        } catch(e: Throwable) {
+        } catch (e: Throwable) {
             log.error("Exception: ", e)
             emptyList()
         }

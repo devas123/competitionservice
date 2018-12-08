@@ -23,7 +23,6 @@ class StateSnapshotForwardingProcessor(private val clusterSession: ClusterSessio
     override fun init(context: ProcessorContext?) {
         this.context = context ?: throw IllegalStateException("context is null")
         stateStore = this.context.getStateStore(stateSnapshotStoreName) as KeyValueStore<String, CompetitionStateSnapshot>
-
     }
 
     override fun close() {

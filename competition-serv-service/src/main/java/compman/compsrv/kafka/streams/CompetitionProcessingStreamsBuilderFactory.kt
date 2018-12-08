@@ -63,7 +63,7 @@ class CompetitionProcessingStreamsBuilderFactory(
 
         //Process commands
         allCommands
-                .transformValues(commandTransformer)
+                .transformValues(commandTransformer, COMPETITION_STATE_SNAPSHOT_STORE_NAME)
                 .flatMapValues { value -> value }
                 .filterNot { _, value -> value == null || value.type == EventType.DUMMY }.to({ _, event, _ -> KafkaAdminUtils.getEventRouting(event, competitionEventsTopic) }, Produced.with(Serdes.String(), EventSerde()))
 

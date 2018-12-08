@@ -2,17 +2,17 @@ package compman.compsrv.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.model.brackets.BracketDescriptor
-import compman.compsrv.model.competition.CompetitionProperties
 import compman.compsrv.model.competition.CompetitionState
 import compman.compsrv.model.competition.CompetitionStatus
 import compman.compsrv.model.es.commands.Command
 import compman.compsrv.model.es.commands.CommandType
+import compman.compsrv.model.es.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.es.events.EventHolder
 import compman.compsrv.model.es.events.EventType
 import compman.compsrv.model.es.events.payload.CompetitionPropertiesUpdatedPayload
 import compman.compsrv.model.schedule.Schedule
 import compman.compsrv.model.schedule.ScheduleProperties
-import compman.compsrv.repository.*
+import compman.compsrv.repository.CompetitionStateCrudRepository
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -21,12 +21,7 @@ import java.math.BigDecimal
 @Component
 class CompetitionStateService(private val scheduleService: ScheduleService,
                               private val stateQueryService: StateQueryService,
-                              private val fightRepository: FightCrudRepository,
-                              private val competitorCrudRepository: CompetitorCrudRepository,
-                              private val categoryCrudRepository: CategoryCrudRepository,
                               private val competitionStateCrudRepository: CompetitionStateCrudRepository,
-                              private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
-                              private val bracketsCrudRepository: BracketsCrudRepository,
                               private val mapper: ObjectMapper) : ICommandProcessingService<CompetitionState, Command, EventHolder> {
 
     private fun getAllBrackets(competitionId: String): List<BracketDescriptor> {
@@ -118,10 +113,8 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                     }
                 }
                 CommandType.CREATE_COMPETITION_COMMAND -> {
-                    val payload = command.payload!!
-                    val tmpProps = CompetitionState(command.competitionId,
-                            CompetitionProperties(command.competitionId, payload["competitionName"].toString(), payload["creatorId"].toString()))
-                    val newProperties = tmpProps.properties.applyProperties(payload)
+                    val payload = getPayloadAs(command.payload, CreateCompetitionPayload::class.java)
+                    val newProperties = payload?.properties
                     createEvent(EventType.COMPETITION_CREATED, mapOf("properties" to newProperties))
                 }
                 CommandType.CHECK_CATEGORY_OBSOLETE -> {
@@ -137,7 +130,7 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                 CommandType.DROP_ALL_BRACKETS_COMMAND -> {
                     if (state?.properties?.bracketsPublished != true) {
                         val categories = stateQueryService.getCategories(command.competitionId).map { it.categoryId }
-                        val newPayload = (command.payload ?: emptyMap()) + ("categories" to categories)
+                        val newPayload = mapper.writeValueAsBytes(categories)
                         createEvent(EventType.DROP_ALL_BRACKETS_SAGA_STARTED, newPayload)
                     } else {
                         createErrorEvent("Cannot drop brackets, it is already published.")

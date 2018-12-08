@@ -39,6 +39,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
             val result = ArrayList<Competitor>()
             for (k in 1 until size + 1) {
                 result.add(Competitor(
+                        UUID.randomUUID().toString(),
                         generateEmail(random),
                         null,
                         names[random.nextInt(names.size)],

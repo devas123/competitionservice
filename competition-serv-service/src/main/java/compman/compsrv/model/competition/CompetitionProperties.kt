@@ -6,6 +6,7 @@ import java.time.ZonedDateTime
 import javax.persistence.*
 
 @Entity
+@Table(name = "competition_properties")
 data class CompetitionProperties(
         @Id val id: String,
         val creatorId: String,

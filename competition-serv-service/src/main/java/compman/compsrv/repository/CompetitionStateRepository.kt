@@ -9,22 +9,23 @@ import javax.persistence.EntityManager
 import javax.persistence.LockModeType
 import javax.persistence.OptimisticLockException
 
-@Transactional(propagation = Propagation.REQUIRED)
+@Transactional(propagation = Propagation.REQUIRED, readOnly = true)
 @Component
-open class CompetitionStateRepository(private val competitionStateCrudRepository: CompetitionStateCrudRepository, private val entityManager: EntityManager) {
+class CompetitionStateRepository(private val competitionStateCrudRepository: CompetitionStateCrudRepository, private val entityManager: EntityManager) {
 
 
-    open fun findById(id: String): Optional<CompetitionState> {
+    fun findById(id: String): Optional<CompetitionState> {
         return Optional.ofNullable(entityManager.find(CompetitionState::class.java, id, LockModeType.OPTIMISTIC))
     }
 
     @Throws(OptimisticLockException::class)
-    open fun save(state: CompetitionState): CompetitionState {
+    fun save(state: CompetitionState): CompetitionState {
         entityManager.lock(state, LockModeType.OPTIMISTIC_FORCE_INCREMENT)
         return competitionStateCrudRepository.save(state)
     }
 
-    open fun delete(id: String) {
+    @Transactional
+    fun delete(id: String) {
         return competitionStateCrudRepository.deleteById(id)
     }
 

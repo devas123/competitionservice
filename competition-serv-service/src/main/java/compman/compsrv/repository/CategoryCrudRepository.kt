@@ -10,4 +10,6 @@ import javax.transaction.Transactional
 @Transactional(Transactional.TxType.MANDATORY)
 interface CategoryCrudRepository : JpaRepository<CategoryState, String> {
     fun findByCompetitionIdAndCategoryId(competitionId: String, categoryId: String): CategoryState?
+
+    fun findByCompetitionId(competitionId: String): Array<CategoryState>?
 }

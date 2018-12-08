@@ -1,4 +1,4 @@
-package compman.compsrv.model.es.commands
+package compman.compsrv.model.es.commands.payload
 
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
@@ -9,7 +9,7 @@ import org.springframework.data.annotation.PersistenceConstructor
 import java.util.*
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class GenerateAbsoluteMessage @JsonCreator
+data class GenerateAbsoluteMessagePayload @JsonCreator
 @PersistenceConstructor
 constructor(@JsonProperty("competitors") val competitors: Array<Competitor>,
             @JsonProperty("category") val category: CategoryDescriptor,
@@ -19,7 +19,7 @@ constructor(@JsonProperty("competitors") val competitors: Array<Competitor>,
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
-        other as GenerateAbsoluteMessage
+        other as GenerateAbsoluteMessagePayload
 
         if (!Arrays.equals(competitors, other.competitors)) return false
         if (category != other.category) return false

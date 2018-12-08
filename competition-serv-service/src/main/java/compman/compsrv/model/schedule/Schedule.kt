@@ -23,7 +23,7 @@ data class Schedule(@Id val id: String,
                 return false
             }
             if ((f.parentId1 != null) || (f.parentId2 != null)) return false
-            return !(f.competitors.size == 2 && f.competitors.all { compNotEmpty(it.competitor) })
+            return !(f.scores.size == 2 && f.scores.all { compNotEmpty(it.competitor) })
         }
 
         fun compNotEmpty(comp: Competitor?): Boolean {

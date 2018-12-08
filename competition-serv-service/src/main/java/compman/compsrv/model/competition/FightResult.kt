@@ -8,4 +8,4 @@ import javax.persistence.Embeddable
 @Access(AccessType.FIELD)
 data class FightResult(val winnerId: String?,
                        val draw: Boolean?,
-                       var reason: String?)
+                       val reason: String?)

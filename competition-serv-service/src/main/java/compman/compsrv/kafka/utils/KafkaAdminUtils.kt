@@ -16,11 +16,7 @@ import java.util.concurrent.TimeUnit
 class KafkaAdminUtils(adminProps: Properties) {
 
     companion object {
-        fun getCommandRouting(command: Command?, defaultTopic: String) = if (command?.metadata?.containsKey(ROUTING_METADATA_KEY) == true) {
-            command.metadata[ROUTING_METADATA_KEY].toString()
-        } else {
-            defaultTopic
-        }
+        fun getCommandRouting(command: Command?, defaultTopic: String) = command?.metadata?.firstOrNull { it.key == ROUTING_METADATA_KEY }?.value ?: defaultTopic
 
         fun getEventRouting(eventHolder: EventHolder?, defaultTopic: String) = eventHolder?.findMetadataByKey(ROUTING_METADATA_KEY) ?: defaultTopic
     }

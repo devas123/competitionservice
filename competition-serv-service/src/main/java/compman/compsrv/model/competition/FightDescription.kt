@@ -18,7 +18,7 @@ data class FightDescription(
                 name = "comp_score",
                 joinColumns = [JoinColumn(name = "fight_id")]
         )
-        val competitors: Array<CompScore>,
+        val scores: Array<CompScore>,
         val parentId1: String?,
         val parentId2: String?,
         val duration: Long?,
@@ -38,7 +38,7 @@ data class FightDescription(
             categoryId = categoryId,
             winFight = null,
             loseFight = null,
-            competitors = emptyArray(),
+            scores = emptyArray(),
             parentId1 = null,
             parentId2 = null,
             duration = null,
@@ -57,7 +57,7 @@ data class FightDescription(
             categoryId = categoryId,
             winFight = null,
             loseFight = null,
-            competitors = emptyArray(),
+            scores = emptyArray(),
             parentId1 = null,
             parentId2 = null,
             duration = null,
@@ -76,7 +76,7 @@ data class FightDescription(
             categoryId = categoryId,
             winFight = winFight,
             loseFight = null,
-            competitors = emptyArray(),
+            scores = emptyArray(),
             parentId1 = null,
             parentId2 = null,
             duration = null,
@@ -96,28 +96,28 @@ data class FightDescription(
     fun setNumberOnMat(numberOnMat: Int?) = copy(numberOnMat = numberOnMat)
 
     private fun canModifyFight() =
-            stage == FightStage.PENDING && competitors.all { it.score.isEmpty() }
+            stage == FightStage.PENDING && scores.all { it.score.isEmpty() }
 
 
     fun setCompetitorWithIndex(competitor: Competitor, index: Int): FightDescription {
         if (!canModifyFight()) {
             return this
         }
-        if (competitors.size > 2) {
+        if (scores.size > 2) {
             return this
         }
-        val needToShift = competitors.size == 2
+        val needToShift = scores.size == 2
         return if (index == 0) {
             if (needToShift) {
-                copy(competitors = arrayOf(CompScore(competitor, Score()), competitors[1]))
+                copy(scores = arrayOf(CompScore(competitor, Score()), scores[1]))
             } else {
-                copy(competitors = arrayOf(CompScore(competitor, Score()), competitors[0]))
+                copy(scores = arrayOf(CompScore(competitor, Score()), scores[0]))
             }
         } else if (index == 1) {
             if (needToShift) {
-                copy(competitors = arrayOf(competitors[0], CompScore(competitor, Score())))
+                copy(scores = arrayOf(scores[0], CompScore(competitor, Score())))
             } else {
-                copy(competitors = competitors + CompScore(competitor, Score()))
+                copy(scores = scores + CompScore(competitor, Score()))
             }
         } else {
             this
@@ -128,8 +128,8 @@ data class FightDescription(
         if (competitor.id == "fake") {
             return this
         }
-        if (competitors.size < 2) {
-            return copy(competitors = competitors + CompScore(competitor, Score()))
+        if (scores.size < 2) {
+            return copy(scores = scores + CompScore(competitor, Score()))
         } else {
             throw RuntimeException("Fight is already packed. Cannot add competitors")
         }

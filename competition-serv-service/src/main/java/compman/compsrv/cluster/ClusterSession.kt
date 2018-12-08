@@ -2,68 +2,79 @@ package compman.compsrv.cluster
 
 import com.compman.starter.properties.KafkaProperties
 import compman.compsrv.config.ClusterConfigurationProperties
+import compman.compsrv.kafka.streams.CompetitionProcessingStreamsBuilderFactory
+import compman.compsrv.kafka.streams.MetadataService
 import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.model.cluster.CompetitionProcessingInfo
 import compman.compsrv.model.cluster.CompetitionProcessingMessage
 import compman.compsrv.model.cluster.CompetitionStateSnapshotMessage
-import compman.compsrv.model.competition.CompetitionState
 import compman.compsrv.model.competition.CompetitionStateSnapshot
-import compman.compsrv.repository.CategoryCrudRepository
-import compman.compsrv.repository.CompetitionStateCrudRepository
+import compman.compsrv.repository.CompetitionStateSnapshotCrudRepository
 import io.scalecube.cluster.Cluster
 import io.scalecube.cluster.Member
 import io.scalecube.cluster.membership.MembershipEvent
+import io.scalecube.transport.Address
 import io.scalecube.transport.Message
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.common.serialization.StringSerializer
 import org.slf4j.LoggerFactory
-import org.springframework.web.client.RestTemplate
+import org.springframework.boot.autoconfigure.web.ServerProperties
 import reactor.core.Disposable
 import java.util.concurrent.ConcurrentHashMap
+import javax.ws.rs.NotFoundException
 
-class ClusterSession(clusterConfigurationProperties: ClusterConfigurationProperties,
-                     private val restTemplate: RestTemplate,
+data class MemberWithRestPort(val member: Member, val restPort: Int) {
+    fun restAddress(): Address = Address.create(member.address().host(), restPort)
+}
+
+class ClusterSession(private val clusterConfigurationProperties: ClusterConfigurationProperties,
                      private val cluster: Cluster,
                      private val adminClient: KafkaAdminUtils,
-                     private val competitionStateCrudRepository: CompetitionStateCrudRepository,
-                     private val categoryStateCrudRepository: CategoryCrudRepository,
-                     private val kafkaProperties: KafkaProperties) {
+                     private val competitionStateSnapshotCrudRepository: CompetitionStateSnapshotCrudRepository,
+                     private val kafkaProperties: KafkaProperties,
+                     private val streamsMetadataService: MetadataService,
+                     private val serverProperties: ServerProperties) {
 
     companion object {
         private val log = LoggerFactory.getLogger(ClusterSession::class.java)
         const val COMPETITION_LEADER_KEY = "compservice-leader"
         const val COMPETITION_SNAPSHOT = "competitionSnapshot"
         const val COMPETITION_PROCESSING = "competitionProcessing"
+        const val REST_PORT_METADATA_KEY = "rest_port"
         const val TYPE = "type"
-
-
     }
 
-    private fun getUrlPrefix(host: String, port: Int) = "http://$host:$port"
+    fun getUrlPrefix(host: String, port: Int) = "http://$host:$port"
 
-    private fun findProcessingMember(competitionId: String) = clusterMembers.entries.find { it.value.competitionIds.contains(competitionId) }?.key
+    fun findProcessingMember(competitionId: String): Address? = run {
+        log.info("Getting info about instances processing competition $competitionId")
+        clusterMembers[competitionId]?.restAddress()
+    } ?: try {
+        log.info("Did not find in cluster info, looking in the kafka streams info for competition id $competitionId")
+        val metadata = streamsMetadataService.streamsMetadataForStoreAndKey(CompetitionProcessingStreamsBuilderFactory.COMPETITION_STATE_SNAPSHOT_STORE_NAME, competitionId, StringSerializer())
+        log.info("Found metadata for $competitionId: $metadata")
+        Address.create(metadata.host, metadata.port)
+    } catch (e: NotFoundException) {
+        log.info("Did not find processing instance for $competitionId")
+        null
+    }
 
-    private val listenerString = getUrlPrefix(clusterConfigurationProperties.advertisedHost, clusterConfigurationProperties.advertisedPort)
+    private val restListenerString = getUrlPrefix(clusterConfigurationProperties.advertisedHost, serverProperties.port)
 
-    private val clusterMembers = ConcurrentHashMap<Member, CompetitionProcessingInfo>()
+    private val clusterMembers = ConcurrentHashMap<String, MemberWithRestPort>()
 
 
     fun broadcastCompetitionProcessingInfo(competitionIds: Set<String>): Disposable =
-            cluster.spreadGossip(Message.withData(CompetitionProcessingMessage(cluster.member(), CompetitionProcessingInfo(cluster.member(), competitionIds)))
-                    .header(TYPE, COMPETITION_PROCESSING).build()).subscribe()
+            cluster.spreadGossip(Message.withData(CompetitionProcessingMessage(MemberWithRestPort(cluster.member(), serverProperties.port), CompetitionProcessingInfo(cluster.member(), competitionIds)))
+                    .headers(mapOf(TYPE to COMPETITION_PROCESSING)).build()).subscribe()
 
     fun broadcastCompetitionStateSnapshot(competitionStateSnapshot: CompetitionStateSnapshot): Disposable {
         return cluster.spreadGossip(Message.withData(CompetitionStateSnapshotMessage(cluster.member(), competitionStateSnapshot))
                 .header(TYPE, COMPETITION_SNAPSHOT).build()).subscribe()
     }
 
-    fun getCategoryState(categoryId: String) = categoryStateCrudRepository.findById(categoryId)
-
-
-    fun getCompetitionProperties(competitionId: String): CompetitionState? = competitionStateCrudRepository.findById(competitionId).orElseGet {
-        val address = findProcessingMember(competitionId)?.address()
-        address?.let { restTemplate.getForObject("${getUrlPrefix(it.host(), it.port())}/api/v1/store/competitionstate?competitionId=$competitionId&internal=true", CompetitionState::class.java) }
-    }
+    fun isLocal(address: Address) = cluster.address() == address || (address.host() == clusterConfigurationProperties.advertisedHost && address.port() == clusterConfigurationProperties.advertisedPort)
 
     fun init() {
         val leaderChangelogTopic = adminClient.createTopicIfMissing(
@@ -73,22 +84,28 @@ class ClusterSession(clusterConfigurationProperties: ClusterConfigurationPropert
                 compacted = true)
 
         val producer = KafkaProducer<String, String>(kafkaProperties.producer.properties)
-        producer.send(ProducerRecord(leaderChangelogTopic, COMPETITION_LEADER_KEY, listenerString))
+        producer.send(ProducerRecord(leaderChangelogTopic, COMPETITION_LEADER_KEY, restListenerString))
         producer.flush()
+        producer.close()
         cluster.listenMembership().subscribe {
             when (it.type()) {
                 MembershipEvent.Type.ADDED -> {
                     log.info("Member added to the cluster: ${it.member()}")
-                    clusterMembers.putIfAbsent(it.member(), CompetitionProcessingInfo(it.member(), emptySet()))
                 }
                 MembershipEvent.Type.REMOVED -> {
                     log.info("Member removed from the cluster: ${it.member()}")
-                    clusterMembers.remove(it.member())
+                    if (it.member().metadata()[REST_PORT_METADATA_KEY] != null) {
+                        val m = MemberWithRestPort(it.member(), it.member().metadata()[REST_PORT_METADATA_KEY]?.toInt()!!)
+                        val keysToRemove = clusterMembers.filter { entry -> entry.value == m }.keys
+                        keysToRemove.forEach { id -> clusterMembers.remove(id) }
+                    }
                 }
                 MembershipEvent.Type.UPDATED -> {
                     log.info("Cluster member updated: ${it.oldMember()} -> ${it.newMember()}")
-                    val competitions = clusterMembers.remove(it.oldMember())
-                    clusterMembers[it.newMember()] = competitions ?: CompetitionProcessingInfo(it.newMember(), emptySet())
+                    val om = MemberWithRestPort(it.oldMember(), it.oldMember().metadata()[REST_PORT_METADATA_KEY]?.toInt()!!)
+                    val nm = MemberWithRestPort(it.newMember(), it.newMember().metadata()[REST_PORT_METADATA_KEY]?.toInt()!!)
+                    val keysToUpdate = clusterMembers.filter { entry -> entry.value == om }.keys
+                    keysToUpdate.forEach { id -> clusterMembers[id] = nm }
                 }
                 else -> {
                     log.info("Strange membership event: $it")
@@ -96,16 +113,17 @@ class ClusterSession(clusterConfigurationProperties: ClusterConfigurationPropert
             }
         }
         cluster.listenGossips().subscribe {
-            if (it.header(TYPE) == COMPETITION_PROCESSING) {
-                val msgData = it.data<CompetitionProcessingMessage>()
-                if (msgData != null) {
-                    clusterMembers.merge(msgData.member, msgData.info) { t: CompetitionProcessingInfo, u: CompetitionProcessingInfo ->
-                        t.addCompetitionIds(u.competitionIds)
-                    }
+            try {
+                if (it.header(TYPE) == COMPETITION_PROCESSING) {
+                    val msgData = it.data<CompetitionProcessingMessage>()
+                    msgData?.info?.competitionIds?.forEach { s -> clusterMembers[s] = msgData.member }
                 }
-            }
-            if (it.header(TYPE) == COMPETITION_SNAPSHOT) {
-
+                if (it.header(TYPE) == COMPETITION_SNAPSHOT) {
+                    val msgData = it.data<CompetitionStateSnapshot>()
+                    msgData?.let(competitionStateSnapshotCrudRepository::save)
+                }
+            } catch (e: Exception) {
+                log.warn("Error when processing a gossip.", e)
             }
         }
     }

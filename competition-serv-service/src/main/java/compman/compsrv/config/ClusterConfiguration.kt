@@ -2,9 +2,9 @@ package compman.compsrv.config
 
 import com.compman.starter.properties.KafkaProperties
 import compman.compsrv.cluster.ClusterSession
+import compman.compsrv.kafka.streams.MetadataService
 import compman.compsrv.kafka.utils.KafkaAdminUtils
-import compman.compsrv.repository.CategoryCrudRepository
-import compman.compsrv.repository.CompetitionStateCrudRepository
+import compman.compsrv.repository.*
 import compman.compsrv.service.StateQueryService
 import compman.compsrv.service.saga.SagaManager
 import io.scalecube.cluster.Cluster
@@ -12,6 +12,7 @@ import io.scalecube.cluster.ClusterConfig
 import io.scalecube.transport.Address
 import io.scalecube.transport.TransportConfig
 import org.slf4j.LoggerFactory
+import org.springframework.boot.autoconfigure.web.ServerProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -29,7 +30,7 @@ class ClusterConfiguration {
 
 
     @Bean(destroyMethod = "shutdown")
-    fun cluster(clusterConfigurationProperties: ClusterConfigurationProperties): Cluster {
+    fun cluster(clusterConfigurationProperties: ClusterConfigurationProperties, serverProperties: ServerProperties): Cluster {
         val memberHost = if (clusterConfigurationProperties.advertisedHost?.isBlank() != false || clusterConfigurationProperties.advertisedHost == "localhost") {
             ClusterConfig.DEFAULT_MEMBER_HOST
         } else {
@@ -41,13 +42,14 @@ class ClusterConfiguration {
                         .port(clusterConfigurationProperties.advertisedPort).build())
                 .seedMembers(clusterSeed)
                 .memberHost(memberHost)
+                .addMetadata(ClusterSession.REST_PORT_METADATA_KEY, serverProperties.port.toString())
                 .build()
         val cluster = Cluster.joinAwait(clusterConfig)
         Runtime.getRuntime().addShutdownHook(thread(start = false) { cluster.shutdown() })
-        log.info("Started instance at ${cluster.address().host()}:${cluster.address().port()}")
+        log.info("Started instance at ${cluster.address().host()}:${cluster.address().port()} with rest port: ${serverProperties.port}")
         log.info("Members of the cluster: ")
         cluster.members()?.forEach {
-            log.info("${it.id()} -> ${it.address()}")
+            log.info("${it.id()} -> ${it.address()}, ${it.metadata()[ClusterSession.REST_PORT_METADATA_KEY]}")
         }
         return cluster
     }
@@ -55,20 +57,29 @@ class ClusterConfiguration {
     @Bean(initMethod = "init")
     @DependsOn("cluster")
     fun clusterSession(clusterConfigurationProperties: ClusterConfigurationProperties,
-                       restTemplate: RestTemplate,
                        cluster: Cluster,
                        adminClient: KafkaAdminUtils,
-                       competitionStateCrudRepository: CompetitionStateCrudRepository,
-                       categoryStateCrudRepository: CategoryCrudRepository,
-                       kafkaProperties: KafkaProperties) =
+                       competitionStateSnapshotCrudRepository: CompetitionStateSnapshotCrudRepository,
+                       kafkaProperties: KafkaProperties,
+                       serverProperties: ServerProperties,
+                       metadataService: MetadataService) =
             ClusterSession(clusterConfigurationProperties,
-                    restTemplate,
                     cluster,
-                    adminClient, competitionStateCrudRepository, categoryStateCrudRepository, kafkaProperties)
+                    adminClient, competitionStateSnapshotCrudRepository, kafkaProperties, metadataService, serverProperties)
 
     @Bean
     fun sagaFactory(stateQueryService: StateQueryService) = SagaManager(stateQueryService)
 
     @Bean
-    fun stateQueryService(clusterSession: ClusterSession, clusterConfigurationProperties: ClusterConfigurationProperties) = StateQueryService(clusterSession, clusterConfigurationProperties)
+    fun stateQueryService(restTemplate: RestTemplate,
+                          clusterSession: ClusterSession,
+                          categoryStateCrudRepository: CategoryCrudRepository,
+                          competitionStateCrudRepository: CompetitionStateCrudRepository,
+                          scheduleCrudRepository: ScheduleCrudRepository,
+                          competitorCrudRepository: CompetitorCrudRepository,
+                          bracketsCrudRepository: BracketsCrudRepository) =
+            StateQueryService(clusterSession, restTemplate,
+                    competitionStateCrudRepository, scheduleCrudRepository,
+                    categoryStateCrudRepository, competitorCrudRepository,
+                    bracketsCrudRepository)
 }
