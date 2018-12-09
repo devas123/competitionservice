@@ -3,10 +3,8 @@ package compman.compsrv.service
 import com.compmanager.service.ServiceException
 import compman.compsrv.model.brackets.BracketDescriptor
 import compman.compsrv.model.competition.FightDescription
-import compman.compsrv.model.schedule.Schedule
+import compman.compsrv.model.schedule.*
 import compman.compsrv.model.schedule.Schedule.Companion.obsoleteFight
-import compman.compsrv.model.schedule.ScheduleEntry
-import compman.compsrv.model.schedule.ScheduleProperties
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.time.format.DateTimeFormatter
@@ -49,7 +47,7 @@ class ScheduleService {
 
     private class ScheduleComposer(startTime: Date, val numberOfMats: Int, val fightDurations: Map<String, BigDecimal>, brackets: List<BracketSimulator>, val pause: BigDecimal, riskFactor: BigDecimal, periodId: String) {
         val schedule: MutableList<ScheduleEntry>
-        val fightsByMats: ArrayList<InternalMatScheduleContainer> = ArrayList(numberOfMats)
+        val fightsByMats: ArrayList<MatScheduleContainer> = ArrayList(numberOfMats)
         val riskCoeff: BigDecimal
         val brackets: ArrayList<BracketSimulator> = ArrayList(brackets)
 
@@ -57,7 +55,7 @@ class ScheduleService {
             this.schedule = ArrayList()
             for (i in 0 until numberOfMats) {
                 val initDate = Date(startTime.time)
-                fightsByMats.add(InternalMatScheduleContainer(initDate, "$periodId-mat-$i"))
+                fightsByMats.add(MatScheduleContainer(initDate, "$periodId-mat-$i"))
             }
             riskCoeff = BigDecimal.ONE.plus(riskFactor)
         }
@@ -82,14 +80,14 @@ class ScheduleService {
                 val currentTime = Date(freshMat.currentTime.time)
                 this.updateSchedule(f, currentTime)
                 freshMat.currentTime.time = currentTime.time + duration.toLong() * 60L * 1000L
-                freshMat.fights.add(InternalFightStartTimePair(f, freshMat.currentFightNumber++, currentTime))
+                freshMat.fights += FightStartTimePair(f, freshMat.currentFightNumber++, currentTime)
             } else {
                 if (this.categoryNotRegistered(f.categoryId)) {
                     val mat = this.fightsByMats.sortedBy { a -> a.currentTime.time }.first()
                     val currentTime = Date(mat.currentTime.time)
                     this.updateSchedule(f, currentTime)
                     mat.currentTime.time = currentTime.time + duration.toLong() * 60 * 1000
-                    mat.fights.add(InternalFightStartTimePair(f, mat.currentFightNumber++, currentTime))
+                    mat.fights += FightStartTimePair(f, mat.currentFightNumber++, currentTime)
                 } else {
                     val mat: Any
                     val matsWithTheSameCategory = this.fightsByMats
@@ -105,7 +103,7 @@ class ScheduleService {
                         val currentTime = Date(mat.currentTime.time)
                         this.updateSchedule(f, currentTime)
                         mat.currentTime.time = currentTime.time + duration.toLong() * 60 * 1000
-                        mat.fights.add(InternalFightStartTimePair(f, mat.currentFightNumber++, currentTime))
+                        mat.fights += FightStartTimePair(f, mat.currentFightNumber++, currentTime)
                         this.fightsByMats.forEach { m ->
                             if (m.pending.isNotEmpty()) {
                                 val pendingFights = Array(m.pending.size) { index -> m.pending[index] }
@@ -156,15 +154,15 @@ class ScheduleService {
 
 
     fun generateSchedule(properties: ScheduleProperties, brackets: List<BracketDescriptor>, fightDurations: Map<String, BigDecimal>): Schedule {
-        fun getNumberOfFights(categoryId: String): Int {
-            val categoryBrackets = brackets
-                    .filter { it.fights.any { f -> f.categoryId == categoryId } }
-            val categoryCompetitors = categoryBrackets.flatMap { it.fights.toList() }.flatMap { fight -> fight.competitors.map { it.competitor } }.toSet()
-            return brackets
-                    .filter { it.fights.any { f -> f.categoryId == categoryId } }
-                    .map { bracketDescriptor -> bracketDescriptor.fights.filter { !Schedule.obsoleteFight(it, categoryCompetitors.size == 3) }.size }
-                    .fold(0) { acc, i -> acc + i }
-        }
+//        fun getNumberOfFights(categoryId: String): Int {
+//            val categoryBrackets = brackets
+//                    .filter { it.fights.any { f -> f.categoryId == categoryId } }
+//            val categoryCompetitors = categoryBrackets.flatMap { it.fights.toList() }.flatMap { fight -> fight.competitors.map { it.competitor } }.toSet()
+//            return brackets
+//                    .filter { it.fights.any { f -> f.categoryId == categoryId } }
+//                    .map { bracketDescriptor -> bracketDescriptor.fights.filter { !Schedule.obsoleteFight(it, categoryCompetitors.size == 3) }.size }
+//                    .fold(0) { acc, i -> acc + i }
+//        }
 
 
         if (properties.periodPropertiesList.isNotEmpty()) {
@@ -173,25 +171,22 @@ class ScheduleService {
                 throw ServiceException("No fights generated.")
             }
             val exceptionCategoryIds: List<String> = fightsByIds.filter { (it.value.size == 3 && it.value.any { fd -> !fd.loseFight.isNullOrBlank() }) || it.key.endsWith("ABSOLUTE") }.keys.toList()
-            val internalResult = doGenerateSchedule(fightsByIds, exceptionCategoryIds, properties, fightDurations)
-            val result = internalResult.toSchedule().setScheduleProperties(properties)
-            return result
-                    .setPeriods(result.periods?.map { p -> p.setSchedule(p.schedule.map { s -> s.copy(numberOfFights = getNumberOfFights(s.categoryId)) }) })
+            return doGenerateSchedule(fightsByIds, exceptionCategoryIds, properties, fightDurations)
         } else {
             throw ServiceException("Periods are not specified!")
         }
     }
 
-    private fun doGenerateSchedule(fightsByIds: Map<String, List<FightDescription>>, exceptionCategoryIds: List<String>, properties: ScheduleProperties, fightDurations: Map<String, BigDecimal>): InternalSchedule {
-        return InternalSchedule(
-                competitionId = properties.competitionId,
+    private fun doGenerateSchedule(fightsByIds: Map<String, List<FightDescription>>, exceptionCategoryIds: List<String>, properties: ScheduleProperties, fightDurations: Map<String, BigDecimal>): Schedule {
+        return Schedule(
+                id = properties.competitionId,
                 periods = properties.periodPropertiesList.map { p ->
                     val id = createPeriodId(properties.competitionId)
                     val periodStartTime = Date(p.startTime.time)
-                    val brackets = p.categories.map { cat -> BracketSimulator(fightsByIds[cat.categoryId], exceptionCategoryIds.contains(cat.categoryId)) }
+                    val brackets = p.categories.map { cat -> BracketSimulator(fightsByIds[cat.id], exceptionCategoryIds.contains(cat.id)) }
                     val composer = ScheduleComposer(periodStartTime, p.numberOfMats, fightDurations, brackets, BigDecimal(p.timeBetweenFights), p.riskPercent, id)
                     composer.simulate()
-                    InternalPeriod(id = id,
+                    Period(id = id,
                             schedule = composer.schedule,
                             fightsByMats = composer.fightsByMats,
                             startTime = DateTimeFormatter.ISO_INSTANT.format(periodStartTime.toInstant()),

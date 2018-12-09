@@ -8,7 +8,9 @@ import compman.compsrv.json.ObjectMapperFactory;
 import compman.compsrv.kafka.EmbeddedSingleNodeKafkaCluster;
 import compman.compsrv.kafka.serde.CommandSerializer;
 import compman.compsrv.kafka.topics.CompetitionServiceTopics;
-import compman.compsrv.model.competition.*;
+import compman.compsrv.model.competition.CategoryDescriptor;
+import compman.compsrv.model.competition.CompetitionProperties;
+import compman.compsrv.model.competition.CompetitionState;
 import compman.compsrv.model.es.commands.Command;
 import compman.compsrv.model.es.commands.CommandType;
 import compman.compsrv.service.CategoryStateService;
@@ -50,7 +52,6 @@ import org.springframework.web.client.RestTemplate;
 
 import javax.validation.constraints.NotNull;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -186,19 +187,21 @@ public final class ZookeeperSessionTest {
 
         Set<String> topics = adminClient.listTopics().names().get();
 
-        while (topics == null || !topics.contains(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME)) {
+        while (topics == null || !topics.contains(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME)) {
             log.info("Waiting for global competition commands topics to be created. Current topics are: " + topics);
             topics = adminClient.listTopics().names().get();
             sleep(1000);
         }
 
         KafkaProducer<String, Command> producer = new KafkaProducer<>(kafkaProps.getProducer().getProperties(), new StringSerializer(), new CommandSerializer());
-        CompetitionProperties pr1 = new CompetitionProperties(UUID.randomUUID().toString(), COMPETITION1, COMPETITION1, "valera@protas.ru");
-        CompetitionProperties pr2 = new CompetitionProperties(UUID.randomUUID().toString(), COMPETITION2, COMPETITION2, "valera@protas.ru");
-        producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, COMPETITION1, new Command(COMPETITION1, CommandType.CREATE_COMPETITION_COMMAND,
-                "", mapper.convertValue(pr1, LinkedHashMap.class))));
-        producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITIONS_COMMANDS_TOPIC_NAME, COMPETITION2, new Command(COMPETITION2, CommandType.CREATE_COMPETITION_COMMAND,
-                "", mapper.convertValue(pr2, LinkedHashMap.class))));
+        String id1 = UUID.randomUUID().toString();
+        String id2 = UUID.randomUUID().toString();
+        CompetitionState pr1 = new CompetitionState(id1, new CompetitionProperties(id1, COMPETITION1, ""));
+        CompetitionState pr2 = new CompetitionState(id2, new CompetitionProperties(id2, COMPETITION2, ""));
+        producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, COMPETITION1, new Command(COMPETITION1, CommandType.CREATE_COMPETITION_COMMAND,
+                "", mapper.writeValueAsBytes(pr1))));
+        producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, COMPETITION2, new Command(COMPETITION2, CommandType.CREATE_COMPETITION_COMMAND,
+                "", mapper.writeValueAsBytes(pr2))));
 
         producer.flush();
 
@@ -206,7 +209,7 @@ public final class ZookeeperSessionTest {
 
         topics = adminClient.listTopics().names().get();
 
-        String comp2commandsTopic = CompetitionServiceTopics.CATEGORIES_COMMANDS_TOPIC_NAME;
+        String comp2commandsTopic = CompetitionServiceTopics.CATEGORY_COMMANDS_TOPIC_NAME;
 
         while (topics == null || !topics.contains(comp2commandsTopic)) {
             log.info("Waiting for competition topics to be created. Current topics are: " + topics);
@@ -215,20 +218,18 @@ public final class ZookeeperSessionTest {
         }
         log.info("Topics created: " + topics);
 
-        Category[] categories = {
-                new Category(BjjAgeDivisions.INSTANCE.getADULT(), "FEMALE", COMPETITION2, UUID.randomUUID().toString(), new Weight("Light", new BigDecimal("76.0")), BeltType.BLACK, new BigDecimal(10)),
-                new Category(BjjAgeDivisions.INSTANCE.getADULT(), "MALE", COMPETITION2, UUID.randomUUID().toString(), new Weight("Feather", new BigDecimal("76.0")), BeltType.BLUE, new BigDecimal(10)),
-                new Category(BjjAgeDivisions.INSTANCE.getADULT(), "FEMALE", COMPETITION2, UUID.randomUUID().toString(), new Weight("Heavy", new BigDecimal("76.0")), BeltType.WHITE, new BigDecimal(10)),
-                new Category(BjjAgeDivisions.INSTANCE.getADULT(), "MALE", COMPETITION2, UUID.randomUUID().toString(), new Weight("Light Feather", new BigDecimal("76.0")), BeltType.PURPLE, new BigDecimal(10)),
-                new Category(BjjAgeDivisions.INSTANCE.getADULT(), "FEMALE", COMPETITION2, UUID.randomUUID().toString(), new Weight("Super Heavy", new BigDecimal("76.0")), BeltType.BROWN, new BigDecimal(10)),
-                new Category(BjjAgeDivisions.INSTANCE.getADULT(), "MALE", COMPETITION2, UUID.randomUUID().toString(), new Weight("Ultra Heavy", new BigDecimal("76.0")), BeltType.BLACK, new BigDecimal(10)),
-                new Category(BjjAgeDivisions.INSTANCE.getADULT(), "FEMALE", COMPETITION2, UUID.randomUUID().toString(), new Weight("Rooster", new BigDecimal("76.0")), BeltType.WHITE, new BigDecimal(10)),
-                new Category(BjjAgeDivisions.INSTANCE.getADULT(), "MALE", COMPETITION2, UUID.randomUUID().toString(), new Weight("Light", new BigDecimal("76.0")), BeltType.PURPLE, new BigDecimal(10))};
-        for (int i = 0; i < 30; i++) {
-            Category cat = categories[i % categories.length];
-            producer.send(new ProducerRecord<>(comp2commandsTopic, COMPETITION2, new Command(COMPETITION2, CommandType.ADD_CATEGORY_COMMAND, cat.getCategoryId(), mapper.convertValue(cat, LinkedHashMap.class))));
-            sleep(10);
-        }
+        CategoryDescriptor[] categories = {};
+//        for (int i = 0; i < 30; i++) {
+//            int ind = 0;
+//            if (categories.length == 0) {
+//                ind = i;
+//            } else {
+//                ind = i % categories.length;
+//            }
+//            CategoryDescriptor cat = categories[i % (categories.length == 0 ? 1 : categories.length)];
+//            producer.send(new ProducerRecord<>(comp2commandsTopic, COMPETITION2, new Command(COMPETITION2, CommandType.ADD_CATEGORY_COMMAND, cat.getId(), mapper.writeValueAsBytes(cat))));
+//            sleep(10);
+//        }
 
         producer.flush();
 
@@ -248,7 +249,7 @@ public final class ZookeeperSessionTest {
             try {
                 result = mvc.perform(get("/cluster/store/categorystate")
                         .param("competitionId", COMPETITION2)
-                        .param("categoryId", cat.getCategoryId())
+                        .param("categoryId", cat.getId())
                         .contentType(MediaType.APPLICATION_JSON))
                         .andExpect(status().isOk())
                         .andReturn().getResponse().getContentAsByteArray();

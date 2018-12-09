@@ -2,10 +2,10 @@ package compman.compsrv.repository
 
 
 import compman.compsrv.model.competition.CompetitionProperties
-import org.springframework.data.mongodb.repository.MongoRepository
+import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
+import javax.transaction.Transactional
 
 @Repository
-interface CompetitionPropertiesCrudRepository : MongoRepository<CompetitionProperties, String> {
-    fun findByCompetitionId(competitionId: String): CompetitionProperties?
-}
+@Transactional(Transactional.TxType.MANDATORY)
+interface CompetitionPropertiesCrudRepository : JpaRepository<CompetitionProperties, String>

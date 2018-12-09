@@ -1,6 +1,6 @@
 package compman.compsrv.client
 
-import compman.compsrv.model.competition.Category
+import compman.compsrv.model.competition.CategoryDescriptor
 import compman.compsrv.model.competition.Competitor
 import org.springframework.cloud.openfeign.FeignClient
 import org.springframework.http.MediaType
@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam
 @Component
 interface AccountServiceClient {
     @RequestMapping(method = [(RequestMethod.GET)], value = ["/category/get"], consumes = [(MediaType.APPLICATION_JSON_UTF8_VALUE)])
-    fun getCategories(@RequestParam("ageDivision") age: String?, @RequestParam("gender") gender: String?, @RequestParam("competitionId") competitionId: String): List<Category>
+    fun getCategories(@RequestParam("ageDivision") age: String?, @RequestParam("gender") gender: String?, @RequestParam("competitionId") competitionId: String): List<CategoryDescriptor>
 
     @RequestMapping(method = [(RequestMethod.GET)], value = ["/competitor/get/confirmed"], consumes = [(MediaType.APPLICATION_JSON_UTF8_VALUE)])
     fun getConfirmedCompetitors(@RequestParam("competitionId") competitionId: String): List<Competitor>

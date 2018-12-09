@@ -2,20 +2,24 @@ package compman.compsrv
 
 import com.compman.starter.properties.CommunicationProperties
 import com.compman.starter.properties.KafkaProperties
-import compman.compsrv.config.ClusterConfigurationProperties
 import org.springframework.boot.SpringApplication
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.cache.annotation.EnableCaching
 import org.springframework.cloud.openfeign.EnableFeignClients
 import org.springframework.context.annotation.Bean
-import org.springframework.data.mongodb.repository.config.EnableMongoRepositories
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories
+import org.springframework.transaction.annotation.EnableTransactionManagement
 import org.springframework.web.filter.CommonsRequestLoggingFilter
 
+
 @SpringBootApplication
-@EnableConfigurationProperties(KafkaProperties::class, CommunicationProperties::class, ClusterConfigurationProperties::class)
+@EnableConfigurationProperties(KafkaProperties::class, CommunicationProperties::class)
 @EnableFeignClients
-@EnableMongoRepositories
-class CompetitionServiceApplication {
+@EnableTransactionManagement
+@EnableJpaRepositories(basePackages = ["compman.compsrv.repository"])
+@EnableCaching
+open class CompetitionServiceApplication {
     companion object {
         @JvmStatic fun main(args: Array<String>) {
             SpringApplication.run(CompetitionServiceApplication::class.java, *args)
@@ -23,7 +27,7 @@ class CompetitionServiceApplication {
     }
 
     @Bean
-    fun logFilter(): CommonsRequestLoggingFilter {
+    open fun logFilter(): CommonsRequestLoggingFilter {
         val filter = CommonsRequestLoggingFilter()
         filter.setIncludeQueryString(true)
         filter.setIncludePayload(true)
@@ -32,4 +36,5 @@ class CompetitionServiceApplication {
         filter.setAfterMessagePrefix("REQUEST DATA : ")
         return filter
     }
+
 }

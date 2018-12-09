@@ -1,6 +1,6 @@
 package compman.compsrv.kafka.utils
 
-import compman.compsrv.kafka.streams.LeaderProcessStreams
+import compman.compsrv.kafka.streams.CompetitionProcessingStreamsBuilderFactory.Companion.ROUTING_METADATA_KEY
 import compman.compsrv.model.es.commands.Command
 import compman.compsrv.model.es.events.EventHolder
 import org.apache.kafka.clients.admin.AdminClient
@@ -16,17 +16,9 @@ import java.util.concurrent.TimeUnit
 class KafkaAdminUtils(adminProps: Properties) {
 
     companion object {
-        fun getCommandRouting(command: Command?, defaultTopic: String) = if (command?.metadata?.containsKey(LeaderProcessStreams.ROUTING_METADATA_KEY) == true) {
-            command.metadata?.get(LeaderProcessStreams.ROUTING_METADATA_KEY).toString()
-        } else {
-            defaultTopic
-        }
+        fun getCommandRouting(command: Command?, defaultTopic: String) = command?.metadata?.firstOrNull { it.key == ROUTING_METADATA_KEY }?.value ?: defaultTopic
 
-        fun getEventRouting(eventHolder: EventHolder?, defaultTopic: String) = if (eventHolder?.metadata?.containsKey(LeaderProcessStreams.ROUTING_METADATA_KEY) == true) {
-            eventHolder.metadata?.get(LeaderProcessStreams.ROUTING_METADATA_KEY).toString()
-        } else {
-            defaultTopic
-        }
+        fun getEventRouting(eventHolder: EventHolder?, defaultTopic: String) = eventHolder?.findMetadataByKey(ROUTING_METADATA_KEY) ?: defaultTopic
     }
 
     private val kafkaAdminClient: AdminClient = KafkaAdminClient.create(adminProps)

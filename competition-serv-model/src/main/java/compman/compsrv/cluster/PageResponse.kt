@@ -2,7 +2,7 @@ package compman.compsrv.cluster
 
 import java.util.*
 
-data class PageResponse<T>(val competitionId: String, val total: Int, val page: Int, val data: Array<T>) {
+data class PageResponse<T>(val competitionId: String, val total: Long, val page: Int, val data: Array<T>) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
@@ -20,6 +20,6 @@ data class PageResponse<T>(val competitionId: String, val total: Int, val page: 
         var result = total
         result = 31 * result + page
         result = 31 * result + Arrays.hashCode(data)
-        return result
+        return result.toInt()
     }
 }
