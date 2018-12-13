@@ -4,9 +4,12 @@ import compman.compsrv.model.es.events.MetadataEntry
 import java.util.*
 import javax.persistence.Column
 import javax.persistence.Entity
+import javax.persistence.Id
 
 @Entity
-data class Command(
+data class
+Command(@Id
+        val id: String,
         val correlationId: String,
         val competitionId: String,
         val type: CommandType,
@@ -19,10 +22,10 @@ data class Command(
     @Column
     val timestamp: Long = System.currentTimeMillis()
 
-    constructor(correlationId: String, competitionId: String, type: CommandType, categoryId: String?, payload: ByteArray?) : this(correlationId, competitionId, type, categoryId, null, payload, emptyList())
-    constructor(competitionId: String, type: CommandType, categoryId: String?, payload: ByteArray?) : this(UUID.randomUUID().toString(), competitionId, type, categoryId, null, payload, emptyList())
-    constructor(correlationId: String, competitionId: String, type: CommandType, categoryId: String?, matId: String?, payload: ByteArray?) : this(correlationId, competitionId, type, categoryId, matId, payload, emptyList())
-    constructor(competitionId: String, type: CommandType, categoryId: String?, matId: String?, payload: ByteArray?) : this(UUID.randomUUID().toString(), competitionId, type, categoryId, matId, payload, emptyList())
+    constructor(correlationId: String, competitionId: String, type: CommandType, categoryId: String?, payload: ByteArray?) : this(UUID.randomUUID().toString(), correlationId, competitionId, type, categoryId, null, payload, emptyList())
+    constructor(competitionId: String, type: CommandType, categoryId: String?, payload: ByteArray?) : this(UUID.randomUUID().toString(), UUID.randomUUID().toString(), competitionId, type, categoryId, null, payload, emptyList())
+    constructor(correlationId: String, competitionId: String, type: CommandType, categoryId: String?, matId: String?, payload: ByteArray?) : this(UUID.randomUUID().toString(), correlationId, competitionId, type, categoryId, matId, payload, emptyList())
+    constructor(competitionId: String, type: CommandType, categoryId: String?, matId: String?, payload: ByteArray?) : this(UUID.randomUUID().toString(), UUID.randomUUID().toString(), competitionId, type, categoryId, matId, payload, emptyList())
 
     fun setCategoryId(categoryId: String) = copy(categoryId = categoryId)
     fun setMatId(matId: String) = copy(matId = matId)

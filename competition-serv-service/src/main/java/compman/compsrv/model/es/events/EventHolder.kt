@@ -1,5 +1,6 @@
 package compman.compsrv.model.es.events
 
+import java.util.*
 import javax.persistence.*
 
 @Embeddable
@@ -19,6 +20,9 @@ data class MetadataEntry(
 @Entity
 data class EventHolder(
         @Id
+        val id: String,
+        @Column(name = "correlation_id",
+                columnDefinition = "VARCHAR(255) REFERENCES competition_state(id)")
         val correlationId: String,
         @Column(name = "competition_id",
                 columnDefinition = "VARCHAR(255) REFERENCES competition_state(id)")
@@ -42,7 +46,7 @@ data class EventHolder(
 
     fun findMetadataByKey(key: String): String? = metadata?.find { it.key == key }?.value
 
-    constructor(correlationId: String, competitionId: String, categoryId: String?, matId: String?, type: EventType, payload: ByteArray?) : this(correlationId, competitionId, categoryId, matId, type, payload, emptyList())
+    constructor(correlationId: String, competitionId: String, categoryId: String?, matId: String?, type: EventType, payload: ByteArray?) : this(UUID.randomUUID().toString(), correlationId, competitionId, categoryId, matId, type, payload, emptyList())
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

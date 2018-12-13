@@ -6,7 +6,6 @@ import compman.compsrv.kafka.streams.MetadataService
 import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.repository.*
 import compman.compsrv.service.StateQueryService
-import compman.compsrv.service.saga.SagaManager
 import io.scalecube.cluster.Cluster
 import io.scalecube.cluster.ClusterConfig
 import io.scalecube.transport.Address
@@ -66,9 +65,6 @@ class ClusterConfiguration {
             ClusterSession(clusterConfigurationProperties,
                     cluster,
                     adminClient, competitionStateSnapshotCrudRepository, kafkaProperties, metadataService, serverProperties)
-
-    @Bean
-    fun sagaFactory(stateQueryService: StateQueryService) = SagaManager(stateQueryService)
 
     @Bean
     fun stateQueryService(restTemplate: RestTemplate,

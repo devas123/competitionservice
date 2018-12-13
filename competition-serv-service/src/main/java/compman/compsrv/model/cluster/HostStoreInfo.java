@@ -1,4 +1,4 @@
-package compman.compsrv.kafka;
+package compman.compsrv.model.cluster;
 
 import java.util.Objects;
 import java.util.Set;

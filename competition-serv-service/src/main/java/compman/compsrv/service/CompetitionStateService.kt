@@ -12,7 +12,9 @@ import compman.compsrv.model.es.events.EventType
 import compman.compsrv.model.es.events.payload.CompetitionPropertiesUpdatedPayload
 import compman.compsrv.model.schedule.Schedule
 import compman.compsrv.model.schedule.ScheduleProperties
+import compman.compsrv.repository.CommandCrudRepository
 import compman.compsrv.repository.CompetitionStateCrudRepository
+import compman.compsrv.repository.EventCrudRepository
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -22,6 +24,8 @@ import java.math.BigDecimal
 class CompetitionStateService(private val scheduleService: ScheduleService,
                               private val stateQueryService: StateQueryService,
                               private val competitionStateCrudRepository: CompetitionStateCrudRepository,
+                              private val eventCrudRepository: EventCrudRepository,
+                              private val commandCrudRepository: CommandCrudRepository,
                               private val mapper: ObjectMapper) : ICommandProcessingService<CompetitionState, Command, EventHolder> {
 
     private fun getAllBrackets(competitionId: String): List<BracketDescriptor> {
@@ -50,42 +54,41 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
         return try {
             val ns = when (event.type) {
                 EventType.COMPETITION_DELETED -> {
-                    state?.copy(status = CompetitionStatus.DELETED) to listOf(event)
-
+                    state?.copy(status = CompetitionStatus.DELETED) to eventCrudRepository.saveAll(listOf(event))
                 }
                 EventType.COMPETITION_CREATED -> {
                     val newstate = getPayloadAs(event.payload, CompetitionState::class.java)
-                    newstate to listOf(event)
+                    newstate to eventCrudRepository.saveAll(listOf(event))
                 }
                 EventType.DUMMY -> {
                     state to emptyList()
                 }
                 in listOf(EventType.INTERNAL_COMPETITOR_CATEGORY_CHANGED, EventType.DROP_ALL_BRACKETS_SAGA_STARTED) -> {
-                    state to listOf(event)
+                    state to eventCrudRepository.saveAll(listOf(event))
                 }
                 EventType.SCHEDULE_DROPPED -> {
-                    state?.withSchedule(null) to listOf(event)
+                    state?.withSchedule(null) to eventCrudRepository.saveAll(listOf(event))
                 }
                 EventType.SCHEDULE_GENERATED -> {
                     val schedule = getPayloadAs(event.payload, Schedule::class.java)
                     val newProps = state?.withSchedule(schedule)
-                    newProps to listOf(event)
+                    newProps to eventCrudRepository.saveAll(listOf(event))
                 }
                 EventType.COMPETITION_PROPERTIES_UPDATED -> {
                     val payload = getPayloadAs(event.payload, CompetitionPropertiesUpdatedPayload::class.java)
                     val newProps = state?.withProperties(state.properties.applyProperties(payload?.properties))
-                    newProps to listOf(event)
+                    newProps to eventCrudRepository.saveAll(listOf(event))
                 }
                 in listOf(EventType.COMPETITION_STARTED, EventType.COMPETITION_STOPPED, EventType.COMPETITION_PUBLISHED, EventType.COMPETITION_UNPUBLISHED) -> {
                     val status = getPayloadAs(event.payload, CompetitionStatus::class.java)
                     if (status != null) {
-                        state?.withStatus(status) to listOf(event)
+                        state?.withStatus(status) to eventCrudRepository.saveAll(listOf(event))
                     } else {
                         state to emptyList()
                     }
                 }
                 else -> {
-                    state to listOf(event)
+                    state to eventCrudRepository.saveAll(listOf(event))
                 }
             }
             ns.first?.let {
@@ -174,7 +177,7 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                 }
             }
         }
-        return listOf(executeCommand(command, state))
+        return listOf(executeCommand(commandCrudRepository.save(command), state))
     }
 
 }

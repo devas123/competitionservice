@@ -1,6 +1,6 @@
 package compman.compsrv.kafka.streams
 
-import compman.compsrv.kafka.HostStoreInfo
+import compman.compsrv.model.cluster.HostStoreInfo
 import org.apache.kafka.common.serialization.Serializer
 import org.apache.kafka.streams.KafkaStreams
 import org.apache.kafka.streams.state.StreamsMetadata

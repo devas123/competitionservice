@@ -11,9 +11,8 @@ import org.apache.kafka.streams.kstream.ValueTransformerWithKey
 import org.apache.kafka.streams.processor.ProcessorContext
 import org.slf4j.LoggerFactory
 import java.util.*
-import java.util.concurrent.atomic.AtomicInteger
 
-abstract class StateForwardingCommandTransformer(
+abstract class AbstractCommandTransformer(
         private val commandProcessingService: ICommandProcessingService<CompetitionState, Command, EventHolder>,
         private val clusterSession: ClusterSession,
         private val mapper: ObjectMapper) : ValueTransformerWithKey<String, Command, List<EventHolder>> {
@@ -23,7 +22,6 @@ abstract class StateForwardingCommandTransformer(
 
 
     private lateinit var context: ProcessorContext
-    private val stateWrites = AtomicInteger(0)
 
     override fun init(context: ProcessorContext?) {
         this.context = context ?: throw IllegalStateException("Context cannot be null")
@@ -32,13 +30,6 @@ abstract class StateForwardingCommandTransformer(
     abstract fun getState(id: String): Optional<CompetitionState>
     abstract fun saveState(readOnlyKey: String, state: CompetitionState)
     abstract fun deleteState(id: String)
-
-    private fun doSaveState(readOnlyKey: String, state: CompetitionState) {
-        saveState(readOnlyKey, state)
-        if (stateWrites.getAndIncrement() % 50 == 0) {
-            clusterSession.broadcastCompetitionProcessingInfo(setOf(readOnlyKey))
-        }
-    }
 
     override fun transform(readOnlyKey: String, command: Command): List<EventHolder>? {
         return try {
@@ -50,9 +41,10 @@ abstract class StateForwardingCommandTransformer(
                     val (newState, eventsToSend) = commandProcessingService.batchApply(eventsToApply, currentState)
                     if (eventsToSend.isNotEmpty() && eventsToSend.any { it.type != EventType.ERROR_EVENT }) {
                         if (newState != null) {
-                            doSaveState(readOnlyKey, newState)
+                            saveState(readOnlyKey, newState)
                         } else {
                             deleteState(readOnlyKey)
+                            clusterSession.broadcastCompetitionProcessingStopped(setOf(readOnlyKey))
                         }
                     }
                     if (context.offset() % 50 == 0L && newState != null) {

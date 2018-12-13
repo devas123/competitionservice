@@ -2,7 +2,7 @@ package compman.compsrv.kafka.topics
 
 object CompetitionServiceTopics {
     //Entity <Competition properties>
-    const val COMPETITION_STATE_CHANGELOG_TOPIC_NAME = "competition-properties-changelog"
+    const val COMPETITION_STATE_SNAPSHOTS_TOPIC_NAME = "competition-snapshots-changelog"
     const val COMPETITION_COMMANDS_TOPIC_NAME = "competitions-global-commands"
     const val COMPETITION_EVENTS_TOPIC_NAME = "competitions-global-events"
 

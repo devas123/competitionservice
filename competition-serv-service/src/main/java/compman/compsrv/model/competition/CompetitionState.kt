@@ -19,11 +19,11 @@ data class CompetitionState constructor(
         @OneToOne
         @MapsId
         val dashboardState: CompetitionDashboardState,
+        @OneToMany(orphanRemoval = false)
         val status: CompetitionStatus) {
 
     @Version
     var version: Long = 0
-
 
     private set
 

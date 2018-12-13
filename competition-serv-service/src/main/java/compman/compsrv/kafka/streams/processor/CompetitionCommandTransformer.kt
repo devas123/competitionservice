@@ -23,7 +23,7 @@ class CompetitionCommandTransformer(competitionStateService: CompetitionStateSer
                                     private val mapper: ObjectMapper,
                                     clusterSession: ClusterSession,
                                     private val snapshotStoreName: String)
-    : StateForwardingCommandTransformer(competitionStateService, clusterSession, mapper) {
+    : AbstractCommandTransformer(competitionStateService, clusterSession, mapper) {
 
    private lateinit var snapshotStore: KeyValueStore<String, CompetitionStateSnapshot>
 

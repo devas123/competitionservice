@@ -7,7 +7,6 @@ import compman.compsrv.kafka.streams.MetadataService
 import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.model.cluster.CompetitionProcessingInfo
 import compman.compsrv.model.cluster.CompetitionProcessingMessage
-import compman.compsrv.model.cluster.CompetitionStateSnapshotMessage
 import compman.compsrv.model.competition.CompetitionStateSnapshot
 import compman.compsrv.repository.CompetitionStateSnapshotCrudRepository
 import io.scalecube.cluster.Cluster
@@ -20,8 +19,8 @@ import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.StringSerializer
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.web.ServerProperties
-import reactor.core.Disposable
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentSkipListSet
 import javax.ws.rs.NotFoundException
 
 data class MemberWithRestPort(val member: Member, val restPort: Int) {
@@ -39,8 +38,8 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
     companion object {
         private val log = LoggerFactory.getLogger(ClusterSession::class.java)
         const val COMPETITION_LEADER_KEY = "compservice-leader"
-        const val COMPETITION_SNAPSHOT = "competitionSnapshot"
         const val COMPETITION_PROCESSING = "competitionProcessing"
+        const val COMPETITION_PROCESSING_STOPPED = "competitionProcessingStopped"
         const val REST_PORT_METADATA_KEY = "rest_port"
         const val TYPE = "type"
     }
@@ -63,15 +62,20 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
     private val restListenerString = getUrlPrefix(clusterConfigurationProperties.advertisedHost, serverProperties.port)
 
     private val clusterMembers = ConcurrentHashMap<String, MemberWithRestPort>()
+    private val localCompetitionIds = ConcurrentSkipListSet<String>()
 
 
-    fun broadcastCompetitionProcessingInfo(competitionIds: Set<String>): Disposable =
+    fun broadcastCompetitionProcessingInfo(competitionIds: Set<String>) {
+        if (localCompetitionIds.addAll(competitionIds)) {
             cluster.spreadGossip(Message.withData(CompetitionProcessingMessage(MemberWithRestPort(cluster.member(), serverProperties.port), CompetitionProcessingInfo(cluster.member(), competitionIds)))
                     .headers(mapOf(TYPE to COMPETITION_PROCESSING)).build()).subscribe()
+        }
+    }
 
-    fun broadcastCompetitionStateSnapshot(competitionStateSnapshot: CompetitionStateSnapshot): Disposable {
-        return cluster.spreadGossip(Message.withData(CompetitionStateSnapshotMessage(cluster.member(), competitionStateSnapshot))
-                .header(TYPE, COMPETITION_SNAPSHOT).build()).subscribe()
+    fun broadcastCompetitionProcessingStopped(competitionIds: Set<String>) {
+        localCompetitionIds.removeAll(competitionIds)
+        cluster.spreadGossip(Message.withData(CompetitionProcessingMessage(MemberWithRestPort(cluster.member(), serverProperties.port), CompetitionProcessingInfo(cluster.member(), competitionIds)))
+                .headers(mapOf(TYPE to COMPETITION_PROCESSING_STOPPED)).build()).subscribe()
     }
 
     fun isLocal(address: Address) = cluster.address() == address || (address.host() == clusterConfigurationProperties.advertisedHost && address.port() == clusterConfigurationProperties.advertisedPort)
@@ -116,11 +120,15 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
             try {
                 if (it.header(TYPE) == COMPETITION_PROCESSING) {
                     val msgData = it.data<CompetitionProcessingMessage>()
-                    msgData?.info?.competitionIds?.forEach { s -> clusterMembers[s] = msgData.member }
+                    msgData?.info?.competitionIds?.forEach { s -> clusterMembers[s] = msgData.memberWithRestPort }
                 }
-                if (it.header(TYPE) == COMPETITION_SNAPSHOT) {
-                    val msgData = it.data<CompetitionStateSnapshot>()
-                    msgData?.let(competitionStateSnapshotCrudRepository::save)
+                if (it.header(TYPE) == COMPETITION_PROCESSING_STOPPED) {
+                    val msgData = it.data<CompetitionProcessingMessage>()
+                    msgData?.info?.competitionIds?.forEach { s ->
+                        if (clusterMembers[s] == msgData.memberWithRestPort) {
+                            clusterMembers.remove(s)
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 log.warn("Error when processing a gossip.", e)

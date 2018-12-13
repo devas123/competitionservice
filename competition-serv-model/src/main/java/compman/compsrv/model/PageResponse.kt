@@ -1,4 +1,4 @@
-package compman.compsrv.cluster
+package compman.compsrv.model
 
 import java.util.*
 

@@ -14,7 +14,9 @@ import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.model.es.commands.Command
 import compman.compsrv.model.es.events.EventHolder
+import compman.compsrv.repository.CommandCrudRepository
 import compman.compsrv.repository.CompetitionStateRepository
+import compman.compsrv.repository.EventCrudRepository
 import compman.compsrv.service.CompetitionStateService
 import compman.compsrv.service.resolver.CompetitionStateResolver
 import org.apache.kafka.clients.admin.AdminClientConfig
@@ -65,8 +67,8 @@ class KafkaStreamsConfiguration {
     }
 
     @Bean
-    fun snapshotEventsProcessor(clusterSession: ClusterSession) = ProcessorSupplier<String, EventHolder> {
-        StateSnapshotForwardingProcessor(clusterSession, COMPETITION_STATE_SNAPSHOT_STORE_NAME)
+    fun snapshotEventsProcessor(commandCrudRepository: CommandCrudRepository, eventCrudRepository: EventCrudRepository) = ProcessorSupplier<String, EventHolder> {
+        StateSnapshotForwardingProcessor(COMPETITION_STATE_SNAPSHOT_STORE_NAME, commandCrudRepository, eventCrudRepository)
     }
 
     @Bean
@@ -79,9 +81,9 @@ class KafkaStreamsConfiguration {
         return CompetitionProcessingStreamsBuilderFactory(
                 CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME,
                 CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME,
-                CompetitionServiceTopics.CATEGORY_COMMANDS_TOPIC_NAME,
-                CompetitionServiceTopics.COMPETITION_INTERNAL_EVENTS_TOPIC_NAME,
-                commandTransformer, eventProcessor, adminUtils, props, mapper).createBuilder()
+                commandTransformer,
+                eventProcessor,
+                adminUtils, props, mapper, clusterSession).createBuilder()
     }
 
     @Bean(destroyMethod = "close")

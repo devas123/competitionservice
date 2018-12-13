@@ -1,6 +1,6 @@
 package compman.compsrv.service
 
-import compman.compsrv.cluster.PageResponse
+import compman.compsrv.model.PageResponse
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.CommonResponse
 import compman.compsrv.model.brackets.BracketDescriptor

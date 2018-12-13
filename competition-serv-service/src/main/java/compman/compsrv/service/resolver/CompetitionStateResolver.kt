@@ -8,8 +8,8 @@ import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.competition.CompetitionState
 import compman.compsrv.model.competition.CompetitionStateSnapshot
 import compman.compsrv.model.es.events.EventHolder
+import compman.compsrv.repository.CompetitionStateCrudRepository
 import compman.compsrv.service.CompetitionStateService
-import compman.compsrv.service.CompetitionStateSnapshotService
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.TopicPartition
@@ -21,11 +21,11 @@ import java.util.*
 @Component
 class CompetitionStateResolver(private val queryServiceClient: QueryServiceClient,
                                private val kafkaProperties: KafkaProperties,
-                               private val competitionStateSnapshotService: CompetitionStateSnapshotService,
                                private val competitionStateService: CompetitionStateService,
+                               private val competitionStateCrudRepository: CompetitionStateCrudRepository,
                                private val mapper: ObjectMapper) {
 
-    private val consumerProperties = Properties().apply {
+    private fun consumerProperties() = Properties().apply {
         putAll(kafkaProperties.consumer.properties)
         setProperty(ConsumerConfig.GROUP_ID_CONFIG, "state-resolver-${UUID.randomUUID()}")
         setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer::class.java.canonicalName)
@@ -33,28 +33,22 @@ class CompetitionStateResolver(private val queryServiceClient: QueryServiceClien
     }
 
     fun resolveLatestCompetitionState(competitionId: String, localSnapshot: CompetitionStateSnapshot?): Optional<CompetitionState> {
-        val remoteSnapshot = competitionStateSnapshotService.getSnapshot(competitionId).orElse(queryServiceClient.getCompetitionStateSnapshot(competitionId))
-        val stateSnapshot = if (remoteSnapshot != null && remoteSnapshot.eventOffset > localSnapshot?.eventOffset ?: -1) {
-            remoteSnapshot
-        } else {
-            localSnapshot
-        }
+        val stateSnapshot = localSnapshot ?: queryServiceClient.getCompetitionStateSnapshot(competitionId)
+        val localState = competitionStateCrudRepository.findById(competitionId)
         return if (stateSnapshot != null) {
-            val consumer = KafkaConsumer<String, EventHolder>(consumerProperties)
+            val consumer = KafkaConsumer<String, EventHolder>(consumerProperties())
             consumer.use { cons ->
                 val topicPartition = TopicPartition(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME, stateSnapshot.eventPartition)
                 cons.assign(listOf(topicPartition))
                 cons.seek(topicPartition, stateSnapshot.eventOffset)
                 val now = System.currentTimeMillis()
-                var lastOffset = stateSnapshot.eventOffset
-                var snapshot = mapper.readValue(stateSnapshot.state, CompetitionState::class.java)
+                var snapshot = mapper.readValue(stateSnapshot.serializedState, CompetitionState::class.java)
                 while (true) {
                     val result = cons.poll(Duration.ofMillis(1000))
                     if (result != null) {
                         for (record in result.records(topicPartition).filter { it.key() == competitionId }) {
                             if (record.timestamp() <= now) {
                                 snapshot = competitionStateService.apply(record.value(), snapshot).first ?: snapshot
-                                lastOffset = record.offset()
                             } else {
                                 break
                             }
@@ -64,8 +58,12 @@ class CompetitionStateResolver(private val queryServiceClient: QueryServiceClien
                     }
                     cons.commitSync()
                 }
-                competitionStateSnapshotService.saveSnapshot(CompetitionStateSnapshot(null, competitionId, stateSnapshot.eventPartition, lastOffset, mapper.writeValueAsBytes(snapshot)))
-                Optional.of(snapshot)
+                val tt = localState.orElse(snapshot)
+                if (tt?.version ?: -1 >= snapshot?.version ?: -1) {
+                    Optional.ofNullable(tt)
+                } else {
+                    Optional.ofNullable(snapshot)
+                }
             }
         } else {
             Optional.empty()

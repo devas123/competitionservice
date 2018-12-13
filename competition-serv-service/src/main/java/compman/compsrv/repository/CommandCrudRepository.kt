@@ -1,13 +1,16 @@
 package compman.compsrv.repository
 
 
-import compman.compsrv.model.es.events.EventHolder
+import compman.compsrv.model.es.commands.Command
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
 import java.util.*
-import javax.transaction.Transactional
+
+interface OnlyId {
+    fun getId(): String
+}
 
 @Repository
-interface EventCrudRepository : JpaRepository<EventHolder, String> {
+interface CommandCrudRepository : JpaRepository<Command, String> {
     fun findByCompetitionId(competitionId: String): Optional<List<OnlyId>>
 }
