@@ -1,6 +1,6 @@
 package compman.compsrv.repository
 
-import compman.compsrv.model.competition.CompetitionState
+import compman.compsrv.jpa.competition.CompetitionState
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -28,5 +28,7 @@ class CompetitionStateRepository(private val competitionStateCrudRepository: Com
     fun delete(id: String) {
         return competitionStateCrudRepository.deleteById(id)
     }
+
+    fun existsById(id: String) = competitionStateCrudRepository.existsById(id)
 
 }

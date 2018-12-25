@@ -1,32 +1,41 @@
 package compman.compsrv.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.model.brackets.BracketDescriptor
-import compman.compsrv.model.competition.CompetitionState
-import compman.compsrv.model.competition.CompetitionStatus
-import compman.compsrv.model.es.commands.Command
-import compman.compsrv.model.es.commands.CommandType
-import compman.compsrv.model.es.commands.payload.CreateCompetitionPayload
-import compman.compsrv.model.es.events.EventHolder
-import compman.compsrv.model.es.events.EventType
-import compman.compsrv.model.es.events.payload.CompetitionPropertiesUpdatedPayload
-import compman.compsrv.model.schedule.Schedule
-import compman.compsrv.model.schedule.ScheduleProperties
-import compman.compsrv.repository.CommandCrudRepository
-import compman.compsrv.repository.CompetitionStateCrudRepository
-import compman.compsrv.repository.EventCrudRepository
+import compman.compsrv.jpa.brackets.BracketDescriptor
+import compman.compsrv.jpa.competition.CompetitionState
+import compman.compsrv.jpa.es.commands.Command
+import compman.compsrv.jpa.es.events.EventHolder
+import compman.compsrv.jpa.schedule.Schedule
+import compman.compsrv.jpa.schedule.ScheduleProperties
+import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.commands.CommandType
+import compman.compsrv.model.commands.payload.CreateCompetitionPayload
+import compman.compsrv.model.dto.competition.CompetitionStatus
+import compman.compsrv.model.dto.schedule.ScheduleDTO
+import compman.compsrv.model.dto.schedule.SchedulePropertiesDTO
+import compman.compsrv.model.events.EventDTO
+import compman.compsrv.model.events.EventType
+import compman.compsrv.model.events.payload.*
+import compman.compsrv.repository.*
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import java.io.Serializable
 import java.math.BigDecimal
 
 @Component
 class CompetitionStateService(private val scheduleService: ScheduleService,
-                              private val stateQueryService: StateQueryService,
                               private val competitionStateCrudRepository: CompetitionStateCrudRepository,
                               private val eventCrudRepository: EventCrudRepository,
+                              private val scheduleCrudRepository: ScheduleCrudRepository,
+                              private val bracketsCrudRepository: BracketsCrudRepository,
                               private val commandCrudRepository: CommandCrudRepository,
-                              private val mapper: ObjectMapper) : ICommandProcessingService<CompetitionState, Command, EventHolder> {
+                              private val mapper: ObjectMapper) : ICommandProcessingService<CommandDTO, EventDTO> {
+
+    companion object {
+        private val log = LoggerFactory.getLogger(CompetitionStateService::class.java)
+    }
 
     private fun getAllBrackets(competitionId: String): List<BracketDescriptor> {
         val competitionState = competitionStateCrudRepository.findById(competitionId)
@@ -35,8 +44,8 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
         }?.orElse(emptyList()) ?: emptyList()
     }
 
-    private fun getFightDurations(scheduleProperties: ScheduleProperties): Map<String, BigDecimal> {
-        val categories = scheduleProperties.periodPropertiesList.flatMap { it.categories }
+    private fun getFightDurations(scheduleProperties: SchedulePropertiesDTO): Map<String, BigDecimal> {
+        val categories = scheduleProperties.periodPropertiesList.flatMap { it.categories.toList() }
         return categories.map { it.id to it.fightDuration }.toMap()
     }
 
@@ -48,136 +57,139 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
-    override fun apply(event: EventHolder, state: CompetitionState?): Pair<CompetitionState?, List<EventHolder>> {
-        fun createErrorEvent(error: String) = EventHolder(event.correlationId, event.competitionId, event.categoryId
-                ?: "null", event.matId, EventType.ERROR_EVENT, mapper.writeValueAsBytes(mapOf("error" to error)))
+    override fun apply(event: EventDTO): List<EventDTO> {
+        fun createErrorEvent(error: String) = EventDTO(event.correlationId ?: "", event.competitionId, event.categoryId
+                ?: "null", event.matId, EventType.ERROR_EVENT, ErrorEventPayload(error, null))
         return try {
             val ns = when (event.type) {
                 EventType.COMPETITION_DELETED -> {
-                    state?.copy(status = CompetitionStatus.DELETED) to eventCrudRepository.saveAll(listOf(event))
+                    competitionStateCrudRepository.findById(event.competitionId).map { it.withStatus(CompetitionStatus.DELETED) }.map {
+                        competitionStateCrudRepository.save(it)
+                        listOf(event)
+                    }.orElse(emptyList())
                 }
                 EventType.COMPETITION_CREATED -> {
                     val newstate = getPayloadAs(event.payload, CompetitionState::class.java)
-                    newstate to eventCrudRepository.saveAll(listOf(event))
+                    newstate?.let {
+                        competitionStateCrudRepository.save(newstate)
+                        listOf(event)
+                    }
                 }
                 EventType.DUMMY -> {
-                    state to emptyList()
-                }
-                in listOf(EventType.INTERNAL_COMPETITOR_CATEGORY_CHANGED, EventType.DROP_ALL_BRACKETS_SAGA_STARTED) -> {
-                    state to eventCrudRepository.saveAll(listOf(event))
+                    emptyList()
                 }
                 EventType.SCHEDULE_DROPPED -> {
-                    state?.withSchedule(null) to eventCrudRepository.saveAll(listOf(event))
+                    scheduleCrudRepository.deleteById(event.competitionId)
+                    listOf(event)
+                }
+                EventType.ALL_BRACKETS_DROPPED -> {
+                    bracketsCrudRepository.deleteByCompetitionId(event.competitionId)
+                    listOf(event)
                 }
                 EventType.SCHEDULE_GENERATED -> {
-                    val schedule = getPayloadAs(event.payload, Schedule::class.java)
-                    val newProps = state?.withSchedule(schedule)
-                    newProps to eventCrudRepository.saveAll(listOf(event))
+                    val schedule = getPayloadAs(event.payload, ScheduleDTO::class.java)
+                    schedule?.let {
+                        scheduleCrudRepository.save(Schedule.fromDTO(it))
+                        listOf(event)
+                    }
                 }
                 EventType.COMPETITION_PROPERTIES_UPDATED -> {
                     val payload = getPayloadAs(event.payload, CompetitionPropertiesUpdatedPayload::class.java)
-                    val newProps = state?.withProperties(state.properties.applyProperties(payload?.properties))
-                    newProps to eventCrudRepository.saveAll(listOf(event))
+                    val comp = competitionStateCrudRepository.getOne(event.competitionId)
+                    competitionStateCrudRepository.save(comp.copy(properties = comp.properties.applyProperties(payload?.properties)))
+                    listOf(event)
                 }
                 in listOf(EventType.COMPETITION_STARTED, EventType.COMPETITION_STOPPED, EventType.COMPETITION_PUBLISHED, EventType.COMPETITION_UNPUBLISHED) -> {
                     val status = getPayloadAs(event.payload, CompetitionStatus::class.java)
                     if (status != null) {
-                        state?.withStatus(status) to eventCrudRepository.saveAll(listOf(event))
+                        competitionStateCrudRepository.findById(event.competitionId).map {
+                            competitionStateCrudRepository.save(it.withStatus(status))
+                            listOf(event)
+                        }.orElse(emptyList())
                     } else {
-                        state to emptyList()
+                        emptyList()
                     }
                 }
                 else -> {
-                    state to eventCrudRepository.saveAll(listOf(event))
+                    log.warn("Skipping unknown event: $event")
+                    emptyList()
                 }
             }
-            ns.first?.let {
-                competitionStateCrudRepository.save(it)
-            } to ns.second
+            ns?.let {
+                eventCrudRepository.saveAll(it.map { eventDTO -> EventHolder.fromDTO(eventDTO) })
+            }
+            ns ?: emptyList()
         } catch (e: Exception) {
-            state to listOf(createErrorEvent(e.localizedMessage))
+            listOf(createErrorEvent(e.localizedMessage))
         }
     }
 
-    override fun process(command: Command, state: CompetitionState?): List<EventHolder> {
-        fun executeCommand(command: Command, state: CompetitionState?): EventHolder {
-            fun createEvent(type: EventType, payload: Any?) = EventHolder(command.correlationId, command.competitionId, command.categoryId
-                    ?: "null", command.matId, type, mapper.writeValueAsBytes(payload))
+    override fun process(command: CommandDTO): List<EventDTO> {
+        fun executeCommand(command: CommandDTO): EventDTO {
+            fun createEvent(type: EventType, payload: Serializable?) = EventDTO(command.correlationId, command.competitionId, command.categoryId
+                    ?: "null", command.matId, type, payload)
 
-            fun createErrorEvent(error: String) = EventHolder(command.correlationId, command.competitionId, command.categoryId
-                    ?: "null", command.matId, EventType.ERROR_EVENT, mapper.writeValueAsBytes(mapOf("error" to error)))
+            fun createErrorEvent(error: String) = EventDTO(command.correlationId, command.competitionId, command.categoryId
+                    ?: "null", command.matId, EventType.ERROR_EVENT, ErrorEventPayload(error, command))
 
             return when (command.type) {
-                CommandType.CHECK_DASHBOARD_OBSOLETE -> {
-                    if (state == null) {
-                        createEvent(EventType.COMPETITION_DELETED, emptyMap<Any, Any>())
-                    } else {
-                        createEvent(EventType.DUMMY, emptyMap<Any, Any>())
-                    }
-                }
                 CommandType.CREATE_COMPETITION_COMMAND -> {
                     val payload = getPayloadAs(command.payload, CreateCompetitionPayload::class.java)
                     val newProperties = payload?.properties
-                    createEvent(EventType.COMPETITION_CREATED, mapOf("properties" to newProperties))
-                }
-                CommandType.CHECK_CATEGORY_OBSOLETE -> {
-                    if (state == null) {
-                        createEvent(EventType.CATEGORY_DELETED, command.payload ?: emptyMap<Any, Any>())
+                    if (newProperties != null) {
+                        createEvent(EventType.COMPETITION_CREATED, CompetitionCreatedPayload(newProperties))
                     } else {
-                        createEvent(EventType.DUMMY, emptyMap<Any, Any>())
+                        createErrorEvent("Cannot create competition, no properties provided")
                     }
                 }
-                CommandType.CHANGE_COMPETITOR_CATEGORY_COMMAND -> {
-                    createEvent(EventType.INTERNAL_COMPETITOR_CATEGORY_CHANGED, command.payload!!)
-                }
                 CommandType.DROP_ALL_BRACKETS_COMMAND -> {
-                    if (state?.properties?.bracketsPublished != true) {
-                        val categories = stateQueryService.getCategories(command.competitionId).map { it.categoryId }
-                        val newPayload = mapper.writeValueAsBytes(categories)
-                        createEvent(EventType.DROP_ALL_BRACKETS_SAGA_STARTED, newPayload)
+                    val state = competitionStateCrudRepository.getOne(command.competitionId)
+                    if (!state.properties.bracketsPublished) {
+                        createEvent(EventType.ALL_BRACKETS_DROPPED, command.payload)
                     } else {
-                        createErrorEvent("Cannot drop brackets, it is already published.")
+                        createErrorEvent("Cannot drop brackets, they are already published.")
                     }
                 }
                 CommandType.DROP_SCHEDULE_COMMAND -> {
-                    if (state?.properties?.schedulePublished != true) {
-                        createEvent(EventType.SCHEDULE_DROPPED, command.payload
-                                ?: emptyMap<Any, Any>())
+                    val state = competitionStateCrudRepository.getOne(command.competitionId)
+                    if (!state.properties.schedulePublished) {
+                        createEvent(EventType.SCHEDULE_DROPPED, command.payload)
                     } else {
                         createErrorEvent("Cannot drop schedule, it is already published.")
                     }
                 }
                 CommandType.GENERATE_SCHEDULE_COMMAND -> {
                     val payload = command.payload!!
-                    val scheduleProperties = mapper.convertValue(payload, ScheduleProperties::class.java)
-                    val schedule = scheduleService.generateSchedule(scheduleProperties, getAllBrackets(scheduleProperties.competitionId), getFightDurations(scheduleProperties))
-                    createEvent(EventType.SCHEDULE_GENERATED, mapOf("schedule" to schedule))
+                    val scheduleProperties = mapper.convertValue(payload, SchedulePropertiesDTO::class.java)
+                    val schedule = scheduleService.generateSchedule(ScheduleProperties.fromDTO(scheduleProperties), getAllBrackets(scheduleProperties.competitionId), getFightDurations(scheduleProperties))
+                    createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule.toDTO()))
                 }
                 CommandType.UPDATE_COMPETITION_PROPERTIES_COMMAND -> {
                     createEvent(EventType.COMPETITION_PROPERTIES_UPDATED, command.payload!!)
                 }
                 CommandType.START_COMPETITION_COMMAND -> {
-                    createEvent(EventType.COMPETITION_STARTED, mapOf("status" to CompetitionStatus.STARTED))
+                    createEvent(EventType.COMPETITION_STARTED, CompetitionStatusUpdatedPayload(CompetitionStatus.STARTED))
                 }
                 CommandType.STOP_COMPETITION_COMMAND -> {
-                    createEvent(EventType.COMPETITION_STOPPED, mapOf("status" to CompetitionStatus.STOPPED))
+                    createEvent(EventType.COMPETITION_STOPPED, CompetitionStatusUpdatedPayload(CompetitionStatus.STOPPED))
                 }
                 CommandType.PUBLISH_COMPETITION_COMMAND -> {
-                    createEvent(EventType.COMPETITION_PUBLISHED, mapOf("status" to CompetitionStatus.PUBLISHED))
+                    createEvent(EventType.COMPETITION_PUBLISHED, CompetitionStatusUpdatedPayload(CompetitionStatus.PUBLISHED))
                 }
                 CommandType.UNPUBLISH_COMPETITION_COMMAND -> {
-                    createEvent(EventType.COMPETITION_UNPUBLISHED, mapOf("status" to CompetitionStatus.UNPUBLISHED))
+                    createEvent(EventType.COMPETITION_UNPUBLISHED, CompetitionStatusUpdatedPayload(CompetitionStatus.UNPUBLISHED))
                 }
                 CommandType.DELETE_COMPETITION_COMMAND -> {
-                    val categories = stateQueryService.getCategories(command.competitionId)
-                    createEvent(EventType.COMPETITION_DELETED, mapOf("categories" to categories.map { it.categoryId }))
+                    createEvent(EventType.COMPETITION_DELETED, null)
                 }
                 else -> {
-                    createEvent(EventType.ERROR_EVENT, mapOf("error" to "Unknown or invalid command ${command.type}, properties: $state"))
+                    createEvent(EventType.ERROR_EVENT, ErrorEventPayload("Unknown or invalid command ${command.type}", command))
                 }
             }
         }
-        return listOf(executeCommand(commandCrudRepository.save(command), state))
+        log.info("Executing command: $command")
+        commandCrudRepository.save(Command.fromDTO(command))
+        return listOf(executeCommand(command))
     }
 
 }

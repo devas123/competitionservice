@@ -2,7 +2,6 @@ package compman.compsrv.config
 
 import com.compman.starter.properties.KafkaProperties
 import compman.compsrv.cluster.ClusterSession
-import compman.compsrv.kafka.streams.MetadataService
 import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.repository.*
 import compman.compsrv.service.StateQueryService
@@ -58,13 +57,11 @@ class ClusterConfiguration {
     fun clusterSession(clusterConfigurationProperties: ClusterConfigurationProperties,
                        cluster: Cluster,
                        adminClient: KafkaAdminUtils,
-                       competitionStateSnapshotCrudRepository: CompetitionStateSnapshotCrudRepository,
                        kafkaProperties: KafkaProperties,
-                       serverProperties: ServerProperties,
-                       metadataService: MetadataService) =
+                       serverProperties: ServerProperties) =
             ClusterSession(clusterConfigurationProperties,
                     cluster,
-                    adminClient, competitionStateSnapshotCrudRepository, kafkaProperties, metadataService, serverProperties)
+                    adminClient, kafkaProperties, serverProperties)
 
     @Bean
     fun stateQueryService(restTemplate: RestTemplate,
@@ -73,9 +70,11 @@ class ClusterConfiguration {
                           competitionStateCrudRepository: CompetitionStateCrudRepository,
                           scheduleCrudRepository: ScheduleCrudRepository,
                           competitorCrudRepository: CompetitorCrudRepository,
-                          bracketsCrudRepository: BracketsCrudRepository) =
+                          bracketsCrudRepository: BracketsCrudRepository,
+                          dashboardStateCrudRepository: DashboardStateCrudRepository) =
             StateQueryService(clusterSession, restTemplate,
                     competitionStateCrudRepository, scheduleCrudRepository,
                     categoryStateCrudRepository, competitorCrudRepository,
+                    dashboardStateCrudRepository,
                     bracketsCrudRepository)
 }

@@ -1,7 +1,7 @@
 package compman.compsrv.repository
 
 
-import compman.compsrv.model.es.commands.Command
+import compman.compsrv.jpa.es.commands.Command
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
 import java.util.*

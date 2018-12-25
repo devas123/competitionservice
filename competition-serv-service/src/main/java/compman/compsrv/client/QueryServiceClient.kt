@@ -1,6 +1,6 @@
 package compman.compsrv.client
 
-import compman.compsrv.model.competition.CompetitionStateSnapshot
+import compman.compsrv.model.dto.competition.CompetitionStateSnapshot
 import org.springframework.cloud.openfeign.FeignClient
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Component

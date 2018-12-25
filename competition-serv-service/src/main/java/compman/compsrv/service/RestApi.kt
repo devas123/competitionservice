@@ -1,12 +1,18 @@
 package compman.compsrv.service
 
-import compman.compsrv.model.PageResponse
+import compman.compsrv.jpa.brackets.BracketDescriptor
+import compman.compsrv.jpa.competition.CategoryState
+import compman.compsrv.jpa.competition.CompetitionDashboardState
+import compman.compsrv.jpa.competition.FightDescription
+import compman.compsrv.jpa.schedule.Schedule
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.CommonResponse
-import compman.compsrv.model.brackets.BracketDescriptor
-import compman.compsrv.model.competition.*
-import compman.compsrv.model.es.commands.Command
-import compman.compsrv.model.schedule.Schedule
+import compman.compsrv.model.PageResponse
+import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
+import compman.compsrv.model.dto.competition.CompetitorDTO
+import compman.compsrv.model.dto.competition.FightStage
+import compman.compsrv.model.dto.schedule.ScheduleDTO
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.slf4j.LoggerFactory
@@ -18,15 +24,16 @@ import java.util.*
 @RequestMapping("/api/v1")
 class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
               private val stateQueryService: StateQueryService,
-              private val producer: KafkaProducer<String, Command>) {
+              private val producer: KafkaProducer<String, CommandDTO>) {
 
     companion object {
         private val log = LoggerFactory.getLogger(RestApi::class.java)
     }
 
     @RequestMapping("/command/{competitionId}", method = [RequestMethod.POST])
-    fun sendCommand(@RequestBody command: Command, @PathVariable competitionId: String): CommonResponse {
+    fun sendCommand(@RequestBody command: CommandDTO, @PathVariable competitionId: String): CommonResponse {
         return try {
+            log.info("Received a command: $command for competitionId: $competitionId")
             val correlationId = UUID.randomUUID().toString()
             producer.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId, command))
             CommonResponse(0, "", correlationId.toByteArray())
@@ -44,22 +51,23 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     fun getCompetitors(@RequestParam("competitionId") competitionId: String,
                        @RequestParam("searchString") searchString: String?,
                        @RequestParam("pageSize") pageSize: Int?,
-                       @RequestParam("pageNumber") pageNumber: Int?): PageResponse<Competitor> {
+                       @RequestParam("pageNumber") pageNumber: Int?): PageResponse<CompetitorDTO> {
         val page = stateQueryService.getCompetitors(competitionId, searchString, pageSize ?: 50, pageNumber ?: 0)
-        return PageResponse(competitionId, page.totalElements, page.number, page.content.toTypedArray())
+        return PageResponse(competitionId, page.totalElements, page.number, page.content.mapNotNull { it.toDTO() }.toTypedArray())
     }
+
 
     @RequestMapping("/store/competitor", method = [RequestMethod.GET])
     fun getCompetitor(@RequestParam("competitionId") competitionId: String,
                       @RequestParam("categoryId") categoryId: String,
-                      @RequestParam("fighterId") competitorId: String): Competitor? {
+                      @RequestParam("fighterId") competitorId: String): CompetitorDTO? {
         if (competitionId == "null" || competitionId.isEmpty() || competitorId == "null" || competitorId.isEmpty()) {
             return null
         }
         val decodedFighterId = String(Base64.getDecoder().decode(competitorId))
         val decodedCategoryId = String(Base64.getDecoder().decode(categoryId))
         val decodedCompetitionId = String(Base64.getDecoder().decode(competitionId))
-        return stateQueryService.getCompetitor(decodedCompetitionId, decodedCategoryId, decodedFighterId).orElse(null)
+        return stateQueryService.getCompetitor(decodedCompetitionId, decodedCategoryId, decodedFighterId).orElse(null).toDTO()
     }
 
     @RequestMapping("/store/comprops", method = [RequestMethod.GET])
@@ -84,17 +92,17 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
 
 
     @RequestMapping("/store/schedule", method = [RequestMethod.GET])
-    fun getSchedule(@RequestParam("competitionId") competitionId: String?): Schedule? {
+    fun getSchedule(@RequestParam("competitionId") competitionId: String?): ScheduleDTO? {
         return if (competitionId.isNullOrBlank()) {
             log.warn("Competition id is missing.")
             null
         } else {
-            stateQueryService.getSchedule(competitionId)
+            stateQueryService.getSchedule(competitionId)?.toDTO()
         }
     }
 
     @RequestMapping("/store/defaultcategories", method = [RequestMethod.GET])
-    fun getDefaultCategories(@RequestParam("sportsId") sportsId: String?, @RequestParam("competitionId") competitionId: String?): List<CategoryDescriptor> {
+    fun getDefaultCategories(@RequestParam("sportsId") sportsId: String?, @RequestParam("competitionId") competitionId: String?): List<CategoryDescriptorDTO> {
         return if (sportsId.isNullOrBlank() || competitionId.isNullOrBlank()) {
             log.warn("Sports id is $sportsId, competition ID is $competitionId.")
             emptyList()

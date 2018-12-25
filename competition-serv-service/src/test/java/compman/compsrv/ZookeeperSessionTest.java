@@ -4,15 +4,15 @@ import com.compman.starter.properties.KafkaProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import compman.compsrv.config.ClusterConfiguration;
 import compman.compsrv.config.ClusterConfigurationProperties;
+import compman.compsrv.jpa.competition.CompetitionProperties;
+import compman.compsrv.jpa.competition.CompetitionState;
 import compman.compsrv.json.ObjectMapperFactory;
 import compman.compsrv.kafka.EmbeddedSingleNodeKafkaCluster;
 import compman.compsrv.kafka.serde.CommandSerializer;
 import compman.compsrv.kafka.topics.CompetitionServiceTopics;
-import compman.compsrv.model.competition.CategoryDescriptor;
-import compman.compsrv.model.competition.CompetitionProperties;
-import compman.compsrv.model.competition.CompetitionState;
-import compman.compsrv.model.es.commands.Command;
-import compman.compsrv.model.es.commands.CommandType;
+import compman.compsrv.model.commands.CommandDTO;
+import compman.compsrv.model.commands.CommandType;
+import compman.compsrv.model.dto.competition.CategoryDescriptorDTO;
 import compman.compsrv.service.CategoryStateService;
 import compman.compsrv.service.RestApi;
 import compman.compsrv.service.ScheduleService;
@@ -193,15 +193,21 @@ public final class ZookeeperSessionTest {
             sleep(1000);
         }
 
-        KafkaProducer<String, Command> producer = new KafkaProducer<>(kafkaProps.getProducer().getProperties(), new StringSerializer(), new CommandSerializer());
+        KafkaProducer<String, CommandDTO> producer = new KafkaProducer<>(kafkaProps.getProducer().getProperties(), new StringSerializer(), new CommandSerializer());
         String id1 = UUID.randomUUID().toString();
         String id2 = UUID.randomUUID().toString();
         CompetitionState pr1 = new CompetitionState(id1, new CompetitionProperties(id1, COMPETITION1, ""));
         CompetitionState pr2 = new CompetitionState(id2, new CompetitionProperties(id2, COMPETITION2, ""));
-        producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, COMPETITION1, new Command(COMPETITION1, CommandType.CREATE_COMPETITION_COMMAND,
-                "", mapper.writeValueAsBytes(pr1))));
-        producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, COMPETITION2, new Command(COMPETITION2, CommandType.CREATE_COMPETITION_COMMAND,
-                "", mapper.writeValueAsBytes(pr2))));
+        producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, COMPETITION1, new CommandDTO()
+                .setId(id1)
+                .setCompetitionId(COMPETITION1)
+                .setType(CommandType.CREATE_COMPETITION_COMMAND)
+                .setPayload(mapper.convertValue(pr1, LinkedHashMap.class))));
+        producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, COMPETITION2, new CommandDTO()
+                .setId(id1)
+                .setCompetitionId(COMPETITION2)
+                .setType(CommandType.CREATE_COMPETITION_COMMAND)
+                .setPayload(mapper.convertValue(pr2, LinkedHashMap.class))));
 
         producer.flush();
 
@@ -218,7 +224,7 @@ public final class ZookeeperSessionTest {
         }
         log.info("Topics created: " + topics);
 
-        CategoryDescriptor[] categories = {};
+        CategoryDescriptorDTO[] categories = {};
 //        for (int i = 0; i < 30; i++) {
 //            int ind = 0;
 //            if (categories.length == 0) {

@@ -2,13 +2,9 @@ package compman.compsrv.cluster
 
 import com.compman.starter.properties.KafkaProperties
 import compman.compsrv.config.ClusterConfigurationProperties
-import compman.compsrv.kafka.streams.CompetitionProcessingStreamsBuilderFactory
-import compman.compsrv.kafka.streams.MetadataService
 import compman.compsrv.kafka.utils.KafkaAdminUtils
-import compman.compsrv.model.cluster.CompetitionProcessingInfo
-import compman.compsrv.model.cluster.CompetitionProcessingMessage
-import compman.compsrv.model.competition.CompetitionStateSnapshot
-import compman.compsrv.repository.CompetitionStateSnapshotCrudRepository
+import compman.compsrv.jpa.cluster.CompetitionProcessingInfo
+import compman.compsrv.jpa.cluster.CompetitionProcessingMessage
 import io.scalecube.cluster.Cluster
 import io.scalecube.cluster.Member
 import io.scalecube.cluster.membership.MembershipEvent
@@ -16,12 +12,10 @@ import io.scalecube.transport.Address
 import io.scalecube.transport.Message
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
-import org.apache.kafka.common.serialization.StringSerializer
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.web.ServerProperties
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListSet
-import javax.ws.rs.NotFoundException
 
 data class MemberWithRestPort(val member: Member, val restPort: Int) {
     fun restAddress(): Address = Address.create(member.address().host(), restPort)
@@ -30,9 +24,7 @@ data class MemberWithRestPort(val member: Member, val restPort: Int) {
 class ClusterSession(private val clusterConfigurationProperties: ClusterConfigurationProperties,
                      private val cluster: Cluster,
                      private val adminClient: KafkaAdminUtils,
-                     private val competitionStateSnapshotCrudRepository: CompetitionStateSnapshotCrudRepository,
                      private val kafkaProperties: KafkaProperties,
-                     private val streamsMetadataService: MetadataService,
                      private val serverProperties: ServerProperties) {
 
     companion object {
@@ -44,17 +36,16 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
         const val TYPE = "type"
     }
 
+    fun isProcessedLocally(competitionId: String): Boolean {
+        return localCompetitionIds.contains(competitionId) || cluster.member().id() == clusterMembers[competitionId]?.member?.id()
+    }
+
     fun getUrlPrefix(host: String, port: Int) = "http://$host:$port"
 
     fun findProcessingMember(competitionId: String): Address? = run {
         log.info("Getting info about instances processing competition $competitionId")
         clusterMembers[competitionId]?.restAddress()
-    } ?: try {
-        log.info("Did not find in cluster info, looking in the kafka streams info for competition id $competitionId")
-        val metadata = streamsMetadataService.streamsMetadataForStoreAndKey(CompetitionProcessingStreamsBuilderFactory.COMPETITION_STATE_SNAPSHOT_STORE_NAME, competitionId, StringSerializer())
-        log.info("Found metadata for $competitionId: $metadata")
-        Address.create(metadata.host, metadata.port)
-    } catch (e: NotFoundException) {
+    } ?: run {
         log.info("Did not find processing instance for $competitionId")
         null
     }
@@ -134,5 +125,9 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
                 log.warn("Error when processing a gossip.", e)
             }
         }
+    }
+
+    fun localMemberId(): String {
+        return cluster.member().id()
     }
 }

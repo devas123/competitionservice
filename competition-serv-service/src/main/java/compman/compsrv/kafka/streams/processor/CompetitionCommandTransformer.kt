@@ -1,56 +1,36 @@
 package compman.compsrv.kafka.streams.processor
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.cluster.ClusterSession
-import compman.compsrv.model.competition.CompetitionState
-import compman.compsrv.model.competition.CompetitionStateSnapshot
-import compman.compsrv.model.competition.CompetitionStatus
-import compman.compsrv.model.es.commands.Command
-import compman.compsrv.model.es.commands.CommandType
-import compman.compsrv.model.es.commands.payload.ChangeCompetitorCategoryPayload
+import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.commands.CommandType
+import compman.compsrv.model.commands.payload.ChangeCompetitorCategoryPayload
+import compman.compsrv.model.dto.competition.CompetitionStateSnapshot
 import compman.compsrv.repository.CompetitionStateRepository
 import compman.compsrv.service.CompetitionStateService
 import compman.compsrv.service.resolver.CompetitionStateResolver
 import org.apache.kafka.streams.processor.ProcessorContext
 import org.apache.kafka.streams.state.KeyValueStore
 import org.slf4j.LoggerFactory
-import java.util.*
-import javax.persistence.OptimisticLockException
 
 class CompetitionCommandTransformer(competitionStateService: CompetitionStateService,
                                     private val competitionStateRepository: CompetitionStateRepository,
                                     private val competitionStateResolver: CompetitionStateResolver,
                                     private val mapper: ObjectMapper,
-                                    clusterSession: ClusterSession,
                                     private val snapshotStoreName: String)
-    : AbstractCommandTransformer(competitionStateService, clusterSession, mapper) {
+    : AbstractCommandTransformer(competitionStateService) {
 
-   private lateinit var snapshotStore: KeyValueStore<String, CompetitionStateSnapshot>
+    private lateinit var snapshotStore: KeyValueStore<String, CompetitionStateSnapshot>
 
     override fun init(context: ProcessorContext?) {
         super.init(context)
         snapshotStore = context?.getStateStore(snapshotStoreName) as KeyValueStore<String, CompetitionStateSnapshot>
     }
 
-    override fun getState(id: String): Optional<CompetitionState> {
-        return competitionStateResolver.resolveLatestCompetitionState(id, snapshotStore.get(id))
+    override fun initState(id: String) {
+        competitionStateResolver.resolveLatestCompetitionState(id) { _id -> snapshotStore.get(_id) }
     }
 
-    override fun saveState(readOnlyKey: String, state: CompetitionState) {
-        var success = false
-        while (!success) {
-            success = try {
-                competitionStateRepository.save(state)
-                true
-            } catch (e: OptimisticLockException) {
-                false
-            }
-        }
-    }
-
-    override fun deleteState(id: String) {
-        competitionStateRepository.delete(id)
-    }
+    override fun getState(id: String) = competitionStateRepository.findById(id)
 
     override fun close() {
     }
@@ -59,17 +39,10 @@ class CompetitionCommandTransformer(competitionStateService: CompetitionStateSer
         private val log = LoggerFactory.getLogger(CompetitionCommandTransformer::class.java)
     }
 
-    override fun canExecuteCommand(state: CompetitionState?, command: Command?): List<String> {
+    override fun canExecuteCommand(command: CommandDTO?): List<String> {
         return when (command?.type) {
-            CommandType.START_COMPETITION_COMMAND -> {
-                if (state?.status != CompetitionStatus.STARTED) {
-                    emptyList()
-                } else {
-                    listOf("Competition already started")
-                }
-            }
-            CommandType.CREATE_COMPETITION_COMMAND -> if (state == null) {
-                listOf("State is missing")
+            CommandType.CREATE_COMPETITION_COMMAND -> if (!competitionStateRepository.existsById(command.competitionId)) {
+                listOf("Competition already exists.")
             } else {
                 emptyList()
             }
@@ -78,7 +51,7 @@ class CompetitionCommandTransformer(competitionStateService: CompetitionStateSer
                     val payload = mapper.convertValue(command.payload, ChangeCompetitorCategoryPayload::class.java)
                     val newCategory = payload.newCategory
                     val fighter = payload.fighter
-                    if (fighter.categoryId != newCategory.categoryId) {
+                    if (fighter.categoryId != newCategory.id) {
                         emptyList()
                     } else {
                         listOf("New category is null or fighter is null or the source and the target categories are the same.")

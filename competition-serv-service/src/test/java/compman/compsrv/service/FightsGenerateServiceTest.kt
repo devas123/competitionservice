@@ -1,6 +1,12 @@
 package compman.compsrv.service
 
-import compman.compsrv.model.competition.*
+import compman.compsrv.jpa.competition.AgeDivision
+import compman.compsrv.jpa.competition.BeltType
+import compman.compsrv.jpa.competition.CategoryDescriptor
+import compman.compsrv.jpa.competition.Weight
+import compman.compsrv.model.dto.competition.AgeDivisionDTO
+import compman.compsrv.model.dto.competition.FightStage
+import compman.compsrv.model.dto.competition.Gender
 import compman.compsrv.repository.CategoryDescriptorCrudRepository
 import org.junit.Test
 import org.springframework.data.domain.Example
@@ -108,7 +114,7 @@ class FightsGenerateServiceTest {
     companion object {
         const val competitionId = "UG9wZW5nYWdlbiBPcGVu"
 
-        val category = CategoryDescriptor("BJJ", BjjAgeDivisions.ADULT, Gender.MALE, Weight("Light", BigDecimal.TEN), BeltType.BROWN, UUID.randomUUID().toString(), BigDecimal(8))
+        val category = CategoryDescriptor("BJJ", AgeDivision.fromDTO(AgeDivisionDTO.ADULT), Gender.MALE.name, Weight("Light", BigDecimal.TEN), BeltType.BROWN, UUID.randomUUID().toString(), BigDecimal(8))
     }
 
     @Test

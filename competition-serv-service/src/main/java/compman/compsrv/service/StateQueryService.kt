@@ -1,12 +1,11 @@
 package compman.compsrv.service
 
 import compman.compsrv.cluster.ClusterSession
-import compman.compsrv.model.competition.CategoryState
-import compman.compsrv.model.competition.CompetitionDashboardState
-import compman.compsrv.model.competition.CompetitionState
-import compman.compsrv.model.competition.Competitor
-import compman.compsrv.model.dto.CategoryDTO
-import compman.compsrv.model.schedule.Schedule
+import compman.compsrv.jpa.competition.CategoryState
+import compman.compsrv.jpa.competition.CompetitionDashboardState
+import compman.compsrv.jpa.competition.CompetitionState
+import compman.compsrv.jpa.competition.Competitor
+import compman.compsrv.model.dto.competition.CategoryStateDTO
 import compman.compsrv.repository.*
 import io.scalecube.transport.Address
 import org.slf4j.LoggerFactory
@@ -21,6 +20,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
                         private val scheduleCrudRepository: ScheduleCrudRepository,
                         private val categoryCrudRepository: CategoryCrudRepository,
                         private val competitorCrudRepository: CompetitorCrudRepository,
+                        private val dashboardStateCrudRepository: DashboardStateCrudRepository,
                         private val bracketsCrudRepository: BracketsCrudRepository) {
 
     companion object {
@@ -58,7 +58,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
         }
     }
 
-    fun getSchedule(competitionId: String?): Schedule? {
+    fun getSchedule(competitionId: String?): compman.compsrv.jpa.schedule.Schedule? {
         return getLocalOrRemote(competitionId,
                 {
                     scheduleCrudRepository.findById(competitionId!!).orElse(null)
@@ -76,7 +76,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
     }
 
 
-    fun getCategories(competitionId: String): Array<CategoryDTO> {
+    fun getCategories(competitionId: String): Array<CategoryStateDTO> {
         val categories = getLocalOrRemote(competitionId, {
             categoryCrudRepository.findByCompetitionId(competitionId)
         }, {
@@ -85,11 +85,11 @@ class StateQueryService(private val clusterSession: ClusterSession,
         return categories
                 .filter { !it.id.isBlank() }
                 .mapNotNull { getCategoryState(competitionId, it.id) }
-                .map { CategoryDTO(it) }.toTypedArray()
+                .map { it.toDTO() }.toTypedArray()
     }
 
     fun getDashboardState(competitionId: String): CompetitionDashboardState? {
-        return getCompetitionProperties(competitionId)?.dashboardState
+        return dashboardStateCrudRepository.findById(competitionId).orElse(null)
     }
 
     fun getBracketsForCompetition(competitionId: String) = bracketsCrudRepository.findByCompetitionId(competitionId)

@@ -1,7 +1,7 @@
 package compman.compsrv.repository
 
 
-import compman.compsrv.model.competition.CategoryDescriptor
+import compman.compsrv.jpa.competition.CategoryDescriptor
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
 
