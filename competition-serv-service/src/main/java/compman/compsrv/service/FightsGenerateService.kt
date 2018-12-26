@@ -1,10 +1,10 @@
 package compman.compsrv.service
 
 import com.compmanager.model.payment.RegistrationStatus
-import compman.compsrv.model.competition.Academy
-import compman.compsrv.model.competition.CategoryDescriptor
-import compman.compsrv.model.competition.Competitor
-import compman.compsrv.model.competition.FightDescription
+import compman.compsrv.jpa.competition.Academy
+import compman.compsrv.jpa.competition.CategoryDescriptor
+import compman.compsrv.jpa.competition.Competitor
+import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.model.exceptions.CategoryNotFoundException
 import compman.compsrv.repository.CategoryDescriptorCrudRepository
 import org.springframework.stereotype.Component

@@ -2,13 +2,13 @@ package compman.compsrv.kafka.serde;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import compman.compsrv.json.ObjectMapperFactory;
-import compman.compsrv.model.es.events.EventHolder;
+import compman.compsrv.model.events.EventDTO;
 import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.Serializer;
 
 import java.util.Map;
 
-public class EventSerializer implements Serializer<EventHolder> {
+public class EventSerializer implements Serializer<EventDTO> {
     private final ObjectMapper objectMapper = ObjectMapperFactory.INSTANCE.createObjectMapper();
     /**
      * Default constructor needed by Kafka
@@ -22,7 +22,7 @@ public class EventSerializer implements Serializer<EventHolder> {
     }
 
     @Override
-    public byte[] serialize(String topic, EventHolder data) {
+    public byte[] serialize(String topic, EventDTO data) {
         if (data == null)
             return null;
         try {

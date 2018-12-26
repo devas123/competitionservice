@@ -1,7 +1,7 @@
 package compman.compsrv.repository
 
 
-import compman.compsrv.model.competition.CompetitionProperties
+import compman.compsrv.jpa.competition.CompetitionProperties
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
 import javax.transaction.Transactional

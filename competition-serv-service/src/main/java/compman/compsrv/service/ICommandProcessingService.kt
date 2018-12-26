@@ -1,12 +1,11 @@
 package compman.compsrv.service
 
-interface ICommandProcessingService<StateType, CommandType, EventType> {
-    fun apply(event: EventType, state: StateType?): Pair<StateType?, List<EventType>>
-    fun batchApply(events: List<EventType>, state: StateType?): Pair<StateType?, List<EventType>> {
-        return events.foldRight(state to emptyList()) { eventHolder, acc ->
-            val pair = apply(eventHolder, acc.first)
-            pair.first to (acc.second + pair.second)
+interface ICommandProcessingService<CommandType, EventType> {
+    fun apply(event: EventType): List<EventType>
+    fun batchApply(events: List<EventType>): List<EventType> {
+        return events.foldRight(emptyList()) { eventHolder, acc ->
+            (acc + apply(eventHolder))
         }
     }
-    fun process(command: CommandType, state: StateType?): List<EventType>
+    fun process(command: CommandType): List<EventType>
 }

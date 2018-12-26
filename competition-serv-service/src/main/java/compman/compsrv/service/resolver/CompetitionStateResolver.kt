@@ -3,13 +3,15 @@ package compman.compsrv.service.resolver
 import com.compman.starter.properties.KafkaProperties
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.client.QueryServiceClient
+import compman.compsrv.cluster.ClusterSession
+import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.kafka.serde.EventDeserializer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
-import compman.compsrv.model.competition.CompetitionState
-import compman.compsrv.model.competition.CompetitionStateSnapshot
-import compman.compsrv.model.es.events.EventHolder
+import compman.compsrv.model.dto.competition.CompetitionStateDTO
+import compman.compsrv.model.dto.competition.CompetitionStateSnapshot
+import compman.compsrv.model.events.EventDTO
+import compman.compsrv.repository.CompetitionStateCrudRepository
 import compman.compsrv.service.CompetitionStateService
-import compman.compsrv.service.CompetitionStateSnapshotService
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.TopicPartition
@@ -21,54 +23,48 @@ import java.util.*
 @Component
 class CompetitionStateResolver(private val queryServiceClient: QueryServiceClient,
                                private val kafkaProperties: KafkaProperties,
-                               private val competitionStateSnapshotService: CompetitionStateSnapshotService,
                                private val competitionStateService: CompetitionStateService,
+                               private val competitionStateCrudRepository: CompetitionStateCrudRepository,
+                               private val clusterSesion: ClusterSession,
                                private val mapper: ObjectMapper) {
 
-    private val consumerProperties = Properties().apply {
+    private fun consumerProperties() = Properties().apply {
         putAll(kafkaProperties.consumer.properties)
         setProperty(ConsumerConfig.GROUP_ID_CONFIG, "state-resolver-${UUID.randomUUID()}")
         setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer::class.java.canonicalName)
         setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, EventDeserializer::class.java.canonicalName)
     }
 
-    fun resolveLatestCompetitionState(competitionId: String, localSnapshot: CompetitionStateSnapshot?): Optional<CompetitionState> {
-        val remoteSnapshot = competitionStateSnapshotService.getSnapshot(competitionId).orElse(queryServiceClient.getCompetitionStateSnapshot(competitionId))
-        val stateSnapshot = if (remoteSnapshot != null && remoteSnapshot.eventOffset > localSnapshot?.eventOffset ?: -1) {
-            remoteSnapshot
-        } else {
-            localSnapshot
-        }
-        return if (stateSnapshot != null) {
-            val consumer = KafkaConsumer<String, EventHolder>(consumerProperties)
-            consumer.use { cons ->
-                val topicPartition = TopicPartition(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME, stateSnapshot.eventPartition)
-                cons.assign(listOf(topicPartition))
-                cons.seek(topicPartition, stateSnapshot.eventOffset)
-                val now = System.currentTimeMillis()
-                var lastOffset = stateSnapshot.eventOffset
-                var snapshot = mapper.readValue(stateSnapshot.state, CompetitionState::class.java)
-                while (true) {
-                    val result = cons.poll(Duration.ofMillis(1000))
-                    if (result != null) {
-                        for (record in result.records(topicPartition).filter { it.key() == competitionId }) {
-                            if (record.timestamp() <= now) {
-                                snapshot = competitionStateService.apply(record.value(), snapshot).first ?: snapshot
-                                lastOffset = record.offset()
-                            } else {
-                                break
+    fun resolveLatestCompetitionState(competitionId: String, globalStoreSnapshotSupplier: (competitionId: String) -> CompetitionStateSnapshot?) {
+        if (!clusterSesion.isProcessedLocally(competitionId)) {
+            val stateSnapshot = globalStoreSnapshotSupplier(competitionId) ?: queryServiceClient.getCompetitionStateSnapshot(competitionId)
+            if (stateSnapshot != null) {
+                val consumer = KafkaConsumer<String, EventDTO>(consumerProperties())
+                clusterSesion.broadcastCompetitionProcessingInfo(setOf(competitionId))
+                consumer.use { cons ->
+                    val topicPartition = TopicPartition(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME, stateSnapshot.eventPartition)
+                    cons.assign(listOf(topicPartition))
+                    cons.seek(topicPartition, stateSnapshot.eventOffset)
+                    val now = System.currentTimeMillis()
+                    val snapshot = mapper.readValue(stateSnapshot.serializedState, CompetitionStateDTO::class.java)
+                    competitionStateCrudRepository.save(CompetitionState.fromDTO(snapshot))
+                    while (true) {
+                        val result = cons.poll(Duration.ofMillis(1000))
+                        if (result != null) {
+                            for (record in result.records(topicPartition).filter { it.key() == competitionId }) {
+                                if (record.timestamp() <= now) {
+                                    competitionStateService.apply(record.value())
+                                } else {
+                                    break
+                                }
                             }
+                        } else {
+                            break
                         }
-                    } else {
-                        break
+                        cons.commitSync()
                     }
-                    cons.commitSync()
                 }
-                competitionStateSnapshotService.saveSnapshot(CompetitionStateSnapshot(null, competitionId, stateSnapshot.eventPartition, lastOffset, mapper.writeValueAsBytes(snapshot)))
-                Optional.of(snapshot)
             }
-        } else {
-            Optional.empty()
         }
     }
 }

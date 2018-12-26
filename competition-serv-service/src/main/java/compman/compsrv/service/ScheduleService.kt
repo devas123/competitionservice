@@ -1,12 +1,13 @@
 package compman.compsrv.service
 
 import com.compmanager.service.ServiceException
-import compman.compsrv.model.brackets.BracketDescriptor
-import compman.compsrv.model.competition.FightDescription
-import compman.compsrv.model.schedule.*
-import compman.compsrv.model.schedule.Schedule.Companion.obsoleteFight
+import compman.compsrv.jpa.brackets.BracketDescriptor
+import compman.compsrv.jpa.competition.FightDescription
+import compman.compsrv.jpa.schedule.*
+import compman.compsrv.jpa.schedule.Schedule.Companion.obsoleteFight
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.*
 import kotlin.collections.ArrayList
@@ -45,7 +46,7 @@ class ScheduleService {
         }
     }
 
-    private class ScheduleComposer(startTime: Date, val numberOfMats: Int, val fightDurations: Map<String, BigDecimal>, brackets: List<BracketSimulator>, val pause: BigDecimal, riskFactor: BigDecimal, periodId: String) {
+    private class ScheduleComposer(startTime: ZonedDateTime, val numberOfMats: Int, val fightDurations: Map<String, BigDecimal>, brackets: List<BracketSimulator>, val pause: BigDecimal, riskFactor: BigDecimal, periodId: String) {
         val schedule: MutableList<ScheduleEntry>
         val fightsByMats: ArrayList<MatScheduleContainer> = ArrayList(numberOfMats)
         val riskCoeff: BigDecimal
@@ -54,7 +55,7 @@ class ScheduleService {
         init {
             this.schedule = ArrayList()
             for (i in 0 until numberOfMats) {
-                val initDate = Date(startTime.time)
+                val initDate = ZonedDateTime.from(startTime)
                 fightsByMats.add(MatScheduleContainer(initDate, "$periodId-mat-$i"))
             }
             riskCoeff = BigDecimal.ONE.plus(riskFactor)
@@ -64,7 +65,7 @@ class ScheduleService {
             return this.schedule.size == 0 || !this.schedule.map { e -> e.categoryId }.contains(categoryId)
         }
 
-        fun updateSchedule(f: FightDescription, startTime: Date) {
+        fun updateSchedule(f: FightDescription, startTime: ZonedDateTime) {
             if (this.categoryNotRegistered(f.categoryId)) {
                 this.schedule.add(ScheduleEntry(
                         categoryId = f.categoryId,
@@ -77,16 +78,16 @@ class ScheduleService {
         fun acceptFight(f: FightDescription, duration: BigDecimal, lastrun: Boolean?) {
             val freshMat = this.fightsByMats.find { it.fights.isEmpty() }
             if (freshMat != null) {
-                val currentTime = Date(freshMat.currentTime.time)
+                val currentTime = ZonedDateTime.ofInstant(freshMat.currentTime.toInstant(), freshMat.currentTime.zone)
                 this.updateSchedule(f, currentTime)
-                freshMat.currentTime.time = currentTime.time + duration.toLong() * 60L * 1000L
+                freshMat.currentTime = currentTime.plusSeconds(duration.toLong() * 60L)
                 freshMat.fights += FightStartTimePair(f, freshMat.currentFightNumber++, currentTime)
             } else {
                 if (this.categoryNotRegistered(f.categoryId)) {
-                    val mat = this.fightsByMats.sortedBy { a -> a.currentTime.time }.first()
-                    val currentTime = Date(mat.currentTime.time)
+                    val mat = this.fightsByMats.sortedBy { a -> a.currentTime.toInstant().toEpochMilli() }.first()
+                    val currentTime = mat.currentTime
                     this.updateSchedule(f, currentTime)
-                    mat.currentTime.time = currentTime.time + duration.toLong() * 60 * 1000
+                    mat.currentTime = currentTime.plusSeconds(duration.toLong() * 60)
                     mat.fights += FightStartTimePair(f, mat.currentFightNumber++, currentTime)
                 } else {
                     val mat: Any
@@ -96,13 +97,13 @@ class ScheduleService {
                                         ?: -1) < (f.round ?: -1)
                             }
                     if (matsWithTheSameCategory.isNotEmpty() && lastrun != true) {
-                        mat = matsWithTheSameCategory.sortedBy { it.currentTime.time }.first()
+                        mat = matsWithTheSameCategory.sortedBy { it.currentTime.toInstant().toEpochMilli() }.first()
                         mat.pending.add(f)
                     } else {
-                        mat = this.fightsByMats.sortedBy { it.currentTime.time }.first()
-                        val currentTime = Date(mat.currentTime.time)
+                        mat = this.fightsByMats.sortedBy { it.currentTime.toInstant().toEpochMilli() }.first()
+                        val currentTime = mat.currentTime
                         this.updateSchedule(f, currentTime)
-                        mat.currentTime.time = currentTime.time + duration.toLong() * 60 * 1000
+                        mat.currentTime = currentTime.plusSeconds(duration.toLong() * 60)
                         mat.fights += FightStartTimePair(f, mat.currentFightNumber++, currentTime)
                         this.fightsByMats.forEach { m ->
                             if (m.pending.isNotEmpty()) {
@@ -182,14 +183,14 @@ class ScheduleService {
                 id = properties.competitionId,
                 periods = properties.periodPropertiesList.map { p ->
                     val id = createPeriodId(properties.competitionId)
-                    val periodStartTime = Date(p.startTime.time)
+                    val periodStartTime = p.startTime
                     val brackets = p.categories.map { cat -> BracketSimulator(fightsByIds[cat.id], exceptionCategoryIds.contains(cat.id)) }
                     val composer = ScheduleComposer(periodStartTime, p.numberOfMats, fightDurations, brackets, BigDecimal(p.timeBetweenFights), p.riskPercent, id)
                     composer.simulate()
                     Period(id = id,
                             schedule = composer.schedule,
                             fightsByMats = composer.fightsByMats,
-                            startTime = DateTimeFormatter.ISO_INSTANT.format(periodStartTime.toInstant()),
+                            startTime = periodStartTime,
                             name = p.id,
                             numberOfMats = p.numberOfMats,
                             categories = p.categories)
