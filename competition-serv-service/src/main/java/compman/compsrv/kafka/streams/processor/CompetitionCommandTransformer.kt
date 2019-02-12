@@ -41,7 +41,7 @@ class CompetitionCommandTransformer(competitionStateService: CompetitionStateSer
 
     override fun canExecuteCommand(command: CommandDTO?): List<String> {
         return when (command?.type) {
-            CommandType.CREATE_COMPETITION_COMMAND -> if (!competitionStateRepository.existsById(command.competitionId)) {
+            CommandType.CREATE_COMPETITION_COMMAND -> if (competitionStateRepository.existsById(command.competitionId)) {
                 listOf("Competition already exists.")
             } else {
                 emptyList()

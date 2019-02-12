@@ -29,6 +29,7 @@ import org.apache.kafka.streams.kstream.ValueTransformerWithKeySupplier
 import org.apache.kafka.streams.processor.ProcessorSupplier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.DependsOn
 import java.util.*
 
 @Configuration
@@ -72,28 +73,33 @@ class KafkaStreamsConfiguration {
     }
 
     @Bean
-    fun streamProcessingTopology(
-            eventProcessor: ProcessorSupplier<String, EventDTO>,
+    fun streamsBuilderFactory(eventProcessor: ProcessorSupplier<String, EventDTO>,
             commandTransformer: ValueTransformerWithKeySupplier<String, CommandDTO, List<EventDTO>>,
             mapper: ObjectMapper,
             adminUtils: KafkaAdminUtils,
-            props: KafkaProperties, clusterSession: ClusterSession): StreamsBuilder {
+            props: KafkaProperties, clusterSession: ClusterSession): CompetitionProcessingStreamsBuilderFactory {
         return CompetitionProcessingStreamsBuilderFactory(
                 CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME,
                 CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME,
                 commandTransformer,
                 eventProcessor,
-                adminUtils, props, mapper, clusterSession).createBuilder()
+                adminUtils, props, mapper, clusterSession)
     }
 
+    @Bean
+    fun streamProcessingTopology(streamsBuilderFactory: CompetitionProcessingStreamsBuilderFactory): StreamsBuilder = streamsBuilderFactory.createBuilder()
+
     @Bean(destroyMethod = "close")
+    @DependsOn("streamProcessingTopology")
     fun streams(builder: StreamsBuilder, kafkaProperties: KafkaProperties): KafkaStreams {
-        val streamProperties = Properties().apply { putAll(kafkaProperties.streamProperties) }
+        val streamProperties = Properties().apply {
+            putAll(kafkaProperties.streamProperties)
+        }
         return KafkaStreams(builder.build(), streamProperties)
     }
 
     @Bean(initMethod = "start", destroyMethod = "stop")
-    fun competitionProcessStream(kafkaStreams: KafkaStreams, adminUtils: KafkaAdminUtils) = LeaderProcessStreams(adminUtils, kafkaStreams)
+    fun competitionProcessStream(streams: KafkaStreams, adminUtils: KafkaAdminUtils) = LeaderProcessStreams(adminUtils, streams)
 
     @Bean
     fun metadataService(streams: KafkaStreams) = MetadataService(streams)

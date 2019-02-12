@@ -10,6 +10,7 @@ import org.apache.kafka.streams.kstream.ValueTransformerWithKey
 import org.apache.kafka.streams.processor.ProcessorContext
 import org.slf4j.LoggerFactory
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 
 abstract class AbstractCommandTransformer(
         private val commandProcessingService: ICommandProcessingService<CommandDTO, EventDTO>) : ValueTransformerWithKey<String, CommandDTO, List<EventDTO>> {
@@ -19,6 +20,8 @@ abstract class AbstractCommandTransformer(
 
 
     private lateinit var context: ProcessorContext
+
+    private val processedEventsNumber = ConcurrentHashMap<String, Long>()
 
     override fun init(context: ProcessorContext?) {
         this.context = context ?: throw IllegalStateException("Context cannot be null")
@@ -36,22 +39,39 @@ abstract class AbstractCommandTransformer(
                 log.info("Command validated: $command")
                 val eventsToApply = commandProcessingService.process(command)
                 val eventsToSend = commandProcessingService.batchApply(eventsToApply)
-                if (context.offset() % 50 == 0L) {
+                processedEventsNumber.compute(readOnlyKey) { _: String, u: Long? -> (u ?: 0) + 1 }
+                if (processedEventsNumber.getOrDefault(readOnlyKey, 0) % 10 == 0L) {
                     getState(readOnlyKey).map { newState ->
-                        eventsToSend + EventDTO(command.correlationId, command.competitionId, command.categoryId, command.matId, EventType.INTERNAL_STATE_SNAPSHOT_CREATED, newState)
+                        eventsToSend + (EventDTO()
+                                .setCategoryId(command.categoryId)
+                                .setCorrelationId(command.correlationId)
+                                .setCompetitionId(command.competitionId)
+                                .setMatId(command.matId)
+                                .setType(EventType.INTERNAL_STATE_SNAPSHOT_CREATED)
+                                .setPayload(newState))
                     }.orElse(eventsToSend)
                 } else {
                     eventsToSend
                 }
             } else {
                 log.error("Command not valid: ${validationErrors.joinToString(separator = ",")}")
-                listOf(EventDTO(command.correlationId, command.competitionId, command.categoryId, command.matId, EventType.ERROR_EVENT,
-                        ErrorEventPayload(validationErrors.joinToString(separator = ","), command)))
+                listOf(EventDTO()
+                        .setCategoryId(command.categoryId)
+                        .setCorrelationId(command.correlationId)
+                        .setCompetitionId(command.competitionId)
+                        .setMatId(command.matId)
+                        .setType(EventType.ERROR_EVENT)
+                        .setPayload(ErrorEventPayload(validationErrors.joinToString(separator = ","), command.correlationId)))
             }
         } catch (e: Throwable) {
             log.error("Exception: ", e)
-            listOf(EventDTO(command.correlationId, command.competitionId, command.categoryId, command.matId, EventType.ERROR_EVENT,
-                    ErrorEventPayload(e.localizedMessage, command)))
+            listOf(EventDTO()
+                    .setCategoryId(command.categoryId)
+                    .setCorrelationId(command.correlationId)
+                    .setCompetitionId(command.competitionId)
+                    .setMatId(command.matId)
+                    .setType(EventType.ERROR_EVENT)
+                    .setPayload(ErrorEventPayload(e.localizedMessage, command.correlationId)))
         }
     }
 

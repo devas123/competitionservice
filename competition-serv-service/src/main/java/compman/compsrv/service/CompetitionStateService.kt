@@ -58,8 +58,14 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
 
     @Transactional(propagation = Propagation.REQUIRED)
     override fun apply(event: EventDTO): List<EventDTO> {
-        fun createErrorEvent(error: String) = EventDTO(event.correlationId ?: "", event.competitionId, event.categoryId
-                ?: "null", event.matId, EventType.ERROR_EVENT, ErrorEventPayload(error, null))
+        fun createErrorEvent(error: String) =
+                EventDTO()
+                        .setCategoryId(event.categoryId)
+                        .setCorrelationId(event.correlationId ?: "")
+                        .setCompetitionId(event.competitionId)
+                        .setMatId(event.matId)
+                        .setType(EventType.ERROR_EVENT)
+                        .setPayload(ErrorEventPayload(error, null))
         return try {
             val ns = when (event.type) {
                 EventType.COMPETITION_DELETED -> {
@@ -126,11 +132,22 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
 
     override fun process(command: CommandDTO): List<EventDTO> {
         fun executeCommand(command: CommandDTO): EventDTO {
-            fun createEvent(type: EventType, payload: Serializable?) = EventDTO(command.correlationId, command.competitionId, command.categoryId
-                    ?: "null", command.matId, type, payload)
+            fun createEvent(type: EventType, payload: Serializable?) =
+                    EventDTO()
+                            .setCategoryId(command.categoryId)
+                            .setCorrelationId(command.correlationId)
+                            .setCompetitionId(command.competitionId)
+                            .setMatId(command.matId)
+                            .setType(type)
+                            .setPayload(payload)
 
-            fun createErrorEvent(error: String) = EventDTO(command.correlationId, command.competitionId, command.categoryId
-                    ?: "null", command.matId, EventType.ERROR_EVENT, ErrorEventPayload(error, command))
+            fun createErrorEvent(error: String) = EventDTO()
+                    .setCategoryId(command.categoryId)
+                    .setCorrelationId(command.correlationId)
+                    .setCompetitionId(command.competitionId)
+                    .setMatId(command.matId)
+                    .setType(EventType.ERROR_EVENT)
+                    .setPayload(ErrorEventPayload(error, command.correlationId))
 
             return when (command.type) {
                 CommandType.CREATE_COMPETITION_COMMAND -> {
@@ -183,7 +200,7 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                     createEvent(EventType.COMPETITION_DELETED, null)
                 }
                 else -> {
-                    createEvent(EventType.ERROR_EVENT, ErrorEventPayload("Unknown or invalid command ${command.type}", command))
+                    createEvent(EventType.ERROR_EVENT, ErrorEventPayload("Unknown or invalid command ${command.type}", command.correlationId))
                 }
             }
         }

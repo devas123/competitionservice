@@ -15,13 +15,15 @@ class LeaderProcessStreams(private val adminClient: KafkaAdminUtils,
     }
 
     init {
-        Runtime.getRuntime().addShutdownHook(thread(start = false) { streamOfCompetitions.close(10, TimeUnit.SECONDS) })
+        Runtime.getRuntime().addShutdownHook(thread(start = false) { streamOfCompetitions.close(Duration.ofSeconds(10)) })
     }
 
 
     fun start() {
         log.info("Starting the leader process.")
-        streamOfCompetitions.setUncaughtExceptionHandler { t, e -> log.error("Uncaught exception in thread $t.", e) }
+        streamOfCompetitions.setUncaughtExceptionHandler { t, e ->
+            log.error("Uncaught exception in thread $t.", e)
+        }
         streamOfCompetitions.setStateListener { newState, oldState ->
             log.info("Streams old state = $oldState, new state = $newState")
             if (newState == KafkaStreams.State.ERROR) {

@@ -14,10 +14,10 @@ data class MetadataEntry(
         @Column(name = "metadata_value")
         val value: String) {
     companion object {
-        fun fromMap(metadata: Map<String, String>): List<MetadataEntry> =
-                metadata.map { MetadataEntry(it.key, it.value) }
+        fun fromMap(metadata: Map<String, String>?): List<MetadataEntry> =
+                metadata?.map { MetadataEntry(it.key, it.value) } ?: emptyList()
 
-        fun toMap(metadataList: List<MetadataEntry>): Map<String, String> = metadataList.map { it.key to it.value }.toMap()
+        fun toMap(metadataList: List<MetadataEntry>?): Map<String, String> = metadataList?.map { it.key to it.value }?.toMap() ?: emptyMap()
     }
 }
 

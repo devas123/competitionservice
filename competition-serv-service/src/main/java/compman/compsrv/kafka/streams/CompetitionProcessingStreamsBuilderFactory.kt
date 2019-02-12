@@ -42,7 +42,7 @@ class CompetitionProcessingStreamsBuilderFactory(
     init {
         adminClient.createTopicIfMissing(competitionCommandsTopic, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
         adminClient.createTopicIfMissing(competitionEventsTopic, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
-        adminClient.createTopicIfMissing(CompetitionServiceTopics.COMPETITION_STATE_SNAPSHOTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor, compacted = true)
+        adminClient.createTopicIfMissing(CompetitionServiceTopics.COMPETITION_STATE_SNAPSHOTS_TOPIC_NAME, kafkaProperties.defaultTopicOptions.partitions, kafkaProperties.defaultTopicOptions.replicationFactor)
     }
 
     fun createBuilder()
@@ -51,7 +51,7 @@ class CompetitionProcessingStreamsBuilderFactory(
         val keyValueStoreBuilder = Stores.keyValueStoreBuilder(Stores.persistentKeyValueStore(COMPETITION_STATE_SNAPSHOT_STORE_NAME),
                 Serdes.String(),
                 JsonSerde(CompetitionStateSnapshot::class.java, mapper))
-        builder.addGlobalStore(keyValueStoreBuilder, competitionEventsTopic, Consumed.with(Serdes.String(), EventSerde()), snapshotEventsProcessor)
+        builder.addGlobalStore(keyValueStoreBuilder, CompetitionServiceTopics.COMPETITION_STATE_SNAPSHOTS_TOPIC_NAME, Consumed.with(Serdes.String(), EventSerde()), snapshotEventsProcessor)
         val allCommands = builder.stream<String, CommandDTO>(competitionCommandsTopic, Consumed.with(Serdes.String(), CommandSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
                 .filter { key, value -> value != null && !key.isNullOrBlank() }
 
@@ -59,9 +59,15 @@ class CompetitionProcessingStreamsBuilderFactory(
         allCommands
                 .transformValues(commandTransformer)
                 .flatMapValues { value -> value }
-                .filterNot { _, value -> value == null || value.type == EventType.DUMMY }.to({ _, event, _ -> KafkaAdminUtils.getEventRouting(event, competitionEventsTopic) }, Produced.with(Serdes.String(), EventSerde()))
+                .filterNot { _, value -> value == null || value.type == EventType.DUMMY }.to({ _, event, _ ->
+                    if (event.type == EventType.INTERNAL_STATE_SNAPSHOT_CREATED) {
+                        CompetitionServiceTopics.COMPETITION_STATE_SNAPSHOTS_TOPIC_NAME
+                    } else {
+                        KafkaAdminUtils.getEventRouting(event, competitionEventsTopic)
+                    }
+                }, Produced.with(Serdes.String(), EventSerde()))
 
-        val allEvents = builder.table<String, EventDTO>("", Consumed.with(Serdes.String(), EventSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
+        val allEvents = builder.table<String, EventDTO>(competitionEventsTopic, Consumed.with(Serdes.String(), EventSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
         allEvents.toStream().foreach { key, event ->
             if (event.type == EventType.COMPETITION_DELETED) {
                 clusterSession.broadcastCompetitionProcessingStopped(setOf(key))
