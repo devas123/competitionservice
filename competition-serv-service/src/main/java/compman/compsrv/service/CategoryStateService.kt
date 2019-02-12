@@ -69,9 +69,13 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
             }
             else -> {
                 log.warn("Unknown command type: ${command.type}")
-                listOf(EventDTO(command.correlationId, command.competitionId, command.categoryId, command.matId, EventType.ERROR_EVENT, ErrorEventPayload(
-                        "Unknown command type: ${command.type}",
-                        command)))
+                listOf(EventDTO()
+                        .setCategoryId(command.categoryId)
+                        .setCorrelationId(command.correlationId)
+                        .setCompetitionId(command.competitionId)
+                        .setMatId(command.matId)
+                        .setType(EventType.ERROR_EVENT)
+                        .setPayload(ErrorEventPayload("Unknown command type: ${command.type}", command.correlationId)))
             }
         }
     }
@@ -198,8 +202,23 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
         }
     }
 
-    private fun createErrorEvent(command: CommandDTO, errorStr: String) = EventDTO(command.correlationId, command.competitionId, command.categoryId, command.matId, EventType.ERROR_EVENT, ErrorEventPayload(errorStr, command))
-    private fun createEvent(command: CommandDTO, eventType: EventType, payload: Serializable?) = EventDTO(command.correlationId, command.competitionId, command.categoryId, command.matId, eventType, payload)
+    private fun createErrorEvent(command: CommandDTO, errorStr: String) =
+            EventDTO()
+                    .setCategoryId(command.categoryId)
+                    .setCorrelationId(command.correlationId)
+                    .setCompetitionId(command.competitionId)
+                    .setMatId(command.matId)
+                    .setType(EventType.ERROR_EVENT)
+                    .setPayload(ErrorEventPayload(errorStr, command.correlationId))
+
+    private fun createEvent(command: CommandDTO, eventType: EventType, payload: Serializable?) =
+            EventDTO()
+                    .setCategoryId(command.categoryId)
+                    .setCorrelationId(command.correlationId)
+                    .setCompetitionId(command.competitionId)
+                    .setMatId(command.matId)
+                    .setType(eventType)
+                    .setPayload(payload)
 
     private fun applyFighStartTimeUpdatedEvent(event: EventDTO): List<EventDTO> {
         val payload = getPayloadAs(event.payload, FightStartTimeUpdatedPayload::class.java)
@@ -243,7 +262,7 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
 //                    ?: emptyMap()))
             listOf(createEvent(command, EventType.COMPETITOR_ADDED, CompetitorAddedPayload(competitor)))
         } else {
-            listOf(createEvent(command, EventType.ERROR_EVENT, ErrorEventPayload("Failed to get competitor from payload. Or competitor already exists", command)))
+            listOf(createEvent(command, EventType.ERROR_EVENT, ErrorEventPayload("Failed to get competitor from payload. Or competitor already exists", command.correlationId)))
         }
     }
 
@@ -254,7 +273,7 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
 //            categoryState.removeCompetitor(competitorId!!) to listOf(createEvent(command, EventType.COMPETITOR_REMOVED, command.payload
 //                    ?: emptyMap()))
         } else {
-            listOf(createEvent(command, EventType.ERROR_EVENT, ErrorEventPayload("Failed to get competitor id from payload.", command)))
+            listOf(createEvent(command, EventType.ERROR_EVENT, ErrorEventPayload("Failed to get competitor id from payload.", command.correlationId)))
         }
     }
 
@@ -265,7 +284,7 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
             val state = CategoryStateDTO(command.categoryId, competition.id, c, CategoryStatus.INITIALIZED, null, emptyArray())
             listOf(createEvent(command, EventType.CATEGORY_ADDED, CategoryAddedPayload(state)))
         } else {
-            listOf(createEvent(command, EventType.ERROR_EVENT, ErrorEventPayload("Failed to get category from command payload", command)))
+            listOf(createEvent(command, EventType.ERROR_EVENT, ErrorEventPayload("Failed to get category from command payload", command.correlationId)))
         }
     }
 

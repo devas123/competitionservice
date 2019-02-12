@@ -21,8 +21,7 @@ import java.time.Duration
 import java.util.*
 
 @Component
-class CompetitionStateResolver(private val queryServiceClient: QueryServiceClient,
-                               private val kafkaProperties: KafkaProperties,
+class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                                private val competitionStateService: CompetitionStateService,
                                private val competitionStateCrudRepository: CompetitionStateCrudRepository,
                                private val clusterSesion: ClusterSession,
@@ -37,7 +36,7 @@ class CompetitionStateResolver(private val queryServiceClient: QueryServiceClien
 
     fun resolveLatestCompetitionState(competitionId: String, globalStoreSnapshotSupplier: (competitionId: String) -> CompetitionStateSnapshot?) {
         if (!clusterSesion.isProcessedLocally(competitionId)) {
-            val stateSnapshot = globalStoreSnapshotSupplier(competitionId) ?: queryServiceClient.getCompetitionStateSnapshot(competitionId)
+            val stateSnapshot = globalStoreSnapshotSupplier(competitionId)
             if (stateSnapshot != null) {
                 val consumer = KafkaConsumer<String, EventDTO>(consumerProperties())
                 clusterSesion.broadcastCompetitionProcessingInfo(setOf(competitionId))

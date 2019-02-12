@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.model.dto.competition.CompetitionStateSnapshot
 import compman.compsrv.model.events.EventDTO
+import compman.compsrv.model.events.EventType
 import compman.compsrv.repository.CommandCrudRepository
 import compman.compsrv.repository.EventCrudRepository
 import org.apache.kafka.streams.processor.Processor
@@ -18,7 +19,7 @@ class StateSnapshotForwardingProcessor(private val stateSnapshotStoreName: Strin
     private lateinit var stateStore: KeyValueStore<String, CompetitionStateSnapshot>
 
     override fun process(key: String?, value: EventDTO?) {
-        if (key != null && value?.payload != null) {
+        if (key != null && value?.payload != null && value.type == EventType.INTERNAL_STATE_SNAPSHOT_CREATED) {
             val newCompetitionStateSnapshot = CompetitionStateSnapshot(value.competitionId, clusterSession.localMemberId(), context.partition(), context.offset(),
                     eventCrudRepository.findByCompetitionId(value.competitionId).map { it.map { onlyId -> onlyId.getId() }.toSet() }.orElse(emptySet()),
                     commandCrudRepository.findByCompetitionId(value.competitionId).map { it.map { onlyId -> onlyId.getId() }.toSet() }.orElse(emptySet()),
