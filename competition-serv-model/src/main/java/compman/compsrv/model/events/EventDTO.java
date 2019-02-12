@@ -2,30 +2,33 @@ package compman.compsrv.model.events;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.Accessors;
 
 import java.io.Serializable;
 import java.util.Map;
 
 @Data
 @AllArgsConstructor
-@RequiredArgsConstructor
+@NoArgsConstructor
+@Accessors(chain = true)
 public class EventDTO {
     private final long timestamp = System.currentTimeMillis();
 
     private String id = null;
 
-    private final String correlationId;
+    private String correlationId;
 
-    private final String competitionId;
+    private String competitionId;
 
-    private final String categoryId;
+    private String categoryId;
 
-    private final String matId;
+    private String matId;
 
-    private final EventType type;
+    private EventType type;
 
-    private final Serializable payload;
+    private Serializable payload;
 
     private Map<String, String> metadata;
 }
