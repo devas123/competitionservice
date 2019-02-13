@@ -28,7 +28,7 @@ public class EventDTO {
 
     private EventType type;
 
-    private Serializable payload;
+    private String payload;
 
     private Map<String, String> metadata;
 }

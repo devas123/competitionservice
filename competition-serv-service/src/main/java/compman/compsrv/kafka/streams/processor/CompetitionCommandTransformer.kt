@@ -17,7 +17,7 @@ class CompetitionCommandTransformer(competitionStateService: CompetitionStateSer
                                     private val competitionStateResolver: CompetitionStateResolver,
                                     private val mapper: ObjectMapper,
                                     private val snapshotStoreName: String)
-    : AbstractCommandTransformer(competitionStateService) {
+    : AbstractCommandTransformer(competitionStateService, mapper) {
 
     private lateinit var snapshotStore: KeyValueStore<String, CompetitionStateSnapshot>
 

@@ -30,7 +30,7 @@ Command(@Id
         val executed: Boolean = false) {
 
     companion object {
-        fun fromDTO(dto: CommandDTO) = Command(dto.id, dto.correlationId, dto.competitionId, dto.type, dto.categoryId, dto.matId, dto.payload, MetadataEntry.fromMap(dto.metadata), dto.executed)
+        fun fromDTO(dto: CommandDTO) = Command(dto.id ?: dto.correlationId, dto.correlationId, dto.competitionId, dto.type, dto.categoryId, dto.matId, dto.payload, MetadataEntry.fromMap(dto.metadata), dto.executed)
     }
 
     @Column
