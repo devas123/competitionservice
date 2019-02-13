@@ -21,7 +21,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
-import java.io.Serializable
 import java.math.BigDecimal
 
 @Component
@@ -65,7 +64,7 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                         .setCompetitionId(event.competitionId)
                         .setMatId(event.matId)
                         .setType(EventType.ERROR_EVENT)
-                        .setPayload(ErrorEventPayload(error, null))
+                        .setPayload(mapper.writeValueAsString(ErrorEventPayload(error, null)))
         return try {
             val ns = when (event.type) {
                 EventType.COMPETITION_DELETED -> {
@@ -132,14 +131,14 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
 
     override fun process(command: CommandDTO): List<EventDTO> {
         fun executeCommand(command: CommandDTO): EventDTO {
-            fun createEvent(type: EventType, payload: Serializable?) =
+            fun createEvent(type: EventType, payload: Any?) =
                     EventDTO()
                             .setCategoryId(command.categoryId)
                             .setCorrelationId(command.correlationId)
                             .setCompetitionId(command.competitionId)
                             .setMatId(command.matId)
                             .setType(type)
-                            .setPayload(payload)
+                            .setPayload(mapper.writeValueAsString(payload))
 
             fun createErrorEvent(error: String) = EventDTO()
                     .setCategoryId(command.categoryId)
@@ -147,7 +146,7 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                     .setCompetitionId(command.competitionId)
                     .setMatId(command.matId)
                     .setType(EventType.ERROR_EVENT)
-                    .setPayload(ErrorEventPayload(error, command.correlationId))
+                    .setPayload(mapper.writeValueAsString(ErrorEventPayload(error, command.correlationId)))
 
             return when (command.type) {
                 CommandType.CREATE_COMPETITION_COMMAND -> {

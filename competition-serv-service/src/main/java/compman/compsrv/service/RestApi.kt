@@ -35,7 +35,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
         return try {
             log.info("Received a command: $command for competitionId: $competitionId")
             val correlationId = UUID.randomUUID().toString()
-            producer.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId, command))
+            producer.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId, command.setCorrelationId(correlationId)))
             CommonResponse(0, "", correlationId.toByteArray())
         } catch (e: Exception) {
             CommonResponse(500, "Exception: ${e.message}", null)

@@ -1,5 +1,6 @@
 package compman.compsrv.kafka.streams.processor
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
@@ -13,7 +14,8 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 abstract class AbstractCommandTransformer(
-        private val commandProcessingService: ICommandProcessingService<CommandDTO, EventDTO>) : ValueTransformerWithKey<String, CommandDTO, List<EventDTO>> {
+        private val commandProcessingService: ICommandProcessingService<CommandDTO, EventDTO>,
+        private val mapper: ObjectMapper) : ValueTransformerWithKey<String, CommandDTO, List<EventDTO>> {
 
 
     private val log = LoggerFactory.getLogger(this.javaClass)
@@ -48,7 +50,7 @@ abstract class AbstractCommandTransformer(
                                 .setCompetitionId(command.competitionId)
                                 .setMatId(command.matId)
                                 .setType(EventType.INTERNAL_STATE_SNAPSHOT_CREATED)
-                                .setPayload(newState))
+                                .setPayload(mapper.writeValueAsString(newState)))
                     }.orElse(eventsToSend)
                 } else {
                     eventsToSend
@@ -61,7 +63,7 @@ abstract class AbstractCommandTransformer(
                         .setCompetitionId(command.competitionId)
                         .setMatId(command.matId)
                         .setType(EventType.ERROR_EVENT)
-                        .setPayload(ErrorEventPayload(validationErrors.joinToString(separator = ","), command.correlationId)))
+                        .setPayload(mapper.writeValueAsString(ErrorEventPayload(validationErrors.joinToString(separator = ","), command.correlationId))))
             }
         } catch (e: Throwable) {
             log.error("Exception: ", e)
@@ -71,7 +73,7 @@ abstract class AbstractCommandTransformer(
                     .setCompetitionId(command.competitionId)
                     .setMatId(command.matId)
                     .setType(EventType.ERROR_EVENT)
-                    .setPayload(ErrorEventPayload(e.localizedMessage, command.correlationId)))
+                    .setPayload(mapper.writeValueAsString(ErrorEventPayload(e.localizedMessage, command.correlationId))))
         }
     }
 
