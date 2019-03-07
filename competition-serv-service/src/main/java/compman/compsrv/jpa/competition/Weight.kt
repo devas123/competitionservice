@@ -1,16 +1,16 @@
 package compman.compsrv.jpa.competition
 
+import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.model.dto.competition.WeightDTO
 import java.math.BigDecimal
 import javax.persistence.Entity
-import javax.persistence.Id
 
 @Entity
-data class Weight(@Id val id: String,
-                  val maxValue: BigDecimal?,
-                  val minValue: BigDecimal?) {
+class Weight(id: String,
+             var maxValue: BigDecimal?,
+             var minValue: BigDecimal?) : AbstractJpaPersistable<String>(id) {
     fun toDTO(): WeightDTO? {
-        return WeightDTO(id, maxValue ?: BigDecimal.valueOf(200), minValue)
+        return WeightDTO(id!!, maxValue ?: BigDecimal.valueOf(200), minValue)
     }
 
     constructor(id: String, maxvalue: BigDecimal) : this(id, maxvalue, BigDecimal.ZERO)

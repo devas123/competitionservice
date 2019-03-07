@@ -6,7 +6,6 @@ import java.math.BigDecimal;
 
 @Data
 @AllArgsConstructor
-@Builder
 @RequiredArgsConstructor
 public class WeightDTO {
     public static final String ROOSTER = "Rooster";

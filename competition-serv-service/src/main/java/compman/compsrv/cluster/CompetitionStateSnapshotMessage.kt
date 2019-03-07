@@ -1,4 +1,4 @@
-package compman.compsrv.jpa.cluster
+package compman.compsrv.cluster
 
 import compman.compsrv.model.dto.competition.CompetitionStateSnapshot
 import io.scalecube.cluster.Member

@@ -1,15 +1,17 @@
 package compman.compsrv.jpa.competition
 
-import javax.persistence.Id
+import compman.compsrv.jpa.AbstractJpaPersistable
+import java.util.*
+import javax.persistence.ElementCollection
+import javax.persistence.Entity
 
 
-data class Academy(val name: String,
-                   private val coaches: List<String>?,
-                   val created: Long?) {
-    constructor(name: String, coaches: List<String>) : this(name, coaches, System.currentTimeMillis())
-
-    @Id
-    val id: String = name.toLowerCase().replace(" ", "")
-
-    fun addCoach(coach: String) = copy(coaches = if (coaches == null) listOf(coach) else coaches + coach)
+@Entity
+class Academy(
+        id: String = UUID.randomUUID().toString(),
+        var name: String,
+        @ElementCollection
+        var coaches: List<String>?,
+        var created: Long?) : AbstractJpaPersistable<String>(id) {
+    constructor(name: String, coaches: List<String>) : this(name = name, coaches = coaches, created = System.currentTimeMillis())
 }

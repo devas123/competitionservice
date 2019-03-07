@@ -1,22 +1,22 @@
 package compman.compsrv.jpa.schedule
 
+import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.jpa.competition.CategoryDescriptor
 import compman.compsrv.model.dto.schedule.PeriodPropertiesDTO
 import compman.compsrv.model.dto.schedule.SchedulePropertiesDTO
 import java.math.BigDecimal
 import java.time.ZonedDateTime
-import java.util.*
 import javax.persistence.*
 
 @Entity
-data class PeriodProperties(@Id val id: String,
-                            val startTime: ZonedDateTime,
-                            val numberOfMats: Int,
-                            val timeBetweenFights: Int,
-                            val riskPercent: BigDecimal,
-                            @OneToMany(orphanRemoval = true, fetch = FetchType.LAZY)
-                            @JoinColumn(name = "PERIOD_ID", nullable = true)
-                            val categories: List<CategoryDescriptor>) {
+class PeriodProperties(id: String,
+                       var startTime: ZonedDateTime,
+                       var numberOfMats: Int,
+                       var timeBetweenFights: Int,
+                       var riskPercent: BigDecimal,
+                       @OneToMany(orphanRemoval = true, fetch = FetchType.LAZY)
+                       @JoinColumn(name = "PERIOD_ID", nullable = true)
+                       var categories: List<CategoryDescriptor>) : AbstractJpaPersistable<String>(id) {
     fun toDTO(): PeriodPropertiesDTO {
         return PeriodPropertiesDTO()
                 .setId(id)
@@ -34,13 +34,13 @@ data class PeriodProperties(@Id val id: String,
 
 @Embeddable
 @Access(AccessType.FIELD)
-data class ScheduleProperties(val competitionId: String,
-                              @OneToMany(orphanRemoval = true)
-                              @JoinColumn(name = "SCHED_ID")
-                              val periodPropertiesList: List<PeriodProperties>) {
+class ScheduleProperties(var id: String,
+                         @OneToMany(orphanRemoval = true)
+                         @JoinColumn(name = "SCHED_ID")
+                         var periodPropertiesList: List<PeriodProperties>) {
     fun toDTO(): SchedulePropertiesDTO? {
         return SchedulePropertiesDTO()
-                .setCompetitionId(competitionId)
+                .setCompetitionId(id)
                 .setPeriodPropertiesList(periodPropertiesList.map { it.toDTO() }.toTypedArray())
     }
 

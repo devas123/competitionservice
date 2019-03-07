@@ -1,5 +1,6 @@
 package compman.compsrv.jpa.competition
 
+import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.competition.FightStage
 import java.io.Serializable
@@ -9,33 +10,31 @@ import java.time.ZonedDateTime
 import javax.persistence.*
 
 @Entity
-data class FightDescription(
-        @Id
-        val id: String,
-        val categoryId: String,
-        val winFight: String?,
-        val loseFight: String?,
-        @OrderColumn(name = "competitor")
-        @ElementCollection
-        @CollectionTable(
-                name = "comp_score",
-                joinColumns = [JoinColumn(name = "fight_id")]
-        )
-        val scores: Array<CompScore>,
-        val parentId1: String?,
-        val parentId2: String?,
-        val duration: Long?,
-        val round: Int?,
-        val stage: FightStage?,
-        @Embedded
-        val fightResult: FightResult?,
-        val matId: String?,
-        val numberOnMat: Int?,
-        val priority: Int,
-        val competitionId: String,
-        val period: String,
-        val startTime: ZonedDateTime?,
-        val numberInRound: Int): Serializable {
+class FightDescription(id: String,
+                       var categoryId: String,
+                       var winFight: String?,
+                       var loseFight: String?,
+                       @OrderColumn(name = "competitor")
+                       @ElementCollection
+                       @CollectionTable(
+                               name = "comp_score",
+                               joinColumns = [JoinColumn(name = "fight_id")]
+                       )
+                       var scores: Array<CompScore>,
+                       var parentId1: String?,
+                       var parentId2: String?,
+                       var duration: Long?,
+                       var round: Int?,
+                       var stage: FightStage?,
+                       @Embedded
+                       var fightResult: FightResult?,
+                       var matId: String?,
+                       var numberOnMat: Int?,
+                       var priority: Int,
+                       var competitionId: String,
+                       var period: String,
+                       var startTime: ZonedDateTime?,
+                       var numberInRound: Int) : AbstractJpaPersistable<String>(id), Serializable {
 
     companion object {
         fun fromDTO(dto: FightDescriptionDTO) =
@@ -140,9 +139,28 @@ data class FightDescription(
             competitionId = competitionId,
             startTime = ZonedDateTime.ofInstant(Instant.EPOCH, ZoneId.systemDefault()))
 
-    fun setStartTime(startTime: ZonedDateTime) = copy(startTime = startTime)
-    fun setMat(mat: String?) = copy(matId = mat)
-    fun setNumberOnMat(numberOnMat: Int?) = copy(numberOnMat = numberOnMat)
+
+    fun copy(id: String = this.id!!,
+             categoryId: String = this.categoryId,
+             winFight: String? = this.winFight,
+             loseFight: String? = this.loseFight,
+             scores: Array<CompScore> = this.scores,
+             parentId1: String? = this.parentId1,
+             parentId2: String? = this.parentId2,
+             duration: Long? = this.duration,
+             round: Int? = this.round,
+             stage: FightStage? = this.stage,
+             fightResult: FightResult? = this.fightResult,
+             matId: String? = this.matId,
+             numberOnMat: Int? = this.numberOnMat,
+             priority: Int = this.priority,
+             competitionId: String = this.competitionId,
+             period: String = this.period,
+             startTime: ZonedDateTime? = this.startTime,
+             numberInRound: Int = this.numberInRound): FightDescription = FightDescription(id,
+            categoryId, winFight, loseFight, scores, parentId1, parentId2,
+            duration, round, stage, fightResult, matId, numberOnMat,
+            priority, competitionId, period, startTime, numberInRound)
 
     private fun canModifyFight() =
             stage == FightStage.PENDING && scores.all { it.score.isEmpty() }
@@ -156,21 +174,20 @@ data class FightDescription(
             return this
         }
         val needToShift = scores.size == 2
-        return if (index == 0) {
-            if (needToShift) {
-                copy(scores = arrayOf(CompScore(competitor, Score()), scores[1]))
+        if (index == 0) {
+            scores = if (needToShift) {
+                arrayOf(CompScore(competitor, Score()), scores[1])
             } else {
-                copy(scores = arrayOf(CompScore(competitor, Score()), scores[0]))
+                arrayOf(CompScore(competitor, Score()), scores[0])
             }
         } else if (index == 1) {
-            if (needToShift) {
-                copy(scores = arrayOf(scores[0], CompScore(competitor, Score())))
+            scores = if (needToShift) {
+                arrayOf(scores[0], CompScore(competitor, Score()))
             } else {
-                copy(scores = scores + CompScore(competitor, Score()))
+                arrayOf(CompScore(competitor, Score()))
             }
-        } else {
-            this
         }
+        return this
     }
 
     fun pushCompetitor(competitor: Competitor): FightDescription {
@@ -178,13 +195,17 @@ data class FightDescription(
             return this
         }
         if (scores.size < 2) {
-            return copy(scores = scores + CompScore(competitor, Score()))
+            scores += CompScore(competitor, Score())
         } else {
             throw RuntimeException("Fight is already packed. Cannot add competitors")
         }
+        return this
     }
 
-    fun setDuration(duration: Long) = copy(duration = duration)
+    fun setDuration(duration: Long): FightDescription {
+        this.duration = duration
+        return this
+    }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

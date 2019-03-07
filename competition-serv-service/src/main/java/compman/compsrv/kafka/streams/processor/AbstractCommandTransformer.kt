@@ -66,7 +66,7 @@ abstract class AbstractCommandTransformer(
                         .setPayload(mapper.writeValueAsString(ErrorEventPayload(validationErrors.joinToString(separator = ","), command.correlationId))))
             }
         } catch (e: Throwable) {
-            log.error("Exception: ", e)
+            log.error("Exception while processing command: ", e)
             listOf(EventDTO()
                     .setCategoryId(command.categoryId)
                     .setCorrelationId(command.correlationId)

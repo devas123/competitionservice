@@ -29,7 +29,7 @@ class ClusterConfiguration {
 
     @Bean(destroyMethod = "shutdown")
     fun cluster(clusterConfigurationProperties: ClusterConfigurationProperties, serverProperties: ServerProperties): Cluster {
-        val memberHost = if (clusterConfigurationProperties.advertisedHost?.isBlank() != false || clusterConfigurationProperties.advertisedHost == "localhost") {
+        val memberHost = if (clusterConfigurationProperties.advertisedHost?.isBlank() != false) {
             ClusterConfig.DEFAULT_MEMBER_HOST
         } else {
             clusterConfigurationProperties.advertisedHost
@@ -52,16 +52,17 @@ class ClusterConfiguration {
         return cluster
     }
 
-    @Bean(initMethod = "init")
+    @Bean(initMethod = "init", destroyMethod = "stop")
     @DependsOn("cluster")
     fun clusterSession(clusterConfigurationProperties: ClusterConfigurationProperties,
                        cluster: Cluster,
                        adminClient: KafkaAdminUtils,
                        kafkaProperties: KafkaProperties,
-                       serverProperties: ServerProperties) =
+                       serverProperties: ServerProperties,
+                       competitionStateRepository: CompetitionStateRepository) =
             ClusterSession(clusterConfigurationProperties,
                     cluster,
-                    adminClient, kafkaProperties, serverProperties)
+                    adminClient, kafkaProperties, serverProperties, competitionStateRepository)
 
     @Bean
     fun stateQueryService(restTemplate: RestTemplate,
@@ -71,9 +72,10 @@ class ClusterConfiguration {
                           scheduleCrudRepository: ScheduleCrudRepository,
                           competitorCrudRepository: CompetitorCrudRepository,
                           bracketsCrudRepository: BracketsCrudRepository,
-                          dashboardStateCrudRepository: DashboardStateCrudRepository) =
+                          dashboardStateCrudRepository: DashboardStateCrudRepository,
+                          competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository) =
             StateQueryService(clusterSession, restTemplate,
-                    competitionStateCrudRepository, scheduleCrudRepository,
+                    competitionStateCrudRepository, competitionPropertiesCrudRepository, scheduleCrudRepository,
                     categoryStateCrudRepository, competitorCrudRepository,
                     dashboardStateCrudRepository,
                     bracketsCrudRepository)

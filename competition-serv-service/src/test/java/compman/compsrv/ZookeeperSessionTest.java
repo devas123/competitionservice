@@ -50,7 +50,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.util.SocketUtils;
 import org.springframework.web.client.RestTemplate;
 
-import javax.validation.constraints.NotNull;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -134,7 +133,6 @@ public final class ZookeeperSessionTest {
 
     private static final Logger log = LoggerFactory.getLogger(ZookeeperSessionTest.class);
 
-    @NotNull
     public final TemporaryFolder getTemp() {
         return temp;
     }

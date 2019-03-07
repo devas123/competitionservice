@@ -9,12 +9,12 @@ import javax.persistence.Embeddable
 
 @Embeddable
 @Access(AccessType.FIELD)
-data class ScheduleEntry(
+class ScheduleEntry(
         @Column(name = "CATEGORY_ID", columnDefinition = "varchar(255) REFERENCES category_descriptor (id)")
-        val categoryId: String,
-        val startTime: String,
-        val numberOfFights: Int,
-        val fightDuration: BigDecimal) {
+        var categoryId: String,
+        var startTime: String,
+        var numberOfFights: Int,
+        var fightDuration: BigDecimal) {
     fun toDTO(): ScheduleEntryDTO {
         return ScheduleEntryDTO()
                 .setCategoryId(categoryId)

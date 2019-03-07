@@ -1,5 +1,6 @@
 package compman.compsrv.jpa.schedule
 
+import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.jpa.competition.Competitor
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.model.dto.schedule.ScheduleDTO
@@ -8,12 +9,15 @@ import java.math.RoundingMode
 import javax.persistence.*
 
 @Entity
-data class Schedule(@Id val id: String,
-                    @Embedded
-                    val scheduleProperties: ScheduleProperties?,
-                    @OneToMany(orphanRemoval = true)
-                    @JoinColumn(name = "SCHED_ID")
-                    val periods: List<Period>?) {
+class Schedule(id: String,
+               @Embedded
+               @AttributeOverrides(
+                       AttributeOverride(name = "id", column = Column(name = "properties_id"))
+               )
+               var scheduleProperties: ScheduleProperties?,
+               @OneToMany(orphanRemoval = true)
+               @JoinColumn(name = "SCHED_ID")
+               var periods: List<Period>?) : AbstractJpaPersistable<String>(id) {
     fun toDTO(): ScheduleDTO? {
         return ScheduleDTO()
                 .setId(id)
@@ -45,7 +49,8 @@ data class Schedule(@Id val id: String,
 
         fun getDuration(period: Period): BigDecimal? {
             val startTime = period.startTime.toInstant().toEpochMilli()
-            val endTime = period.fightsByMats?.map { it.currentTime }?.sortedBy { it.toInstant().toEpochMilli() }?.lastOrNull()?.toInstant()?.toEpochMilli() ?: startTime
+            val endTime = period.fightsByMats?.map { it.currentTime }?.sortedBy { it.toInstant().toEpochMilli() }?.lastOrNull()?.toInstant()?.toEpochMilli()
+                    ?: startTime
             val durationMillis = endTime - startTime
             if (durationMillis > 0) {
                 return BigDecimal.valueOf(durationMillis).divide(BigDecimal(1000 * 60 * 60), 2, RoundingMode.HALF_UP)

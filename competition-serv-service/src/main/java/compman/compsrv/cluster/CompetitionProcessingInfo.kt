@@ -1,4 +1,4 @@
-package compman.compsrv.jpa.cluster
+package compman.compsrv.cluster
 
 import io.scalecube.cluster.Member
 

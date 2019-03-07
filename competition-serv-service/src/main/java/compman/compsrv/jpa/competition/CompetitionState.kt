@@ -1,38 +1,41 @@
 package compman.compsrv.jpa.competition
 
+import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.jpa.schedule.Schedule
+import compman.compsrv.jpa.schedule.ScheduleProperties
 import compman.compsrv.model.dto.competition.CompetitionStateDTO
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import java.io.Serializable
 import javax.persistence.*
 
-@Entity
+@Entity(name = "competition_state")
 @Table(name = "competition_state")
-data class CompetitionState constructor(
-        @Id val competitionId: String,
-        @OneToMany(orphanRemoval = true)
-        @JoinColumn(name = "category_id")
-        val categories: List<CategoryState>,
-        @OneToOne
-        @MapsId
-        val properties: CompetitionProperties,
-        @OneToOne
-        @MapsId
-        val schedule: Schedule?,
-        @OneToOne
-        @MapsId
-        val dashboardState: CompetitionDashboardState,
-        val status: CompetitionStatus) : Serializable {
+class CompetitionState(id: String,
+                       @OneToMany(orphanRemoval = true, fetch = FetchType.LAZY)
+                       @JoinColumn(name = "category_id")
+                       var categories: List<CategoryState>,
+                       @OneToOne(fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
+                       @PrimaryKeyJoinColumn
+                       var properties: CompetitionProperties? = null,
+                       @OneToOne(fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
+                       @PrimaryKeyJoinColumn
+                       var schedule: Schedule? = null,
+                       @OneToOne(fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
+                       @PrimaryKeyJoinColumn
+                       var dashboardState: CompetitionDashboardState? = null,
+                       var status: CompetitionStatus) : AbstractJpaPersistable<String>(id), Serializable {
 
     companion object {
         fun fromDTO(dto: CompetitionStateDTO): CompetitionState {
             val properties = CompetitionProperties.fromDTO(dto.properties)
             return CompetitionState(
-                    competitionId = dto.competitionId,
+                    id = dto.competitionId,
                     categories = dto.categories.map { CategoryState.fromDTO(it, properties) },
                     properties = properties,
-                    schedule = dto.schedule?.let { Schedule.fromDTO(it) },
-                    dashboardState = CompetitionDashboardState.fromDTO(dto.dashboardState),
+                    schedule = dto.schedule?.let { Schedule.fromDTO(it) }
+                            ?: Schedule(dto.competitionId, ScheduleProperties(dto.competitionId, emptyList()), emptyList()),
+                    dashboardState = dto.dashboardState?.let { CompetitionDashboardState.fromDTO(it) }
+                            ?: CompetitionDashboardState(dto.competitionId, emptySet()),
                     status = dto.status
             )
         }
@@ -43,14 +46,25 @@ data class CompetitionState constructor(
         private set
 
     constructor(competitionId: String, properties: CompetitionProperties) : this(
-            competitionId = competitionId,
+            id = competitionId,
             properties = properties,
             categories = emptyList(),
-            schedule = null,
+            schedule = Schedule(competitionId, ScheduleProperties(competitionId, emptyList()), emptyList()),
             dashboardState = CompetitionDashboardState(competitionId, emptySet()),
             status = CompetitionStatus.CREATED)
 
 
-    fun withStatus(status: CompetitionStatus) = copy(status = status)
+    fun withStatus(status: CompetitionStatus): CompetitionState {
+        this.status = status
+        return this
+    }
+
+    fun toDTO() = CompetitionStateDTO()
+            .setCategories(categories.map { it.toDTO() }.toTypedArray())
+            .setCompetitionId(id)
+            .setDashboardState(dashboardState?.toDTO())
+            .setProperties(properties?.toDTO())
+            .setSchedule(schedule?.toDTO())
+            .setStatus(status)
 
 }

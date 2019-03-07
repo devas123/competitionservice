@@ -46,7 +46,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                         surnames[random.nextInt(surnames.size)],
                         Date(),
                         Academy("Academy${random.nextInt(academies)}", emptyList()).id,
-                        category.id,
+                        category.id!!,
                         competitionId,
                         RegistrationStatus.UNKNOWN,
                         null))
@@ -151,7 +151,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
             }
             var fight = FightDescription(
                     fightId = createFightId(competitionId, categoryId, round, index),
-                    categoryId = categoryId!!,
+                    categoryId = categoryId,
                     round = round,
                     numberInRound = index,
                     winFight = createFightId(competitionId, categoryId, round + 1, nextFightNumber),

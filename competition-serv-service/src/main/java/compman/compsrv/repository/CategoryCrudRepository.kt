@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository
 import javax.transaction.Transactional
 
 @Repository
-@Transactional(Transactional.TxType.MANDATORY)
+@Transactional(Transactional.TxType.SUPPORTS)
 interface CategoryCrudRepository : JpaRepository<CategoryState, String> {
     fun findByCompetitionIdAndCategoryId(competitionId: String, categoryId: String): CategoryState?
 
