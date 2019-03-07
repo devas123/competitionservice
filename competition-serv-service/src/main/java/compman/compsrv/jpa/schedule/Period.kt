@@ -1,27 +1,28 @@
 package compman.compsrv.jpa.schedule
 
+import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.jpa.competition.CategoryDescriptor
 import compman.compsrv.model.dto.schedule.PeriodDTO
 import java.time.ZonedDateTime
 import javax.persistence.*
 
 @Entity
-data class Period(@Id val id: String,
-                  val name: String,
-                  @ElementCollection
-                  @CollectionTable(
-                          name = "SCHEDULE_ENTRIES",
-                          joinColumns = [JoinColumn(name = "PERIOD_ID")]
-                  )
-                  val schedule: List<ScheduleEntry>,
-                  @OneToMany(orphanRemoval = true)
-                  @JoinColumn(name="PERIOD_ID", nullable = true)
-                  val categories: List<CategoryDescriptor>,
-                  val startTime: ZonedDateTime,
-                  val numberOfMats: Int,
-                  @OneToMany(orphanRemoval = true)
-                  @JoinColumn(name="PERIOD_ID", nullable = false)
-                  val fightsByMats: List<MatScheduleContainer>?) {
+class Period(id: String,
+             var name: String,
+             @ElementCollection
+             @CollectionTable(
+                     name = "SCHEDULE_ENTRIES",
+                     joinColumns = [JoinColumn(name = "PERIOD_ID")]
+             )
+             var schedule: List<ScheduleEntry>,
+             @OneToMany(orphanRemoval = true)
+             @JoinColumn(name = "PERIOD_ID", nullable = true)
+             var categories: List<CategoryDescriptor>,
+             var startTime: ZonedDateTime,
+             var numberOfMats: Int,
+             @OneToMany(orphanRemoval = true)
+             @JoinColumn(name = "PERIOD_ID", nullable = false)
+             var fightsByMats: List<MatScheduleContainer>?) : AbstractJpaPersistable<String>(id) {
     fun toDTO(): PeriodDTO? {
         return PeriodDTO()
                 .setId(id)

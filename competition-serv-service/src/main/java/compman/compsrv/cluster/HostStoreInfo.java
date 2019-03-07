@@ -1,4 +1,4 @@
-package compman.compsrv.jpa.cluster;
+package compman.compsrv.cluster;
 
 import java.util.Objects;
 import java.util.Set;

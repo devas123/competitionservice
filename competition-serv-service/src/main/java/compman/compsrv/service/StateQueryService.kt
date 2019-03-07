@@ -1,10 +1,7 @@
 package compman.compsrv.service
 
 import compman.compsrv.cluster.ClusterSession
-import compman.compsrv.jpa.competition.CategoryState
-import compman.compsrv.jpa.competition.CompetitionDashboardState
-import compman.compsrv.jpa.competition.CompetitionState
-import compman.compsrv.jpa.competition.Competitor
+import compman.compsrv.jpa.competition.*
 import compman.compsrv.model.dto.competition.CategoryStateDTO
 import compman.compsrv.repository.*
 import io.scalecube.transport.Address
@@ -17,6 +14,7 @@ import org.springframework.web.client.RestTemplate
 class StateQueryService(private val clusterSession: ClusterSession,
                         private val restTemplate: RestTemplate,
                         private val competitionStateCrudRepository: CompetitionStateCrudRepository,
+                        private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
                         private val scheduleCrudRepository: ScheduleCrudRepository,
                         private val categoryCrudRepository: CategoryCrudRepository,
                         private val competitorCrudRepository: CompetitorCrudRepository,
@@ -39,7 +37,20 @@ class StateQueryService(private val clusterSession: ClusterSession,
     fun getCompetitor(competitionId: String, categoryId: String, comptetitorId: String) = competitorCrudRepository.findByUserIdAndCategoryIdAndCompetitionId(comptetitorId, categoryId, competitionId)
 
 
-    fun getCompetitionProperties(competitionId: String?): CompetitionState? = competitionId?.let { competitionStateCrudRepository.findById(it).orElse(null) }
+    fun getCompetitionState(competitionId: String?): CompetitionState? = getLocalOrRemote(competitionId,
+            { competitionId?.let { competitionStateCrudRepository.findById(it).orElse(null) } },
+            {
+                restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/competitionstate?competitionId=$competitionId&internal=true", CompetitionState::class.java)
+            }
+    )
+
+
+    fun getCompetitionProperties(competitionId: String?): CompetitionProperties? = getLocalOrRemote(competitionId,
+            { competitionId?.let { competitionPropertiesCrudRepository.findById(it).orElse(null) } },
+            {
+                restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/comprops?competitionId=$competitionId&internal=true", CompetitionProperties::class.java)
+            }
+    )
 
     private fun <T> getLocalOrRemote(competitionId: String?, ifLocal: () -> T?, ifRemote: (instanceAddress: Address) -> T?): T? {
         return if (competitionId != null) {
@@ -83,8 +94,8 @@ class StateQueryService(private val clusterSession: ClusterSession,
             restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/categories?competitionId=$competitionId&internal=true", Array<CategoryState>::class.java)
         }) ?: emptyArray()
         return categories
-                .filter { !it.id.isBlank() }
-                .mapNotNull { getCategoryState(competitionId, it.id) }
+                .filter { !it.id.isNullOrBlank() }
+                .mapNotNull { getCategoryState(competitionId, it.id!!) }
                 .map { it.toDTO() }.toTypedArray()
     }
 

@@ -1,5 +1,6 @@
 package compman.compsrv.jpa.schedule
 
+import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.model.dto.schedule.FightStartTimePairDTO
 import compman.compsrv.model.dto.schedule.MatScheduleContainerDTO
@@ -11,7 +12,7 @@ import javax.persistence.*
 
 @Embeddable
 @Access(AccessType.FIELD)
-data class FightStartTimePair(
+class FightStartTimePair(
         @ManyToOne(optional = false)
         @JoinColumn(name = "FIGHT_ID")
         @OnDelete(action = OnDeleteAction.CASCADE)
@@ -40,7 +41,7 @@ class MatScheduleContainer(
         @Transient
         var currentTime: ZonedDateTime,
         var currentFightNumber: Int,
-        @Id val id: String,
+        id: String,
         @ElementCollection
         @CollectionTable(
                 name = "FIGHT_START_TIMES",
@@ -48,7 +49,7 @@ class MatScheduleContainer(
         )
         var fights: List<FightStartTimePair>,
         @Transient
-        val pending: ArrayList<FightDescription>) : Serializable {
+        var pending: ArrayList<FightDescription>) : AbstractJpaPersistable<String>(id), Serializable {
     fun toDTO(): MatScheduleContainerDTO {
         return MatScheduleContainerDTO()
                 .setCurrentFightNumber(currentFightNumber)

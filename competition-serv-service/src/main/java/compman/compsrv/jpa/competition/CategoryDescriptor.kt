@@ -1,29 +1,26 @@
 package compman.compsrv.jpa.competition
 
+import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
 import java.math.BigDecimal
-import javax.persistence.*
+import javax.persistence.Entity
+import javax.persistence.JoinColumn
+import javax.persistence.ManyToOne
 
 
-@Entity
-@Table(name = "category_descriptor")
-data class CategoryDescriptor(
-        val sportsType: String,
+@Entity(name = "category_descriptor")
+class CategoryDescriptor(
+        var sportsType: String,
         @ManyToOne
         @JoinColumn(name = "age_id")
-        val ageDivision: AgeDivision,
-        val gender: String,
+        var ageDivision: AgeDivision,
+        var gender: String,
         @ManyToOne
         @JoinColumn(name = "weight_id")
-        val weight: Weight,
-        val beltType: String,
-        @Id
-        val id: String,
-        val fightDuration: BigDecimal) {
-    fun setBeltType(beltType: String) = copy(beltType = beltType)
-    fun setFightDuration(fightDuration: BigDecimal) = copy(fightDuration = fightDuration)
-    fun setWeight(weight: Weight): CategoryDescriptor = copy(weight = weight)
-    fun setAgeDivision(ageDivision: AgeDivision) = copy(ageDivision = ageDivision)
+        var weight: Weight,
+        var beltType: String,
+        id: String,
+        var fightDuration: BigDecimal) : AbstractJpaPersistable<String>(id) {
     fun toDTO(): CategoryDescriptorDTO? {
         return CategoryDescriptorDTO(sportsType, ageDivision.toDTO(), gender, weight.toDTO(), beltType, id, fightDuration)
     }
@@ -31,7 +28,7 @@ data class CategoryDescriptor(
     companion object {
         fun fromDTO(dto: CategoryDescriptorDTO): CategoryDescriptor {
             return CategoryDescriptor(
-                    sportsType =  dto.sportsType,
+                    sportsType = dto.sportsType,
                     ageDivision = AgeDivision(dto.ageDivision.id, dto.ageDivision.minimalAge, dto.ageDivision.maximalAge),
                     gender = dto.gender,
                     weight = Weight(dto.weight.id, dto.weight.maxValue, dto.weight.minValue),

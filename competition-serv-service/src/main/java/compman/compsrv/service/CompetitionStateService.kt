@@ -2,6 +2,7 @@ package compman.compsrv.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.jpa.brackets.BracketDescriptor
+import compman.compsrv.jpa.competition.CompetitionProperties
 import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.jpa.es.commands.Command
 import compman.compsrv.jpa.es.events.EventHolder
@@ -48,9 +49,9 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
         return categories.map { it.id to it.fightDuration }.toMap()
     }
 
-    private fun <T> getPayloadAs(payload: Any?, clazz: Class<T>): T? {
+    private fun <T> getPayloadAs(payload: String?, clazz: Class<T>): T? {
         if (payload != null) {
-            return mapper.convertValue(payload, clazz)
+            return mapper.readValue(payload, clazz)
         }
         return null
     }
@@ -74,9 +75,10 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                     }.orElse(emptyList())
                 }
                 EventType.COMPETITION_CREATED -> {
-                    val newstate = getPayloadAs(event.payload, CompetitionState::class.java)
-                    newstate?.let {
-                        competitionStateCrudRepository.save(newstate)
+                    val payload = getPayloadAs(event.payload, CompetitionCreatedPayload::class.java)
+                    payload?.properties?.let { props ->
+                        val state = CompetitionState(props.id, CompetitionProperties.fromDTO(props))
+                        competitionStateCrudRepository.save(state)
                         listOf(event)
                     }
                 }
@@ -101,7 +103,8 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                 EventType.COMPETITION_PROPERTIES_UPDATED -> {
                     val payload = getPayloadAs(event.payload, CompetitionPropertiesUpdatedPayload::class.java)
                     val comp = competitionStateCrudRepository.getOne(event.competitionId)
-                    competitionStateCrudRepository.save(comp.copy(properties = comp.properties.applyProperties(payload?.properties)))
+                    comp.properties = comp.properties?.applyProperties(payload?.properties)
+                    competitionStateCrudRepository.save(comp)
                     listOf(event)
                 }
                 in listOf(EventType.COMPETITION_STARTED, EventType.COMPETITION_STOPPED, EventType.COMPETITION_PUBLISHED, EventType.COMPETITION_UNPUBLISHED) -> {
@@ -125,6 +128,7 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
             }
             ns ?: emptyList()
         } catch (e: Exception) {
+            log.error("Error while applying event.", e)
             listOf(createErrorEvent(e.localizedMessage))
         }
     }
@@ -150,7 +154,7 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
 
             return when (command.type) {
                 CommandType.CREATE_COMPETITION_COMMAND -> {
-                    val payload = getPayloadAs(command.payload, CreateCompetitionPayload::class.java)
+                    val payload = mapper.convertValue(command.payload, CreateCompetitionPayload::class.java)
                     val newProperties = payload?.properties
                     if (newProperties != null) {
                         createEvent(EventType.COMPETITION_CREATED, CompetitionCreatedPayload(newProperties))
@@ -160,7 +164,7 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                 }
                 CommandType.DROP_ALL_BRACKETS_COMMAND -> {
                     val state = competitionStateCrudRepository.getOne(command.competitionId)
-                    if (!state.properties.bracketsPublished) {
+                    if (state.properties?.bracketsPublished != true) {
                         createEvent(EventType.ALL_BRACKETS_DROPPED, command.payload)
                     } else {
                         createErrorEvent("Cannot drop brackets, they are already published.")
@@ -168,7 +172,7 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                 }
                 CommandType.DROP_SCHEDULE_COMMAND -> {
                     val state = competitionStateCrudRepository.getOne(command.competitionId)
-                    if (!state.properties.schedulePublished) {
+                    if (state.properties?.schedulePublished != true) {
                         createEvent(EventType.SCHEDULE_DROPPED, command.payload)
                     } else {
                         createErrorEvent("Cannot drop schedule, it is already published.")

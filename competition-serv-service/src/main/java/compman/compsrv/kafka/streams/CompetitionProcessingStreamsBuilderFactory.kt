@@ -21,6 +21,7 @@ import org.apache.kafka.streams.kstream.Produced
 import org.apache.kafka.streams.kstream.ValueTransformerWithKeySupplier
 import org.apache.kafka.streams.processor.ProcessorSupplier
 import org.apache.kafka.streams.state.Stores
+import java.util.*
 
 
 class CompetitionProcessingStreamsBuilderFactory(
@@ -58,7 +59,14 @@ class CompetitionProcessingStreamsBuilderFactory(
         //Process commands
         allCommands
                 .transformValues(commandTransformer)
-                .flatMapValues { value -> value }
+                .flatMapValues { value ->
+                    value.map {
+                        if (it.id.isNullOrBlank()) {
+                            it.id = UUID.randomUUID().toString()
+                        }
+                        it
+                    }
+                }
                 .filterNot { _, value -> value == null || value.type == EventType.DUMMY }.to({ _, event, _ ->
                     if (event.type == EventType.INTERNAL_STATE_SNAPSHOT_CREATED) {
                         CompetitionServiceTopics.COMPETITION_STATE_SNAPSHOTS_TOPIC_NAME
@@ -71,6 +79,9 @@ class CompetitionProcessingStreamsBuilderFactory(
         allEvents.toStream().foreach { key, event ->
             if (event.type == EventType.COMPETITION_DELETED) {
                 clusterSession.broadcastCompetitionProcessingStopped(setOf(key))
+            }
+            if (event.type == EventType.COMPETITION_CREATED) {
+                clusterSession.broadcastCompetitionProcessingInfo(setOf(key))
             }
         }
         return builder

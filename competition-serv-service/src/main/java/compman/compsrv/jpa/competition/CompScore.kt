@@ -8,7 +8,7 @@ import javax.persistence.*
 
 @Embeddable
 @Access(AccessType.FIELD)
-data class CompScore(
+class CompScore(
         @ManyToOne(optional = false)
         @JoinColumn(name = "compscore_competitor_id", nullable = false, updatable = false)
         @OnDelete(action = OnDeleteAction.CASCADE)

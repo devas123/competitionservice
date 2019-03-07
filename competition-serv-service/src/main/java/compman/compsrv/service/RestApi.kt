@@ -3,6 +3,7 @@ package compman.compsrv.service
 import compman.compsrv.jpa.brackets.BracketDescriptor
 import compman.compsrv.jpa.competition.CategoryState
 import compman.compsrv.jpa.competition.CompetitionDashboardState
+import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.jpa.schedule.Schedule
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
@@ -71,7 +72,9 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     }
 
     @RequestMapping("/store/comprops", method = [RequestMethod.GET])
-    fun getCompetitionProperties(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionProperties(competitionId)
+    fun getCompetitionProperties(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionProperties(competitionId)?.toDTO()
+    @RequestMapping("/store/competitionstate", method = [RequestMethod.GET])
+    fun getCompetitionState(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionState(competitionId)?.toDTO()
 
     @RequestMapping("/store/categories", method = [RequestMethod.GET])
     fun getCategories(@RequestParam("competitionId") competitionId: String) = stateQueryService.getCategories(competitionId)

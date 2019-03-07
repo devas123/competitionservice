@@ -32,7 +32,7 @@ class CompetitionServiceApplication {
         filter.setIncludeQueryString(true)
         filter.setIncludePayload(true)
         filter.setMaxPayloadLength(10000)
-        filter.isIncludeHeaders = true
+        filter.setIncludeHeaders(true)
         filter.setAfterMessagePrefix("REQUEST DATA : ")
         return filter
     }
