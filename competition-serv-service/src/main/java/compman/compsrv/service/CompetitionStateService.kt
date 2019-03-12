@@ -2,15 +2,17 @@ package compman.compsrv.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.jpa.brackets.BracketDescriptor
-import compman.compsrv.jpa.competition.CompetitionProperties
-import compman.compsrv.jpa.competition.CompetitionState
+import compman.compsrv.jpa.competition.*
 import compman.compsrv.jpa.es.commands.Command
 import compman.compsrv.jpa.es.events.EventHolder
 import compman.compsrv.jpa.schedule.Schedule
 import compman.compsrv.jpa.schedule.ScheduleProperties
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
+import compman.compsrv.model.commands.payload.AddRegistrationGroupPayload
+import compman.compsrv.model.commands.payload.AddRegistrationPeriodPayload
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
+import compman.compsrv.model.commands.payload.DeleteRegistrationGroupPayload
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.dto.schedule.SchedulePropertiesDTO
@@ -31,6 +33,9 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                               private val scheduleCrudRepository: ScheduleCrudRepository,
                               private val bracketsCrudRepository: BracketsCrudRepository,
                               private val commandCrudRepository: CommandCrudRepository,
+                              private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
+                              private val registrationPeriodCrudRepository: RegistrationPeriodCrudRepository,
+                              private val registrationInfoCrudRepository: RegistrationInfoCrudRepository,
                               private val mapper: ObjectMapper) : ICommandProcessingService<CommandDTO, EventDTO> {
 
     companion object {
@@ -68,6 +73,35 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                         .setPayload(mapper.writeValueAsString(ErrorEventPayload(error, null)))
         return try {
             val ns = when (event.type) {
+                EventType.REGISTRATION_GROUP_ADDED -> {
+                    val payload = mapper.convertValue(event.payload, RegistrationGroupAddedPayload::class.java)
+                    val period = registrationPeriodCrudRepository.findById(payload.periodId.toLong())
+                    period.map {
+                        try {
+                            it.registrationGroups += RegistrationGroup.fromDTO(payload.group)
+                            registrationPeriodCrudRepository.save(it)
+                            listOf(event)
+                        } catch (e: Throwable) {
+                            log.error("Exception.", e)
+                            listOf(createErrorEvent("Error while applying an event. $e"))
+                        }
+                    }
+                            .get()
+
+                }
+                EventType.REGISTRATION_GROUP_DELETED -> {
+                    val payload = mapper.convertValue(event.payload, RegistrationGroupDeletedPayload::class.java)
+                    registrationGroupCrudRepository.deleteById(payload.groupId.toLong())
+                    listOf(event)
+                }
+                EventType.REGISTRATION_PERIOD_ADDED -> {
+                    listOf(event)
+                }
+                EventType.REGISTRATION_PERIOD_DELETED -> {
+                    val payload = mapper.convertValue(event.payload, Long::class.java)
+                    registrationPeriodCrudRepository.deleteById(payload)
+                    listOf(event)
+                }
                 EventType.COMPETITION_DELETED -> {
                     competitionStateCrudRepository.findById(event.competitionId).map { it.withStatus(CompetitionStatus.DELETED) }.map {
                         competitionStateCrudRepository.save(it)
@@ -153,6 +187,55 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                     .setPayload(mapper.writeValueAsString(ErrorEventPayload(error, command.correlationId)))
 
             return when (command.type) {
+                CommandType.DELETE_REGISTRATION_PERIOD_COMMAND -> {
+                    createEvent(EventType.REGISTRATION_PERIOD_DELETED, command.payload)
+                }
+                CommandType.DELETE_REGISTRATION_GROUP_COMMAND -> {
+                    val payload = mapper.convertValue(command.payload, DeleteRegistrationGroupPayload::class.java)
+                    createEvent(EventType.REGISTRATION_GROUP_DELETED, RegistrationGroupDeletedPayload(payload.periodId, payload.groupId))
+                }
+                CommandType.ADD_REGISTRATION_GROUP_COMMAND -> {
+                    val payload = mapper.convertValue(command.payload, AddRegistrationGroupPayload::class.java)
+                    if (!payload.periodId.isNullOrBlank()) {
+                        val period = registrationPeriodCrudRepository.findById(payload.periodId.toLong())
+                        if (!payload.group.displayName.isNullOrBlank()) {
+                            period.map { p ->
+                                if (!p.registrationGroups.any { it.displayName.equals(payload.group.displayName, ignoreCase = true) }) {
+                                    createEvent(EventType.REGISTRATION_GROUP_ADDED, RegistrationGroupAddedPayload(payload.periodId, payload.group))
+                                } else {
+                                    createErrorEvent("Group with name ${payload.group.displayName} already exists")
+                                }
+                            }.orElse(createErrorEvent("Cannot find period with ID: ${payload.periodId}"))
+                        } else {
+                            createErrorEvent("Group name is not specified.")
+                        }
+                    } else {
+                        createErrorEvent("Period Id is not specified")
+                    }
+                }
+                CommandType.ADD_REGISTRATION_PERIOD_COMMAND -> {
+                    val payload = mapper.convertValue(command.payload, AddRegistrationPeriodPayload::class.java)
+                    if (payload.period != null && !command.competitionId.isNullOrBlank()) {
+                        val regInfo = registrationInfoCrudRepository.findById(command.competitionId)
+                        regInfo.map { info ->
+                            if (info.registrationPeriods.any { it.name.equals(payload.period.name, ignoreCase = true) }) {
+                                createEvent(EventType.REGISTRATION_PERIOD_ADDED, RegistrationPeriodAddedPayload(payload.period))
+                            } else {
+                                createErrorEvent("Period with name ${payload.period.name} already exists.")
+                            }
+                        }.orElseGet {
+                            try {
+                                registrationInfoCrudRepository.save(RegistrationInfo(command.competitionId, false, emptyArray()))
+                                createEvent(EventType.REGISTRATION_PERIOD_ADDED, RegistrationPeriodAddedPayload(payload.period))
+                            } catch (e: Throwable) {
+                                log.error("Exception.", e)
+                                createErrorEvent("Registration info is missing for the competition ${command.competitionId}, exception when adding: $e")
+                            }
+                        }
+                    } else {
+                        createErrorEvent("Period is not specified or competition id is missing.")
+                    }
+                }
                 CommandType.CREATE_COMPETITION_COMMAND -> {
                     val payload = mapper.convertValue(command.payload, CreateCompetitionPayload::class.java)
                     val newProperties = payload?.properties

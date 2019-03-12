@@ -9,15 +9,16 @@ import java.time.ZonedDateTime
 import javax.persistence.*
 
 @Entity
-class RegistrationPeriod(@Id @GeneratedValue(strategy = GenerationType.SEQUENCE) var id: Long,
+class RegistrationPeriod(@Id @GeneratedValue(strategy = GenerationType.SEQUENCE) var id: Long?,
+                         var name: String,
                          var start: ZonedDateTime,
                          var end: ZonedDateTime,
                          @OrderColumn
-                         @OneToMany(cascade = [CascadeType.ALL], orphanRemoval = true)
+                         @OneToMany(cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
                          @JoinColumn(name = "registration_period")
                          var registrationGroups: Array<RegistrationGroup>) {
     companion object {
-        fun fromDTO(dto: RegistrationPeriodDTO) = RegistrationPeriod(dto.id, dto.start, dto.end, dto.registrationGroups.map { RegistrationGroup.fromDTO(it) }.toTypedArray())
+        fun fromDTO(dto: RegistrationPeriodDTO) = RegistrationPeriod(dto.id, dto.name, dto.start, dto.end, dto.registrationGroups.map { RegistrationGroup.fromDTO(it) }.toTypedArray())
     }
 
     override fun equals(other: Any?): Boolean {
@@ -32,15 +33,18 @@ class RegistrationPeriod(@Id @GeneratedValue(strategy = GenerationType.SEQUENCE)
     }
 
     override fun hashCode(): Int = 31
-    fun toDTO() = RegistrationPeriodDTO()
+    fun toDTO(): RegistrationPeriodDTO = RegistrationPeriodDTO()
             .setId(id)
+            .setName(name)
             .setEnd(end)
             .setStart(start)
             .setRegistrationGroups(registrationGroups.map { it.toDTO() }.toTypedArray())
 }
 
 @Entity
-class RegistrationGroup(@Id @GeneratedValue(strategy = GenerationType.SEQUENCE) val id: Long? = null, val displayName: String, val registrationFee: BigDecimal) {
+class RegistrationGroup(@Id @GeneratedValue(strategy = GenerationType.SEQUENCE) val id: Long? = null,
+                        val displayName: String,
+                        val registrationFee: BigDecimal) {
     companion object {
         fun fromDTO(dto: RegistrationGroupDTO) = RegistrationGroup(dto.id, dto.displayName, dto.registrationFee)
     }
@@ -56,7 +60,7 @@ class RegistrationGroup(@Id @GeneratedValue(strategy = GenerationType.SEQUENCE) 
     }
 
     override fun hashCode(): Int = 31
-    fun toDTO() = RegistrationGroupDTO()
+    fun toDTO(): RegistrationGroupDTO = RegistrationGroupDTO()
             .setDisplayName(displayName)
             .setId(id)
             .setRegistrationFee(registrationFee)
@@ -65,15 +69,17 @@ class RegistrationGroup(@Id @GeneratedValue(strategy = GenerationType.SEQUENCE) 
 
 @Entity
 class RegistrationInfo(id: String,
+                       var registrationOpen: Boolean,
                        @OrderColumn
-                       @OneToMany(orphanRemoval = true)
+                       @OneToMany(orphanRemoval = true, fetch = FetchType.LAZY)
                        @JoinColumn(name = "registrationInfoId")
-                       val registrationPeriods: Array<RegistrationPeriod>) : AbstractJpaPersistable<String>(id) {
-    fun toDTO() = RegistrationInfoDTO()
+                       var registrationPeriods: Array<RegistrationPeriod>) : AbstractJpaPersistable<String>(id) {
+    fun toDTO(): RegistrationInfoDTO = RegistrationInfoDTO()
             .setId(id)
+            .setRegistrationOpen(registrationOpen)
             .setRegistrationPeriods(registrationPeriods.map { it.toDTO() }.toTypedArray())
 
     companion object {
-        fun fromDTO(dto: RegistrationInfoDTO) = RegistrationInfo(dto.id, dto.registrationPeriods.map { RegistrationPeriod.fromDTO(it) }.toTypedArray())
+        fun fromDTO(dto: RegistrationInfoDTO) = RegistrationInfo(dto.id, dto.registrationOpen, dto.registrationPeriods.map { RegistrationPeriod.fromDTO(it) }.toTypedArray())
     }
 }

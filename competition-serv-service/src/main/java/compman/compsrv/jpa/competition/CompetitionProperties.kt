@@ -43,7 +43,7 @@ class CompetitionProperties(
                     endDate = dto.endDate,
                     timeZone = dto.timeZone ?: TimeZone.getDefault().id,
                     registrationInfo = dto.registrationInfo?.let { RegistrationInfo.fromDTO(it) }
-                            ?: RegistrationInfo(dto.id, emptyArray()))
+                            ?: RegistrationInfo(dto.id, false, emptyArray()))
         }
     }
 
@@ -60,7 +60,7 @@ class CompetitionProperties(
             bracketsPublished = false,
             endDate = ZonedDateTime.now(),
             timeZone = ZoneId.systemDefault().id,
-            registrationInfo = RegistrationInfo(competitionId, emptyArray())
+            registrationInfo = RegistrationInfo(competitionId, false, emptyArray())
     )
 
     private fun parseDate(date: Any?, default: ZonedDateTime?) = if (date != null && !date.toString().isBlank()) {
@@ -83,7 +83,7 @@ class CompetitionProperties(
         return this
     }
 
-    fun toDTO() = CompetitionPropertiesDTO()
+    fun toDTO(): CompetitionPropertiesDTO = CompetitionPropertiesDTO()
             .setId(id)
             .setBracketsPublished(bracketsPublished)
             .setSchedulePublished(schedulePublished)
