@@ -11,6 +11,7 @@ import java.time.ZonedDateTime;
 @Accessors(chain = true)
 public class RegistrationPeriodDTO {
     private Long id;
+    private String name;
     private ZonedDateTime start;
     private ZonedDateTime end;
     private RegistrationGroupDTO[] registrationGroups;

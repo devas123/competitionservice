@@ -9,5 +9,6 @@ import lombok.experimental.Accessors;
 @Accessors(chain = true)
 public class RegistrationInfoDTO {
     private String id;
+    private Boolean registrationOpen;
     private RegistrationPeriodDTO[] registrationPeriods;
 }
