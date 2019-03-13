@@ -7,7 +7,8 @@ import compman.compsrv.model.dto.schedule.MatScheduleContainerDTO
 import org.hibernate.annotations.OnDelete
 import org.hibernate.annotations.OnDeleteAction
 import java.io.Serializable
-import java.time.ZonedDateTime
+import java.time.Instant
+import java.time.ZoneId
 import javax.persistence.*
 
 @Embeddable
@@ -18,7 +19,7 @@ class FightStartTimePair(
         @OnDelete(action = OnDeleteAction.CASCADE)
         val fight: FightDescription,
         val fightNumber: Int,
-        val startTime: ZonedDateTime) : Serializable {
+        val startTime: Instant) : Serializable {
     fun toDTO(): FightStartTimePairDTO {
         return FightStartTimePairDTO()
                 .setFight(fight.toDTO())
@@ -39,7 +40,7 @@ class FightStartTimePair(
 @Entity
 class MatScheduleContainer(
         @Transient
-        var currentTime: ZonedDateTime,
+        var currentTime: Instant,
         var currentFightNumber: Int,
         id: String,
         @ElementCollection
@@ -49,7 +50,8 @@ class MatScheduleContainer(
         )
         var fights: List<FightStartTimePair>,
         @Transient
-        var pending: ArrayList<FightDescription>) : AbstractJpaPersistable<String>(id), Serializable {
+        var pending: ArrayList<FightDescription>,
+        var timeZone: String) : AbstractJpaPersistable<String>(id), Serializable {
     fun toDTO(): MatScheduleContainerDTO {
         return MatScheduleContainerDTO()
                 .setCurrentFightNumber(currentFightNumber)
@@ -57,10 +59,10 @@ class MatScheduleContainer(
                 .setFights(fights.map { it.toDTO() }.toTypedArray())
     }
 
-    constructor(currentTime: ZonedDateTime, id: String) : this(currentTime, 0, id, ArrayList(), ArrayList())
+    constructor(currentTime: Instant, id: String) : this(currentTime, 0, id, ArrayList(), ArrayList(), ZoneId.systemDefault().id)
 
     companion object {
         fun fromDTO(dto: MatScheduleContainerDTO) =
-                MatScheduleContainer(ZonedDateTime.now(), dto.currentFightNumber, dto.id, dto.fights.map { FightStartTimePair.fromDTO(it) }, ArrayList())
+                MatScheduleContainer(Instant.now(), dto.currentFightNumber, dto.id, dto.fights.map { FightStartTimePair.fromDTO(it) }, ArrayList(), dto.timeZone)
     }
 }

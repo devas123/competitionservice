@@ -3,7 +3,7 @@ package compman.compsrv.model.dto.competition;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 
 @Data
 @AllArgsConstructor
@@ -24,6 +24,6 @@ public class FightDescriptionDTO {
     private Integer priority;
     private String competitionId;
     private String period;
-    private ZonedDateTime startTime;
+    private Instant startTime;
     private Integer numberInRound;
 }

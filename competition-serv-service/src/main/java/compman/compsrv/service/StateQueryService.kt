@@ -3,6 +3,7 @@ package compman.compsrv.service
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.jpa.competition.*
 import compman.compsrv.model.dto.competition.CategoryStateDTO
+import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
 import compman.compsrv.repository.*
 import io.scalecube.transport.Address
 import org.slf4j.LoggerFactory
@@ -45,10 +46,10 @@ class StateQueryService(private val clusterSession: ClusterSession,
     )
 
 
-    fun getCompetitionProperties(competitionId: String?): CompetitionProperties? = getLocalOrRemote(competitionId,
-            { competitionId?.let { competitionPropertiesCrudRepository.findById(it).orElse(null) } },
+    fun getCompetitionProperties(competitionId: String?): CompetitionPropertiesDTO? = getLocalOrRemote(competitionId,
+            { competitionId?.let { competitionPropertiesCrudRepository.findById(it).orElse(null) }?.toDTO() },
             {
-                restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/comprops?competitionId=$competitionId&internal=true", CompetitionProperties::class.java)
+                restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/comprops?competitionId=$competitionId&internal=true", CompetitionPropertiesDTO::class.java)
             }
     )
 

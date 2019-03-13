@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 
 @Data
 @Accessors(chain = true)
@@ -17,7 +17,7 @@ public class PeriodDTO {
     private String name;
     private ScheduleEntryDTO[] schedule;
     private CategoryDescriptorDTO[] categories;
-    private ZonedDateTime startTime;
+    private Instant startTime;
     private Integer numberOfMats;
     private MatScheduleContainerDTO[] fightsByMats;
 }

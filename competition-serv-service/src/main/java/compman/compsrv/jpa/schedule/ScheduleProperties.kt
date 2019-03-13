@@ -5,12 +5,12 @@ import compman.compsrv.jpa.competition.CategoryDescriptor
 import compman.compsrv.model.dto.schedule.PeriodPropertiesDTO
 import compman.compsrv.model.dto.schedule.SchedulePropertiesDTO
 import java.math.BigDecimal
-import java.time.ZonedDateTime
+import java.time.Instant
 import javax.persistence.*
 
 @Entity
 class PeriodProperties(id: String,
-                       var startTime: ZonedDateTime,
+                       var startTime: Instant,
                        var numberOfMats: Int,
                        var timeBetweenFights: Int,
                        var riskPercent: BigDecimal,

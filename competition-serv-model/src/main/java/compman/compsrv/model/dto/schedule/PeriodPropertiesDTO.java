@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
 import java.math.BigDecimal;
-import java.time.ZonedDateTime;
+import java.time.Instant;
 
 @Data
 @AllArgsConstructor
@@ -15,7 +15,7 @@ import java.time.ZonedDateTime;
 @NoArgsConstructor
 public class PeriodPropertiesDTO {
     private String id;
-    private ZonedDateTime startTime;
+    private Instant startTime;
     private Integer numberOfMats;
     private Integer timeBetweenFights;
     private BigDecimal riskPercent;

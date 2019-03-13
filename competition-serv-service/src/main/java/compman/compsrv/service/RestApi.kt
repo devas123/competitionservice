@@ -11,6 +11,7 @@ import compman.compsrv.model.CommonResponse
 import compman.compsrv.model.PageResponse
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
+import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.dto.competition.FightStage
 import compman.compsrv.model.dto.schedule.ScheduleDTO
@@ -72,7 +73,10 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     }
 
     @RequestMapping("/store/comprops", method = [RequestMethod.GET])
-    fun getCompetitionProperties(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionProperties(competitionId)?.toDTO()
+    fun getCompetitionProperties(@RequestParam("competitionId") competitionId: String?): CompetitionPropertiesDTO? {
+        val k = stateQueryService.getCompetitionProperties(competitionId)
+        return k
+    }
     @RequestMapping("/store/competitionstate", method = [RequestMethod.GET])
     fun getCompetitionState(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionState(competitionId)?.toDTO()
 

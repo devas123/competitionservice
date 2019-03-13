@@ -10,7 +10,8 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @Accessors(chain = true)
 public class RegistrationGroupDTO {
-    private Long id;
+    private String id;
+    private String registrationPeriodId;
     private String displayName;
     private BigDecimal registrationFee;
 }
