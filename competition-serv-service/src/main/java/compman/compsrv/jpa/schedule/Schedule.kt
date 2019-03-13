@@ -48,8 +48,8 @@ class Schedule(id: String,
         }
 
         fun getDuration(period: Period): BigDecimal? {
-            val startTime = period.startTime.toInstant().toEpochMilli()
-            val endTime = period.fightsByMats?.map { it.currentTime }?.sortedBy { it.toInstant().toEpochMilli() }?.lastOrNull()?.toInstant()?.toEpochMilli()
+            val startTime = period.startTime.toEpochMilli()
+            val endTime = period.fightsByMats?.map { it.currentTime }?.sortedBy { it.toEpochMilli() }?.lastOrNull()?.toEpochMilli()
                     ?: startTime
             val durationMillis = endTime - startTime
             if (durationMillis > 0) {
