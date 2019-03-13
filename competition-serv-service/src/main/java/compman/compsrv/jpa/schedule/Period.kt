@@ -3,7 +3,7 @@ package compman.compsrv.jpa.schedule
 import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.jpa.competition.CategoryDescriptor
 import compman.compsrv.model.dto.schedule.PeriodDTO
-import java.time.ZonedDateTime
+import java.time.Instant
 import javax.persistence.*
 
 @Entity
@@ -18,7 +18,7 @@ class Period(id: String,
              @OneToMany(orphanRemoval = true)
              @JoinColumn(name = "PERIOD_ID", nullable = true)
              var categories: List<CategoryDescriptor>,
-             var startTime: ZonedDateTime,
+             var startTime: Instant,
              var numberOfMats: Int,
              @OneToMany(orphanRemoval = true)
              @JoinColumn(name = "PERIOD_ID", nullable = false)

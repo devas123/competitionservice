@@ -5,8 +5,6 @@ import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.competition.FightStage
 import java.io.Serializable
 import java.time.Instant
-import java.time.ZoneId
-import java.time.ZonedDateTime
 import javax.persistence.*
 
 @Entity
@@ -14,7 +12,7 @@ class FightDescription(id: String,
                        var categoryId: String,
                        var winFight: String?,
                        var loseFight: String?,
-                       @OrderColumn(name = "competitor")
+                       @OrderColumn(name = "comp_score_order")
                        @ElementCollection
                        @CollectionTable(
                                name = "comp_score",
@@ -33,7 +31,7 @@ class FightDescription(id: String,
                        var priority: Int,
                        var competitionId: String,
                        var period: String,
-                       var startTime: ZonedDateTime?,
+                       var startTime: Instant?,
                        var numberInRound: Int) : AbstractJpaPersistable<String>(id), Serializable {
 
     companion object {
@@ -95,7 +93,7 @@ class FightDescription(id: String,
             fightResult = null,
             matId = "",
             numberOnMat = 0,
-            startTime = ZonedDateTime.ofInstant(Instant.EPOCH, ZoneId.systemDefault()),
+            startTime = Instant.now(),
             priority = 0,
             period = "",
             competitionId = competitionId,
@@ -118,7 +116,7 @@ class FightDescription(id: String,
             period = "",
             competitionId = competitionId,
             numberInRound = numberInRound,
-            startTime = ZonedDateTime.ofInstant(Instant.EPOCH, ZoneId.systemDefault()))
+            startTime = Instant.now())
 
     constructor(fightId: String, categoryId: String, round: Int, winFight: String?, competitionId: String, numberInRound: Int) : this(id = fightId,
             categoryId = categoryId,
@@ -137,7 +135,7 @@ class FightDescription(id: String,
             priority = 0,
             period = "",
             competitionId = competitionId,
-            startTime = ZonedDateTime.ofInstant(Instant.EPOCH, ZoneId.systemDefault()))
+            startTime = Instant.now())
 
 
     fun copy(id: String = this.id!!,
@@ -156,7 +154,7 @@ class FightDescription(id: String,
              priority: Int = this.priority,
              competitionId: String = this.competitionId,
              period: String = this.period,
-             startTime: ZonedDateTime? = this.startTime,
+             startTime: Instant? = this.startTime,
              numberInRound: Int = this.numberInRound): FightDescription = FightDescription(id,
             categoryId, winFight, loseFight, scores, parentId1, parentId2,
             duration, round, stage, fightResult, matId, numberOnMat,

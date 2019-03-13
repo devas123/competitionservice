@@ -24,7 +24,7 @@ class MetadataEntry(
 @Entity
 class EventHolder(id: String?,
                   @Column(name = "correlation_id",
-                          columnDefinition = "VARCHAR(255) REFERENCES competition_state(id)")
+                          columnDefinition = "VARCHAR(255)")
                   var correlationId: String?,
                   @Column(name = "competition_id",
                           columnDefinition = "VARCHAR(255) REFERENCES competition_state(id)")

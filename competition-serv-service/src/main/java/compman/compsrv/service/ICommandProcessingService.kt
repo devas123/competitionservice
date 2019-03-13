@@ -7,5 +7,6 @@ interface ICommandProcessingService<CommandType, EventType> {
             (acc + apply(eventHolder))
         }
     }
+
     fun process(command: CommandType): List<EventType>
 }

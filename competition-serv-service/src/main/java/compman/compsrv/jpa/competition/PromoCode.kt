@@ -2,7 +2,7 @@ package compman.compsrv.jpa.competition
 
 import compman.compsrv.model.dto.competition.PromoCodeDTO
 import java.math.BigDecimal
-import java.time.ZonedDateTime
+import java.time.Instant
 import javax.persistence.Entity
 import javax.persistence.GeneratedValue
 import javax.persistence.Id
@@ -12,8 +12,8 @@ class PromoCode(
         @Id @GeneratedValue var id: Long?,
         var coefficient: BigDecimal,
         var competitionId: String,
-        var startAt: ZonedDateTime,
-        var expireAt: ZonedDateTime) {
+        var startAt: Instant,
+        var expireAt: Instant) {
     companion object {
         fun fromDTO(dto: PromoCodeDTO) = PromoCode(dto.id?.toLong(), dto.coefficient, dto.competitionId, dto.startAt, dto.expireAt)
     }

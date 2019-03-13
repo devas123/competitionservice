@@ -21,14 +21,18 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.repository.*
 import org.slf4j.LoggerFactory
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionTemplate
 import java.math.BigDecimal
+import java.time.ZoneId
 
 @Component
 class CompetitionStateService(private val scheduleService: ScheduleService,
                               private val competitionStateCrudRepository: CompetitionStateCrudRepository,
+                              private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
                               private val eventCrudRepository: EventCrudRepository,
                               private val scheduleCrudRepository: ScheduleCrudRepository,
                               private val bracketsCrudRepository: BracketsCrudRepository,
@@ -36,6 +40,7 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                               private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
                               private val registrationPeriodCrudRepository: RegistrationPeriodCrudRepository,
                               private val registrationInfoCrudRepository: RegistrationInfoCrudRepository,
+                              private val transactionTemplate: TransactionTemplate,
                               private val mapper: ObjectMapper) : ICommandProcessingService<CommandDTO, EventDTO> {
 
     companion object {
@@ -61,7 +66,6 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
         return null
     }
 
-    @Transactional(propagation = Propagation.REQUIRED)
     override fun apply(event: EventDTO): List<EventDTO> {
         fun createErrorEvent(error: String) =
                 EventDTO()
@@ -73,36 +77,46 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                         .setPayload(mapper.writeValueAsString(ErrorEventPayload(error, null)))
         return try {
             val ns = when (event.type) {
-                EventType.REGISTRATION_GROUP_ADDED -> {
-                    val payload = mapper.convertValue(event.payload, RegistrationGroupAddedPayload::class.java)
-                    val period = registrationPeriodCrudRepository.findById(payload.periodId.toLong())
-                    period.map {
-                        try {
-                            it.registrationGroups += RegistrationGroup.fromDTO(payload.group)
-                            registrationPeriodCrudRepository.save(it)
-                            listOf(event)
-                        } catch (e: Throwable) {
-                            log.error("Exception.", e)
-                            listOf(createErrorEvent("Error while applying an event. $e"))
-                        }
+                EventType.REGISTRATION_GROUP_ADDED -> transactionTemplate.execute {
+                    val payload = getPayloadAs(event.payload, RegistrationGroupAddedPayload::class.java)!!
+                    val regPeriod = registrationPeriodCrudRepository.findByIdOrNull(payload.periodId)
+                    if (regPeriod != null) {
+                        val group = RegistrationGroup.fromDTO(payload.group)
+                        group.registrationPeriod = regPeriod
+                        regPeriod.registrationGroups.add(group)
+                        registrationPeriodCrudRepository.save(regPeriod)
                     }
-                            .get()
-
+                    val savedGroup = registrationGroupCrudRepository.findByIdOrNull(payload.group.id)
+                    savedGroup?.let {
+                        listOf(event.setPayload(mapper.writeValueAsString(RegistrationGroupAddedPayload(payload.periodId,
+                                it.toDTO()))))
+                    } ?: listOf(createErrorEvent("Could not save the group in the repository... strange..."))
                 }
                 EventType.REGISTRATION_GROUP_DELETED -> {
-                    val payload = mapper.convertValue(event.payload, RegistrationGroupDeletedPayload::class.java)
-                    registrationGroupCrudRepository.deleteById(payload.groupId.toLong())
+                    val payload = getPayloadAs(event.payload, RegistrationGroupDeletedPayload::class.java)!!
+                    registrationGroupCrudRepository.deleteById(payload.groupId)
                     listOf(event)
                 }
-                EventType.REGISTRATION_PERIOD_ADDED -> {
-                    listOf(event)
+                EventType.REGISTRATION_PERIOD_ADDED -> transactionTemplate.execute {
+                    val payload = getPayloadAs(event.payload, RegistrationPeriodAddedPayload::class.java)!!
+                    val info = registrationInfoCrudRepository.findByIdOrNull(event.competitionId)
+                    if (info != null) {
+                        val period = RegistrationPeriod.fromDTO(payload.period)
+                        period.registrationInfo = info
+                        info.registrationPeriods.add(period)
+                        registrationInfoCrudRepository.save(info)
+                    }
+                    val period = registrationPeriodCrudRepository.findByIdOrNull(payload.period.id)
+                    period?.let {
+                        listOf(event.setPayload(mapper.writeValueAsString(RegistrationPeriodAddedPayload(it.toDTO()))))
+                    } ?: listOf(createErrorEvent("Could not save the period in the repository... strange..."))
                 }
                 EventType.REGISTRATION_PERIOD_DELETED -> {
-                    val payload = mapper.convertValue(event.payload, Long::class.java)
-                    registrationPeriodCrudRepository.deleteById(payload)
+                    val payload = getPayloadAs(event.payload, String::class.java)
+                    registrationPeriodCrudRepository.deleteById(payload!!)
                     listOf(event)
                 }
-                EventType.COMPETITION_DELETED -> {
+                EventType.COMPETITION_DELETED -> transactionTemplate.execute {
                     competitionStateCrudRepository.findById(event.competitionId).map { it.withStatus(CompetitionStatus.DELETED) }.map {
                         competitionStateCrudRepository.save(it)
                         listOf(event)
@@ -112,9 +126,12 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                     val payload = getPayloadAs(event.payload, CompetitionCreatedPayload::class.java)
                     payload?.properties?.let { props ->
                         val state = CompetitionState(props.id, CompetitionProperties.fromDTO(props))
-                        competitionStateCrudRepository.save(state)
-                        listOf(event)
-                    }
+                        val newState = competitionStateCrudRepository.save(state)
+                        val newPayload = CompetitionCreatedPayload(newState.properties!!.toDTO())
+                        val createdEvent = EventDTO(event.id, event.correlationId, event.competitionId,
+                                event.categoryId, event.matId, event.type, mapper.writeValueAsString(newPayload), event.metadata)
+                        listOf(createdEvent)
+                    } ?: listOf(createErrorEvent("Properties are missing."))
                 }
                 EventType.DUMMY -> {
                     emptyList()
@@ -152,6 +169,9 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                         emptyList()
                     }
                 }
+                EventType.ERROR_EVENT -> {
+                    listOf(event)
+                }
                 else -> {
                     log.warn("Skipping unknown event: $event")
                     emptyList()
@@ -167,6 +187,7 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
         }
     }
 
+    @Transactional(propagation = Propagation.REQUIRED, readOnly = false)
     override fun process(command: CommandDTO): List<EventDTO> {
         fun executeCommand(command: CommandDTO): EventDTO {
             fun createEvent(type: EventType, payload: Any?) =
@@ -196,14 +217,14 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                 }
                 CommandType.ADD_REGISTRATION_GROUP_COMMAND -> {
                     val payload = mapper.convertValue(command.payload, AddRegistrationGroupPayload::class.java)
-                    if (!payload.periodId.isNullOrBlank()) {
-                        val period = registrationPeriodCrudRepository.findById(payload.periodId.toLong())
+                    if (!payload.periodId.isNullOrBlank() && !payload.group.id.isNullOrBlank()) {
+                        val period = registrationPeriodCrudRepository.findById(payload.periodId)
                         if (!payload.group.displayName.isNullOrBlank()) {
                             period.map { p ->
-                                if (!p.registrationGroups.any { it.displayName.equals(payload.group.displayName, ignoreCase = true) }) {
+                                if (!p.registrationGroups.any { it.id == payload.group.id }) {
                                     createEvent(EventType.REGISTRATION_GROUP_ADDED, RegistrationGroupAddedPayload(payload.periodId, payload.group))
                                 } else {
-                                    createErrorEvent("Group with name ${payload.group.displayName} already exists")
+                                    createErrorEvent("Group with id ${payload.group.id} already exists")
                                 }
                             }.orElse(createErrorEvent("Cannot find period with ID: ${payload.periodId}"))
                         } else {
@@ -218,14 +239,14 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                     if (payload.period != null && !command.competitionId.isNullOrBlank()) {
                         val regInfo = registrationInfoCrudRepository.findById(command.competitionId)
                         regInfo.map { info ->
-                            if (info.registrationPeriods.any { it.name.equals(payload.period.name, ignoreCase = true) }) {
+                            if (!info.registrationPeriods.any { it.id == payload.period.id }) {
                                 createEvent(EventType.REGISTRATION_PERIOD_ADDED, RegistrationPeriodAddedPayload(payload.period))
                             } else {
-                                createErrorEvent("Period with name ${payload.period.name} already exists.")
+                                createErrorEvent("Period with id ${payload.period.id} already exists.")
                             }
                         }.orElseGet {
                             try {
-                                registrationInfoCrudRepository.save(RegistrationInfo(command.competitionId, false, emptyArray()))
+                                registrationInfoCrudRepository.save(RegistrationInfo(command.competitionId, false, mutableListOf()))
                                 createEvent(EventType.REGISTRATION_PERIOD_ADDED, RegistrationPeriodAddedPayload(payload.period))
                             } catch (e: Throwable) {
                                 log.error("Exception.", e)
@@ -264,7 +285,9 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                 CommandType.GENERATE_SCHEDULE_COMMAND -> {
                     val payload = command.payload!!
                     val scheduleProperties = mapper.convertValue(payload, SchedulePropertiesDTO::class.java)
-                    val schedule = scheduleService.generateSchedule(ScheduleProperties.fromDTO(scheduleProperties), getAllBrackets(scheduleProperties.competitionId), getFightDurations(scheduleProperties))
+                    val compProps = competitionPropertiesCrudRepository.findByIdOrNull(command.competitionId)
+                    val schedule = scheduleService.generateSchedule(ScheduleProperties.fromDTO(scheduleProperties), getAllBrackets(scheduleProperties.competitionId), getFightDurations(scheduleProperties), compProps?.timeZone
+                            ?: ZoneId.systemDefault().id)
                     createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule.toDTO()))
                 }
                 CommandType.UPDATE_COMPETITION_PROPERTIES_COMMAND -> {

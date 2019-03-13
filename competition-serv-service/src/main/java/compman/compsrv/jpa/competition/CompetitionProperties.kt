@@ -4,7 +4,6 @@ import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
 import java.time.Instant
 import java.time.ZoneId
-import java.time.ZonedDateTime
 import java.util.*
 import javax.persistence.*
 
@@ -19,10 +18,10 @@ class CompetitionProperties(
         @OneToMany
         @JoinColumn(name = "competitionId")
         var promoCodes: List<PromoCode>?,
-        var startDate: ZonedDateTime?,
+        var startDate: Instant?,
         var schedulePublished: Boolean,
         var bracketsPublished: Boolean,
-        var endDate: ZonedDateTime?,
+        var endDate: Instant?,
         var timeZone: String,
         @OneToOne(cascade = [CascadeType.ALL], optional = false)
         @PrimaryKeyJoinColumn
@@ -42,8 +41,13 @@ class CompetitionProperties(
                     bracketsPublished = dto.bracketsPublished ?: false,
                     endDate = dto.endDate,
                     timeZone = dto.timeZone ?: TimeZone.getDefault().id,
-                    registrationInfo = dto.registrationInfo?.let { RegistrationInfo.fromDTO(it) }
-                            ?: RegistrationInfo(dto.id, false, emptyArray()))
+                    registrationInfo = dto.registrationInfo?.let {
+                        if (it.id.isNullOrBlank()) {
+                            it.id = dto.id
+                        }
+                        RegistrationInfo.fromDTO(it)
+                    }
+                            ?: RegistrationInfo(dto.id, false, mutableListOf()))
         }
     }
 
@@ -55,16 +59,16 @@ class CompetitionProperties(
             emailNotificationsEnabled = false,
             emailTemplate = null,
             promoCodes = emptyList(),
-            startDate = ZonedDateTime.now(),
+            startDate = Instant.now(),
             schedulePublished = false,
             bracketsPublished = false,
-            endDate = ZonedDateTime.now(),
+            endDate = Instant.now(),
             timeZone = ZoneId.systemDefault().id,
-            registrationInfo = RegistrationInfo(competitionId, false, emptyArray())
+            registrationInfo = RegistrationInfo(competitionId, false, mutableListOf())
     )
 
-    private fun parseDate(date: Any?, default: ZonedDateTime?) = if (date != null && !date.toString().isBlank()) {
-        ZonedDateTime.ofInstant(Instant.ofEpochMilli(date.toString().toLong()), ZoneId.of(timeZone))
+    private fun parseDate(date: Any?, default: Instant?) = if (date != null && !date.toString().isBlank()) {
+        Instant.ofEpochMilli(date.toString().toLong())
     } else {
         default
     }
