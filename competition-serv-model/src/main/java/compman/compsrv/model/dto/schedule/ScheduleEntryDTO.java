@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 @Data
 @AllArgsConstructor
@@ -13,7 +14,7 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 public class ScheduleEntryDTO {
     private String categoryId;
-    private String startTime;
+    private Instant startTime;
     private Integer numberOfFights;
     private BigDecimal fightDuration;
 }

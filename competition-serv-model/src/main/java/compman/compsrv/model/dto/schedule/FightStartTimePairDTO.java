@@ -6,8 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
-import java.time.ZonedDateTime;
-import java.util.Date;
+import java.time.Instant;
 
 @Data
 @AllArgsConstructor
@@ -16,5 +15,5 @@ import java.util.Date;
 public class FightStartTimePairDTO {
     private FightDescriptionDTO fight;
     private Integer fightNumber;
-    private ZonedDateTime startTime;
+    private Instant startTime;
 }

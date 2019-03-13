@@ -13,4 +13,5 @@ public class MatScheduleContainerDTO {
     private Integer currentFightNumber;
     private String id;
     private FightStartTimePairDTO[] fights;
+    private String timeZone;
 }

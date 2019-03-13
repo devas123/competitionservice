@@ -5,7 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.List;
 
 @Data
@@ -20,10 +20,10 @@ public class CompetitionPropertiesDTO {
     private String competitionName;
     private String emailTemplate;
     private List<PromoCodeDTO> promoCodes;
-    private ZonedDateTime startDate;
+    private Instant startDate;
     private Boolean schedulePublished;
     private Boolean bracketsPublished;
-    private ZonedDateTime endDate;
+    private Instant endDate;
     private String timeZone;
     private RegistrationInfoDTO registrationInfo;
 }
