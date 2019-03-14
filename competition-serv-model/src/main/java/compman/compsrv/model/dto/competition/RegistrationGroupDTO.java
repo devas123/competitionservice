@@ -14,4 +14,5 @@ public class RegistrationGroupDTO {
     private String registrationPeriodId;
     private String displayName;
     private BigDecimal registrationFee;
+    private String[] categories;
 }
