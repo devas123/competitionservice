@@ -9,10 +9,7 @@ import compman.compsrv.jpa.schedule.Schedule
 import compman.compsrv.jpa.schedule.ScheduleProperties
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
-import compman.compsrv.model.commands.payload.AddRegistrationGroupPayload
-import compman.compsrv.model.commands.payload.AddRegistrationPeriodPayload
-import compman.compsrv.model.commands.payload.CreateCompetitionPayload
-import compman.compsrv.model.commands.payload.DeleteRegistrationGroupPayload
+import compman.compsrv.model.commands.payload.*
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.dto.schedule.SchedulePropertiesDTO
@@ -27,11 +24,13 @@ import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
 import java.math.BigDecimal
+import java.time.Instant
 import java.time.ZoneId
 
 @Component
 class CompetitionStateService(private val scheduleService: ScheduleService,
                               private val competitionStateCrudRepository: CompetitionStateCrudRepository,
+                              private val categoryCrudRepository: CategoryCrudRepository,
                               private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
                               private val eventCrudRepository: EventCrudRepository,
                               private val scheduleCrudRepository: ScheduleCrudRepository,
@@ -77,6 +76,21 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                         .setPayload(mapper.writeValueAsString(ErrorEventPayload(error, null)))
         return try {
             val ns = when (event.type) {
+                EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED -> transactionTemplate.execute {
+                    val payload = getPayloadAs(event.payload, RegistrationGroupCategoriesAssignedPayload::class.java)
+                    if (payload != null) {
+                        val group = registrationGroupCrudRepository.findByIdOrNull(payload.groupId)
+                        if (group != null) {
+                            group.categories = payload.categories
+                            listOf(event.setPayload(mapper.writeValueAsString(RegistrationGroupCategoriesAssignedPayload(payload.periodId, payload.groupId,
+                                    registrationGroupCrudRepository.save(group).categories))))
+                        } else {
+                            emptyList()
+                        }
+                    } else {
+                        emptyList()
+                    }
+                }
                 EventType.REGISTRATION_GROUP_ADDED -> transactionTemplate.execute {
                     val payload = getPayloadAs(event.payload, RegistrationGroupAddedPayload::class.java)!!
                     val regPeriod = registrationPeriodCrudRepository.findByIdOrNull(payload.periodId)
@@ -208,8 +222,20 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                     .setPayload(mapper.writeValueAsString(ErrorEventPayload(error, command.correlationId)))
 
             return when (command.type) {
+                CommandType.ASSIGN_REGISTRATION_GROUP_CATEGORIES_COMMAND -> {
+                    val payload = mapper.convertValue(command.payload, AssignRegistrationGroupCategoriesPayload::class.java)
+                    if (registrationPeriodCrudRepository.existsById(payload.periodId)) {
+                        if (registrationGroupCrudRepository.existsById(payload.groupId)) {
+                            createEvent(EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED, RegistrationGroupCategoriesAssignedPayload(payload.periodId, payload.groupId, payload.categories))
+                        } else {
+                            createErrorEvent("Unknown group id: ${payload.groupId}")
+                        }
+                    } else {
+                        createErrorEvent("Unknown period id: ${payload.periodId}")
+                    }
+                }
                 CommandType.DELETE_REGISTRATION_PERIOD_COMMAND -> {
-                    createEvent(EventType.REGISTRATION_PERIOD_DELETED, command.payload)
+                    createEvent(EventType.REGISTRATION_PERIOD_DELETED, command.payload["periodId"])
                 }
                 CommandType.DELETE_REGISTRATION_GROUP_COMMAND -> {
                     val payload = mapper.convertValue(command.payload, DeleteRegistrationGroupPayload::class.java)
@@ -261,6 +287,15 @@ class CompetitionStateService(private val scheduleService: ScheduleService,
                     val payload = mapper.convertValue(command.payload, CreateCompetitionPayload::class.java)
                     val newProperties = payload?.properties
                     if (newProperties != null) {
+                        if (newProperties.startDate == null) {
+                            newProperties.startDate = Instant.now()
+                        }
+                        if (newProperties.endDate == null) {
+                            newProperties.endDate = Instant.now()
+                        }
+                        if (newProperties.timeZone.isNullOrBlank() || newProperties.timeZone == "null") {
+                            newProperties.timeZone = ZoneId.systemDefault().id
+                        }
                         createEvent(EventType.COMPETITION_CREATED, CompetitionCreatedPayload(newProperties))
                     } else {
                         createErrorEvent("Cannot create competition, no properties provided")

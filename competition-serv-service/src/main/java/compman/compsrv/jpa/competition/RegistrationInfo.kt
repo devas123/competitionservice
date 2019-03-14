@@ -52,9 +52,10 @@ class RegistrationGroup(@Id val id: String,
                         @JoinColumn(name = "registration_period_id", nullable = false)
                         var registrationPeriod: RegistrationPeriod?,
                         var displayName: String,
-                        var registrationFee: BigDecimal) {
+                        var registrationFee: BigDecimal,
+                        var categories: Array<String>) {
     companion object {
-        fun fromDTO(dto: RegistrationGroupDTO) = RegistrationGroup(dto.id, null, dto.displayName, dto.registrationFee)
+        fun fromDTO(dto: RegistrationGroupDTO) = RegistrationGroup(dto.id, null, dto.displayName, dto.registrationFee, dto.categories ?: emptyArray())
     }
 
     override fun equals(other: Any?): Boolean {
