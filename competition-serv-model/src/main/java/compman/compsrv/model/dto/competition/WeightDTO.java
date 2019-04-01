@@ -1,11 +1,14 @@
 package compman.compsrv.model.dto.competition;
 
 import lombok.*;
+import lombok.experimental.Accessors;
 
 import java.math.BigDecimal;
 
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
+@Accessors(chain = true)
 @RequiredArgsConstructor
 public class WeightDTO {
     public static final String ROOSTER = "Rooster";

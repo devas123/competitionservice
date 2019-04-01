@@ -11,9 +11,9 @@ import javax.persistence.*
 @Entity(name = "competition_state")
 @Table(name = "competition_state")
 class CompetitionState(id: String,
-                       @OneToMany(orphanRemoval = true, fetch = FetchType.LAZY)
+                       @OneToMany(orphanRemoval = true, fetch = FetchType.LAZY, cascade = [CascadeType.ALL])
                        @JoinColumn(name = "category_id")
-                       var categories: List<CategoryState>,
+                       var categories: List<CategoryDescriptor>,
                        @OneToOne(fetch = FetchType.LAZY, cascade = [CascadeType.ALL], orphanRemoval = true)
                        @PrimaryKeyJoinColumn
                        var properties: CompetitionProperties? = null,
@@ -30,7 +30,7 @@ class CompetitionState(id: String,
             val properties = CompetitionProperties.fromDTO(dto.properties)
             return CompetitionState(
                     id = dto.competitionId,
-                    categories = dto.categories.map { CategoryState.fromDTO(it, properties) },
+                    categories = dto.categories.map { CategoryDescriptor.fromDTO(it) },
                     properties = properties,
                     schedule = dto.schedule?.let { Schedule.fromDTO(it) }
                             ?: Schedule(dto.competitionId, ScheduleProperties(dto.competitionId, emptyList()), emptyList()),

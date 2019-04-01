@@ -13,7 +13,7 @@ import compman.compsrv.kafka.topics.CompetitionServiceTopics;
 import compman.compsrv.model.commands.CommandDTO;
 import compman.compsrv.model.commands.CommandType;
 import compman.compsrv.model.dto.competition.CategoryDescriptorDTO;
-import compman.compsrv.service.CategoryStateService;
+import compman.compsrv.service.processor.event.CategoryEventProcessor;
 import compman.compsrv.service.RestApi;
 import compman.compsrv.service.ScheduleService;
 import junit.framework.TestCase;
@@ -281,7 +281,7 @@ public final class ZookeeperSessionTest {
 
     @Configuration
     @Import({ClusterConfiguration.class,
-            CategoryStateService.class,
+            CategoryEventProcessor.class,
             ScheduleService.class,
             RestApi.class})
     static class TestConfig {

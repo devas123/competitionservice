@@ -1,10 +1,7 @@
-package compman.compsrv.service
+package compman.compsrv.service.processor.command
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.jpa.brackets.BracketDescriptor
-import compman.compsrv.jpa.competition.CategoryState
-import compman.compsrv.jpa.competition.Competitor
-import compman.compsrv.jpa.competition.FightDescription
+import com.google.common.hash.Hashing
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
@@ -12,46 +9,42 @@ import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.dto.competition.CategoryStateDTO
 import compman.compsrv.model.dto.competition.CategoryStatus
 import compman.compsrv.model.dto.competition.CompetitorDTO
-import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
-import compman.compsrv.model.exceptions.EventApplyingException
-import compman.compsrv.repository.*
+import compman.compsrv.repository.CategoryCrudRepository
+import compman.compsrv.repository.CompetitionPropertiesCrudRepository
+import compman.compsrv.repository.CompetitorCrudRepository
+import compman.compsrv.repository.FightCrudRepository
+import compman.compsrv.service.FightsGenerateService
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Component
 
 
 @Component
-class CategoryStateService constructor(private val fightsGenerateService: FightsGenerateService,
-                                       private val mapper: ObjectMapper,
-                                       private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
-                                       private val categoryCrudRepository: CategoryCrudRepository,
-                                       private val competitorCrudRepository: CompetitorCrudRepository,
-                                       private val fightCrudRepository: FightCrudRepository,
-                                       private val bracketsCrudRepository: BracketsCrudRepository) : ICommandProcessingService<CommandDTO, EventDTO> {
+class CategoryCommandProcessor constructor(private val fightsGenerateService: FightsGenerateService,
+                                           private val mapper: ObjectMapper,
+                                           private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
+                                           private val categoryCrudRepository: CategoryCrudRepository,
+                                           private val competitorCrudRepository: CompetitorCrudRepository,
+                                           private val fightCrudRepository: FightCrudRepository) : ICommandProcessor {
 
-    override fun apply(event: EventDTO): List<EventDTO> {
-        return when (event.type) {
-            EventType.COMPETITOR_ADDED -> applyCompetitorAddedEvent(event)
-            EventType.COMPETITOR_REMOVED -> applyCompetitorRemovedEvent(event)
-            EventType.COMPETITOR_UPDATED -> applyCompetitorUpdatedEvent(event)
-            EventType.COMPETITORS_MOVED -> applyCompetitorMovedEvent(event)
-            EventType.BRACKETS_GENERATED -> applyBracketsGeneratedEvent(event)
-            EventType.FIGHTS_START_TIME_UPDATED -> applyFighStartTimeUpdatedEvent(event)
-            EventType.CATEGORY_DELETED -> applyCategoryStateDeletedEvent(event)
-            EventType.CATEGORY_BRACKETS_DROPPED -> applyCategoryBracketsDroppedEvent(event)
-            EventType.CATEGORY_ADDED -> applyCategoryAddedEvent(event)
-            EventType.DUMMY -> listOf(event)
-            else -> {
-                log.warn("Unknown event type: ${event.type}")
-                emptyList()
-            }
-        }
+    override fun affectedCommands(): Set<CommandType> {
+        return setOf(CommandType.ADD_COMPETITOR_COMMAND,
+                CommandType.REMOVE_COMPETITOR_COMMAND,
+                CommandType.ADD_CATEGORY_COMMAND,
+                CommandType.UPDATE_COMPETITOR_COMMAND,
+                CommandType.CHANGE_COMPETITOR_CATEGORY_COMMAND,
+                CommandType.CHANGE_COMPETITOR_FIGHT_COMMAND,
+                CommandType.GENERATE_BRACKETS_COMMAND,
+                CommandType.DELETE_CATEGORY_COMMAND,
+                CommandType.CREATE_FAKE_COMPETITORS_COMMAND,
+                CommandType.DROP_CATEGORY_BRACKETS_COMMAND)
     }
 
-    override fun process(command: CommandDTO): List<EventDTO> {
+
+    override fun executeCommand(command: CommandDTO): List<EventDTO> {
         return when (command.type) {
             CommandType.ADD_COMPETITOR_COMMAND -> doAddCompetitor(command)
             CommandType.REMOVE_COMPETITOR_COMMAND -> doRemoveCompetitor(command)
@@ -79,11 +72,6 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
         }
     }
 
-    private fun applyCategoryBracketsDroppedEvent(event: EventDTO): List<EventDTO> {
-        bracketsCrudRepository.deleteById(event.categoryId!!)
-        return listOf(event)
-    }
-
     private fun doDropCategoryBrackets(command: CommandDTO): List<EventDTO> = listOf(createEvent(command, EventType.CATEGORY_BRACKETS_DROPPED, mapper.writeValueAsString(command.payload)))
 
     private fun doUpdateCompetitor(command: CommandDTO): List<EventDTO> {
@@ -92,17 +80,6 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
             listOf(createEvent(command, EventType.COMPETITOR_UPDATED, mapper.writeValueAsString(CompetitorUpdatedPayload(competitor))))
         } else {
             listOf(createErrorEvent(command, "Competitor is null ${competitor == null} or such competitor does not exist"))
-        }
-    }
-
-    private fun applyCompetitorUpdatedEvent(event: EventDTO): List<EventDTO> {
-        val payload = getPayloadAs(event.payload, CompetitorUpdatedPayload::class.java)
-        val competitor = payload?.fighter
-        return if (competitor != null && competitorCrudRepository.existsById(competitor.id)) {
-            competitorCrudRepository.save(Competitor.fromDTO(competitor))
-            listOf(event)
-        } else {
-            throw EventApplyingException("Competitor is null or such competitor does not exist.", event)
         }
     }
 
@@ -118,38 +95,6 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
         }
     }
 
-    private fun applyCompetitorAddedEvent(event: EventDTO): List<EventDTO> {
-        val competitor = getPayloadAs(event.payload, Competitor::class.java)
-        return if (competitor != null) {
-            competitorCrudRepository.save(competitor)
-            listOf(event)
-        } else {
-            throw EventApplyingException("No competitor in the event payload: $event", event)
-        }
-    }
-
-
-    private fun applyCompetitorRemovedEvent(event: EventDTO): List<EventDTO> {
-        val competitorId = getPayloadAs(event.payload, CompetitorRemovedPayload::class.java)?.fighterId
-        return if (competitorId != null) {
-            competitorCrudRepository.deleteById(competitorId)
-            listOf(event)
-        } else {
-            throw EventApplyingException("Competitor id is null.", event)
-        }
-    }
-
-    private fun applyCompetitorMovedEvent(event: EventDTO): List<EventDTO> {
-        val payload = getPayloadAs(event.payload, CompetitorMovedPayload::class.java)
-        val updatedSourceFight = payload?.updatedSourceFight
-        val updatedTargetFight = payload?.updatedTargetFight
-        return if (updatedSourceFight != null && updatedTargetFight != null && fightCrudRepository.existsById(updatedSourceFight.id) && fightCrudRepository.existsById(updatedTargetFight.id)) {
-            fightCrudRepository.saveAll(listOf(FightDescription.fromDTO(updatedSourceFight), FightDescription.fromDTO(updatedTargetFight)))
-            listOf(event)
-        } else {
-            throw EventApplyingException("Source fight or target fight is null or does not exist.", event)
-        }
-    }
 
     private fun doMoveCompetitor(command: CommandDTO): List<EventDTO> {
         if (command.categoryId != null && categoryCrudRepository.existsById(command.categoryId)) {
@@ -219,32 +164,6 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
                     .setType(eventType)
                     .setPayload(payload)
 
-    private fun applyFighStartTimeUpdatedEvent(event: EventDTO): List<EventDTO> {
-        val payload = getPayloadAs(event.payload, FightStartTimeUpdatedPayload::class.java)
-        val newFights = payload?.newFights
-        return if (newFights != null && newFights.fold(true) { acc: Boolean, fightDescription: FightDescriptionDTO -> acc && fightCrudRepository.existsById(fightDescription.id) }) {
-            fightCrudRepository.saveAll(newFights.map { FightDescription.fromDTO(it) })
-            listOf(event)
-        } else {
-            throw EventApplyingException("Fights are null or not all fights are present in the repository.", event)
-        }
-    }
-
-    private fun applyBracketsGeneratedEvent(event: EventDTO): List<EventDTO> {
-        val payload = getPayloadAs(event.payload, BracketsGeneratedPayload::class.java)
-        val fights = payload?.fights
-        val bracketType = payload?.bracketType
-        val categoryId = event.categoryId
-        val compId = event.competitionId
-        return if (fights != null && !categoryId.isNullOrBlank()) {
-            bracketsCrudRepository.save(BracketDescriptor(categoryId, compId, bracketType
-                    ?: BracketType.SINGLE_ELIMINATION, fights.map { FightDescription.fromDTO(it) }.toTypedArray()))
-            listOf(event)
-        } else {
-            throw EventApplyingException("Fights are null or empty or category ID is empty.", event)
-        }
-    }
-
 
     private fun doGenerateBrackets(command: CommandDTO): List<EventDTO> {
         val competitors = competitorCrudRepository.findByCompetitionId(command.competitionId, Pageable.unpaged()).content.toList()
@@ -278,36 +197,17 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
 
     private fun processAddCategoryCommandDTO(command: CommandDTO): List<EventDTO> {
         val c = mapper.convertValue(command.payload, AddCategoryPayload::class.java)?.category
-        return if (c != null && command.categoryId != null) {
+        return if (c != null) {
+            val categoryId = Hashing.sha256().hashBytes("${c.gender}/${c.ageDivision?.id}/${c.weight?.id}/${c.beltType}".toByteArray()).toString()
             val competition = competitionPropertiesCrudRepository.getOne(command.competitionId)
-            val state = CategoryStateDTO(command.categoryId, competition.id, c, CategoryStatus.INITIALIZED, null, emptyArray())
-            listOf(createEvent(command, EventType.CATEGORY_ADDED, mapper.writeValueAsString(CategoryAddedPayload(state))))
+            val state = CategoryStateDTO(categoryId, competition.id, c, CategoryStatus.INITIALIZED, null, 0)
+            listOf(createEvent(command, EventType.CATEGORY_ADDED, mapper.writeValueAsString(CategoryAddedPayload(state))).setCategoryId(categoryId))
         } else {
             listOf(createEvent(command, EventType.ERROR_EVENT, mapper.writeValueAsString(ErrorEventPayload("Failed to get category from command payload", command.correlationId))))
         }
     }
 
-    private fun applyCategoryAddedEvent(event: EventDTO): List<EventDTO> {
-        val c = getPayloadAs(event.payload, CategoryAddedPayload::class.java)?.categoryState
-        val props = competitionPropertiesCrudRepository.findById(event.competitionId)
-        return if (c != null && event.categoryId != null && props.isPresent) {
-            categoryCrudRepository.save(CategoryState.fromDTO(c, props.get()))
-            listOf(event)
-        } else {
-            throw EventApplyingException("event did not contain category state.", event)
-        }
-    }
-
     private fun doDeleteCategoryState(command: CommandDTO) = listOf(createEvent(command, EventType.CATEGORY_DELETED, mapper.writeValueAsString(command.payload)))
-    private fun applyCategoryStateDeletedEvent(event: EventDTO): List<EventDTO> {
-        return if (!event.categoryId.isNullOrBlank()) {
-            categoryCrudRepository.deleteById(event.categoryId)
-            listOf(event)
-        } else {
-            throw EventApplyingException("Category ID is null.", event)
-        }
-    }
-
 
     private fun doCreateFakeCompetitors(command: CommandDTO): List<EventDTO> {
         val payload = mapper.convertValue(command.payload, CreateFakeCompetitorsPayload::class.java)
@@ -320,13 +220,5 @@ class CategoryStateService constructor(private val fightsGenerateService: Fights
         }
     }
 
-    private val log = LoggerFactory.getLogger(CategoryStateService::class.java)
-
-
-    private fun <T> getPayloadAs(payload: String?, clazz: Class<T>): T? {
-        if (payload != null) {
-            return mapper.readValue(payload, clazz)
-        }
-        return null
-    }
+    private val log = LoggerFactory.getLogger(CategoryCommandProcessor::class.java)
 }

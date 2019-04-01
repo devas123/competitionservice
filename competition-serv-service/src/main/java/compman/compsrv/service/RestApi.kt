@@ -1,15 +1,17 @@
 package compman.compsrv.service
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.google.common.hash.Hashing
 import compman.compsrv.jpa.brackets.BracketDescriptor
-import compman.compsrv.jpa.competition.CategoryState
 import compman.compsrv.jpa.competition.CompetitionDashboardState
-import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.jpa.schedule.Schedule
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.CommonResponse
 import compman.compsrv.model.PageResponse
 import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.commands.CommandType
+import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
 import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
@@ -18,6 +20,8 @@ import compman.compsrv.model.dto.schedule.ScheduleDTO
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import java.nio.charset.StandardCharsets
 import java.util.*
@@ -26,36 +30,65 @@ import java.util.*
 @RequestMapping("/api/v1")
 class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
               private val stateQueryService: StateQueryService,
-              private val producer: KafkaProducer<String, CommandDTO>) {
+              private val producer: KafkaProducer<String, CommandDTO>,
+              private val mapper: ObjectMapper) {
 
     companion object {
         private val log = LoggerFactory.getLogger(RestApi::class.java)
     }
 
-    @RequestMapping("/command/{competitionId}", method = [RequestMethod.POST])
-    fun sendCommand(@RequestBody command: CommandDTO, @PathVariable competitionId: String): CommonResponse {
+    @RequestMapping(path = ["/command/{competitionId}", "/command"], method = [RequestMethod.POST])
+    fun sendCommand(@RequestBody command: CommandDTO, @PathVariable competitionId: String?): ResponseEntity<CommonResponse>  {
         return try {
-            log.info("Received a command: $command for competitionId: $competitionId")
             val correlationId = UUID.randomUUID().toString()
-            producer.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId, command.setCorrelationId(correlationId)))
-            CommonResponse(0, "", correlationId.toByteArray())
+            if (command.type == CommandType.CREATE_COMPETITION_COMMAND) {
+                log.info("Received a create competition command: $command")
+                val payload = mapper.convertValue(command.payload, CreateCompetitionPayload::class.java)
+                if (payload?.properties?.competitionName.isNullOrBlank()) {
+                    log.error("Empty competition name, skipping create command")
+                    ResponseEntity(CommonResponse(400, "Empty competition name, skipping create command", correlationId.toByteArray()), HttpStatus.BAD_REQUEST)
+                } else {
+                    val id = Hashing.sha256().hashBytes(payload.properties.competitionName.toByteArray(StandardCharsets.UTF_8)).toString()
+                    producer.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, id, command.setCorrelationId(correlationId).setCompetitionId(id)))
+                    ResponseEntity(CommonResponse(0, "", correlationId.toByteArray()), HttpStatus.OK)
+                }
+            } else {
+                log.info("Received a command: $command for competitionId: $competitionId")
+                producer.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId, command.setCorrelationId(correlationId)))
+                ResponseEntity(CommonResponse(0, "", correlationId.toByteArray()), HttpStatus.OK)
+            }
         } catch (e: Exception) {
-            CommonResponse(500, "Exception: ${e.message}", null)
+            ResponseEntity(CommonResponse(500, "Exception: ${e.message}", null), HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
 
 
     @RequestMapping("/store/categorystate", method = [RequestMethod.GET])
-    fun getCategoryState(@RequestParam("competitionId") competitionId: String, @RequestParam("categoryId") categoryId: String): CategoryState? = stateQueryService.getCategoryState(Base64.getDecoder().decode(competitionId).toString(StandardCharsets.UTF_8), Base64.getDecoder().decode(categoryId).toString(StandardCharsets.UTF_8))
+    fun getCategoryState(@RequestParam("competitionId") competitionId: String, @RequestParam("categoryId") categoryId: String, @RequestParam("internal") internal: Boolean? = false): Any? {
+        val categoryState = stateQueryService.getCategoryState(
+                Base64.getDecoder().decode(competitionId).toString(StandardCharsets.UTF_8),
+                Base64.getDecoder().decode(categoryId).toString(StandardCharsets.UTF_8))
+        return if (internal == true) {
+            categoryState
+        } else {
+            categoryState?.toDTO()
+        }
+    }
 
 
     @RequestMapping("/store/competitors", method = [RequestMethod.GET])
     fun getCompetitors(@RequestParam("competitionId") competitionId: String,
+                       @RequestParam("categoryId") categoryId: String?,
                        @RequestParam("searchString") searchString: String?,
                        @RequestParam("pageSize") pageSize: Int?,
-                       @RequestParam("pageNumber") pageNumber: Int?): PageResponse<CompetitorDTO> {
-        val page = stateQueryService.getCompetitors(competitionId, searchString, pageSize ?: 50, pageNumber ?: 0)
-        return PageResponse(competitionId, page.totalElements, page.number, page.content.mapNotNull { it.toDTO() }.toTypedArray())
+                       @RequestParam("pageNumber") pageNumber: Int?,
+                       @RequestParam("internal") internal: Boolean? = false): Any? {
+        val page = stateQueryService.getCompetitors(competitionId, categoryId, searchString, pageSize ?: 50, pageNumber ?: 0)
+        return if (internal == true) {
+            page
+        } else {
+            PageResponse(competitionId, page?.totalElements ?: 0, page?.number ?: 0, page?.content?.mapNotNull { it.toDTO() }?.toTypedArray() ?: emptyArray())
+        }
     }
 
 
@@ -90,7 +123,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
             emptyArray()
         } else {
             if (categoryId.isNullOrBlank()) {
-                stateQueryService.getBracketsForCompetition(competitionId!!).toTypedArray()
+                stateQueryService.getBracketsForCompetition(competitionId!!)?.toTypedArray() ?: emptyArray()
             } else {
                 stateQueryService.getBrackets(categoryId).map { arrayOf(it) }.orElse(emptyArray())
             }
@@ -109,7 +142,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     }
 
     @RequestMapping("/store/defaultcategories", method = [RequestMethod.GET])
-    fun getDefaultCategories(@RequestParam("sportsId") sportsId: String?, @RequestParam("competitionId") competitionId: String?): List<CategoryDescriptorDTO> {
+    fun getDefaultCategories(@RequestParam("sportsId") sportsId: String?, @RequestParam("competitionId") competitionId: String?, includeKids: Boolean? = false): List<CategoryDescriptorDTO> {
         return if (sportsId.isNullOrBlank() || competitionId.isNullOrBlank()) {
             log.warn("Sports id is $sportsId, competition ID is $competitionId.")
             emptyList()

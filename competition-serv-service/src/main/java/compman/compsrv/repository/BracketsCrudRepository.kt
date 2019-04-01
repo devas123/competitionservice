@@ -10,6 +10,6 @@ import javax.transaction.Transactional
 @Repository
 @Transactional(Transactional.TxType.MANDATORY)
 interface BracketsCrudRepository : JpaRepository<BracketDescriptor, String> {
-    fun findByCompetitionId(competitionId: String): List<BracketDescriptor>
+    fun findByCompetitionId(competitionId: String): List<BracketDescriptor>?
     fun deleteByCompetitionId(competitionId: String)
 }
