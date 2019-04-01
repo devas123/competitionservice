@@ -8,8 +8,8 @@ import compman.compsrv.kafka.streams.CompetitionProcessingStreamsBuilderFactory
 import compman.compsrv.kafka.streams.CompetitionProcessingStreamsBuilderFactory.Companion.COMPETITION_STATE_SNAPSHOT_STORE_NAME
 import compman.compsrv.kafka.streams.LeaderProcessStreams
 import compman.compsrv.kafka.streams.MetadataService
-import compman.compsrv.kafka.streams.processor.CompetitionCommandTransformer
-import compman.compsrv.kafka.streams.processor.StateSnapshotForwardingProcessor
+import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformer
+import compman.compsrv.kafka.streams.transformer.StateSnapshotForwardingTransformer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.model.commands.CommandDTO
@@ -30,6 +30,7 @@ import org.apache.kafka.streams.processor.ProcessorSupplier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.DependsOn
+import org.springframework.transaction.support.TransactionTemplate
 import java.util.*
 
 @Configuration
@@ -59,17 +60,19 @@ class KafkaStreamsConfiguration {
                            mapper: ObjectMapper,
                            competitionStateRepository: CompetitionStateRepository,
                            competitionStateResolver: CompetitionStateResolver,
+                           transactionTemplate: TransactionTemplate,
                            clusterSession: ClusterSession) = ValueTransformerWithKeySupplier<String, CommandDTO, List<EventDTO>> {
         CompetitionCommandTransformer(competitionStateService,
                 competitionStateRepository,
                 competitionStateResolver,
+                transactionTemplate,
                 mapper,
                 COMPETITION_STATE_SNAPSHOT_STORE_NAME)
     }
 
     @Bean
     fun snapshotEventsProcessor(commandCrudRepository: CommandCrudRepository, eventCrudRepository: EventCrudRepository, clusterSession: ClusterSession, mapper: ObjectMapper) = ProcessorSupplier<String, EventDTO> {
-        StateSnapshotForwardingProcessor(COMPETITION_STATE_SNAPSHOT_STORE_NAME, commandCrudRepository, eventCrudRepository, clusterSession, mapper)
+        StateSnapshotForwardingTransformer(COMPETITION_STATE_SNAPSHOT_STORE_NAME, commandCrudRepository, eventCrudRepository, clusterSession, mapper)
     }
 
     @Bean

@@ -1,4 +1,4 @@
-package compman.compsrv.kafka.streams.processor
+package compman.compsrv.kafka.streams.transformer
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.model.commands.CommandDTO
@@ -11,13 +11,15 @@ import compman.compsrv.service.resolver.CompetitionStateResolver
 import org.apache.kafka.streams.processor.ProcessorContext
 import org.apache.kafka.streams.state.KeyValueStore
 import org.slf4j.LoggerFactory
+import org.springframework.transaction.support.TransactionTemplate
 
 class CompetitionCommandTransformer(competitionStateService: CompetitionStateService,
                                     private val competitionStateRepository: CompetitionStateRepository,
                                     private val competitionStateResolver: CompetitionStateResolver,
+                                    transactionTemplate: TransactionTemplate,
                                     private val mapper: ObjectMapper,
                                     private val snapshotStoreName: String)
-    : AbstractCommandTransformer(competitionStateService, mapper) {
+    : AbstractCommandTransformer(competitionStateService, transactionTemplate, mapper) {
 
     private lateinit var snapshotStore: KeyValueStore<String, CompetitionStateSnapshot>
 

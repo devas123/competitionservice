@@ -1,4 +1,4 @@
-package compman.compsrv.kafka.streams.processor
+package compman.compsrv.kafka.streams.transformer
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
@@ -11,9 +11,9 @@ import org.apache.kafka.streams.processor.Processor
 import org.apache.kafka.streams.processor.ProcessorContext
 import org.apache.kafka.streams.state.KeyValueStore
 
-class StateSnapshotForwardingProcessor(private val stateSnapshotStoreName: String, private val commandCrudRepository: CommandCrudRepository,
-                                       private val eventCrudRepository: EventCrudRepository, private val clusterSession: ClusterSession,
-                                       private val mapper: ObjectMapper) : Processor<String, EventDTO> {
+class StateSnapshotForwardingTransformer(private val stateSnapshotStoreName: String, private val commandCrudRepository: CommandCrudRepository,
+                                         private val eventCrudRepository: EventCrudRepository, private val clusterSession: ClusterSession,
+                                         private val mapper: ObjectMapper) : Processor<String, EventDTO> {
 
     private lateinit var context: ProcessorContext
     private lateinit var stateStore: KeyValueStore<String, CompetitionStateSnapshot>
