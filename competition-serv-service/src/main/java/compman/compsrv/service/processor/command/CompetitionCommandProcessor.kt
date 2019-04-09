@@ -15,6 +15,7 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.repository.*
 import compman.compsrv.service.ScheduleService
+import compman.compsrv.util.IDGenerator
 import org.slf4j.LoggerFactory
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
@@ -35,9 +36,12 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val registrationInfoCrudRepository: RegistrationInfoCrudRepository,
                                   private val mapper: ObjectMapper) : ICommandProcessor {
     override fun affectedCommands(): Set<CommandType> {
-        return setOf(CommandType.ASSIGN_REGISTRATION_GROUP_CATEGORIES_COMMAND, CommandType.DELETE_REGISTRATION_PERIOD_COMMAND,
-                CommandType.DELETE_REGISTRATION_GROUP_COMMAND, CommandType.ADD_REGISTRATION_GROUP_COMMAND,
-                CommandType.ADD_REGISTRATION_PERIOD_COMMAND, CommandType.CREATE_COMPETITION_COMMAND,
+        return setOf(CommandType.ASSIGN_REGISTRATION_GROUP_CATEGORIES_COMMAND,
+                CommandType.DELETE_REGISTRATION_PERIOD_COMMAND,
+                CommandType.DELETE_REGISTRATION_GROUP_COMMAND,
+                CommandType.ADD_REGISTRATION_GROUP_COMMAND,
+                CommandType.ADD_REGISTRATION_PERIOD_COMMAND,
+                CommandType.CREATE_COMPETITION_COMMAND,
                 CommandType.DROP_ALL_BRACKETS_COMMAND,
                 CommandType.DROP_SCHEDULE_COMMAND,
                 CommandType.GENERATE_SCHEDULE_COMMAND,
@@ -110,14 +114,15 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 }
                 CommandType.ADD_REGISTRATION_GROUP_COMMAND -> {
                     val payload = mapper.convertValue(command.payload, AddRegistrationGroupPayload::class.java)
-                    if (!payload.periodId.isNullOrBlank() && !payload.group.id.isNullOrBlank()) {
+                    if (!payload.periodId.isNullOrBlank()) {
                         val period = registrationPeriodCrudRepository.findById(payload.periodId)
                         if (!payload.group.displayName.isNullOrBlank()) {
+                            val groupId = IDGenerator.hashString("${payload.periodId}/${payload.group.displayName}")
                             period.map { p ->
-                                if (!p.registrationGroups.any { it.id == payload.group.id }) {
-                                    createEvent(EventType.REGISTRATION_GROUP_ADDED, RegistrationGroupAddedPayload(payload.periodId, payload.group))
+                                if (!p.registrationGroups.any { it.id == groupId }) {
+                                    createEvent(EventType.REGISTRATION_GROUP_ADDED, RegistrationGroupAddedPayload(payload.periodId, payload.group.setId(groupId)))
                                 } else {
-                                    createErrorEvent("Group with id ${payload.group.id} already exists")
+                                    createErrorEvent("Group with id $groupId already exists")
                                 }
                             }.orElse(createErrorEvent("Cannot find period with ID: ${payload.periodId}"))
                         } else {
@@ -131,16 +136,17 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                     val payload = mapper.convertValue(command.payload, AddRegistrationPeriodPayload::class.java)
                     if (payload.period != null && !command.competitionId.isNullOrBlank()) {
                         val regInfo = registrationInfoCrudRepository.findById(command.competitionId)
+                        val periodId = IDGenerator.hashString("${command.competitionId}/${payload.period.name}")
                         regInfo.map { info ->
-                            if (!info.registrationPeriods.any { it.id == payload.period.id }) {
-                                createEvent(EventType.REGISTRATION_PERIOD_ADDED, RegistrationPeriodAddedPayload(payload.period))
+                            if (!info.registrationPeriods.any { it.id == periodId }) {
+                                createEvent(EventType.REGISTRATION_PERIOD_ADDED, RegistrationPeriodAddedPayload(payload.period.setId(periodId)))
                             } else {
                                 createErrorEvent("Period with id ${payload.period.id} already exists.")
                             }
                         }.orElseGet {
                             try {
                                 registrationInfoCrudRepository.save(RegistrationInfo(command.competitionId, false, mutableListOf()))
-                                createEvent(EventType.REGISTRATION_PERIOD_ADDED, RegistrationPeriodAddedPayload(payload.period))
+                                createEvent(EventType.REGISTRATION_PERIOD_ADDED, RegistrationPeriodAddedPayload(payload.period.setId(periodId)))
                             } catch (e: Throwable) {
                                 log.error("Exception.", e)
                                 createErrorEvent("Registration info is missing for the competition ${command.competitionId}, exception when adding: $e")

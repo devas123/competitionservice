@@ -7,6 +7,7 @@ import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.jpa.competition.Competitor
 import compman.compsrv.model.dto.competition.CategoryStateDTO
 import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
+import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.repository.*
 import io.scalecube.transport.Address
 import org.slf4j.LoggerFactory
@@ -20,7 +21,6 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.client.RestClientResponseException
 import org.springframework.web.client.RestTemplate
 import java.nio.charset.StandardCharsets
-import java.util.*
 
 
 class StateQueryService(private val clusterSession: ClusterSession,
@@ -38,7 +38,12 @@ class StateQueryService(private val clusterSession: ClusterSession,
     }
 
 
-    private fun getLocalCompetitors(competitionId: String, categoryId: String?, searchString: String?, pageSize: Int, pageNumber: Int): Page<Competitor> {
+    private fun getLocalCompetitors(competitionId: String, categoryId: String?, searchString: String?, pageSize: Int, page: Int): Page<Competitor> {
+        val pageNumber = if (page > 0) {
+            page - 1
+        } else {
+            0
+        }
         return if (!searchString.isNullOrBlank()) {
             if (categoryId.isNullOrBlank()) {
                 competitorCrudRepository.findByCompetitionIdAndSearchString(competitionId, searchString, PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Order.asc("firstName"), Sort.Order.asc("lastName"))))
@@ -47,7 +52,8 @@ class StateQueryService(private val clusterSession: ClusterSession,
             }
         } else {
             if (categoryId.isNullOrBlank()) {
-                competitorCrudRepository.findByCompetitionId(competitionId, PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Order.asc("firstName"), Sort.Order.asc("lastName"))))
+                val competitors = competitorCrudRepository.findByCompetitionId(competitionId, PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Order.asc("firstName"), Sort.Order.asc("lastName"))))
+                competitors
             } else {
                 competitorCrudRepository.findByCompetitionIdAndCategoryId(competitionId, categoryId, PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Order.asc("firstName"), Sort.Order.asc("lastName"))))
             }
@@ -81,7 +87,10 @@ class StateQueryService(private val clusterSession: ClusterSession,
                 })
     }
 
-    fun getCompetitor(competitionId: String, categoryId: String, comptetitorId: String) = competitorCrudRepository.findByUserIdAndCategoryIdAndCompetitionId(comptetitorId, categoryId, competitionId)
+    fun getCompetitor(competitionId: String, fighterId: String) = getLocalOrRemote(competitionId, {competitorCrudRepository.findById(fighterId).map { it.toDTO() }.orElse(null)},
+            {
+                restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/competitor?competitionId=$competitionId&fighterId=$fighterId", CompetitorDTO::class.java)
+            })
 
 
     fun getCompetitionState(competitionId: String?): CompetitionState? = getLocalOrRemote(competitionId,
@@ -128,10 +137,8 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getCategoryState(competitionId: String, categoryId: String): CategoryState? {
         log.info("Getting state for category $categoryId")
-        return getLocalOrRemote(competitionId, { categoryCrudRepository.findByCompetitionIdAndCategoryId(competitionId, categoryId) }, {
-            val encCompId = Base64.getEncoder().encode(competitionId.toByteArray(StandardCharsets.UTF_8))
-            val encCatId = Base64.getEncoder().encode(categoryId.toByteArray(StandardCharsets.UTF_8))
-            restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/categorystate?competitionId=$encCompId&categoryId=$encCatId&internal=true", CategoryState::class.java)
+        return getLocalOrRemote(competitionId, { categoryCrudRepository.findByIdAndCompetitionId(categoryId, competitionId) }, {
+            restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/categorystate?competitionId=$competitionId&categoryId=$categoryId&internal=true", CategoryState::class.java)
         })
     }
 
@@ -144,7 +151,6 @@ class StateQueryService(private val clusterSession: ClusterSession,
         }) ?: emptyArray()
         return categories
                 .filter { !it.id.isNullOrBlank() }
-                .mapNotNull { getCategoryState(competitionId, it.id!!) }
                 .map { it.toDTO() }.toTypedArray()
     }
 

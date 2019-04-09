@@ -3,19 +3,19 @@ package compman.compsrv.jpa.competition
 import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
 import java.math.BigDecimal
-import javax.persistence.Entity
-import javax.persistence.JoinColumn
-import javax.persistence.ManyToOne
+import javax.persistence.*
 
 
 @Entity(name = "category_descriptor")
 class CategoryDescriptor(
+        @Column(columnDefinition = "varchar(255)")
+        var competitionId: String,
         var sportsType: String,
-        @ManyToOne
+        @ManyToOne(fetch = FetchType.LAZY, cascade = [CascadeType.PERSIST, CascadeType.MERGE])
         @JoinColumn(name = "age_id")
         var ageDivision: AgeDivision,
         var gender: String,
-        @ManyToOne
+        @ManyToOne(fetch = FetchType.LAZY, cascade = [CascadeType.PERSIST, CascadeType.MERGE])
         @JoinColumn(name = "weight_id")
         var weight: Weight,
         var beltType: String,
@@ -26,8 +26,9 @@ class CategoryDescriptor(
     }
 
     companion object {
-        fun fromDTO(dto: CategoryDescriptorDTO): CategoryDescriptor {
+        fun fromDTO(dto: CategoryDescriptorDTO, competitionId: String): CategoryDescriptor {
             return CategoryDescriptor(
+                    competitionId = competitionId,
                     sportsType = dto.sportsType,
                     ageDivision = AgeDivision(dto.ageDivision.id, dto.ageDivision.minimalAge, dto.ageDivision.maximalAge),
                     gender = dto.gender,

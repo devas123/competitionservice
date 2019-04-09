@@ -11,23 +11,25 @@ class CategoryState(id: String,
                     @ManyToOne(fetch = FetchType.LAZY)
                     @JoinColumn(name = "competition_id", nullable = false)
                     var competition: CompetitionProperties,
-                    @OneToOne(optional = false, fetch = FetchType.LAZY, cascade = [CascadeType.ALL])
+                    @OneToOne(optional = false, fetch = FetchType.EAGER, cascade = [CascadeType.ALL])
                     @PrimaryKeyJoinColumn
                     var category: CategoryDescriptor,
                     var status: CategoryStatus,
-                    @OneToOne(fetch = FetchType.LAZY)
+                    @OneToOne(fetch = FetchType.LAZY, cascade = [CascadeType.ALL])
                     @PrimaryKeyJoinColumn
                     var brackets: BracketDescriptor?,
-                    @OneToMany(cascade = [CascadeType.ALL], mappedBy = "categoryId")
+                    @OneToMany(cascade = [CascadeType.ALL], mappedBy = "categoryId", fetch = FetchType.LAZY)
                     var competitors: Set<Competitor>) : AbstractJpaPersistable<String>(id) {
 
     companion object {
         fun fromDTO(dto: CategoryStateDTO, props: CompetitionProperties, competitors: Set<Competitor>) = CategoryState(
                 id = dto.id,
                 competition = props,
-                category = CategoryDescriptor.fromDTO(dto.category),
+                category = CategoryDescriptor.fromDTO(dto.category, props.id!!),
                 status = dto.status,
-                brackets = BracketDescriptor.fromDTO(dto.brackets),
+                brackets = dto.brackets?.let {
+                    BracketDescriptor.fromDTO(dto.brackets)
+                },
                 competitors = competitors
         )
     }

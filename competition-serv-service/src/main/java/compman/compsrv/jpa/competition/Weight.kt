@@ -2,20 +2,28 @@ package compman.compsrv.jpa.competition
 
 import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.model.dto.competition.WeightDTO
+import compman.compsrv.util.IDGenerator
 import java.math.BigDecimal
 import javax.persistence.Entity
 
 @Entity
 class Weight(id: String,
+             var name: String,
              var maxValue: BigDecimal?,
              var minValue: BigDecimal?) : AbstractJpaPersistable<String>(id) {
     fun toDTO(): WeightDTO? {
-        return WeightDTO(id!!, maxValue ?: BigDecimal.valueOf(200), minValue)
+        return WeightDTO(name, maxValue ?: BigDecimal.valueOf(200), minValue)
     }
 
-    constructor(id: String, maxvalue: BigDecimal) : this(id, maxvalue, BigDecimal.ZERO)
+    constructor(name: String,
+                maxValue: BigDecimal?,
+                minValue: BigDecimal?) : this(getId(name), name, maxValue, minValue)
+
+    constructor(name: String, maxvalue: BigDecimal) : this(name, maxvalue, BigDecimal.ZERO)
 
     companion object {
+        fun getId(name: String) = IDGenerator.hashString(name)
+
         const val ROOSTER = "Rooster"
 
         const val LIGHT_FEATHER = "LightFeather"

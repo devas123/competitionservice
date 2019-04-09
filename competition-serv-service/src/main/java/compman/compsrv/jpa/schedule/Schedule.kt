@@ -29,7 +29,7 @@ class Schedule(id: String,
         fun fromDTO(dto: ScheduleDTO) = Schedule(
                 id = dto.id,
                 scheduleProperties = ScheduleProperties.fromDTO(dto.scheduleProperties),
-                periods = dto.periods.map { Period.fromDTO(it) }
+                periods = dto.periods.map { Period.fromDTO(it, dto.scheduleProperties.competitionId) }
         )
 
         fun obsoleteFight(f: FightDescription, threeCompetitorCategory: Boolean): Boolean {
