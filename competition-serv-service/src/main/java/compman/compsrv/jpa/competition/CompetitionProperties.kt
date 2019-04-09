@@ -15,8 +15,7 @@ class CompetitionProperties(
         var emailNotificationsEnabled: Boolean?,
         var competitionName: String,
         var emailTemplate: String?,
-        @OneToMany
-        @JoinColumn(name = "competitionId")
+        @OneToMany(mappedBy = "competitionId")
         var promoCodes: List<PromoCode>?,
         var startDate: Instant?,
         var schedulePublished: Boolean,

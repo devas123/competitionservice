@@ -7,6 +7,7 @@ import compman.compsrv.jpa.competition.Competitor
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.model.exceptions.CategoryNotFoundException
 import compman.compsrv.repository.CategoryDescriptorCrudRepository
+import compman.compsrv.util.IDGenerator
 import org.springframework.stereotype.Component
 import java.util.*
 
@@ -38,9 +39,10 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
             val random = Random()
             val result = ArrayList<Competitor>()
             for (k in 1 until size + 1) {
+                val email = generateEmail(random)
                 result.add(Competitor(
-                        UUID.randomUUID().toString(),
-                        generateEmail(random),
+                        IDGenerator.hashString("$competitionId/${category.id}/$email"),
+                        email,
                         null,
                         names[random.nextInt(names.size)],
                         surnames[random.nextInt(surnames.size)],

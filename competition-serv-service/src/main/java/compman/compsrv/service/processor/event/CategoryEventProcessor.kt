@@ -73,9 +73,10 @@ class CategoryEventProcessor (private val mapper: ObjectMapper,
 
 
     private fun applyCompetitorAddedEvent(event: EventDTO): List<EventDTO> {
-        val competitor = getPayloadAs(event.payload, Competitor::class.java)
-        return if (competitor != null) {
-            competitorCrudRepository.save(competitor)
+        val payload = getPayloadAs(event.payload, CompetitorAddedPayload::class.java)
+        val competitor = payload?.fighter
+        return if (competitor != null && !competitor.id.isNullOrBlank() && !competitorCrudRepository.existsById(competitor.id)) {
+            competitorCrudRepository.save(Competitor.fromDTO(competitor))
             listOf(event)
         } else {
             throw EventApplyingException("No competitor in the event payload: $event", event)
@@ -135,8 +136,8 @@ class CategoryEventProcessor (private val mapper: ObjectMapper,
         val c = getPayloadAs(event.payload, CategoryAddedPayload::class.java)?.categoryState
         val props = competitionPropertiesCrudRepository.findById(event.competitionId)
         return if (c != null && event.categoryId != null && props.isPresent) {
-            categoryCrudRepository.save(CategoryState.fromDTO(c, props.get(), emptySet()))
-            listOf(event)
+            val state = categoryCrudRepository.save(CategoryState.fromDTO(c, props.get(), emptySet()))
+            listOf(event.setPayload(writePayloadAsString(CategoryAddedPayload(state.toDTO()))))
         } else {
             throw EventApplyingException("event did not contain category state.", event)
         }
@@ -144,7 +145,9 @@ class CategoryEventProcessor (private val mapper: ObjectMapper,
 
     private fun applyCategoryStateDeletedEvent(event: EventDTO): List<EventDTO> {
         return if (!event.categoryId.isNullOrBlank()) {
-            categoryCrudRepository.deleteById(event.categoryId)
+            if (categoryCrudRepository.existsById(event.categoryId)) {
+                categoryCrudRepository.deleteById(event.categoryId)
+            }
             listOf(event)
         } else {
             throw EventApplyingException("Category ID is null.", event)
@@ -160,4 +163,6 @@ class CategoryEventProcessor (private val mapper: ObjectMapper,
         }
         return null
     }
+
+    private fun writePayloadAsString(payload: Any): String = mapper.writeValueAsString(payload)
 }

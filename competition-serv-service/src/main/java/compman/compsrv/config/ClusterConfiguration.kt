@@ -47,7 +47,7 @@ class ClusterConfiguration {
         log.info("Started instance at ${cluster.address().host()}:${cluster.address().port()} with rest port: ${serverProperties.port}")
         log.info("Members of the cluster: ")
         cluster.members()?.forEach {
-            log.info("${it.id()} -> ${it.address()}, ${it.metadata()[ClusterSession.REST_PORT_METADATA_KEY]}")
+            log.info("${it.id()} -> ${it.address()}, ${cluster.metadata(it)[ClusterSession.REST_PORT_METADATA_KEY]}")
         }
         return cluster
     }

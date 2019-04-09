@@ -114,7 +114,7 @@ class FightsGenerateServiceTest {
     companion object {
         const val competitionId = "UG9wZW5nYWdlbiBPcGVu"
 
-        val category = CategoryDescriptor("BJJ", AgeDivision.fromDTO(AgeDivisionDTO.ADULT), Gender.MALE.name, Weight("Light", BigDecimal.TEN), BeltType.BROWN, UUID.randomUUID().toString(), BigDecimal(8))
+        val category = CategoryDescriptor(competitionId, "BJJ", AgeDivision.fromDTO(AgeDivisionDTO.ADULT), Gender.MALE.name, Weight("Light", BigDecimal.TEN), BeltType.BROWN, UUID.randomUUID().toString(), BigDecimal(8))
     }
 
     @Test

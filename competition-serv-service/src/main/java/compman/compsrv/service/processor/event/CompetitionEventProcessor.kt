@@ -30,7 +30,6 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                                 private val mapper: ObjectMapper) : IEventProcessor {
     override fun affectedEvents(): Set<EventType> {
         return setOf(
-
                 EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED,
                 EventType.REGISTRATION_GROUP_ADDED,
                 EventType.REGISTRATION_GROUP_DELETED,
@@ -43,7 +42,10 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                 EventType.ALL_BRACKETS_DROPPED,
                 EventType.SCHEDULE_GENERATED,
                 EventType.COMPETITION_PROPERTIES_UPDATED,
-                EventType.COMPETITION_STARTED, EventType.COMPETITION_STOPPED, EventType.COMPETITION_PUBLISHED, EventType.COMPETITION_UNPUBLISHED,
+                EventType.COMPETITION_STARTED,
+                EventType.COMPETITION_STOPPED,
+                EventType.COMPETITION_PUBLISHED,
+                EventType.COMPETITION_UNPUBLISHED,
                 EventType.ERROR_EVENT
 
         )
@@ -128,8 +130,9 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                 EventType.COMPETITION_DELETED -> transactionTemplate.execute {
                     competitionStateCrudRepository.findById(event.competitionId).map { it.withStatus(CompetitionStatus.DELETED) }.map {
                         competitionStateCrudRepository.save(it)
-                        listOf(event)
-                    }.orElse(emptyList())
+
+                    }
+                    listOf(event)
                 }
                 EventType.COMPETITION_CREATED -> {
                     val payload = getPayloadAs(event.payload, CompetitionCreatedPayload::class.java)

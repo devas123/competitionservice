@@ -35,11 +35,11 @@ class Period(id: String,
     }
 
     companion object {
-        fun fromDTO(dto: PeriodDTO) = Period(
+        fun fromDTO(dto: PeriodDTO, competitionId: String) = Period(
                 id = dto.id,
                 name = dto.name,
                 schedule = dto.schedule.map { ScheduleEntry.fromDTO(it) },
-                categories = dto.categories.map { CategoryDescriptor.fromDTO(it) },
+                categories = dto.categories.map { CategoryDescriptor.fromDTO(it, competitionId) },
                 startTime = dto.startTime,
                 numberOfMats = dto.numberOfMats,
                 fightsByMats = dto.fightsByMats.map { MatScheduleContainer.fromDTO(it) }

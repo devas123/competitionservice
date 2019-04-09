@@ -28,7 +28,12 @@ class PeriodProperties(id: String,
     }
 
     companion object {
-        fun fromDTO(props: PeriodPropertiesDTO) = PeriodProperties(props.id, props.startTime, props.numberOfMats, props.timeBetweenFights, props.riskPercent, props.categories.map { CategoryDescriptor.fromDTO(it) })
+        fun fromDTO(props: PeriodPropertiesDTO, competitionId: String) = PeriodProperties(props.id,
+                props.startTime,
+                props.numberOfMats,
+                props.timeBetweenFights,
+                props.riskPercent,
+                props.categories.map { CategoryDescriptor.fromDTO(it, competitionId) })
     }
 }
 
@@ -46,6 +51,6 @@ class ScheduleProperties(var id: String,
 
     companion object {
         fun fromDTO(dto: SchedulePropertiesDTO) =
-                ScheduleProperties(dto.competitionId, dto.periodPropertiesList.map { PeriodProperties.fromDTO(it) })
+                ScheduleProperties(dto.competitionId, dto.periodPropertiesList.map { PeriodProperties.fromDTO(it, dto.competitionId) })
     }
 }

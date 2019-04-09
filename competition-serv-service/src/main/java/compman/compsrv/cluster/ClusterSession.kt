@@ -108,7 +108,7 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
                 .headers(mapOf(TYPE to COMPETITION_PROCESSING_STOPPED)).build()).subscribe()
     }
 
-    fun isLocal(address: Address) = cluster.address() == address || (address.host() == clusterConfigurationProperties.advertisedHost && address.port() == serverProperties.port)
+    fun isLocal(address: Address) = (cluster.address().host() == address.host() || address.host() == clusterConfigurationProperties.advertisedHost) && address.port() == serverProperties.port
 
     fun init() {
         cluster.listenMembership().subscribe {
@@ -118,16 +118,16 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
                 }
                 MembershipEvent.Type.REMOVED -> {
                     log.info("Member removed from the cluster: ${it.member()}")
-                    if (it.member().metadata()[REST_PORT_METADATA_KEY] != null) {
-                        val m = MemberWithRestPort(it.member(), it.member().metadata()[REST_PORT_METADATA_KEY]?.toInt()!!)
+                    if (it.oldMetadata()[REST_PORT_METADATA_KEY] != null) {
+                        val m = MemberWithRestPort(it.member(), it.oldMetadata()[REST_PORT_METADATA_KEY]?.toInt()!!)
                         val keysToRemove = clusterMembers.filter { entry -> entry.value == m }.keys
                         keysToRemove.forEach { id -> clusterMembers.remove(id) }
                     }
                 }
                 MembershipEvent.Type.UPDATED -> {
-                    log.info("Cluster member updated: ${it.oldMember()} -> ${it.newMember()}")
-                    val om = MemberWithRestPort(it.oldMember(), it.oldMember().metadata()[REST_PORT_METADATA_KEY]?.toInt()!!)
-                    val nm = MemberWithRestPort(it.newMember(), it.newMember().metadata()[REST_PORT_METADATA_KEY]?.toInt()!!)
+                    log.info("Cluster member updated: ${it.member()}")
+                    val om = MemberWithRestPort(it.member(), it.oldMetadata()[REST_PORT_METADATA_KEY]?.toInt()!!)
+                    val nm = MemberWithRestPort(it.member(), it.newMetadata()[REST_PORT_METADATA_KEY]?.toInt()!!)
                     val keysToUpdate = clusterMembers.filter { entry -> entry.value == om }.keys
                     keysToUpdate.forEach { id -> clusterMembers[id] = nm }
                 }

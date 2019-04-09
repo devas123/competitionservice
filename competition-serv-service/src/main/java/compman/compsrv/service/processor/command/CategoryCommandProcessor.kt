@@ -1,7 +1,6 @@
 package compman.compsrv.service.processor.command
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.google.common.hash.Hashing
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
@@ -17,6 +16,7 @@ import compman.compsrv.repository.CompetitionPropertiesCrudRepository
 import compman.compsrv.repository.CompetitorCrudRepository
 import compman.compsrv.repository.FightCrudRepository
 import compman.compsrv.service.FightsGenerateService
+import compman.compsrv.util.IDGenerator
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Component
@@ -89,7 +89,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         val newCategory = payload?.newCategory
         return if (newCategory != null && competitor != null && competitorCrudRepository.existsById(competitor.id) && categoryCrudRepository.existsById(newCategory.id)) {
             val newCompetitor = competitor.setCategoryId(newCategory.id)
-            listOf(createEvent(command, EventType.COMPETITOR_CATEGORY_CHANGED, mapper.writeValueAsString(CompetitorAddedPayload(newCompetitor))))
+            listOf(createEvent(command, EventType.COMPETITOR_CATEGORY_CHANGED, mapper.writeValueAsString(CompetitorUpdatedPayload(newCompetitor))))
         } else {
             listOf(createErrorEvent(command, "New category is null ${newCategory == null} or such competitor does not exist"))
         }
@@ -175,10 +175,11 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
 
     private fun doAddCompetitor(command: CommandDTO): List<EventDTO> {
         val competitor = mapper.convertValue(command.payload, CompetitorDTO::class.java)
-        return if (competitor != null && !competitorCrudRepository.existsById(competitor.id)) {
+        val competitorId = IDGenerator.hashString("${command.competitionId}/${command.categoryId}/${competitor?.email}")
+        return if (competitor != null && !competitorCrudRepository.existsById(competitorId) && command.categoryId == competitor.categoryId && categoryCrudRepository.existsById(command.categoryId)) {
 //            categoryState.addCompetitor(competitor) to listOf(createEvent(command, EventType.COMPETITOR_ADDED, command.payload
 //                    ?: emptyMap()))
-            listOf(createEvent(command, EventType.COMPETITOR_ADDED, mapper.writeValueAsString(CompetitorAddedPayload(competitor))))
+            listOf(createEvent(command, EventType.COMPETITOR_ADDED, mapper.writeValueAsString(CompetitorAddedPayload(competitor.setId(competitorId)))))
         } else {
             listOf(createEvent(command, EventType.ERROR_EVENT, mapper.writeValueAsString(ErrorEventPayload("Failed to get competitor from payload. Or competitor already exists", command.correlationId))))
         }
@@ -198,10 +199,14 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
     private fun processAddCategoryCommandDTO(command: CommandDTO): List<EventDTO> {
         val c = mapper.convertValue(command.payload, AddCategoryPayload::class.java)?.category
         return if (c != null) {
-            val categoryId = Hashing.sha256().hashBytes("${c.gender}/${c.ageDivision?.id}/${c.weight?.id}/${c.beltType}".toByteArray()).toString()
-            val competition = competitionPropertiesCrudRepository.getOne(command.competitionId)
-            val state = CategoryStateDTO(categoryId, competition.id, c, CategoryStatus.INITIALIZED, null, 0)
-            listOf(createEvent(command, EventType.CATEGORY_ADDED, mapper.writeValueAsString(CategoryAddedPayload(state))).setCategoryId(categoryId))
+            val categoryId = IDGenerator.hashString("${command.competitionId}/${c.gender}/${c.ageDivision?.id}/${c.weight?.id}/${c.beltType}")
+            if (!categoryCrudRepository.existsById(categoryId)) {
+                val competition = competitionPropertiesCrudRepository.getOne(command.competitionId)
+                val state = CategoryStateDTO(categoryId, competition.id, c.setId(categoryId), CategoryStatus.INITIALIZED, null, 0)
+                listOf(createEvent(command, EventType.CATEGORY_ADDED, mapper.writeValueAsString(CategoryAddedPayload(state))).setCategoryId(categoryId))
+            } else {
+                listOf(createErrorEvent(command, "Category with ID $categoryId already exists."))
+            }
         } else {
             listOf(createEvent(command, EventType.ERROR_EVENT, mapper.writeValueAsString(ErrorEventPayload("Failed to get category from command payload", command.correlationId))))
         }

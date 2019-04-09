@@ -13,11 +13,9 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.transaction.support.TransactionTemplate
 
 @Component
 class CompetitionStateService(private val commandCrudRepository: CommandCrudRepository,
-                              private val transactionTemplate: TransactionTemplate,
                               private val eventProcessors: List<IEventProcessor>,
                               private val commandProcessors: List<ICommandProcessor>,
                               private val mapper: ObjectMapper) : ICommandProcessingService<CommandDTO, EventDTO> {
@@ -36,9 +34,7 @@ class CompetitionStateService(private val commandCrudRepository: CommandCrudRepo
                         .setType(EventType.ERROR_EVENT)
                         .setPayload(mapper.writeValueAsString(ErrorEventPayload(error, null)))
         return try {
-            transactionTemplate.execute {
-                eventProcessors.filter { it.affectedEvents().contains(event.type) }.flatMap { it.applyEvent(event) }
-            } ?: emptyList()
+            eventProcessors.filter { it.affectedEvents().contains(event.type) }.flatMap { it.applyEvent(event) }
         } catch (e: Exception) {
             log.error("Error while applying event.", e)
             listOf(createErrorEvent(e.localizedMessage))
