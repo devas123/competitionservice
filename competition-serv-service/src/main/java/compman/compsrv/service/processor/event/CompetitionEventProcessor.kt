@@ -8,7 +8,6 @@ import compman.compsrv.jpa.competition.RegistrationPeriod
 import compman.compsrv.jpa.es.events.EventHolder
 import compman.compsrv.jpa.schedule.Schedule
 import compman.compsrv.model.dto.competition.CompetitionStatus
-import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
@@ -22,6 +21,7 @@ import org.springframework.transaction.support.TransactionTemplate
 class CompetitionEventProcessor(private val competitionStateCrudRepository: CompetitionStateCrudRepository,
                                 private val eventCrudRepository: EventCrudRepository,
                                 private val scheduleCrudRepository: ScheduleCrudRepository,
+                                private val categoryCrudRepository: CategoryDescriptorCrudRepository,
                                 private val bracketsCrudRepository: BracketsCrudRepository,
                                 private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
                                 private val registrationPeriodCrudRepository: RegistrationPeriodCrudRepository,
@@ -157,10 +157,18 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                     listOf(event)
                 }
                 EventType.SCHEDULE_GENERATED -> {
-                    val schedule = getPayloadAs(event.payload, ScheduleDTO::class.java)
-                    schedule?.let {
-                        scheduleCrudRepository.save(Schedule.fromDTO(it))
+                    val scheduleGeneratedPayload = getPayloadAs(event.payload, ScheduleGeneratedPayload::class.java)
+                    if (scheduleGeneratedPayload?.schedule != null) {
+                        val schedule = Schedule.fromDTO(scheduleGeneratedPayload.schedule)
+                        schedule.periods?.forEach {
+                            if (!it.categories.isNullOrEmpty()) {
+                                categoryCrudRepository.saveAll(it.categories)
+                            }
+                        }
+                        scheduleCrudRepository.save(schedule)
                         listOf(event)
+                    } else {
+                        emptyList()
                     }
                 }
                 EventType.COMPETITION_PROPERTIES_UPDATED -> {

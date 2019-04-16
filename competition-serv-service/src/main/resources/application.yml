@@ -3,6 +3,7 @@
 #el-curator: leader election with curator's recipe
 #dev - developer's profile (for test instances of zookeeper and kafka)
 
+
 spring:
 #    mongodb:
 #      host: localhost
@@ -22,7 +23,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
 
 logging:
   level:

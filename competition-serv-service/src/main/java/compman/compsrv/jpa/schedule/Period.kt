@@ -15,12 +15,12 @@ class Period(id: String,
                      joinColumns = [JoinColumn(name = "PERIOD_ID")]
              )
              var schedule: List<ScheduleEntry>,
-             @OneToMany(orphanRemoval = true)
+             @OneToMany(fetch = FetchType.LAZY)
              @JoinColumn(name = "PERIOD_ID", nullable = true)
              var categories: List<CategoryDescriptor>,
              var startTime: Instant,
              var numberOfMats: Int,
-             @OneToMany(orphanRemoval = true)
+             @OneToMany(orphanRemoval = true, cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
              @JoinColumn(name = "PERIOD_ID", nullable = false)
              var fightsByMats: List<MatScheduleContainer>?) : AbstractJpaPersistable<String>(id) {
     fun toDTO(): PeriodDTO? {
@@ -42,7 +42,7 @@ class Period(id: String,
                 categories = dto.categories.map { CategoryDescriptor.fromDTO(it, competitionId) },
                 startTime = dto.startTime,
                 numberOfMats = dto.numberOfMats,
-                fightsByMats = dto.fightsByMats.map { MatScheduleContainer.fromDTO(it) }
+                fightsByMats = dto.fightsByMats?.map { MatScheduleContainer.fromDTO(it) }
         )
     }
 }

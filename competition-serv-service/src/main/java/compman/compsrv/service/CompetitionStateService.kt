@@ -61,7 +61,7 @@ class CompetitionStateService(private val commandCrudRepository: CommandCrudRepo
             commandProcessors.filter { it.affectedCommands().contains(command.type) }.flatMap { it.executeCommand(command) }
         } catch (e: Exception) {
             log.error("Error while applying event.", e)
-            listOf(createErrorEvent(e.localizedMessage))
+            listOf(createErrorEvent(e.localizedMessage ?: e.message ?: ""))
         }
     }
 

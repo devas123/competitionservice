@@ -15,6 +15,7 @@ import java.time.Instant;
 @NoArgsConstructor
 public class PeriodPropertiesDTO {
     private String id;
+    private String name;
     private Instant startTime;
     private Integer numberOfMats;
     private Integer timeBetweenFights;

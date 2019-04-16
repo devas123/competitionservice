@@ -36,6 +36,7 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
         const val COMPETITION_PROCESSING_STARTED = "competitionProcessing"
         const val COMPETITION_PROCESSING_STOPPED = "competitionProcessingStopped"
         const val REST_PORT_METADATA_KEY = "rest_port"
+        const val MEMBER_HOSTNAME_METADATA_KEY = "member_hostname"
         const val TYPE = "type"
     }
 
@@ -55,10 +56,11 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
                 ClusterInfo()
                         .setClusterMembers(cluster.members()
                                 ?.map { member ->
+                                    val hostName = cluster.metadata(member)[MEMBER_HOSTNAME_METADATA_KEY] ?: member.address().host()
                                     ClusterMember()
                                             .setId(member.id())
-                                            .setUri(getUrlPrefix(member.address().host(), serverProperties.port))
-                                            .setHost(member.address().host())
+                                            .setUri(getUrlPrefix(hostName, serverProperties.port))
+                                            .setHost(hostName)
                                             .setPort(serverProperties.port.toString())
                                 }?.toTypedArray())))
         producer.flush()
