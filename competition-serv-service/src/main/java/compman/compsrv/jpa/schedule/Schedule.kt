@@ -15,7 +15,7 @@ class Schedule(id: String,
                        AttributeOverride(name = "id", column = Column(name = "properties_id"))
                )
                var scheduleProperties: ScheduleProperties?,
-               @OneToMany(orphanRemoval = true)
+               @OneToMany(orphanRemoval = true, cascade = [CascadeType.ALL])
                @JoinColumn(name = "SCHED_ID")
                var periods: List<Period>?) : AbstractJpaPersistable<String>(id) {
     fun toDTO(): ScheduleDTO? {

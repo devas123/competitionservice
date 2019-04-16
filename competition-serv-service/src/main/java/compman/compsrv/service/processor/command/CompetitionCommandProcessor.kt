@@ -24,10 +24,12 @@ import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneId
+import java.util.*
 
 @Component
 class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val competitionStateCrudRepository: CompetitionStateCrudRepository,
+                                  private val categoryCrudRepository: CategoryCrudRepository,
                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
                                   private val bracketsCrudRepository: BracketsCrudRepository,
                                   private val commandCrudRepository: CommandCrudRepository,
@@ -201,10 +203,34 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 CommandType.GENERATE_SCHEDULE_COMMAND -> {
                     val payload = command.payload!!
                     val scheduleProperties = mapper.convertValue(payload, SchedulePropertiesDTO::class.java)
+                    scheduleProperties.periodPropertiesList = scheduleProperties.periodPropertiesList.map {
+                        if (it.id.isNullOrBlank()) {
+                            it.setId("${command.competitionId}-${UUID.randomUUID()}")
+                        } else {
+                            it
+                        }
+                    }.toTypedArray()
                     val compProps = competitionPropertiesCrudRepository.findByIdOrNull(command.competitionId)
-                    val schedule = scheduleService.generateSchedule(ScheduleProperties.fromDTO(scheduleProperties), getAllBrackets(scheduleProperties.competitionId), getFightDurations(scheduleProperties), compProps?.timeZone
-                            ?: ZoneId.systemDefault().id)
-                    createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule.toDTO()))
+                    val categories = scheduleProperties?.periodPropertiesList?.flatMap {
+                        it.categories?.toList() ?: emptyList()
+                    }
+                    val missingCategories = categories?.fold(emptyList<String>(), { acc, cat ->
+                        if (categoryCrudRepository.existsById(cat.id)) {
+                            acc
+                        } else {
+                            acc + cat.id
+                        }
+                    })
+                    if (compProps != null && !compProps.schedulePublished) {
+                        if (missingCategories.isNullOrEmpty()) {
+                            val schedule = scheduleService.generateSchedule(ScheduleProperties.fromDTO(scheduleProperties), getAllBrackets(scheduleProperties.competitionId), getFightDurations(scheduleProperties), compProps.timeZone)
+                            createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule.toDTO()))
+                        } else {
+                            createErrorEvent("Categories $missingCategories are missing")
+                        }
+                    } else {
+                        createErrorEvent("could not find competition with ID: ${command.competitionId}")
+                    }
                 }
                 CommandType.UPDATE_COMPETITION_PROPERTIES_COMMAND -> {
                     createEvent(EventType.COMPETITION_PROPERTIES_UPDATED, command.payload!!)

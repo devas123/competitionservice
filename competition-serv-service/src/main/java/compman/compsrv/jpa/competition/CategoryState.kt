@@ -10,16 +10,16 @@ import javax.persistence.*
 class CategoryState(id: String,
                     @ManyToOne(fetch = FetchType.LAZY)
                     @JoinColumn(name = "competition_id", nullable = false)
-                    var competition: CompetitionProperties,
+                    var competition: CompetitionProperties?,
                     @OneToOne(optional = false, fetch = FetchType.EAGER, cascade = [CascadeType.ALL])
                     @PrimaryKeyJoinColumn
-                    var category: CategoryDescriptor,
-                    var status: CategoryStatus,
+                    var category: CategoryDescriptor?,
+                    var status: CategoryStatus?,
                     @OneToOne(fetch = FetchType.LAZY, cascade = [CascadeType.ALL])
                     @PrimaryKeyJoinColumn
                     var brackets: BracketDescriptor?,
                     @OneToMany(cascade = [CascadeType.ALL], mappedBy = "categoryId", fetch = FetchType.LAZY)
-                    var competitors: Set<Competitor>) : AbstractJpaPersistable<String>(id) {
+                    var competitors: Set<Competitor>?) : AbstractJpaPersistable<String>(id) {
 
     companion object {
         fun fromDTO(dto: CategoryStateDTO, props: CompetitionProperties, competitors: Set<Competitor>) = CategoryState(
@@ -35,7 +35,7 @@ class CategoryState(id: String,
     }
 
     fun toDTO(): CategoryStateDTO {
-        return CategoryStateDTO(id, competition.id, category.toDTO(), status, brackets?.toDTO(), competitors.size)
+        return CategoryStateDTO(id, competition?.id, category?.toDTO(), status, brackets?.toDTO(), competitors?.size)
     }
 }
 

@@ -13,7 +13,7 @@ class BracketDescriptor(
         var competitionId: String,
         var bracketType: BracketType,
         @OrderColumn
-        @OneToMany(orphanRemoval = true)
+        @OneToMany(orphanRemoval = true, cascade = [CascadeType.ALL])
         @JoinColumn(name = "bracket_id")
         var fights: Array<FightDescription>) : AbstractJpaPersistable<String>(id) {
 

@@ -50,8 +50,7 @@ class MatScheduleContainer(
         )
         var fights: List<FightStartTimePair>,
         @Transient
-        var pending: ArrayList<FightDescription>,
-        var timeZone: String) : AbstractJpaPersistable<String>(id), Serializable {
+        var pending: ArrayList<FightDescription>) : AbstractJpaPersistable<String>(id), Serializable {
     fun toDTO(): MatScheduleContainerDTO {
         return MatScheduleContainerDTO()
                 .setCurrentFightNumber(currentFightNumber)
@@ -59,10 +58,10 @@ class MatScheduleContainer(
                 .setFights(fights.map { it.toDTO() }.toTypedArray())
     }
 
-    constructor(currentTime: Instant, id: String) : this(currentTime, 0, id, ArrayList(), ArrayList(), ZoneId.systemDefault().id)
+    constructor(currentTime: Instant, id: String) : this(currentTime, 0, id, ArrayList(), ArrayList())
 
     companion object {
         fun fromDTO(dto: MatScheduleContainerDTO) =
-                MatScheduleContainer(Instant.now(), dto.currentFightNumber, dto.id, dto.fights.map { FightStartTimePair.fromDTO(it) }, ArrayList(), dto.timeZone)
+                MatScheduleContainer(Instant.now(), dto.currentFightNumber, dto.id, dto.fights.map { FightStartTimePair.fromDTO(it) }, ArrayList())
     }
 }

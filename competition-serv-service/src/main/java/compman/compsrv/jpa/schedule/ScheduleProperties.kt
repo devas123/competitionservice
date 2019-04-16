@@ -10,16 +10,18 @@ import javax.persistence.*
 
 @Entity
 class PeriodProperties(id: String,
+                       var name: String,
                        var startTime: Instant,
                        var numberOfMats: Int,
                        var timeBetweenFights: Int,
                        var riskPercent: BigDecimal,
-                       @OneToMany(orphanRemoval = true, fetch = FetchType.LAZY)
+                       @OneToMany(fetch = FetchType.LAZY)
                        @JoinColumn(name = "PERIOD_ID", nullable = true)
                        var categories: List<CategoryDescriptor>) : AbstractJpaPersistable<String>(id) {
     fun toDTO(): PeriodPropertiesDTO {
         return PeriodPropertiesDTO()
                 .setId(id)
+                .setName(name)
                 .setStartTime(startTime)
                 .setNumberOfMats(numberOfMats)
                 .setTimeBetweenFights(timeBetweenFights)
@@ -29,6 +31,7 @@ class PeriodProperties(id: String,
 
     companion object {
         fun fromDTO(props: PeriodPropertiesDTO, competitionId: String) = PeriodProperties(props.id,
+                props.name,
                 props.startTime,
                 props.numberOfMats,
                 props.timeBetweenFights,
@@ -40,7 +43,7 @@ class PeriodProperties(id: String,
 @Embeddable
 @Access(AccessType.FIELD)
 class ScheduleProperties(var id: String,
-                         @OneToMany(orphanRemoval = true)
+                         @OneToMany(orphanRemoval = true, cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
                          @JoinColumn(name = "SCHED_ID")
                          var periodPropertiesList: List<PeriodProperties>) {
     fun toDTO(): SchedulePropertiesDTO? {

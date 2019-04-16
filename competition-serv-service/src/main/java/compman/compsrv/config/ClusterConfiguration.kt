@@ -41,13 +41,14 @@ class ClusterConfiguration {
                 .seedMembers(clusterSeed)
                 .memberHost(memberHost)
                 .addMetadata(ClusterSession.REST_PORT_METADATA_KEY, serverProperties.port.toString())
+                .addMetadata(ClusterSession.MEMBER_HOSTNAME_METADATA_KEY, clusterConfigurationProperties.advertisedHost)
                 .build()
         val cluster = Cluster.joinAwait(clusterConfig)
         Runtime.getRuntime().addShutdownHook(thread(start = false) { cluster.shutdown() })
         log.info("Started instance at ${cluster.address().host()}:${cluster.address().port()} with rest port: ${serverProperties.port}")
         log.info("Members of the cluster: ")
         cluster.members()?.forEach {
-            log.info("${it.id()} -> ${it.address()}, ${cluster.metadata(it)[ClusterSession.REST_PORT_METADATA_KEY]}")
+            log.info("${it.id()} -> ${cluster.metadata(it)[ClusterSession.MEMBER_HOSTNAME_METADATA_KEY]}, ${it.address()}, ${cluster.metadata(it)[ClusterSession.REST_PORT_METADATA_KEY]}")
         }
         return cluster
     }

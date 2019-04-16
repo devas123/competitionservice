@@ -5,20 +5,22 @@ import compman.compsrv.jpa.brackets.BracketDescriptor
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.jpa.schedule.*
 import compman.compsrv.jpa.schedule.Schedule.Companion.obsoleteFight
+import compman.compsrv.repository.FightCrudRepository
+import compman.compsrv.util.IDGenerator
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 import java.util.*
 import kotlin.collections.ArrayList
 
 @Component
-class ScheduleService {
+class ScheduleService(private val fightCrudRepository: FightCrudRepository) {
 
     companion object {
-        fun createPeriodId(competitionId: String) = "$competitionId-period-${UUID.randomUUID()}"
+        fun createPeriodId(competitionId: String) = IDGenerator.hashString("$competitionId-period-${UUID.randomUUID()}")
+        fun createMatId(periodId: String, matNumber: Int) = IDGenerator.hashString("$periodId-mat-$matNumber")
     }
 
     private class BracketSimulator(fights: List<FightDescription>?, threeCompetitorCategory: Boolean) {
@@ -31,7 +33,7 @@ class ScheduleService {
                         .filter { it.round != null && !obsoleteFight(it, threeCompetitorCategory) }
                         .groupBy { it.round ?: 0 }
                         .toSortedMap(kotlin.Comparator { a, b -> (a ?: 0) - (b ?: 0) })
-                        .forEach { _, u ->
+                        .forEach { (_, u) ->
                             fightsByRounds.add(u ?: ArrayList())
                         }
             }
@@ -48,7 +50,7 @@ class ScheduleService {
         }
     }
 
-    private class ScheduleComposer(startTime: Instant, val numberOfMats: Int, val fightDurations: Map<String, BigDecimal>, brackets: List<BracketSimulator>, val pause: BigDecimal, riskFactor: BigDecimal, periodId: String, timeZone: String) {
+    private class ScheduleComposer(startTime: Instant, val numberOfMats: Int, val fightDurations: Map<String, BigDecimal>, brackets: List<BracketSimulator>, val pause: BigDecimal, riskFactor: BigDecimal, periodId: String, val timeZone: String) {
         val schedule: MutableList<ScheduleEntry>
         val fightsByMats: ArrayList<MatScheduleContainer> = ArrayList(numberOfMats)
         val riskCoeff: BigDecimal
@@ -58,13 +60,13 @@ class ScheduleService {
             this.schedule = ArrayList()
             for (i in 0 until numberOfMats) {
                 val initDate = ZonedDateTime.ofInstant(startTime, ZoneId.of(timeZone))
-                fightsByMats.add(MatScheduleContainer(initDate.toInstant(), "$periodId-mat-$i"))
+                fightsByMats.add(MatScheduleContainer(initDate.toInstant(), createMatId(periodId, i)))
             }
             riskCoeff = BigDecimal.ONE.plus(riskFactor)
         }
 
         fun categoryNotRegistered(categoryId: String): Boolean {
-            return this.schedule.size == 0 || !this.schedule.map { e -> e.categoryId }.contains(categoryId)
+            return this.schedule.size == 0 || !this.schedule.any { it.categoryId == categoryId }
         }
 
         fun updateSchedule(f: FightDescription, startTime: Instant) {
@@ -72,15 +74,18 @@ class ScheduleService {
                 this.schedule.add(ScheduleEntry(
                         categoryId = f.categoryId,
                         startTime = startTime,
-                        numberOfFights = 0,
+                        numberOfFights = 1,
                         fightDuration = BigDecimal.valueOf(f.duration ?: 0L)))
+            } else {
+                val entry = this.schedule.first { it.categoryId == f.categoryId }
+                entry.numberOfFights += 1
             }
         }
 
         fun acceptFight(f: FightDescription, duration: BigDecimal, lastrun: Boolean?) {
             val freshMat = this.fightsByMats.find { it.fights.isEmpty() }
             if (freshMat != null) {
-                val currentTime = ZonedDateTime.ofInstant(freshMat.currentTime, ZoneId.of(freshMat.timeZone))
+                val currentTime = ZonedDateTime.ofInstant(freshMat.currentTime, ZoneId.of(timeZone))
                 this.updateSchedule(f, currentTime.toInstant())
                 freshMat.currentTime = currentTime.plusSeconds(duration.toLong() * 60L).toInstant()
                 freshMat.fights += FightStartTimePair(f, freshMat.currentFightNumber++, currentTime.toInstant())
@@ -155,17 +160,12 @@ class ScheduleService {
         }
     }
 
+    private fun getNumberOfFights(categoryId: String): Int {
+        return fightCrudRepository.coutByCategoryId(categoryId)
+    }
+
 
     fun generateSchedule(properties: ScheduleProperties, brackets: List<BracketDescriptor>, fightDurations: Map<String, BigDecimal>, timeZone: String): Schedule {
-//        fun getNumberOfFights(categoryId: String): Int {
-//            val categoryBrackets = brackets
-//                    .filter { it.fights.any { f -> f.categoryId == categoryId } }
-//            val categoryCompetitors = categoryBrackets.flatMap { it.fights.toList() }.flatMap { fight -> fight.competitors.map { it.competitor } }.toSet()
-//            return brackets
-//                    .filter { it.fights.any { f -> f.categoryId == categoryId } }
-//                    .map { bracketDescriptor -> bracketDescriptor.fights.filter { !Schedule.obsoleteFight(it, categoryCompetitors.size == 3) }.size }
-//                    .fold(0) { acc, i -> acc + i }
-//        }
 
 
         if (properties.periodPropertiesList.isNotEmpty()) {

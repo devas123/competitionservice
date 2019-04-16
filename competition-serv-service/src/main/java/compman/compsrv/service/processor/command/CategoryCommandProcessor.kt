@@ -168,9 +168,13 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
     private fun doGenerateBrackets(command: CommandDTO): List<EventDTO> {
         val competitors = competitorCrudRepository.findByCompetitionId(command.competitionId, Pageable.unpaged()).content.toList()
         val payload = mapper.convertValue(command.payload, GenerateBracketsPayload::class.java)
-        val fights = fightsGenerateService.generatePlayOff(competitors, command.competitionId)
-        return listOf(createEvent(command, EventType.BRACKETS_GENERATED, mapper.writeValueAsString(BracketsGeneratedPayload(fights.map { it.toDTO() }.toTypedArray(), payload?.bracketType
-                ?: BracketType.SINGLE_ELIMINATION))))
+        return if (competitors.isNotEmpty() && fightCrudRepository.findByCompetitionIdAndCategoryId(command.competitionId, command.categoryId).isNullOrEmpty()) {
+            val fights = fightsGenerateService.generatePlayOff(competitors, command.competitionId)
+            listOf(createEvent(command, EventType.BRACKETS_GENERATED, mapper.writeValueAsString(BracketsGeneratedPayload(fights.map { it.toDTO() }.toTypedArray(), payload?.bracketType
+                    ?: BracketType.SINGLE_ELIMINATION))))
+        } else {
+            listOf(createErrorEvent(command, "Brackets already generated"))
+        }
     }
 
     private fun doAddCompetitor(command: CommandDTO): List<EventDTO> {
@@ -181,7 +185,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
 //                    ?: emptyMap()))
             listOf(createEvent(command, EventType.COMPETITOR_ADDED, mapper.writeValueAsString(CompetitorAddedPayload(competitor.setId(competitorId)))))
         } else {
-            listOf(createEvent(command, EventType.ERROR_EVENT, mapper.writeValueAsString(ErrorEventPayload("Failed to get competitor from payload. Or competitor already exists", command.correlationId))))
+            listOf(createErrorEvent(command,"Failed to get competitor from payload. Or competitor already exists"))
         }
     }
 
@@ -219,7 +223,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         val numberOfCompetitors = payload?.numberOfCompetitors ?: 50
         val numberOfAcademies = payload?.numberOfAcademies ?: 30
         val categoryState = categoryCrudRepository.getOne(command.categoryId!!)
-        val fakeCompetitors = FightsGenerateService.generateRandomCompetitorsForCategory(numberOfCompetitors, numberOfAcademies, categoryState.category, categoryState.competition.id!!)
+        val fakeCompetitors = FightsGenerateService.generateRandomCompetitorsForCategory(numberOfCompetitors, numberOfAcademies, categoryState.category!!, categoryState.competition?.id!!)
         return fakeCompetitors.map {
             createEvent(command, EventType.COMPETITOR_ADDED, mapper.writeValueAsString(CompetitorAddedPayload(it.toDTO())))
         }

@@ -7,7 +7,7 @@ import javax.persistence.*
 @Embeddable
 @Access(AccessType.FIELD)
 class CompScore(
-        @ManyToOne(optional = false, cascade = [CascadeType.REMOVE])
+        @ManyToOne(optional = false)
         @JoinColumn(name = "compscore_competitor_id", nullable = false, updatable = false)
         val competitor: Competitor,
         @Embedded
