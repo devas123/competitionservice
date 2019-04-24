@@ -23,6 +23,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                                 private val scheduleCrudRepository: ScheduleCrudRepository,
                                 private val categoryCrudRepository: CategoryDescriptorCrudRepository,
                                 private val bracketsCrudRepository: BracketsCrudRepository,
+                                private val fightCrudRepository: FightCrudRepository,
                                 private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
                                 private val registrationPeriodCrudRepository: RegistrationPeriodCrudRepository,
                                 private val registrationInfoCrudRepository: RegistrationInfoCrudRepository,
@@ -159,7 +160,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                 EventType.SCHEDULE_GENERATED -> {
                     val scheduleGeneratedPayload = getPayloadAs(event.payload, ScheduleGeneratedPayload::class.java)
                     if (scheduleGeneratedPayload?.schedule != null) {
-                        val schedule = Schedule.fromDTO(scheduleGeneratedPayload.schedule)
+                        val schedule = Schedule.fromDTO(scheduleGeneratedPayload.schedule, fightCrudRepository)
                         schedule.periods?.forEach {
                             if (!it.categories.isNullOrEmpty()) {
                                 categoryCrudRepository.saveAll(it.categories)

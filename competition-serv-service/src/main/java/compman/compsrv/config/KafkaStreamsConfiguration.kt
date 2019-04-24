@@ -9,14 +9,11 @@ import compman.compsrv.kafka.streams.CompetitionProcessingStreamsBuilderFactory.
 import compman.compsrv.kafka.streams.LeaderProcessStreams
 import compman.compsrv.kafka.streams.MetadataService
 import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformer
-import compman.compsrv.kafka.streams.transformer.StateSnapshotForwardingTransformer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.repository.CommandCrudRepository
 import compman.compsrv.repository.CompetitionStateRepository
-import compman.compsrv.repository.EventCrudRepository
 import compman.compsrv.service.CompetitionStateService
 import compman.compsrv.service.resolver.CompetitionStateResolver
 import org.apache.kafka.clients.admin.AdminClientConfig
@@ -26,7 +23,6 @@ import org.apache.kafka.common.serialization.StringSerializer
 import org.apache.kafka.streams.KafkaStreams
 import org.apache.kafka.streams.StreamsBuilder
 import org.apache.kafka.streams.kstream.ValueTransformerWithKeySupplier
-import org.apache.kafka.streams.processor.ProcessorSupplier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.DependsOn
@@ -67,17 +63,12 @@ class KafkaStreamsConfiguration {
                 competitionStateResolver,
                 transactionTemplate,
                 mapper,
+                clusterSession,
                 COMPETITION_STATE_SNAPSHOT_STORE_NAME)
     }
 
     @Bean
-    fun snapshotEventsProcessor(commandCrudRepository: CommandCrudRepository, eventCrudRepository: EventCrudRepository, clusterSession: ClusterSession, mapper: ObjectMapper) = ProcessorSupplier<String, EventDTO> {
-        StateSnapshotForwardingTransformer(COMPETITION_STATE_SNAPSHOT_STORE_NAME, commandCrudRepository, eventCrudRepository, clusterSession, mapper)
-    }
-
-    @Bean
-    fun streamsBuilderFactory(eventProcessor: ProcessorSupplier<String, EventDTO>,
-            commandTransformer: ValueTransformerWithKeySupplier<String, CommandDTO, List<EventDTO>>,
+    fun streamsBuilderFactory(commandTransformer: ValueTransformerWithKeySupplier<String, CommandDTO, List<EventDTO>>,
             mapper: ObjectMapper,
             adminUtils: KafkaAdminUtils,
             props: KafkaProperties, clusterSession: ClusterSession): CompetitionProcessingStreamsBuilderFactory {
@@ -85,7 +76,6 @@ class KafkaStreamsConfiguration {
                 CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME,
                 CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME,
                 commandTransformer,
-                eventProcessor,
                 adminUtils, props, mapper, clusterSession)
     }
 

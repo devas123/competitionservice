@@ -88,16 +88,16 @@ class ScheduleService(private val fightCrudRepository: FightCrudRepository) {
                 val currentTime = ZonedDateTime.ofInstant(freshMat.currentTime, ZoneId.of(timeZone))
                 this.updateSchedule(f, currentTime.toInstant())
                 freshMat.currentTime = currentTime.plusSeconds(duration.toLong() * 60L).toInstant()
-                freshMat.fights += FightStartTimePair(f, freshMat.currentFightNumber++, currentTime.toInstant())
+                freshMat.fights += FightStartTimePair(f, freshMat.totalFights++, currentTime.toInstant())
             } else {
                 if (this.categoryNotRegistered(f.categoryId)) {
                     val mat = this.fightsByMats.sortedBy { a -> a.currentTime.toEpochMilli() }.first()
                     val currentTime = mat.currentTime
                     this.updateSchedule(f, currentTime)
                     mat.currentTime = currentTime.plusSeconds(duration.toLong() * 60)
-                    mat.fights += FightStartTimePair(f, mat.currentFightNumber++, currentTime)
+                    mat.fights += FightStartTimePair(f, mat.totalFights++, currentTime)
                 } else {
-                    val mat: Any
+                    val mat: MatScheduleContainer
                     val matsWithTheSameCategory = this.fightsByMats
                             .filter { m ->
                                 m.fights.isNotEmpty() && m.fights.last().fight.categoryId == f.categoryId && (m.fights.last().fight.round
@@ -111,7 +111,7 @@ class ScheduleService(private val fightCrudRepository: FightCrudRepository) {
                         val currentTime = mat.currentTime
                         this.updateSchedule(f, currentTime)
                         mat.currentTime = currentTime.plusSeconds(duration.toLong() * 60)
-                        mat.fights += FightStartTimePair(f, mat.currentFightNumber++, currentTime)
+                        mat.fights += FightStartTimePair(f, mat.totalFights++, currentTime)
                         this.fightsByMats.forEach { m ->
                             if (m.pending.isNotEmpty()) {
                                 val pendingFights = Array(m.pending.size) { index -> m.pending[index] }
@@ -161,7 +161,7 @@ class ScheduleService(private val fightCrudRepository: FightCrudRepository) {
     }
 
     private fun getNumberOfFights(categoryId: String): Int {
-        return fightCrudRepository.coutByCategoryId(categoryId)
+        return fightCrudRepository.countByCategoryId(categoryId)
     }
 
 
@@ -193,7 +193,7 @@ class ScheduleService(private val fightCrudRepository: FightCrudRepository) {
                             schedule = composer.schedule,
                             fightsByMats = composer.fightsByMats,
                             startTime = periodStartTime,
-                            name = p.id!!,
+                            name = p.name,
                             numberOfMats = p.numberOfMats,
                             categories = p.categories)
                 },

@@ -4,11 +4,11 @@ import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.model.dto.schedule.FightStartTimePairDTO
 import compman.compsrv.model.dto.schedule.MatScheduleContainerDTO
+import compman.compsrv.repository.FightCrudRepository
 import org.hibernate.annotations.OnDelete
 import org.hibernate.annotations.OnDeleteAction
 import java.io.Serializable
 import java.time.Instant
-import java.time.ZoneId
 import javax.persistence.*
 
 @Embeddable
@@ -22,15 +22,15 @@ class FightStartTimePair(
         val startTime: Instant) : Serializable {
     fun toDTO(): FightStartTimePairDTO {
         return FightStartTimePairDTO()
-                .setFight(fight.toDTO())
+                .setFightId(fight.id)
                 .setFightNumber(fightNumber)
                 .setStartTime(startTime)
     }
 
     companion object {
-        fun fromDTO(dto: FightStartTimePairDTO) =
+        fun fromDTO(dto: FightStartTimePairDTO, fight: FightDescription) =
                 FightStartTimePair(
-                        fight = FightDescription.fromDTO(dto.fight),
+                        fight = fight,
                         fightNumber = dto.fightNumber,
                         startTime = dto.startTime
                 )
@@ -41,7 +41,7 @@ class FightStartTimePair(
 class MatScheduleContainer(
         @Transient
         var currentTime: Instant,
-        var currentFightNumber: Int,
+        var totalFights: Int,
         id: String,
         @ElementCollection
         @CollectionTable(
@@ -53,7 +53,7 @@ class MatScheduleContainer(
         var pending: ArrayList<FightDescription>) : AbstractJpaPersistable<String>(id), Serializable {
     fun toDTO(): MatScheduleContainerDTO {
         return MatScheduleContainerDTO()
-                .setCurrentFightNumber(currentFightNumber)
+                .setTotalFights(totalFights)
                 .setId(id)
                 .setFights(fights.map { it.toDTO() }.toTypedArray())
     }
@@ -61,7 +61,10 @@ class MatScheduleContainer(
     constructor(currentTime: Instant, id: String) : this(currentTime, 0, id, ArrayList(), ArrayList())
 
     companion object {
-        fun fromDTO(dto: MatScheduleContainerDTO) =
-                MatScheduleContainer(Instant.now(), dto.currentFightNumber, dto.id, dto.fights.map { FightStartTimePair.fromDTO(it) }, ArrayList())
+        fun fromDTO(dto: MatScheduleContainerDTO, fightCrudRepository: FightCrudRepository) =
+                MatScheduleContainer(Instant.now(), dto.totalFights, dto.id, dto.fights.map { FightStartTimePair.fromDTO(it, fightCrudRepository.getOne(it.fightId)) }, ArrayList())
+
+        fun fromDTO(dto: MatScheduleContainerDTO, fights: List<FightDescription>) =
+                MatScheduleContainer(Instant.now(), dto.totalFights, dto.id, dto.fights.map { fsp -> FightStartTimePair.fromDTO(fsp, fights.first { it.id == fsp.fightId }) }, ArrayList())
     }
 }

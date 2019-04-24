@@ -2,7 +2,9 @@ package compman.compsrv.jpa.schedule
 
 import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.jpa.competition.CategoryDescriptor
+import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.model.dto.schedule.PeriodDTO
+import compman.compsrv.repository.FightCrudRepository
 import java.time.Instant
 import javax.persistence.*
 
@@ -35,14 +37,24 @@ class Period(id: String,
     }
 
     companion object {
-        fun fromDTO(dto: PeriodDTO, competitionId: String) = Period(
+        fun fromDTO(dto: PeriodDTO, competitionId: String, fightCrudRepository: FightCrudRepository) = Period(
                 id = dto.id,
                 name = dto.name,
                 schedule = dto.schedule.map { ScheduleEntry.fromDTO(it) },
                 categories = dto.categories.map { CategoryDescriptor.fromDTO(it, competitionId) },
                 startTime = dto.startTime,
                 numberOfMats = dto.numberOfMats,
-                fightsByMats = dto.fightsByMats?.map { MatScheduleContainer.fromDTO(it) }
+                fightsByMats = dto.fightsByMats?.map { MatScheduleContainer.fromDTO(it, fightCrudRepository) }
+        )
+
+        fun fromDTO(dto: PeriodDTO, competitionId: String, fights: List<FightDescription>) = Period(
+                id = dto.id,
+                name = dto.name,
+                schedule = dto.schedule.map { ScheduleEntry.fromDTO(it) },
+                categories = dto.categories.map { CategoryDescriptor.fromDTO(it, competitionId) },
+                startTime = dto.startTime,
+                numberOfMats = dto.numberOfMats,
+                fightsByMats = dto.fightsByMats?.map { MatScheduleContainer.fromDTO(it, fights) }
         )
     }
 }

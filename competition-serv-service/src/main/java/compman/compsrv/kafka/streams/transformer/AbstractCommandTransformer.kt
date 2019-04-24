@@ -1,11 +1,14 @@
 package compman.compsrv.kafka.streams.transformer
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.dto.competition.CompetitionStateSnapshot
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.ErrorEventPayload
+import compman.compsrv.repository.FightCrudRepository
 import compman.compsrv.service.ICommandProcessingService
 import org.apache.kafka.streams.kstream.ValueTransformerWithKey
 import org.apache.kafka.streams.processor.ProcessorContext
@@ -17,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap
 abstract class AbstractCommandTransformer(
         private val commandProcessingService: ICommandProcessingService<CommandDTO, EventDTO>,
         private val transactionTemplate: TransactionTemplate,
+        private val clusterSession: ClusterSession,
         private val mapper: ObjectMapper) : ValueTransformerWithKey<String, CommandDTO, List<EventDTO>> {
 
 
@@ -47,17 +51,12 @@ abstract class AbstractCommandTransformer(
                     processedEventsNumber.compute(readOnlyKey) { _: String, u: Long? -> (u ?: 0) + 1 }
                     if (processedEventsNumber.getOrDefault(readOnlyKey, 0) % 10 == 0L) {
                         getState(readOnlyKey).map { newState ->
-                            eventsToSend + (EventDTO()
-                                    .setCategoryId(command.categoryId)
-                                    .setCorrelationId(command.correlationId)
-                                    .setCompetitionId(command.competitionId)
-                                    .setMatId(command.matId)
-                                    .setType(EventType.INTERNAL_STATE_SNAPSHOT_CREATED)
-                                    .setPayload(mapper.writeValueAsString(newState)))
-                        }.orElse(eventsToSend)
-                    } else {
-                        eventsToSend
+                            CompetitionStateSnapshot(command.competitionId, clusterSession.localMemberId(), context.partition(), context.offset(),
+                                    emptySet(), emptySet(),
+                                    mapper.writeValueAsString(newState.toDTO(includeCompetitors = true)))
+                        }
                     }
+                    eventsToSend
                 } else {
                     log.error("Command not valid: ${validationErrors.joinToString(separator = ",")}")
                     listOf(EventDTO()

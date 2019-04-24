@@ -6,7 +6,6 @@ import compman.compsrv.jpa.competition.CategoryState
 import compman.compsrv.jpa.competition.Competitor
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.model.dto.brackets.BracketType
-import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
@@ -18,7 +17,7 @@ import org.springframework.stereotype.Component
 
 @Component
 class CategoryEventProcessor (private val mapper: ObjectMapper,
-                              private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
+                              private val competitionStateCrudRepository: CompetitionStateCrudRepository,
                               private val categoryCrudRepository: CategoryCrudRepository,
                               private val competitorCrudRepository: CompetitorCrudRepository,
                               private val fightCrudRepository: FightCrudRepository,
@@ -109,8 +108,11 @@ class CategoryEventProcessor (private val mapper: ObjectMapper,
     private fun applyFighStartTimeUpdatedEvent(event: EventDTO): List<EventDTO> {
         val payload = getPayloadAs(event.payload, FightStartTimeUpdatedPayload::class.java)
         val newFights = payload?.newFights
-        return if (newFights != null && newFights.fold(true) { acc: Boolean, fightDescription: FightDescriptionDTO -> acc && fightCrudRepository.existsById(fightDescription.id) }) {
-            fightCrudRepository.saveAll(newFights.map { FightDescription.fromDTO(it) })
+        val allFightsExist = newFights?.let { array ->
+            fightCrudRepository.findAllById(array.map { it.fightId }).size == array.size
+        }
+        return if (newFights != null && allFightsExist == true) {
+            newFights.forEach { fightCrudRepository.updateStartTimeById(it.fightId, it.startTime) }
             listOf(event)
         } else {
             throw EventApplyingException("Fights are null or not all fights are present in the repository.", event)
@@ -134,7 +136,7 @@ class CategoryEventProcessor (private val mapper: ObjectMapper,
 
     private fun applyCategoryAddedEvent(event: EventDTO): List<EventDTO> {
         val c = getPayloadAs(event.payload, CategoryAddedPayload::class.java)?.categoryState
-        val props = competitionPropertiesCrudRepository.findById(event.competitionId)
+        val props = competitionStateCrudRepository.findById(event.competitionId)
         return if (c != null && event.categoryId != null && props.isPresent) {
             val state = categoryCrudRepository.save(CategoryState.fromDTO(c, props.get(), emptySet()))
             listOf(event.setPayload(writePayloadAsString(CategoryAddedPayload(state.toDTO()))))

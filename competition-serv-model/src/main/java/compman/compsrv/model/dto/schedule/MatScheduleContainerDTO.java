@@ -10,7 +10,7 @@ import lombok.experimental.Accessors;
 @Accessors(chain = true)
 @NoArgsConstructor
 public class MatScheduleContainerDTO {
-    private Integer currentFightNumber;
+    private Integer totalFights;
     private String id;
     private FightStartTimePairDTO[] fights;
     private String timeZone;
