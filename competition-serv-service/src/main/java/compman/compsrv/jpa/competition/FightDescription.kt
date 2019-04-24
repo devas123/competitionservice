@@ -16,7 +16,7 @@ class FightDescription(id: String,
                        @OrderColumn(name = "comp_score_order")
                        @ElementCollection
                        @CollectionTable(
-                               name = "comp_score",
+                               name = "comp_scores",
                                joinColumns = [JoinColumn(name = "fight_id")]
                        )
                        var scores: Array<CompScore>,

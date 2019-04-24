@@ -166,10 +166,10 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
 
 
     private fun doGenerateBrackets(command: CommandDTO): List<EventDTO> {
-        val competitors = competitorCrudRepository.findByCompetitionId(command.competitionId, Pageable.unpaged()).content.toList()
+        val competitors = competitorCrudRepository.findByCompetitionIdAndCategoryId(command.competitionId, command.categoryId, Pageable.unpaged()).content.toList()
         val payload = mapper.convertValue(command.payload, GenerateBracketsPayload::class.java)
         return if (competitors.isNotEmpty() && fightCrudRepository.findByCompetitionIdAndCategoryId(command.competitionId, command.categoryId).isNullOrEmpty()) {
-            val fights = fightsGenerateService.generatePlayOff(competitors, command.competitionId)
+            val fights = fightsGenerateService.generateRoundsForCategory(command.categoryId, competitors.toMutableList(), command.competitionId)
             listOf(createEvent(command, EventType.BRACKETS_GENERATED, mapper.writeValueAsString(BracketsGeneratedPayload(fights.map { it.toDTO() }.toTypedArray(), payload?.bracketType
                     ?: BracketType.SINGLE_ELIMINATION))))
         } else {
@@ -206,7 +206,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
             val categoryId = IDGenerator.hashString("${command.competitionId}/${c.gender}/${c.ageDivision?.id}/${c.weight?.id}/${c.beltType}")
             if (!categoryCrudRepository.existsById(categoryId)) {
                 val competition = competitionPropertiesCrudRepository.getOne(command.competitionId)
-                val state = CategoryStateDTO(categoryId, competition.id, c.setId(categoryId), CategoryStatus.INITIALIZED, null, 0)
+                val state = CategoryStateDTO(categoryId, competition.id, c.setId(categoryId), CategoryStatus.INITIALIZED, null, 0, emptyArray())
                 listOf(createEvent(command, EventType.CATEGORY_ADDED, mapper.writeValueAsString(CategoryAddedPayload(state))).setCategoryId(categoryId))
             } else {
                 listOf(createErrorEvent(command, "Category with ID $categoryId already exists."))

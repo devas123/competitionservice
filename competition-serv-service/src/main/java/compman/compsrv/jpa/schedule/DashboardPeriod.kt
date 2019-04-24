@@ -20,7 +20,7 @@ class DashboardPeriod(id: String,
         return "DashboardPeriod(id='$id', name='$name', matIds='$matIds', startTime=$startTime, isActive=$isActive)"
     }
 
-    fun toDTO() = DashboardPeriodDTO()
+    fun toDTO(): DashboardPeriodDTO = DashboardPeriodDTO()
             .setId(id)
             .setName(name)
             .setMatIds(matIds)

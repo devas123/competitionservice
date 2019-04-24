@@ -71,7 +71,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
 
     @Transactional(propagation = Propagation.REQUIRED, readOnly = false)
     override fun executeCommand(command: CommandDTO): List<EventDTO> {
-        fun execute(command: CommandDTO): EventDTO {
+        fun execute(command: CommandDTO): List<EventDTO> {
             fun createEvent(type: EventType, payload: Any?) =
                     EventDTO()
                             .setCategoryId(command.categoryId)
@@ -91,7 +91,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
 
             if (command.competitionId.isNullOrBlank()) {
                 log.error("Competition id is empty, command $command")
-                return createErrorEvent("Competition ID is empty.")
+                return listOf(createErrorEvent("Competition ID is empty."))
             }
 
             return when (command.type) {
@@ -99,20 +99,20 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                     val payload = mapper.convertValue(command.payload, AssignRegistrationGroupCategoriesPayload::class.java)
                     if (registrationPeriodCrudRepository.existsById(payload.periodId)) {
                         if (registrationGroupCrudRepository.existsById(payload.groupId)) {
-                            createEvent(EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED, RegistrationGroupCategoriesAssignedPayload(payload.periodId, payload.groupId, payload.categories))
+                            listOf(createEvent(EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED, RegistrationGroupCategoriesAssignedPayload(payload.periodId, payload.groupId, payload.categories)))
                         } else {
-                            createErrorEvent("Unknown group id: ${payload.groupId}")
+                            listOf(createErrorEvent("Unknown group id: ${payload.groupId}"))
                         }
                     } else {
-                        createErrorEvent("Unknown period id: ${payload.periodId}")
+                        listOf(createErrorEvent("Unknown period id: ${payload.periodId}"))
                     }
                 }
                 CommandType.DELETE_REGISTRATION_PERIOD_COMMAND -> {
-                    createEvent(EventType.REGISTRATION_PERIOD_DELETED, command.payload["periodId"])
+                    listOf(createEvent(EventType.REGISTRATION_PERIOD_DELETED, command.payload["periodId"]))
                 }
                 CommandType.DELETE_REGISTRATION_GROUP_COMMAND -> {
                     val payload = mapper.convertValue(command.payload, DeleteRegistrationGroupPayload::class.java)
-                    createEvent(EventType.REGISTRATION_GROUP_DELETED, RegistrationGroupDeletedPayload(payload.periodId, payload.groupId))
+                    listOf(createEvent(EventType.REGISTRATION_GROUP_DELETED, RegistrationGroupDeletedPayload(payload.periodId, payload.groupId)))
                 }
                 CommandType.ADD_REGISTRATION_GROUP_COMMAND -> {
                     val payload = mapper.convertValue(command.payload, AddRegistrationGroupPayload::class.java)
@@ -122,16 +122,16 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                             val groupId = IDGenerator.hashString("${payload.periodId}/${payload.group.displayName}")
                             period.map { p ->
                                 if (!p.registrationGroups.any { it.id == groupId }) {
-                                    createEvent(EventType.REGISTRATION_GROUP_ADDED, RegistrationGroupAddedPayload(payload.periodId, payload.group.setId(groupId)))
+                                    listOf(createEvent(EventType.REGISTRATION_GROUP_ADDED, RegistrationGroupAddedPayload(payload.periodId, payload.group.setId(groupId))))
                                 } else {
-                                    createErrorEvent("Group with id $groupId already exists")
+                                    listOf(createErrorEvent("Group with id $groupId already exists"))
                                 }
-                            }.orElse(createErrorEvent("Cannot find period with ID: ${payload.periodId}"))
+                            }.orElse(listOf(createErrorEvent("Cannot find period with ID: ${payload.periodId}")))
                         } else {
-                            createErrorEvent("Group name is not specified.")
+                            listOf(createErrorEvent("Group name is not specified."))
                         }
                     } else {
-                        createErrorEvent("Period Id is not specified")
+                        listOf(createErrorEvent("Period Id is not specified"))
                     }
                 }
                 CommandType.ADD_REGISTRATION_PERIOD_COMMAND -> {
@@ -141,21 +141,21 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                         val periodId = IDGenerator.hashString("${command.competitionId}/${payload.period.name}")
                         regInfo.map { info ->
                             if (!info.registrationPeriods.any { it.id == periodId }) {
-                                createEvent(EventType.REGISTRATION_PERIOD_ADDED, RegistrationPeriodAddedPayload(payload.period.setId(periodId)))
+                                listOf(createEvent(EventType.REGISTRATION_PERIOD_ADDED, RegistrationPeriodAddedPayload(payload.period.setId(periodId))))
                             } else {
-                                createErrorEvent("Period with id ${payload.period.id} already exists.")
+                                listOf(createErrorEvent("Period with id ${payload.period.id} already exists."))
                             }
                         }.orElseGet {
                             try {
                                 registrationInfoCrudRepository.save(RegistrationInfo(command.competitionId, false, mutableListOf()))
-                                createEvent(EventType.REGISTRATION_PERIOD_ADDED, RegistrationPeriodAddedPayload(payload.period.setId(periodId)))
+                                listOf(createEvent(EventType.REGISTRATION_PERIOD_ADDED, RegistrationPeriodAddedPayload(payload.period.setId(periodId))))
                             } catch (e: Throwable) {
                                 log.error("Exception.", e)
-                                createErrorEvent("Registration info is missing for the competition ${command.competitionId}, exception when adding: $e")
+                                listOf(createErrorEvent("Registration info is missing for the competition ${command.competitionId}, exception when adding: $e"))
                             }
                         }
                     } else {
-                        createErrorEvent("Period is not specified or competition id is missing.")
+                        listOf(createErrorEvent("Period is not specified or competition id is missing."))
                     }
                 }
                 CommandType.CREATE_COMPETITION_COMMAND -> {
@@ -173,31 +173,31 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                 newProperties.timeZone = ZoneId.systemDefault().id
                             }
                             if (!competitionStateCrudRepository.existsById(command.competitionId)) {
-                                createEvent(EventType.COMPETITION_CREATED, CompetitionCreatedPayload(newProperties.setId(command.competitionId)))
+                                listOf(createEvent(EventType.COMPETITION_CREATED, CompetitionCreatedPayload(newProperties.setId(command.competitionId))))
                             } else {
-                                createErrorEvent("Competition with name '${newProperties.competitionName}' already exists.")
+                                listOf(createErrorEvent("Competition with name '${newProperties.competitionName}' already exists."))
                             }
                         } else {
-                            createErrorEvent("Competition name is empty")
+                            listOf(createErrorEvent("Competition name is empty"))
                         }
                     } else {
-                        createErrorEvent("Cannot create competition, no properties provided")
+                        listOf(createErrorEvent("Cannot create competition, no properties provided"))
                     }
                 }
                 CommandType.DROP_ALL_BRACKETS_COMMAND -> {
                     val state = competitionStateCrudRepository.getOne(command.competitionId)
                     if (state.properties?.bracketsPublished != true) {
-                        createEvent(EventType.ALL_BRACKETS_DROPPED, command.payload)
+                        listOf(createEvent(EventType.ALL_BRACKETS_DROPPED, command.payload))
                     } else {
-                        createErrorEvent("Cannot drop brackets, they are already published.")
+                        listOf(createErrorEvent("Cannot drop brackets, they are already published."))
                     }
                 }
                 CommandType.DROP_SCHEDULE_COMMAND -> {
                     val state = competitionStateCrudRepository.getOne(command.competitionId)
                     if (state.properties?.schedulePublished != true) {
-                        createEvent(EventType.SCHEDULE_DROPPED, command.payload)
+                        listOf(createEvent(EventType.SCHEDULE_DROPPED, command.payload))
                     } else {
-                        createErrorEvent("Cannot drop schedule, it is already published.")
+                        listOf(createErrorEvent("Cannot drop schedule, it is already published."))
                     }
                 }
                 CommandType.GENERATE_SCHEDULE_COMMAND -> {
@@ -224,40 +224,41 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                     if (compProps != null && !compProps.schedulePublished) {
                         if (missingCategories.isNullOrEmpty()) {
                             val schedule = scheduleService.generateSchedule(ScheduleProperties.fromDTO(scheduleProperties), getAllBrackets(scheduleProperties.competitionId), getFightDurations(scheduleProperties), compProps.timeZone)
-                            createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule.toDTO()))
+                            val updateFightsPayload = UpdateFightsStartTimePayload(schedule.periods?.flatMap { period -> period.fightsByMats ?: emptyList() }?.map { it.toDTO() }?.toTypedArray())
+                            listOf(createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule.toDTO())), createEvent(EventType.FIGHTS_START_TIME_UPDATED, updateFightsPayload))
                         } else {
-                            createErrorEvent("Categories $missingCategories are missing")
+                            listOf(createErrorEvent("Categories $missingCategories are missing"))
                         }
                     } else {
-                        createErrorEvent("could not find competition with ID: ${command.competitionId}")
+                        listOf(createErrorEvent("could not find competition with ID: ${command.competitionId}"))
                     }
                 }
                 CommandType.UPDATE_COMPETITION_PROPERTIES_COMMAND -> {
-                    createEvent(EventType.COMPETITION_PROPERTIES_UPDATED, command.payload!!)
+                    listOf(createEvent(EventType.COMPETITION_PROPERTIES_UPDATED, command.payload!!))
                 }
                 CommandType.START_COMPETITION_COMMAND -> {
-                    createEvent(EventType.COMPETITION_STARTED, CompetitionStatusUpdatedPayload(CompetitionStatus.STARTED))
+                    listOf(createEvent(EventType.COMPETITION_STARTED, CompetitionStatusUpdatedPayload(CompetitionStatus.STARTED)))
                 }
                 CommandType.STOP_COMPETITION_COMMAND -> {
-                    createEvent(EventType.COMPETITION_STOPPED, CompetitionStatusUpdatedPayload(CompetitionStatus.STOPPED))
+                    listOf(createEvent(EventType.COMPETITION_STOPPED, CompetitionStatusUpdatedPayload(CompetitionStatus.STOPPED)))
                 }
                 CommandType.PUBLISH_COMPETITION_COMMAND -> {
-                    createEvent(EventType.COMPETITION_PUBLISHED, CompetitionStatusUpdatedPayload(CompetitionStatus.PUBLISHED))
+                    listOf(createEvent(EventType.COMPETITION_PUBLISHED, CompetitionStatusUpdatedPayload(CompetitionStatus.PUBLISHED)))
                 }
                 CommandType.UNPUBLISH_COMPETITION_COMMAND -> {
-                    createEvent(EventType.COMPETITION_UNPUBLISHED, CompetitionStatusUpdatedPayload(CompetitionStatus.UNPUBLISHED))
+                    listOf(createEvent(EventType.COMPETITION_UNPUBLISHED, CompetitionStatusUpdatedPayload(CompetitionStatus.UNPUBLISHED)))
                 }
                 CommandType.DELETE_COMPETITION_COMMAND -> {
-                    createEvent(EventType.COMPETITION_DELETED, null)
+                    listOf(createEvent(EventType.COMPETITION_DELETED, null))
                 }
                 else -> {
-                    createEvent(EventType.ERROR_EVENT, ErrorEventPayload("Unknown or invalid command ${command.type}", command.correlationId))
+                    listOf(createEvent(EventType.ERROR_EVENT, ErrorEventPayload("Unknown or invalid command ${command.type}", command.correlationId)))
                 }
             }
         }
         log.info("Executing command: $command")
         commandCrudRepository.save(Command.fromDTO(command))
-        return listOf(execute(command))
+        return execute(command)
     }
 
 }

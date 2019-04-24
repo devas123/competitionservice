@@ -2,7 +2,6 @@ package compman.compsrv.service.resolver
 
 import com.compman.starter.properties.KafkaProperties
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.client.QueryServiceClient
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.kafka.serde.EventDeserializer

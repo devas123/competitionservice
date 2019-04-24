@@ -1,6 +1,7 @@
 package compman.compsrv.kafka.streams.transformer
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.ChangeCompetitorCategoryPayload
@@ -18,8 +19,9 @@ class CompetitionCommandTransformer(competitionStateService: CompetitionStateSer
                                     private val competitionStateResolver: CompetitionStateResolver,
                                     transactionTemplate: TransactionTemplate,
                                     private val mapper: ObjectMapper,
+                                    clusterSession: ClusterSession,
                                     private val snapshotStoreName: String)
-    : AbstractCommandTransformer(competitionStateService, transactionTemplate, mapper) {
+    : AbstractCommandTransformer(competitionStateService, transactionTemplate, clusterSession, mapper) {
 
     private lateinit var snapshotStore: KeyValueStore<String, CompetitionStateSnapshot>
 

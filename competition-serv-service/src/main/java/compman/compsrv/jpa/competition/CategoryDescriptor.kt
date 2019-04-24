@@ -29,7 +29,7 @@ class CategoryDescriptor(
         fun fromDTO(dto: CategoryDescriptorDTO, competitionId: String): CategoryDescriptor {
             return CategoryDescriptor(
                     competitionId = competitionId,
-                    sportsType = dto.sportsType,
+                    sportsType = dto.sportsType ?: "BJJ", //TODO: take default value from competition
                     ageDivision = AgeDivision(dto.ageDivision.id, dto.ageDivision.minimalAge, dto.ageDivision.maximalAge),
                     gender = dto.gender,
                     weight = Weight(dto.weight.id, dto.weight.maxValue, dto.weight.minValue),

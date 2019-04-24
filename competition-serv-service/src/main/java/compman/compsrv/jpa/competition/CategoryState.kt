@@ -10,8 +10,8 @@ import javax.persistence.*
 class CategoryState(id: String,
                     @ManyToOne(fetch = FetchType.LAZY)
                     @JoinColumn(name = "competition_id", nullable = false)
-                    var competition: CompetitionProperties?,
-                    @OneToOne(optional = false, fetch = FetchType.EAGER, cascade = [CascadeType.ALL])
+                    var competition: CompetitionState?,
+                    @OneToOne(optional = false, fetch = FetchType.LAZY, cascade = [CascadeType.ALL])
                     @PrimaryKeyJoinColumn
                     var category: CategoryDescriptor?,
                     var status: CategoryStatus?,
@@ -22,20 +22,32 @@ class CategoryState(id: String,
                     var competitors: Set<Competitor>?) : AbstractJpaPersistable<String>(id) {
 
     companion object {
-        fun fromDTO(dto: CategoryStateDTO, props: CompetitionProperties, competitors: Set<Competitor>) = CategoryState(
+        fun fromDTO(dto: CategoryStateDTO, competition: CompetitionState, competitors: Set<Competitor>) = CategoryState(
                 id = dto.id,
-                competition = props,
-                category = CategoryDescriptor.fromDTO(dto.category, props.id!!),
+                competition = competition,
+                category = CategoryDescriptor.fromDTO(dto.category, competition.id!!),
                 status = dto.status,
                 brackets = dto.brackets?.let {
                     BracketDescriptor.fromDTO(dto.brackets)
                 },
                 competitors = competitors
         )
+
+        fun fromDTO(dto: CategoryStateDTO, competition: CompetitionState) = CategoryState(
+                id = dto.id,
+                competition = competition,
+                category = CategoryDescriptor.fromDTO(dto.category, competition.id!!),
+                status = dto.status,
+                brackets = dto.brackets?.let {
+                    BracketDescriptor.fromDTO(dto.brackets)
+                },
+                competitors = dto.competitors?.map { Competitor.fromDTO(it) }?.toSet()
+        )
     }
 
-    fun toDTO(): CategoryStateDTO {
-        return CategoryStateDTO(id, competition?.id, category?.toDTO(), status, brackets?.toDTO(), competitors?.size)
+    fun toDTO(includeCompetitors: Boolean = false): CategoryStateDTO {
+        return CategoryStateDTO(id, competition?.id, category?.toDTO(), status, brackets?.toDTO(), competitors?.size, if (includeCompetitors) competitors?.map { it.toDTO() }?.toTypedArray() else emptyArray())
     }
+
 }
 

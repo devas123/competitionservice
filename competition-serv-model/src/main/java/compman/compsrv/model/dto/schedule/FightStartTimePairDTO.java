@@ -1,6 +1,5 @@
 package compman.compsrv.model.dto.schedule;
 
-import compman.compsrv.model.dto.competition.FightDescriptionDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -13,7 +12,7 @@ import java.time.Instant;
 @Accessors(chain = true)
 @NoArgsConstructor
 public class FightStartTimePairDTO {
-    private FightDescriptionDTO fight;
+    private String fightId;
     private Integer fightNumber;
     private Instant startTime;
 }

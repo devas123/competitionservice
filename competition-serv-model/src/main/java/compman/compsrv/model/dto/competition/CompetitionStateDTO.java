@@ -10,7 +10,7 @@ import lombok.experimental.Accessors;
 @Accessors(chain = true)
 public class CompetitionStateDTO {
     private String competitionId;
-    private CategoryDescriptorDTO[] categories;
+    private CategoryStateDTO[] categories;
     private CompetitionPropertiesDTO properties;
     private ScheduleDTO schedule;
     private CompetitionDashboardStateDTO dashboardState;

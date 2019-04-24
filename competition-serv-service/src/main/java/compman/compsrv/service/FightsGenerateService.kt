@@ -93,17 +93,21 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
 //                }?.toMap()?.filter { it.value.isNotEmpty() } ?: emptyMap()
 //    }
 
-    fun generatePlayOff(competitors: List<Competitor>?, competitionId: String): List<FightDescription> = ArrayList<FightDescription>().apply {
-        competitors?.filter { !it.categoryId.isBlank() }?.groupBy { it.categoryId }?.forEach { category, categoryCompetitors ->
-            addAll(generateRoundsForCategory(category, ArrayList<Competitor>().apply { addAll(categoryCompetitors) }, competitionId))
-        }
+    fun generatePlayOff(competitors: List<Competitor>?, competitionId: String): List<FightDescription> = ArrayList<FightDescription>()
+            .apply {
+                competitors
+                        ?.filter { !it.categoryId.isBlank() }
+                        ?.groupBy { it.categoryId }
+                        ?.forEach { category, categoryCompetitors ->
+                            this.addAll(generateRoundsForCategory(category, ArrayList<Competitor>().apply { addAll(categoryCompetitors) }, competitionId))
+                        }
 //        createAbsoluteCategoryData(competitors, competitionId).forEach { category, categoryCompetitors ->
 //            addAll(generateRoundsForCategory(category, ArrayList<Competitor>().apply { addAll(categoryCompetitors.sortedBy { it.timestamp }) }, competitionId))
 //        }
-    }
+            }
 
 
-    fun generateRoundsForCategory(categoryId: String, competitors: ArrayList<Competitor>, competitionId: String) = ArrayList<FightDescription>().apply {
+    fun generateRoundsForCategory(categoryId: String, competitors: MutableList<Competitor>, competitionId: String) = ArrayList<FightDescription>().apply {
         if (competitors.size == 1) {
             add(FightDescription(
                     fightId = createFightId(competitionId, categoryId, 1, 0),
@@ -136,7 +140,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
 
     private fun createFightId(competitionId: String, categoryId: String?, rount: Int, number: Int) = "$competitionId-$categoryId-$rount-$number"
 
-    private fun fightsForRound(round: Int, categoryId: String, fightsSize: Int, qualifyingCount: Int = 0, competitors: ArrayList<Competitor>, competitionId: String) = ArrayList<FightDescription>().apply {
+    private fun fightsForRound(round: Int, categoryId: String, fightsSize: Int, qualifyingCount: Int = 0, competitors: MutableList<Competitor>, competitionId: String) = ArrayList<FightDescription>().apply {
 
         var nextCounter = 0
         var nextFightNumber = 0

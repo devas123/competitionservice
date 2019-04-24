@@ -4,6 +4,7 @@ import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.jpa.competition.Competitor
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.model.dto.schedule.ScheduleDTO
+import compman.compsrv.repository.FightCrudRepository
 import java.math.BigDecimal
 import java.math.RoundingMode
 import javax.persistence.*
@@ -26,10 +27,16 @@ class Schedule(id: String,
     }
 
     companion object {
-        fun fromDTO(dto: ScheduleDTO) = Schedule(
+        fun fromDTO(dto: ScheduleDTO, fightCrudRepository: FightCrudRepository) = Schedule(
                 id = dto.id,
                 scheduleProperties = ScheduleProperties.fromDTO(dto.scheduleProperties),
-                periods = dto.periods.map { Period.fromDTO(it, dto.scheduleProperties.competitionId) }
+                periods = dto.periods.map { Period.fromDTO(it, dto.scheduleProperties.competitionId, fightCrudRepository) }
+        )
+
+        fun fromDTO(dto: ScheduleDTO, fights: List<FightDescription>) = Schedule(
+                id = dto.id,
+                scheduleProperties = ScheduleProperties.fromDTO(dto.scheduleProperties),
+                periods = dto.periods.map { Period.fromDTO(it, dto.scheduleProperties.competitionId, fights) }
         )
 
         fun obsoleteFight(f: FightDescription, threeCompetitorCategory: Boolean): Boolean {
