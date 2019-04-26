@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component
 @Component
 class CategoryEventProcessor (private val mapper: ObjectMapper,
                               private val competitionStateCrudRepository: CompetitionStateCrudRepository,
-                              private val categoryCrudRepository: CategoryCrudRepository,
+                              private val categoryCrudRepository: CategoryStateCrudRepository,
                               private val competitorCrudRepository: CompetitorCrudRepository,
                               private val fightCrudRepository: FightCrudRepository,
                               private val bracketsCrudRepository: BracketsCrudRepository) : IEventProcessor {
@@ -112,7 +112,7 @@ class CategoryEventProcessor (private val mapper: ObjectMapper,
             fightCrudRepository.findAllById(array.map { it.fightId }).size == array.size
         }
         return if (newFights != null && allFightsExist == true) {
-            newFights.forEach { fightCrudRepository.updateStartTimeById(it.fightId, it.startTime) }
+            newFights.forEach { fightCrudRepository.updateStartTimeAndMatById(it.fightId, it.startTime, it.matId) }
             listOf(event)
         } else {
             throw EventApplyingException("Fights are null or not all fights are present in the repository.", event)
@@ -139,7 +139,7 @@ class CategoryEventProcessor (private val mapper: ObjectMapper,
         val props = competitionStateCrudRepository.findById(event.competitionId)
         return if (c != null && event.categoryId != null && props.isPresent) {
             val state = categoryCrudRepository.save(CategoryState.fromDTO(c, props.get(), emptySet()))
-            listOf(event.setPayload(writePayloadAsString(CategoryAddedPayload(state.toDTO()))))
+            listOf(event.setPayload(writePayloadAsString(CategoryAddedPayload(state.toDTO(includeCompetitors = true, includeBrackets = true)))))
         } else {
             throw EventApplyingException("event did not contain category state.", event)
         }

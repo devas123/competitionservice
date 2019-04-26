@@ -16,6 +16,7 @@ public class CategoryStateDTO {
     private CategoryDescriptorDTO category;
     private CategoryStatus status;
     private BracketDescriptorDTO brackets;
+    private Integer fightsNumber;
     private Integer numberOfCompetitors;
     private CompetitorDTO[] competitors;
 }

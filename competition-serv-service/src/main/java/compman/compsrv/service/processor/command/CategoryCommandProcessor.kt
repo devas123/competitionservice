@@ -11,7 +11,7 @@ import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
-import compman.compsrv.repository.CategoryCrudRepository
+import compman.compsrv.repository.CategoryStateCrudRepository
 import compman.compsrv.repository.CompetitionPropertiesCrudRepository
 import compman.compsrv.repository.CompetitorCrudRepository
 import compman.compsrv.repository.FightCrudRepository
@@ -26,7 +26,7 @@ import org.springframework.stereotype.Component
 class CategoryCommandProcessor constructor(private val fightsGenerateService: FightsGenerateService,
                                            private val mapper: ObjectMapper,
                                            private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
-                                           private val categoryCrudRepository: CategoryCrudRepository,
+                                           private val categoryCrudRepository: CategoryStateCrudRepository,
                                            private val competitorCrudRepository: CompetitorCrudRepository,
                                            private val fightCrudRepository: FightCrudRepository) : ICommandProcessor {
 
@@ -206,7 +206,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
             val categoryId = IDGenerator.hashString("${command.competitionId}/${c.gender}/${c.ageDivision?.id}/${c.weight?.id}/${c.beltType}")
             if (!categoryCrudRepository.existsById(categoryId)) {
                 val competition = competitionPropertiesCrudRepository.getOne(command.competitionId)
-                val state = CategoryStateDTO(categoryId, competition.id, c.setId(categoryId), CategoryStatus.INITIALIZED, null, 0, emptyArray())
+                val state = CategoryStateDTO(categoryId, competition.id, c.setId(categoryId), CategoryStatus.INITIALIZED, null, 0, 0, emptyArray())
                 listOf(createEvent(command, EventType.CATEGORY_ADDED, mapper.writeValueAsString(CategoryAddedPayload(state))).setCategoryId(categoryId))
             } else {
                 listOf(createErrorEvent(command, "Category with ID $categoryId already exists."))

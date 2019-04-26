@@ -1,10 +1,7 @@
 package compman.compsrv.service.processor.event
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.jpa.competition.CompetitionProperties
-import compman.compsrv.jpa.competition.CompetitionState
-import compman.compsrv.jpa.competition.RegistrationGroup
-import compman.compsrv.jpa.competition.RegistrationPeriod
+import compman.compsrv.jpa.competition.*
 import compman.compsrv.jpa.es.events.EventHolder
 import compman.compsrv.jpa.schedule.Schedule
 import compman.compsrv.model.dto.competition.CompetitionStatus
@@ -47,6 +44,8 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                 EventType.COMPETITION_STOPPED,
                 EventType.COMPETITION_PUBLISHED,
                 EventType.COMPETITION_UNPUBLISHED,
+                EventType.DASHBOARD_CREATED,
+                EventType.DASHBOARD_DELETED,
                 EventType.ERROR_EVENT
 
         )
@@ -109,6 +108,32 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                     registrationGroupCrudRepository.deleteById(payload.groupId)
                     listOf(event)
                 }
+                EventType.DASHBOARD_DELETED -> {
+                    val competitionState = competitionStateCrudRepository.findByIdOrNull(event.competitionId)
+                    if (competitionState != null) {
+                        competitionState.dashboardState = null
+                        competitionStateCrudRepository.save(competitionState)
+                        listOf(event)
+                    } else {
+                        listOf(createErrorEvent("Cannot load competition state for competition ${event.competitionId}"))
+                    }
+
+                }
+                EventType.DASHBOARD_CREATED -> {
+                    val payload = getPayloadAs(event.payload, DashboardCreatedPayload::class.java)
+                    if (payload?.dashboardState != null) {
+                        val competitionState = competitionStateCrudRepository.findByIdOrNull(event.competitionId)
+                        if (competitionState != null) {
+                            competitionState.dashboardState = CompetitionDashboardState.fromDTO(payload.dashboardState)
+                            val newcompState = competitionStateCrudRepository.saveAndFlush(competitionState)
+                            listOf(event.setPayload(mapper.writeValueAsString(DashboardCreatedPayload(newcompState.dashboardState?.toDTO()))))
+                        } else {
+                            listOf(createErrorEvent("Cannot load competition state for competition ${event.competitionId}"))
+                        }
+                    } else {
+                        listOf(createErrorEvent("Cannot load dashboard state from event $event"))
+                    }
+                }
                 EventType.REGISTRATION_PERIOD_ADDED -> transactionTemplate.execute {
                     val payload = getPayloadAs(event.payload, RegistrationPeriodAddedPayload::class.java)!!
                     val info = registrationInfoCrudRepository.findByIdOrNull(event.competitionId)
@@ -129,10 +154,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                     listOf(event)
                 }
                 EventType.COMPETITION_DELETED -> transactionTemplate.execute {
-                    competitionStateCrudRepository.findById(event.competitionId).map { it.withStatus(CompetitionStatus.DELETED) }.map {
-                        competitionStateCrudRepository.save(it)
-
-                    }
+                    competitionStateCrudRepository.deleteById(event.competitionId)
                     listOf(event)
                 }
                 EventType.COMPETITION_CREATED -> {

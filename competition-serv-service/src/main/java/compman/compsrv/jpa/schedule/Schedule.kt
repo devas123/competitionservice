@@ -39,14 +39,6 @@ class Schedule(id: String,
                 periods = dto.periods.map { Period.fromDTO(it, dto.scheduleProperties.competitionId, fights) }
         )
 
-        fun obsoleteFight(f: FightDescription, threeCompetitorCategory: Boolean): Boolean {
-            if (threeCompetitorCategory) {
-                return false
-            }
-            if ((f.parentId1 != null) || (f.parentId2 != null)) return false
-            return !(f.scores.size == 2 && f.scores.all { compNotEmpty(it.competitor) })
-        }
-
         fun compNotEmpty(comp: Competitor?): Boolean {
             if (comp == null) return false
             val firstName = comp.firstName
@@ -54,7 +46,7 @@ class Schedule(id: String,
             return firstName.trim().isNotEmpty() && lastName.trim().isNotEmpty()
         }
 
-        fun getDuration(period: Period): BigDecimal? {
+        fun getPeriodDuration(period: Period): BigDecimal? {
             val startTime = period.startTime.toEpochMilli()
             val endTime = period.fightsByMats?.map { it.currentTime }?.sortedBy { it.toEpochMilli() }?.lastOrNull()?.toEpochMilli()
                     ?: startTime

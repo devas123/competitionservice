@@ -13,6 +13,7 @@ import java.time.Instant;
 @NoArgsConstructor
 public class FightStartTimePairDTO {
     private String fightId;
+    private String matId;
     private Integer fightNumber;
     private Instant startTime;
 }

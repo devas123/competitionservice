@@ -20,11 +20,12 @@ class FightStartTimePair(
         val fight: FightDescription,
         val fightNumber: Int,
         val startTime: Instant) : Serializable {
-    fun toDTO(): FightStartTimePairDTO {
+    fun toDTO(matId: String): FightStartTimePairDTO {
         return FightStartTimePairDTO()
                 .setFightId(fight.id)
                 .setFightNumber(fightNumber)
                 .setStartTime(startTime)
+                .setMatId(matId)
     }
 
     companion object {
@@ -55,7 +56,7 @@ class MatScheduleContainer(
         return MatScheduleContainerDTO()
                 .setTotalFights(totalFights)
                 .setId(id)
-                .setFights(fights.map { it.toDTO() }.toTypedArray())
+                .setFights(fights.map { it.toDTO(id ?: "") }.toTypedArray())
     }
 
     constructor(currentTime: Instant, id: String) : this(currentTime, 0, id, ArrayList(), ArrayList())

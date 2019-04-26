@@ -53,7 +53,7 @@ abstract class AbstractCommandTransformer(
                         getState(readOnlyKey).map { newState ->
                             CompetitionStateSnapshot(command.competitionId, clusterSession.localMemberId(), context.partition(), context.offset(),
                                     emptySet(), emptySet(),
-                                    mapper.writeValueAsString(newState.toDTO(includeCompetitors = true)))
+                                    mapper.writeValueAsString(newState.toDTO(includeCompetitors = true, includeBrackets = true)))
                         }
                     }
                     eventsToSend

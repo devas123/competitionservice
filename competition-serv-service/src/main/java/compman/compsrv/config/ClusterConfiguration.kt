@@ -68,16 +68,21 @@ class ClusterConfiguration {
     @Bean
     fun stateQueryService(restTemplate: RestTemplate,
                           clusterSession: ClusterSession,
-                          categoryStateCrudRepository: CategoryCrudRepository,
+                          categoryStateCrudRepository: CategoryStateCrudRepository,
                           competitionStateCrudRepository: CompetitionStateCrudRepository,
                           scheduleCrudRepository: ScheduleCrudRepository,
                           competitorCrudRepository: CompetitorCrudRepository,
                           bracketsCrudRepository: BracketsCrudRepository,
                           dashboardStateCrudRepository: DashboardStateCrudRepository,
+                          fightCrudRepository: FightCrudRepository,
+                          dashboardPeriodCrudRepository: DashboardPeriodCrudRepository,
                           competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository) =
             StateQueryService(clusterSession, restTemplate,
                     competitionStateCrudRepository, competitionPropertiesCrudRepository, scheduleCrudRepository,
-                    categoryStateCrudRepository, competitorCrudRepository,
+                    fightCrudRepository,
+                    categoryStateCrudRepository,
+                    competitorCrudRepository,
                     dashboardStateCrudRepository,
+                    dashboardPeriodCrudRepository,
                     bracketsCrudRepository)
 }
