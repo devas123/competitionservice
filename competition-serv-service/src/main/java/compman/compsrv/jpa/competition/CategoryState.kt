@@ -4,6 +4,7 @@ import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.jpa.brackets.BracketDescriptor
 import compman.compsrv.model.dto.competition.CategoryStateDTO
 import compman.compsrv.model.dto.competition.CategoryStatus
+import compman.compsrv.service.ScheduleService
 import javax.persistence.*
 
 @Entity(name = "category_state")
@@ -45,8 +46,15 @@ class CategoryState(id: String,
         )
     }
 
-    fun toDTO(includeCompetitors: Boolean = false): CategoryStateDTO {
-        return CategoryStateDTO(id, competition?.id, category?.toDTO(), status, brackets?.toDTO(), competitors?.size, if (includeCompetitors) competitors?.map { it.toDTO() }?.toTypedArray() else emptyArray())
+    fun toDTO(includeCompetitors: Boolean = false, includeBrackets: Boolean = false): CategoryStateDTO {
+        return CategoryStateDTO().setId(id)
+                .setCompetitionId(competition?.id)
+                .setCategory(category?.toDTO())
+                .setStatus(status)
+                .setBrackets(if (includeBrackets) brackets?.toDTO() else null)
+                .setNumberOfCompetitors(competitors?.size)
+                .setCompetitors(if (includeCompetitors) competitors?.map { it.toDTO() }?.toTypedArray() else emptyArray())
+                .setFightsNumber(brackets?.fights?.filter{!ScheduleService.obsoleteFight(it, competitors?.size == 0)}?.size ?: 0)
     }
 
 }

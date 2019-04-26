@@ -4,7 +4,6 @@ import com.compmanager.service.ServiceException
 import compman.compsrv.jpa.brackets.BracketDescriptor
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.jpa.schedule.*
-import compman.compsrv.jpa.schedule.Schedule.Companion.obsoleteFight
 import compman.compsrv.repository.FightCrudRepository
 import compman.compsrv.util.IDGenerator
 import org.springframework.stereotype.Component
@@ -21,6 +20,13 @@ class ScheduleService(private val fightCrudRepository: FightCrudRepository) {
     companion object {
         fun createPeriodId(competitionId: String) = IDGenerator.hashString("$competitionId-period-${UUID.randomUUID()}")
         fun createMatId(periodId: String, matNumber: Int) = IDGenerator.hashString("$periodId-mat-$matNumber")
+        fun obsoleteFight(f: FightDescription, threeCompetitorCategory: Boolean): Boolean {
+            if (threeCompetitorCategory) {
+                return false
+            }
+            if ((f.parentId1 != null) || (f.parentId2 != null)) return false
+            return !(f.scores.size == 2 && f.scores.all { Schedule.compNotEmpty(it.competitor) })
+        }
     }
 
     private class BracketSimulator(fights: List<FightDescription>?, threeCompetitorCategory: Boolean) {

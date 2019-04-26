@@ -69,8 +69,8 @@ class CompetitionState(id: String,
         return this
     }
 
-    fun toDTO(includeCompetitors: Boolean = false): CompetitionStateDTO = CompetitionStateDTO()
-            .setCategories(categories.map { it.toDTO(includeCompetitors) }.toTypedArray())
+    fun toDTO(includeCompetitors: Boolean = false, includeBrackets: Boolean = false): CompetitionStateDTO = CompetitionStateDTO()
+            .setCategories(categories.map { it.toDTO(includeCompetitors, includeBrackets) }.toTypedArray())
             .setCompetitionId(id)
             .setDashboardState(dashboardState?.toDTO())
             .setProperties(properties?.toDTO())

@@ -9,7 +9,7 @@ import javax.transaction.Transactional
 
 @Repository
 @Transactional(Transactional.TxType.SUPPORTS)
-interface CategoryCrudRepository : JpaRepository<CategoryState, String> {
+interface CategoryStateCrudRepository : JpaRepository<CategoryState, String> {
     @Query("SELECT * FROM category_state c WHERE c.id = ?1 and c.competition_id = ?2", nativeQuery = true)
     fun findByIdAndCompetitionId(id: String, competitionId: String): CategoryState?
 

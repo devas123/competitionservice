@@ -2,8 +2,10 @@ package compman.compsrv.service.processor.command
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.jpa.brackets.BracketDescriptor
+import compman.compsrv.jpa.competition.CompetitionDashboardState
 import compman.compsrv.jpa.competition.RegistrationInfo
 import compman.compsrv.jpa.es.commands.Command
+import compman.compsrv.jpa.schedule.DashboardPeriod
 import compman.compsrv.jpa.schedule.ScheduleProperties
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
@@ -29,13 +31,14 @@ import java.util.*
 @Component
 class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val competitionStateCrudRepository: CompetitionStateCrudRepository,
-                                  private val categoryCrudRepository: CategoryCrudRepository,
+                                  private val categoryCrudRepository: CategoryStateCrudRepository,
                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
                                   private val bracketsCrudRepository: BracketsCrudRepository,
                                   private val commandCrudRepository: CommandCrudRepository,
                                   private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
                                   private val registrationPeriodCrudRepository: RegistrationPeriodCrudRepository,
                                   private val registrationInfoCrudRepository: RegistrationInfoCrudRepository,
+                                  private val dashboardStateCrudRepository: DashboardStateCrudRepository,
                                   private val mapper: ObjectMapper) : ICommandProcessor {
     override fun affectedCommands(): Set<CommandType> {
         return setOf(CommandType.ASSIGN_REGISTRATION_GROUP_CATEGORIES_COMMAND,
@@ -44,6 +47,8 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 CommandType.ADD_REGISTRATION_GROUP_COMMAND,
                 CommandType.ADD_REGISTRATION_PERIOD_COMMAND,
                 CommandType.CREATE_COMPETITION_COMMAND,
+                CommandType.CREATE_DASHBOARD_COMMAND,
+                CommandType.DELETE_DASHBOARD_COMMAND,
                 CommandType.DROP_ALL_BRACKETS_COMMAND,
                 CommandType.DROP_SCHEDULE_COMMAND,
                 CommandType.GENERATE_SCHEDULE_COMMAND,
@@ -109,6 +114,38 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 }
                 CommandType.DELETE_REGISTRATION_PERIOD_COMMAND -> {
                     listOf(createEvent(EventType.REGISTRATION_PERIOD_DELETED, command.payload["periodId"]))
+                }
+                CommandType.DELETE_DASHBOARD_COMMAND -> {
+                    listOf(createEvent(EventType.DASHBOARD_DELETED, command.competitionId))
+                }
+                CommandType.CREATE_DASHBOARD_COMMAND -> {
+                    val dashboardState = dashboardStateCrudRepository.findByIdOrNull(command.competitionId)
+                    if (dashboardState == null || dashboardState.periods.isNullOrEmpty()) {
+                        val schedule = competitionStateCrudRepository.findByIdOrNull(command.competitionId)?.schedule
+                        val periods = schedule?.periods
+                        if (!periods.isNullOrEmpty()) {
+                            val dashbPeriods = periods.map { period ->
+                                val fightsByMats = period.fightsByMats
+                                val mats = if (!fightsByMats.isNullOrEmpty()) {
+                                    fightsByMats.groupBy { it.id }.keys.filterNotNull().toTypedArray()
+                                } else {
+                                    (0..period.numberOfMats).map { number -> IDGenerator.hashString("${command.competitionId}/${period.id}/$number") }.toTypedArray()
+                                }
+                                val id = if (!period.id.isNullOrBlank()) {
+                                    period.id!!
+                                } else {
+                                    IDGenerator.hashString("${command.competitionId}/dashboard/period/${period.name}")
+                                }
+                                DashboardPeriod(id, period.name, mats, period.startTime, false)
+                            }.toSet()
+                            val state = CompetitionDashboardState(command.competitionId, dashbPeriods)
+                            listOf(createEvent(EventType.DASHBOARD_CREATED, DashboardCreatedPayload(state.toDTO())))
+                        } else {
+                            listOf(createErrorEvent("Schedule not generated for competition ID: ${command.competitionId}"))
+                        }
+                    } else {
+                        listOf(createErrorEvent("Dashboard already exists for competition ID: ${command.competitionId}"))
+                    }
                 }
                 CommandType.DELETE_REGISTRATION_GROUP_COMMAND -> {
                     val payload = mapper.convertValue(command.payload, DeleteRegistrationGroupPayload::class.java)
@@ -224,8 +261,8 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                     if (compProps != null && !compProps.schedulePublished) {
                         if (missingCategories.isNullOrEmpty()) {
                             val schedule = scheduleService.generateSchedule(ScheduleProperties.fromDTO(scheduleProperties), getAllBrackets(scheduleProperties.competitionId), getFightDurations(scheduleProperties), compProps.timeZone)
-                            val updateFightsPayload = UpdateFightsStartTimePayload(schedule.periods?.flatMap { period -> period.fightsByMats ?: emptyList() }?.map { it.toDTO() }?.toTypedArray())
-                            listOf(createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule.toDTO())), createEvent(EventType.FIGHTS_START_TIME_UPDATED, updateFightsPayload))
+                            val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(schedule.periods?.flatMap { period -> period.fightsByMats ?: emptyList() }?.flatMap { it.fights.map { f -> f.toDTO(it.id ?: "") } }?.toTypedArray())
+                            listOf(createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule.toDTO())), createEvent(EventType.FIGHTS_START_TIME_UPDATED, fightStartTimeUpdatedPayload))
                         } else {
                             listOf(createErrorEvent("Categories $missingCategories are missing"))
                         }

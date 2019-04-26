@@ -11,10 +11,8 @@ import compman.compsrv.model.PageResponse
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
-import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
-import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
-import compman.compsrv.model.dto.competition.CompetitorDTO
-import compman.compsrv.model.dto.competition.FightStage
+import compman.compsrv.model.dto.competition.*
+import compman.compsrv.model.dto.dashboard.MatDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.util.IDGenerator
 import org.apache.kafka.clients.producer.KafkaProducer
@@ -69,10 +67,18 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
         return if (internal == true) {
             categoryState
         } else {
-            categoryState?.toDTO()
+            categoryState?.toDTO(includeBrackets = true)
         }
     }
 
+    @RequestMapping("/store/mats", method = [RequestMethod.GET])
+    fun getMats(@RequestParam("competitionId") competitionId: String, @RequestParam("periodId") periodId: String): List<MatDTO> {
+        return stateQueryService.getMats(competitionId, periodId)?.toList() ?: emptyList()
+    }
+    @RequestMapping("/store/matfights", method = [RequestMethod.GET])
+    fun getMatFights(@RequestParam("competitionId") competitionId: String, @RequestParam("matId") matId: String, @RequestParam("maxResults") maxResults: Int): List<FightDescriptionDTO> {
+        return stateQueryService.getMatFights(competitionId, matId, maxResults)?.toList() ?: emptyList()
+    }
 
     @RequestMapping("/store/competitors", method = [RequestMethod.GET])
     fun getCompetitors(@RequestParam("competitionId") competitionId: String,
