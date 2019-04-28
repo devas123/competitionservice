@@ -16,7 +16,7 @@ class PeriodProperties(id: String,
                        var timeBetweenFights: Int,
                        var riskPercent: BigDecimal,
                        @OneToMany(fetch = FetchType.LAZY)
-                       @JoinColumn(name = "PERIOD_ID", nullable = true)
+                       @JoinColumn(name = "PERIOD_PROPERTIES_ID", nullable = true)
                        var categories: List<CategoryDescriptor>) : AbstractJpaPersistable<String>(id) {
     fun toDTO(): PeriodPropertiesDTO {
         return PeriodPropertiesDTO()

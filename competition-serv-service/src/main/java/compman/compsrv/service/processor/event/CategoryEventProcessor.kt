@@ -16,12 +16,13 @@ import org.springframework.stereotype.Component
 
 
 @Component
-class CategoryEventProcessor (private val mapper: ObjectMapper,
-                              private val competitionStateCrudRepository: CompetitionStateCrudRepository,
-                              private val categoryCrudRepository: CategoryStateCrudRepository,
-                              private val competitorCrudRepository: CompetitorCrudRepository,
-                              private val fightCrudRepository: FightCrudRepository,
-                              private val bracketsCrudRepository: BracketsCrudRepository) : IEventProcessor {
+class CategoryEventProcessor(private val mapper: ObjectMapper,
+                             private val competitionStateCrudRepository: CompetitionStateCrudRepository,
+                             private val categoryCrudRepository: CategoryStateCrudRepository,
+                             private val categoryDescriptorCrudRepository: CategoryDescriptorCrudRepository,
+                             private val competitorCrudRepository: CompetitorCrudRepository,
+                             private val fightCrudRepository: FightCrudRepository,
+                             private val bracketsCrudRepository: BracketsCrudRepository) : IEventProcessor {
     override fun affectedEvents(): Set<EventType> {
         return setOf(
                 EventType.COMPETITOR_ADDED,
@@ -136,10 +137,14 @@ class CategoryEventProcessor (private val mapper: ObjectMapper,
 
     private fun applyCategoryAddedEvent(event: EventDTO): List<EventDTO> {
         val c = getPayloadAs(event.payload, CategoryAddedPayload::class.java)?.categoryState
-        val props = competitionStateCrudRepository.findById(event.competitionId)
-        return if (c != null && event.categoryId != null && props.isPresent) {
-            val state = categoryCrudRepository.save(CategoryState.fromDTO(c, props.get(), emptySet()))
-            listOf(event.setPayload(writePayloadAsString(CategoryAddedPayload(state.toDTO(includeCompetitors = true, includeBrackets = true)))))
+        val competitionState = competitionStateCrudRepository.findById(event.competitionId)
+        return if (c != null && event.categoryId != null && competitionState.isPresent) {
+            val newState = CategoryState.fromDTO(c, competitionState.get(), emptySet())
+            newState.category?.let {
+                categoryDescriptorCrudRepository.saveAndFlush(it)
+            }
+            val categoryState = categoryCrudRepository.save(CategoryState.fromDTO(c, competitionState.get(), emptySet()))
+            listOf(event.setPayload(writePayloadAsString(CategoryAddedPayload(categoryState.toDTO(includeCompetitors = true, includeBrackets = true)))))
         } else {
             throw EventApplyingException("event did not contain category state.", event)
         }

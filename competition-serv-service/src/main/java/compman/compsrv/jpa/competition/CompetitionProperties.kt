@@ -11,6 +11,8 @@ import javax.persistence.*
 class CompetitionProperties(
         id: String,
         var creatorId: String,
+        @ElementCollection
+        @OrderColumn
         var staffIds: Array<String>,
         var emailNotificationsEnabled: Boolean?,
         var competitionName: String,
@@ -22,7 +24,7 @@ class CompetitionProperties(
         var bracketsPublished: Boolean,
         var endDate: Instant?,
         var timeZone: String,
-        @OneToOne(cascade = [CascadeType.ALL], optional = false)
+        @OneToOne(cascade = [CascadeType.ALL], optional = false, orphanRemoval = true, fetch = FetchType.LAZY)
         @PrimaryKeyJoinColumn
         var registrationInfo: RegistrationInfo) : AbstractJpaPersistable<String>(id) {
 
@@ -45,8 +47,7 @@ class CompetitionProperties(
                             it.id = dto.id
                         }
                         RegistrationInfo.fromDTO(it)
-                    }
-                            ?: RegistrationInfo(dto.id, false, mutableListOf()))
+                    } ?: RegistrationInfo(dto.id, false, mutableListOf()))
         }
     }
 

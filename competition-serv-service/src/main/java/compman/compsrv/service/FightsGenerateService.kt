@@ -9,6 +9,7 @@ import compman.compsrv.model.exceptions.CategoryNotFoundException
 import compman.compsrv.repository.CategoryDescriptorCrudRepository
 import compman.compsrv.util.IDGenerator
 import org.springframework.stereotype.Component
+import java.time.Instant
 import java.util.*
 
 @Component
@@ -46,7 +47,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                         null,
                         names[random.nextInt(names.size)],
                         surnames[random.nextInt(surnames.size)],
-                        Date(),
+                        Instant.now(),
                         Academy("Academy${random.nextInt(academies)}", emptyList()).id,
                         category.id!!,
                         competitionId,

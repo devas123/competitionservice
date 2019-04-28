@@ -158,7 +158,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                         if (!payload.group.displayName.isNullOrBlank()) {
                             val groupId = IDGenerator.hashString("${payload.periodId}/${payload.group.displayName}")
                             period.map { p ->
-                                if (!p.registrationGroups.any { it.id == groupId }) {
+                                if (p.registrationGroups?.any { it.id == groupId } == true) {
                                     listOf(createEvent(EventType.REGISTRATION_GROUP_ADDED, RegistrationGroupAddedPayload(payload.periodId, payload.group.setId(groupId))))
                                 } else {
                                     listOf(createErrorEvent("Group with id $groupId already exists"))

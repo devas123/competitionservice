@@ -5,6 +5,7 @@ import lombok.experimental.Accessors;
 
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
 public class AgeDivisionDTO {
     public static final AgeDivisionDTO MIGHTY_MITE_I = new AgeDivisionDTO("MIGHTY MITE I", 4, 4);
     public static final AgeDivisionDTO MIGHTY_MITE_II = new AgeDivisionDTO("MIGHTY MITE II", 5, 5);

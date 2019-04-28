@@ -15,11 +15,11 @@ class RegistrationPeriod(@Id var id: String,
                          @ManyToOne
                          @JoinColumn(name = "registration_info_id", nullable = false)
                          var registrationInfo: RegistrationInfo?,
-                         var start: Instant,
-                         var end: Instant,
+                         var startDate: Instant,
+                         var endDate: Instant,
                          @OrderColumn
                          @OneToMany(orphanRemoval = true, fetch = FetchType.LAZY, cascade = [CascadeType.ALL], targetEntity = RegistrationGroup::class, mappedBy = "registrationPeriod")
-                         var registrationGroups: MutableList<RegistrationGroup> = mutableListOf()) {
+                         var registrationGroups: MutableList<RegistrationGroup>? = mutableListOf()) {
     companion object {
         fun fromDTO(dto: RegistrationPeriodDTO) = RegistrationPeriod(dto.id, dto.name, null, dto.start, dto.end, dto.registrationGroups?.map { RegistrationGroup.fromDTO(it) }?.toMutableList()
                 ?: mutableListOf())
@@ -41,9 +41,9 @@ class RegistrationPeriod(@Id var id: String,
             .setId(id)
             .setCompetitionId(registrationInfo?.id)
             .setName(name)
-            .setEnd(end)
-            .setStart(start)
-            .setRegistrationGroups(registrationGroups.map { it.toDTO() }.toTypedArray())
+            .setEnd(endDate)
+            .setStart(startDate)
+            .setRegistrationGroups(registrationGroups?.mapNotNull { it?.toDTO() }?.toTypedArray())
 }
 
 @Entity
@@ -53,6 +53,8 @@ class RegistrationGroup(@Id val id: String,
                         var registrationPeriod: RegistrationPeriod?,
                         var displayName: String,
                         var registrationFee: BigDecimal,
+                        @ElementCollection
+                        @OrderColumn
                         var categories: Array<String>) {
     companion object {
         fun fromDTO(dto: RegistrationGroupDTO) = RegistrationGroup(dto.id, null, dto.displayName, dto.registrationFee, dto.categories ?: emptyArray())
