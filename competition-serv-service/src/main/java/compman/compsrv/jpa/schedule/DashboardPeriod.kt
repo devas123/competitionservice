@@ -3,11 +3,13 @@ package compman.compsrv.jpa.schedule
 import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.model.dto.schedule.DashboardPeriodDTO
 import java.time.Instant
-import javax.persistence.Entity
+import javax.persistence.*
 
 @Entity
 class DashboardPeriod(id: String,
                       var name: String,
+                      @ElementCollection
+                      @OrderColumn
                       var matIds: Array<String>,
                       var startTime: Instant,
                       var isActive: Boolean) : AbstractJpaPersistable<String>(id) {

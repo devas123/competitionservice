@@ -3,7 +3,7 @@ package compman.compsrv.jpa.competition
 import com.compmanager.model.payment.RegistrationStatus
 import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.model.dto.competition.CompetitorDTO
-import java.util.*
+import java.time.Instant
 import javax.persistence.Column
 import javax.persistence.Entity
 
@@ -15,7 +15,7 @@ class Competitor(
         var userId: String?,
         var firstName: String,
         var lastName: String,
-        var birthDate: Date?,
+        var birthDate: Instant?,
         var academy: String?,
         @Column(name = "category_id",
                 columnDefinition = "VARCHAR(255) REFERENCES category_descriptor(id)")

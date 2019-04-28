@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
+import java.time.Instant;
 import java.util.Date;
 
 @Data
@@ -17,7 +18,7 @@ public class CompetitorDTO {
     private String userId;
     private String firstName;
     private String lastName;
-    private Date birthDate;
+    private Instant birthDate;
     private String academy;
     private String categoryId;
     private String competitionId;

@@ -19,6 +19,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                                 private val eventCrudRepository: EventCrudRepository,
                                 private val scheduleCrudRepository: ScheduleCrudRepository,
                                 private val categoryCrudRepository: CategoryDescriptorCrudRepository,
+                                private val periodCrudRepository: PeriodCrudRepository,
                                 private val bracketsCrudRepository: BracketsCrudRepository,
                                 private val fightCrudRepository: FightCrudRepository,
                                 private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
@@ -94,7 +95,11 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                     if (regPeriod != null) {
                         val group = RegistrationGroup.fromDTO(payload.group)
                         group.registrationPeriod = regPeriod
-                        regPeriod.registrationGroups.add(group)
+                        if (regPeriod.registrationGroups != null) {
+                            regPeriod.registrationGroups!!.add(group)
+                        } else {
+                            regPeriod.registrationGroups = mutableListOf(group)
+                        }
                         registrationPeriodCrudRepository.save(regPeriod)
                     }
                     val savedGroup = registrationGroupCrudRepository.findByIdOrNull(payload.group.id)
@@ -119,7 +124,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                     }
 
                 }
-                EventType.DASHBOARD_CREATED -> {
+                EventType.DASHBOARD_CREATED -> transactionTemplate.execute {
                     val payload = getPayloadAs(event.payload, DashboardCreatedPayload::class.java)
                     if (payload?.dashboardState != null) {
                         val competitionState = competitionStateCrudRepository.findByIdOrNull(event.competitionId)
@@ -154,13 +159,18 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                     listOf(event)
                 }
                 EventType.COMPETITION_DELETED -> transactionTemplate.execute {
-                    competitionStateCrudRepository.deleteById(event.competitionId)
+                    if (competitionStateCrudRepository.existsById(event.competitionId)) {
+                        competitionStateCrudRepository.deleteById(event.competitionId)
+                    }
                     listOf(event)
                 }
-                EventType.COMPETITION_CREATED -> {
+                EventType.COMPETITION_CREATED -> transactionTemplate.execute {
                     val payload = getPayloadAs(event.payload, CompetitionCreatedPayload::class.java)
                     payload?.properties?.let { props ->
                         val state = CompetitionState(props.id, CompetitionProperties.fromDTO(props))
+                        state.properties?.registrationInfo?.let {
+                            registrationInfoCrudRepository.save(it)
+                        }
                         val newState = competitionStateCrudRepository.save(state)
                         val newPayload = CompetitionCreatedPayload(newState.properties!!.toDTO())
                         val createdEvent = EventDTO(event.id, event.correlationId, event.competitionId,
@@ -179,11 +189,12 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                     bracketsCrudRepository.deleteByCompetitionId(event.competitionId)
                     listOf(event)
                 }
-                EventType.SCHEDULE_GENERATED -> {
+                EventType.SCHEDULE_GENERATED -> transactionTemplate.execute {
                     val scheduleGeneratedPayload = getPayloadAs(event.payload, ScheduleGeneratedPayload::class.java)
                     if (scheduleGeneratedPayload?.schedule != null) {
                         val schedule = Schedule.fromDTO(scheduleGeneratedPayload.schedule, fightCrudRepository)
                         schedule.periods?.forEach {
+                            periodCrudRepository.save(it)
                             if (!it.categories.isNullOrEmpty()) {
                                 categoryCrudRepository.saveAll(it.categories)
                             }

@@ -24,7 +24,7 @@ interface FightCrudRepository : JpaRepository<FightDescription, String> {
 
     @Modifying
     @Transactional(Transactional.TxType.REQUIRED)
-    @Query("UPDATE fight_description f SET f.start_time = ?2, f.mat_id = ?3 WHERE f.id = ?1", nativeQuery = true)
+    @Query("UPDATE fight_description f SET start_time = ?2, mat_id = ?3 WHERE f.id = ?1", nativeQuery = true)
     fun updateStartTimeAndMatById(id: String, startTime: Instant, matId: String)
 
     fun findByCompetitionIdAndMatId(competitionId: String, matId: String, pageable: Pageable): Page<FightDescription>?
