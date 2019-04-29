@@ -15,12 +15,11 @@ node {
             }
             stage('docker') {
                 docker.withRegistry('http://95.169.186.20:8082/repository/compmanager-registry/', 'Nexus') {
-                    env.BUILD_ID = "master"
                     env.IMAGE_NAME = "competitionservice"
                     def customImage = null
                     stage("build_docker") {
                         try {
-                            customImage = docker.build("${env.IMAGE_NAME}:${env.BUILD_ID}")
+                            customImage = docker.build("${env.IMAGE_NAME}/${env.BRANCH_NAME}:${env.BUILD_NUMBER}")
                         } catch (err) {
                             currentBuild.result = 'FAILURE'
                             print "Failed: ${err}"
