@@ -11,6 +11,9 @@
 
     <artifactId>competition-serv-service</artifactId>
 
+    <properties>
+        <scalecube.version>2.2.5</scalecube.version>
+    </properties>
 
     <dependencies>
 
@@ -72,7 +75,7 @@
         <dependency>
             <groupId>io.scalecube</groupId>
             <artifactId>scalecube-cluster</artifactId>
-            <version>2.2.5</version>
+            <version>${scalecube.version}</version>
             <exclusions>
                 <exclusion>
                     <artifactId>protobuf-java</artifactId>
@@ -246,6 +249,7 @@
     </dependencies>
 
     <build>
+        <finalName>application</finalName>
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
