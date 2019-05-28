@@ -1,3 +1,5 @@
 package compman.compsrv.cluster
 
-data class CompetitionProcessingMessage(val memberWithRestPort: MemberWithRestPort, val info: CompetitionProcessingInfo)
+import java.io.Serializable
+
+data class CompetitionProcessingMessage(val memberWithRestPort: MemberWithRestPort, val info: CompetitionProcessingInfo): Serializable

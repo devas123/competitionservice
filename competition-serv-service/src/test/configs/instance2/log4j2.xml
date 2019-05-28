@@ -10,8 +10,12 @@
         <logger name="org.apache.kafka.streams.processor.internals.StateDirectory" level="WARN"/>
         <logger name="org.springframework.web" level="WARN" />
         <logger name="org.springframework.web.filter.CommonsRequestLoggingFilter" level="WARN"/>
-        <logger name="io.scalecube.cluster" level="ALL"/>
-        <Root level="DEBUG">
+        <logger name="compman.compsrv.cluster" level="DEBUG"/>
+        <logger name="io.scalecube" level="INFO"/>
+        <logger name="io.scalecube.cluster.fdetector" level="WARN"/>
+        <logger name="compman.compsrv.config.ClusterConfiguration" level="DEBUG"/>
+        <logger name="compman.compsrv.service" level="DEBUG"/>
+        <Root level="WARN">
             <AppenderRef ref="Console"/>
         </Root>
     </Loggers>

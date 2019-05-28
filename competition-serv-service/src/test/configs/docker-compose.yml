@@ -1,0 +1,37 @@
+version: "3.7"
+services:
+
+  cs1:
+    image: compservice
+    command: java -Dlog4j.configurationFile=/config/log4j2.xml -jar /app/application.jar --spring.config.location=/config/application.yml
+    ports:
+      - "3082:3082"
+    networks:
+      - backend
+    volumes:
+      - c:/dev-env-opding/ws-compmanager/competitionservice/competition-serv-service/src/test/configs/instance1:/config
+    environment:
+      CLUSTER_SEED: cs2:60390
+      ADVERTISED_PORT: 60390
+      ADVERTISED_HOST: localhost
+      SERVER_PORT: 3082
+
+  cs2:
+    image: compservice
+    command: java -Dlog4j.configurationFile=/config/log4j2.xml -jar /app/application.jar --spring.config.location=/config/application.yml
+    depends_on:
+      - cs1
+    ports:
+      - "3083:3083"
+    networks:
+      - backend
+    volumes:
+      - c:/dev-env-opding/ws-compmanager/competitionservice/competition-serv-service/src/test/configs/instance2:/config
+    environment:
+      CLUSTER_SEED: cs1:60390
+      ADVERTISED_PORT: 60390
+      ADVERTISED_HOST: localhost
+      SERVER_PORT: 3083
+
+networks:
+  backend:

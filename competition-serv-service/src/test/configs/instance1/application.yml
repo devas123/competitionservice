@@ -13,14 +13,14 @@ spring:
 #      database: compservice
 #      authentication-database: admin
   datasource:
-    url: jdbc:postgresql://localhost:5432/postgres?serverTimezone=UTC
+    url: jdbc:postgresql://10.220.143.181:5432/postgres?serverTimezone=UTC
     username: postgres
     password: admin
 #    driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
     properties:
       hibernate.dialect: org.hibernate.dialect.PostgreSQL95Dialect
 
@@ -28,14 +28,16 @@ logging:
   level:
     org:
       hibernate:
-        SQL: DEBUG
+        SQL: INFO
         type:
           descriptor:
             sql:
-              BasicBinder: TRACE
+              BasicBinder: INFO
+
 server:
   servlet.context-path: /competitions
-  port: 3082
+  port: ${SERVER_PORT:3082}
+
 
 communication:
   frontend-callback-url: http://localhost:8080/
@@ -45,14 +47,13 @@ communication:
 
 cluster:
   enable-cluster: true
-  advertised-port: 60390
-  cluster-seed:
-    - 172.17.0.3:60390
-  advertised-host: 192.168.1.11
+  advertised-port: ${ADVERTISED_PORT:60390}
+  advertised-host: ${ADVERTISED_HOST:localhost}
+  cluster-seed: ${CLUSTER_SEED}
 
 
 kafka:
-  bootstrap-servers: localhost:50813
+  bootstrap-servers: "10.220.143.181:50812"
   stream-properties:
     application.id: competition_service
     bootstrap.servers: ${kafka.bootstrap-servers}

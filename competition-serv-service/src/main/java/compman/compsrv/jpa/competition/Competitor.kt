@@ -26,7 +26,7 @@ class Competitor(
         var registrationStatus: RegistrationStatus?,
         var promo: String?) : AbstractJpaPersistable<String>(id) {
 
-    fun toDTO(): CompetitorDTO? {
+    fun toDTO(): CompetitorDTO {
         return CompetitorDTO()
                 .setId(id)
                 .setAcademy(academy)

@@ -1,8 +1,6 @@
 package compman.compsrv.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.jpa.brackets.BracketDescriptor
-import compman.compsrv.jpa.competition.CompetitionDashboardState
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.jpa.schedule.Schedule
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
@@ -11,6 +9,7 @@ import compman.compsrv.model.PageResponse
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
+import compman.compsrv.model.dto.brackets.BracketDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
@@ -61,14 +60,9 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
 
 
     @RequestMapping("/store/categorystate", method = [RequestMethod.GET])
-    fun getCategoryState(@RequestParam("competitionId") competitionId: String, @RequestParam("categoryId") categoryId: String, @RequestParam("internal") internal: Boolean? = false): Any? {
-        val categoryState = stateQueryService.getCategoryState(
+    fun getCategoryState(@RequestParam("competitionId") competitionId: String, @RequestParam("categoryId") categoryId: String): Any? {
+        return stateQueryService.getCategoryState(
                 competitionId, categoryId)
-        return if (internal == true) {
-            categoryState
-        } else {
-            categoryState?.toDTO(includeBrackets = true)
-        }
     }
 
     @RequestMapping("/store/mats", method = [RequestMethod.GET])
@@ -85,16 +79,11 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
                        @RequestParam("categoryId") categoryId: String?,
                        @RequestParam("searchString") searchString: String?,
                        @RequestParam("pageSize") pageSize: Int?,
-                       @RequestParam("pageNumber") pageNumber: Int?,
-                       @RequestParam("internal") internal: Boolean? = false): Any? {
+                       @RequestParam("pageNumber") pageNumber: Int?): Any? {
         val page = stateQueryService.getCompetitors(competitionId, categoryId, searchString, pageSize ?: 50, pageNumber
                 ?: 0)
-        return if (internal == true) {
-            page
-        } else {
-            PageResponse(competitionId, page?.totalElements ?: 0, (page?.number
-                    ?: 0) + 1, page?.content?.mapNotNull { it.toDTO() }?.toTypedArray() ?: emptyArray())
-        }
+        return PageResponse(competitionId, page?.totalElements ?: 0, (page?.number
+                ?: 0) + 1, page?.content?.toTypedArray() ?: emptyArray())
     }
 
 
@@ -114,21 +103,21 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     }
 
     @RequestMapping("/store/competitionstate", method = [RequestMethod.GET])
-    fun getCompetitionState(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionState(competitionId)?.toDTO()
+    fun getCompetitionState(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionState(competitionId)
 
     @RequestMapping("/store/categories", method = [RequestMethod.GET])
     fun getCategories(@RequestParam("competitionId") competitionId: String) = stateQueryService.getCategories(competitionId)
 
     @RequestMapping("/store/brackets", method = [RequestMethod.GET])
-    fun getBrackets(@RequestParam("competitionId") competitionId: String?, @RequestParam("categoryId") categoryId: String?): Array<BracketDescriptor> {
+    fun getBrackets(@RequestParam("competitionId") competitionId: String?, @RequestParam("categoryId") categoryId: String?): Array<BracketDescriptorDTO> {
         return if (competitionId.isNullOrBlank() && categoryId.isNullOrBlank()) {
             log.warn("Competition id is missing.")
             emptyArray()
         } else {
             if (categoryId.isNullOrBlank()) {
-                stateQueryService.getBracketsForCompetition(competitionId!!)?.toTypedArray() ?: emptyArray()
+                stateQueryService.getBracketsForCompetition(competitionId!!) ?: emptyArray()
             } else {
-                stateQueryService.getBrackets(categoryId).map { arrayOf(it) }.orElse(emptyArray())
+                stateQueryService.getBrackets(competitionId!!, categoryId) ?: emptyArray()
             }
         }
     }
@@ -140,7 +129,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
             log.warn("Competition id is missing.")
             null
         } else {
-            stateQueryService.getSchedule(competitionId)?.toDTO()
+            stateQueryService.getSchedule(competitionId)
         }
     }
 
@@ -155,7 +144,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     }
 
     @RequestMapping("/store/dashboardstate", method = [RequestMethod.GET])
-    fun getDashboardState(@RequestParam("competitionId") competitionId: String?): CompetitionDashboardState? {
+    fun getDashboardState(@RequestParam("competitionId") competitionId: String?): CompetitionDashboardStateDTO? {
         return if (competitionId.isNullOrBlank()) {
             log.warn("Competition ID is $competitionId.")
             null
