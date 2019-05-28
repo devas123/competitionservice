@@ -17,6 +17,7 @@ import compman.compsrv.service.processor.event.CategoryEventProcessor;
 import compman.compsrv.service.RestApi;
 import compman.compsrv.service.ScheduleService;
 import junit.framework.TestCase;
+import kafka.server.KafkaConfig;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -51,6 +52,10 @@ import org.springframework.util.SocketUtils;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -102,6 +107,16 @@ public final class ZookeeperSessionTest {
     private static Properties createBrokerProperties() {
         Properties props = new Properties();
         props.setProperty("transaction.state.log.replication.factor", "1");
+        try(final DatagramSocket socket = new DatagramSocket()){
+            socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
+            String ip = socket.getLocalAddress().getHostAddress();
+            props.setProperty(KafkaConfig.AdvertisedListenersProp(), "EXTERNAL://" + ip + ":50812,INTERNAL://localhost:50813");
+            props.setProperty(KafkaConfig.ListenersProp(), "EXTERNAL://" + ip + ":50812,INTERNAL://localhost:50813");
+            props.setProperty(KafkaConfig.ListenerSecurityProtocolMapProp(), "EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT");
+            props.setProperty(KafkaConfig.InterBrokerListenerNameProp(), "INTERNAL");
+        } catch (SocketException | UnknownHostException e) {
+            e.printStackTrace();
+        }
         return props;
     }
 

@@ -1,6 +1,7 @@
 package compman.compsrv.config
 
 import com.compman.starter.properties.KafkaProperties
+import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.repository.*
@@ -29,7 +30,7 @@ class ClusterConfiguration {
 
     @Bean(destroyMethod = "shutdown")
     fun cluster(clusterConfigurationProperties: ClusterConfigurationProperties, serverProperties: ServerProperties): Cluster {
-        val memberHost = if (clusterConfigurationProperties.advertisedHost?.isBlank() != false) {
+        val memberHost = if (clusterConfigurationProperties.advertisedHost.isNullOrBlank()) {
             ClusterConfig.DEFAULT_MEMBER_HOST
         } else {
             clusterConfigurationProperties.advertisedHost
@@ -39,16 +40,15 @@ class ClusterConfiguration {
                 .transportConfig(TransportConfig.builder()
                         .port(clusterConfigurationProperties.advertisedPort).build())
                 .seedMembers(clusterSeed)
-                .memberHost(memberHost)
                 .addMetadata(ClusterSession.REST_PORT_METADATA_KEY, serverProperties.port.toString())
-                .addMetadata(ClusterSession.MEMBER_HOSTNAME_METADATA_KEY, clusterConfigurationProperties.advertisedHost)
+                .addMetadata(ClusterSession.MEMBER_HOSTNAME_METADATA_KEY, memberHost)
                 .build()
         val cluster = Cluster.joinAwait(clusterConfig)
         Runtime.getRuntime().addShutdownHook(thread(start = false) { cluster.shutdown() })
         log.info("Started instance at ${cluster.address().host()}:${cluster.address().port()} with rest port: ${serverProperties.port}")
         log.info("Members of the cluster: ")
         cluster.members()?.forEach {
-            log.info("${it.id()} -> ${cluster.metadata(it)[ClusterSession.MEMBER_HOSTNAME_METADATA_KEY]}, ${it.address()}, ${cluster.metadata(it)[ClusterSession.REST_PORT_METADATA_KEY]}")
+            log.info("${it.id()} -> ${cluster.metadata(it)?.get(ClusterSession.MEMBER_HOSTNAME_METADATA_KEY)}, ${it.address()}, ${cluster.metadata(it)?.get(ClusterSession.REST_PORT_METADATA_KEY)}")
         }
         return cluster
     }
@@ -60,10 +60,11 @@ class ClusterConfiguration {
                        adminClient: KafkaAdminUtils,
                        kafkaProperties: KafkaProperties,
                        serverProperties: ServerProperties,
+                       mapper: ObjectMapper,
                        competitionStateRepository: CompetitionStateRepository) =
             ClusterSession(clusterConfigurationProperties,
                     cluster,
-                    adminClient, kafkaProperties, serverProperties, competitionStateRepository)
+                    adminClient, kafkaProperties, serverProperties, mapper, competitionStateRepository)
 
     @Bean
     fun stateQueryService(restTemplate: RestTemplate,

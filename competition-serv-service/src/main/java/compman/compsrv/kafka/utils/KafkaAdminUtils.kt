@@ -4,7 +4,6 @@ import compman.compsrv.kafka.streams.CompetitionProcessingStreamsBuilderFactory.
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import org.apache.kafka.clients.admin.AdminClient
-import org.apache.kafka.clients.admin.KafkaAdminClient
 import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.common.config.TopicConfig
 import org.apache.kafka.common.errors.TopicExistsException
@@ -23,7 +22,7 @@ class KafkaAdminUtils(adminProps: Properties) {
                 ?: defaultTopic
     }
 
-    private val kafkaAdminClient: AdminClient = KafkaAdminClient.create(adminProps)
+    private val kafkaAdminClient: AdminClient = AdminClient.create(adminProps)
     private val log = LoggerFactory.getLogger(KafkaAdminUtils::class.java)
     fun createTopicIfMissing(name: String, partitions: Int, replicationFactor: Short, compacted: Boolean = false): String {
         val topic = NewTopic(name, partitions, replicationFactor)
