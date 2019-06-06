@@ -13,9 +13,9 @@ spring:
 #      database: compservice
 #      authentication-database: admin
   datasource:
-    url: jdbc:postgresql://localhost:5432/postgres?serverTimezone=UTC
-    username: postgres
-    password: admin
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/postgres?serverTimezone=UTC}
+    username: ${POSTGRES_USERNAME:postgres}
+    password: ${POSTGRES_PASSWORD:admin}
 #    driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
@@ -35,26 +35,19 @@ logging:
               BasicBinder: TRACE
 server:
   servlet.context-path: /competitions
-  port: 3082
-
-communication:
-  frontend-callback-url: http://localhost:8080/
-  account-service: http://localhost:8089/
-  query-service: http://localhost:9000/
-
+  port: ${SERVER_PORT:3082}
 
 cluster:
   enable-cluster: true
-  advertised-port: 60390
-  cluster-seed:
-    - 172.17.0.3:60390
-  advertised-host: 192.168.1.11
+  advertised-port: ${ADVERTISED_PORT:60390}
+  advertised-host: ${ADVERTISED_HOST:localhost}
+  cluster-seed: ${CLUSTER_SEED}
 
 
 kafka:
-  bootstrap-servers: localhost:50813
+  bootstrap-servers: ${BOOTSTRAP_SERVERS:localhost:50813}
   stream-properties:
-    application.id: competition_service
+    application.id: ${KAFKA_APPLICATION_ID:competition_service}
     bootstrap.servers: ${kafka.bootstrap-servers}
     processing.guarantee: at_least_once
     cache.max.bytes.buffering: 0

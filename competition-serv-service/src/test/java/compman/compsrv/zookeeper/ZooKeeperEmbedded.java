@@ -24,7 +24,7 @@ public class ZooKeeperEmbedded {
    */
   public ZooKeeperEmbedded() throws Exception {
     log.debug("Starting embedded ZooKeeper server...");
-    this.server = new TestingServer(50787);
+    this.server = new TestingServer();
     log.debug("Embedded ZooKeeper server at {} uses the temp directory at {}",
         server.getConnectString(), server.getTempDirectory());
   }
