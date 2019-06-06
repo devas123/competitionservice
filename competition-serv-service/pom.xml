@@ -59,9 +59,9 @@
         </dependency>
 
         <dependency>
-            <artifactId>protobuf-java</artifactId>
-            <groupId>com.google.protobuf</groupId>
-            <version>3.6.1</version>
+            <groupId>javax.ws.rs</groupId>
+            <artifactId>javax.ws.rs-api</artifactId>
+            <version>2.1</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/io.projectreactor/reactor-core -->

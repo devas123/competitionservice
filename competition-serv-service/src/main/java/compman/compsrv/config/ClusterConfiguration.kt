@@ -29,17 +29,19 @@ class ClusterConfiguration {
 
 
     @Bean(destroyMethod = "shutdown")
-    fun cluster(clusterConfigurationProperties: ClusterConfigurationProperties, serverProperties: ServerProperties): Cluster {
+    fun cluster(clusterConfigurationProperties: ClusterConfigurationProperties, serverProperties: ServerProperties, mapper: ObjectMapper): Cluster {
         val memberHost = if (clusterConfigurationProperties.advertisedHost.isNullOrBlank()) {
             ClusterConfig.DEFAULT_MEMBER_HOST
         } else {
             clusterConfigurationProperties.advertisedHost
         }
+        val codec = ClusterMessageCodec(mapper)
         val clusterSeed = clusterConfigurationProperties.clusterSeed?.mapNotNull { s -> Address.from(s) } ?: emptyList()
         val clusterConfig = ClusterConfig.builder()
                 .transportConfig(TransportConfig.builder()
                         .port(clusterConfigurationProperties.advertisedPort).build())
                 .seedMembers(clusterSeed)
+                .messageCodec(codec)
                 .addMetadata(ClusterSession.REST_PORT_METADATA_KEY, serverProperties.port.toString())
                 .addMetadata(ClusterSession.MEMBER_HOSTNAME_METADATA_KEY, memberHost)
                 .build()

@@ -110,8 +110,8 @@ public final class ZookeeperSessionTest {
         try(final DatagramSocket socket = new DatagramSocket()){
             socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
             String ip = socket.getLocalAddress().getHostAddress();
-            props.setProperty(KafkaConfig.AdvertisedListenersProp(), "EXTERNAL://" + ip + ":50812,INTERNAL://localhost:50813");
-            props.setProperty(KafkaConfig.ListenersProp(), "EXTERNAL://" + ip + ":50812,INTERNAL://localhost:50813");
+            props.setProperty(KafkaConfig.AdvertisedListenersProp(), "EXTERNAL://" + ip + ":61384,INTERNAL://localhost:61383");
+            props.setProperty(KafkaConfig.ListenersProp(), "EXTERNAL://" + ip + ":61384,INTERNAL://localhost:61383");
             props.setProperty(KafkaConfig.ListenerSecurityProtocolMapProp(), "EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT");
             props.setProperty(KafkaConfig.InterBrokerListenerNameProp(), "INTERNAL");
         } catch (SocketException | UnknownHostException e) {

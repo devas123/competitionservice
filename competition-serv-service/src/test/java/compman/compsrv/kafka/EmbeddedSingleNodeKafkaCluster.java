@@ -30,10 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Runs an in-memory, "embedded" Kafka cluster with 1 ZooKeeper instance, 1 Kafka broker, and 1
@@ -42,7 +39,7 @@ import java.util.Set;
 public class EmbeddedSingleNodeKafkaCluster extends ExternalResource {
 
     private static final Logger log = LoggerFactory.getLogger(EmbeddedSingleNodeKafkaCluster.class);
-    private static final int DEFAULT_BROKER_PORT = 50812; // 0 results in a random port being selected
+    private static final int DEFAULT_BROKER_PORT = 61384; // 0 results in a random port being selected
 
     private ZooKeeperEmbedded zookeeper;
     private KafkaZkClient zkUtils = null;
@@ -176,7 +173,7 @@ public class EmbeddedSingleNodeKafkaCluster extends ExternalResource {
      * @param topic The name of the topic.
      */
     public void createTopic(String topic) {
-        createTopic(topic, 1, 1, new Properties());
+        createTopic(topic, 1, 1, new HashMap<>());
     }
 
     /**
@@ -187,7 +184,7 @@ public class EmbeddedSingleNodeKafkaCluster extends ExternalResource {
      * @param replication The replication factor for (the partitions of) this topic.
      */
     public void createTopic(String topic, int partitions, int replication) {
-        createTopic(topic, partitions, replication, new Properties());
+        createTopic(topic, partitions, replication, new HashMap<>());
     }
 
     /**
@@ -201,8 +198,9 @@ public class EmbeddedSingleNodeKafkaCluster extends ExternalResource {
     public void createTopic(String topic,
                             int partitions,
                             int replication,
-                            Properties topicConfig) {
-        broker.createTopic(topic, partitions, replication, topicConfig);
+                            final Map<String, String> topicConfig) {
+        Map<String, String> cfg = new HashMap<>(topicConfig);
+        broker.createTopic(topic, partitions, replication, cfg);
     }
 
     /**
