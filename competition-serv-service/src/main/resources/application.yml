@@ -41,11 +41,11 @@ cluster:
   enable-cluster: true
   advertised-port: ${ADVERTISED_PORT:60390}
   advertised-host: ${ADVERTISED_HOST:localhost}
-  cluster-seed: ${CLUSTER_SEED}
+  cluster-seed: ${CLUSTER_SEED:}
 
 
 kafka:
-  bootstrap-servers: ${BOOTSTRAP_SERVERS:localhost:50813}
+  bootstrap-servers: ${BOOTSTRAP_SERVERS:localhost:61383}
   stream-properties:
     application.id: ${KAFKA_APPLICATION_ID:competition_service}
     bootstrap.servers: ${kafka.bootstrap-servers}
