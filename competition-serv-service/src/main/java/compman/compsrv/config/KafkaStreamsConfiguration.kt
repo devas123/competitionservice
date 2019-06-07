@@ -53,7 +53,7 @@ class KafkaStreamsConfiguration {
 
     @Bean
     fun commandTransformer(competitionStateService: CompetitionStateService,
-                           mapper: ObjectMapper,
+                           objectMapper: ObjectMapper,
                            competitionStateRepository: CompetitionStateRepository,
                            competitionStateResolver: CompetitionStateResolver,
                            transactionTemplate: TransactionTemplate,
@@ -62,21 +62,21 @@ class KafkaStreamsConfiguration {
                 competitionStateRepository,
                 competitionStateResolver,
                 transactionTemplate,
-                mapper,
+                objectMapper,
                 clusterSession,
                 COMPETITION_STATE_SNAPSHOT_STORE_NAME)
     }
 
     @Bean
     fun streamsBuilderFactory(commandTransformer: ValueTransformerWithKeySupplier<String, CommandDTO, List<EventDTO>>,
-            mapper: ObjectMapper,
-            adminUtils: KafkaAdminUtils,
-            props: KafkaProperties, clusterSession: ClusterSession): CompetitionProcessingStreamsBuilderFactory {
+                              objectMapper: ObjectMapper,
+                              adminUtils: KafkaAdminUtils,
+                              props: KafkaProperties, clusterSession: ClusterSession): CompetitionProcessingStreamsBuilderFactory {
         return CompetitionProcessingStreamsBuilderFactory(
                 CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME,
                 CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME,
                 commandTransformer,
-                adminUtils, props, mapper, clusterSession)
+                adminUtils, props, objectMapper, clusterSession)
     }
 
     @Bean
