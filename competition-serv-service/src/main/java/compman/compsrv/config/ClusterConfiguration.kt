@@ -3,6 +3,7 @@ package compman.compsrv.config
 import com.compman.starter.properties.KafkaProperties
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
+import compman.compsrv.json.ObjectMapperFactory
 import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.repository.*
 import compman.compsrv.service.StateQueryService
@@ -16,6 +17,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.DependsOn
+import org.springframework.context.annotation.Primary
 import org.springframework.web.client.RestTemplate
 import kotlin.concurrent.thread
 
@@ -27,15 +29,19 @@ class ClusterConfiguration {
         private val log = LoggerFactory.getLogger(ClusterConfiguration::class.java)
     }
 
+    @Bean
+    @Primary
+    fun objectMapper(): ObjectMapper = ObjectMapperFactory.createObjectMapper()
+
 
     @Bean(destroyMethod = "shutdown")
-    fun cluster(clusterConfigurationProperties: ClusterConfigurationProperties, serverProperties: ServerProperties, mapper: ObjectMapper): Cluster {
+    fun cluster(clusterConfigurationProperties: ClusterConfigurationProperties, serverProperties: ServerProperties, objectMapper: ObjectMapper): Cluster {
         val memberHost = if (clusterConfigurationProperties.advertisedHost.isNullOrBlank()) {
             ClusterConfig.DEFAULT_MEMBER_HOST
         } else {
             clusterConfigurationProperties.advertisedHost
         }
-        val codec = ClusterMessageCodec(mapper)
+        val codec = ClusterMessageCodec(objectMapper)
         val clusterSeed = clusterConfigurationProperties.clusterSeed?.mapNotNull { s -> Address.from(s) } ?: emptyList()
         val clusterConfig = ClusterConfig.builder()
                 .transportConfig(TransportConfig.builder()
@@ -62,11 +68,11 @@ class ClusterConfiguration {
                        adminClient: KafkaAdminUtils,
                        kafkaProperties: KafkaProperties,
                        serverProperties: ServerProperties,
-                       mapper: ObjectMapper,
+                       objectMapper: ObjectMapper,
                        competitionStateRepository: CompetitionStateRepository) =
             ClusterSession(clusterConfigurationProperties,
                     cluster,
-                    adminClient, kafkaProperties, serverProperties, mapper, competitionStateRepository)
+                    adminClient, kafkaProperties, serverProperties, objectMapper, competitionStateRepository)
 
     @Bean
     fun stateQueryService(restTemplate: RestTemplate,
