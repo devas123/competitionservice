@@ -1,14 +1,17 @@
 package compman.compsrv.config
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.json.ObjectMapperFactory
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.stereotype.Component
 import javax.ws.rs.ext.ContextResolver
 import javax.ws.rs.ext.Provider
 
 @Provider
-open class ObjectMapperContextResolver : ContextResolver<ObjectMapper> {
+@Component
+class ObjectMapperContextResolver : ContextResolver<ObjectMapper> {
 
-    private val mapper: ObjectMapper = ObjectMapperFactory.createObjectMapper()
+    @Autowired
+    private lateinit var mapper: ObjectMapper
 
 
     override fun getContext(type: Class<*>): ObjectMapper {

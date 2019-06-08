@@ -12,7 +12,7 @@
         <logger name="org.springframework.web.filter.CommonsRequestLoggingFilter" level="WARN"/>
         <logger name="io.scalecube.cluster" level="INFO"/>
         <logger name="reactor.netty" level="INFO"/>
-        <Root level="DEBUG">
+        <Root level="INFO">
             <AppenderRef ref="Console"/>
         </Root>
     </Loggers>

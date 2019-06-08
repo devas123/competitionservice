@@ -3,7 +3,6 @@ package compman.compsrv.config
 import com.compman.starter.properties.KafkaProperties
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
-import compman.compsrv.json.ObjectMapperFactory
 import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.repository.*
 import compman.compsrv.service.StateQueryService
@@ -17,7 +16,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.DependsOn
-import org.springframework.context.annotation.Primary
 import org.springframework.web.client.RestTemplate
 import kotlin.concurrent.thread
 
@@ -28,11 +26,6 @@ class ClusterConfiguration {
     companion object {
         private val log = LoggerFactory.getLogger(ClusterConfiguration::class.java)
     }
-
-    @Bean
-    @Primary
-    fun objectMapper(): ObjectMapper = ObjectMapperFactory.createObjectMapper()
-
 
     @Bean(destroyMethod = "shutdown")
     fun cluster(clusterConfigurationProperties: ClusterConfigurationProperties, serverProperties: ServerProperties, objectMapper: ObjectMapper): Cluster {

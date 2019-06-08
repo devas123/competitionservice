@@ -23,6 +23,17 @@ spring:
       ddl-auto: update
     properties:
       hibernate.dialect: org.hibernate.dialect.PostgreSQL95Dialect
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      WRITE_DATES_AS_TIMESTAMPS: false
+      FAIL_ON_EMPTY_BEANS: false
+    deserialization:
+      FAIL_ON_UNKNOWN_PROPERTIES: false
+      READ_UNKNOWN_ENUM_VALUES_AS_NULL: true
+    visibility:
+      ALL: any
+
 
 logging:
   level:
