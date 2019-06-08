@@ -28,7 +28,6 @@ object ObjectMapperFactory {
         mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY)
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL)
         mapper.configure(SerializationFeature.WRITE_ENUMS_USING_TO_STRING, true)
-        mapper.enableDefaultTyping(ObjectMapper.DefaultTyping.JAVA_LANG_OBJECT, JsonTypeInfo.As.PROPERTY)
         return mapper
     }
 }
