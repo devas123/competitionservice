@@ -101,7 +101,7 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
         return localCompetitionIds.contains(competitionId) || cluster.member().id() == clusterMembers[competitionId]?.id
     }
 
-    fun getUrlPrefix(host: String, port: Int) = "http://$host:$port/${serverProperties.servlet.contextPath}"
+    fun getUrlPrefix(host: String, port: Int) = "http://$host:$port${serverProperties.servlet.contextPath}"
 
     fun findProcessingMember(competitionId: String): Address? = run {
         log.info("Getting info about instances processing competition $competitionId")

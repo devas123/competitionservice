@@ -36,6 +36,7 @@ logging:
 server:
   servlet.context-path: /competitions
   port: ${SERVER_PORT:3082}
+  max-http-header-size: 20000
 
 cluster:
   enable-cluster: true
