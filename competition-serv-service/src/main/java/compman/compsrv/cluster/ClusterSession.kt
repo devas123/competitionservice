@@ -80,7 +80,12 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
             if (it?.header(TYPE) == COMPETITION_PROCESSING_STARTED) {
                 val msgData = mapper.readValue(it.data<String>(), CompetitionProcessingMessage::class.java)
                 log.info("Received competition processing started message. $msgData")
-                msgData?.info?.competitionIds?.forEach { s -> clusterMembers[s] = msgData.memberWithRestPort }
+                msgData?.info?.competitionIds?.forEach { s ->
+                    if (!isLocal(it.sender())) {
+                        localCompetitionIds.remove(s)
+                    }
+                    clusterMembers[s] = msgData.memberWithRestPort
+                }
             }
             if (it?.header(TYPE) == COMPETITION_PROCESSING_STOPPED) {
                 val msgData = mapper.readValue(it.data<String>(), CompetitionProcessingMessage::class.java)
@@ -162,6 +167,7 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
 
     fun init() {
         cluster.listenMembership().subscribe {
+            broadcastCompetitionProcessingInfo(this.localCompetitionIds)
             when (it.type()) {
                 MembershipEvent.Type.ADDED -> {
                     log.info("Member added to the cluster: ${it.member()}")
