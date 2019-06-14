@@ -167,6 +167,7 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
 
     fun init() {
         cluster.listenMembership().subscribe {
+            broadcastCompetitionProcessingInfo(this.localCompetitionIds)
             when (it.type()) {
                 MembershipEvent.Type.ADDED -> {
                     log.info("Member added to the cluster: ${it.member()}")
