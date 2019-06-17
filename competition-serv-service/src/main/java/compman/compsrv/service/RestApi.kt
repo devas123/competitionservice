@@ -1,33 +1,24 @@
 package compman.compsrv.service
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.jpa.schedule.Schedule
-import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.CommonResponse
 import compman.compsrv.model.PageResponse
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.commands.CommandType
-import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.dto.brackets.BracketDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
-import compman.compsrv.util.IDGenerator
-import org.apache.kafka.clients.producer.KafkaProducer
-import org.apache.kafka.clients.producer.ProducerRecord
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
-import java.util.*
 
 @RestController
 @RequestMapping("/api/v1")
 class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
               private val stateQueryService: StateQueryService,
-              private val producer: KafkaProducer<String, CommandDTO>,
-              private val mapper: ObjectMapper) {
+              private val commandProducer: CommandProducer) {
 
     companion object {
         private val log = LoggerFactory.getLogger(RestApi::class.java)
@@ -36,23 +27,8 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     @RequestMapping(path = ["/command/{competitionId}", "/command"], method = [RequestMethod.POST])
     fun sendCommand(@RequestBody command: CommandDTO, @PathVariable competitionId: String?): ResponseEntity<CommonResponse> {
         return try {
-            val correlationId = UUID.randomUUID().toString()
-            if (command.type == CommandType.CREATE_COMPETITION_COMMAND) {
-                log.info("Received a create competition command: $command")
-                val payload = mapper.convertValue(command.payload, CreateCompetitionPayload::class.java)
-                if (payload?.properties?.competitionName.isNullOrBlank()) {
-                    log.error("Empty competition name, skipping create command")
-                    ResponseEntity(CommonResponse(400, "Empty competition name, skipping create command", correlationId.toByteArray()), HttpStatus.BAD_REQUEST)
-                } else {
-                    val id = IDGenerator.hashString(payload.properties.competitionName)
-                    producer.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, id, command.setCorrelationId(correlationId).setCompetitionId(id)))
-                    ResponseEntity(CommonResponse(0, "", correlationId.toByteArray()), HttpStatus.OK)
-                }
-            } else {
-                log.info("Received a command: $command for competitionId: $competitionId")
-                producer.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId, command.setCorrelationId(correlationId)))
-                ResponseEntity(CommonResponse(0, "", correlationId.toByteArray()), HttpStatus.OK)
-            }
+            val response = commandProducer.sendCommand(command, competitionId)
+            ResponseEntity(response, HttpStatus.resolve(response.status) ?: HttpStatus.OK)
         } catch (e: Exception) {
             ResponseEntity(CommonResponse(500, "Exception: ${e.message}", null), HttpStatus.INTERNAL_SERVER_ERROR)
         }

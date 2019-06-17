@@ -4,11 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.dto.competition.CompetitionStateSnapshot
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.ErrorEventPayload
-import compman.compsrv.repository.FightCrudRepository
 import compman.compsrv.service.ICommandProcessingService
 import org.apache.kafka.streams.kstream.ValueTransformerWithKey
 import org.apache.kafka.streams.processor.ProcessorContext
@@ -44,28 +44,35 @@ abstract class AbstractCommandTransformer(
                 log.info("Processing command: $command")
                 initState(readOnlyKey)
                 val validationErrors = canExecuteCommand(command)
-                if (validationErrors.isEmpty()) {
-                    log.info("Command validated: $command")
-                    val eventsToApply = commandProcessingService.process(command)
-                    val eventsToSend = commandProcessingService.batchApply(eventsToApply)
-                    processedEventsNumber.compute(readOnlyKey) { _: String, u: Long? -> (u ?: 0) + 1 }
-                    if (processedEventsNumber.getOrDefault(readOnlyKey, 0) % 10 == 0L) {
-                        getState(readOnlyKey).map { newState ->
-                            CompetitionStateSnapshot(command.competitionId, clusterSession.localMemberId(), context.partition(), context.offset(),
-                                    emptySet(), emptySet(),
-                                    mapper.writeValueAsString(newState.toDTO(includeCompetitors = true, includeBrackets = true)))
-                        }
+                when {
+                    command.type == CommandType.SEND_PROCESSING_INFO_COMMAND -> {
+                        clusterSession.broadcastCompetitionProcessingInfo(setOf(command.competitionId ?: readOnlyKey))
+                        emptyList()
                     }
-                    eventsToSend
-                } else {
-                    log.error("Command not valid: ${validationErrors.joinToString(separator = ",")}")
-                    listOf(EventDTO()
-                            .setCategoryId(command.categoryId)
-                            .setCorrelationId(command.correlationId)
-                            .setCompetitionId(command.competitionId)
-                            .setMatId(command.matId)
-                            .setType(EventType.ERROR_EVENT)
-                            .setPayload(mapper.writeValueAsString(ErrorEventPayload(validationErrors.joinToString(separator = ","), command.correlationId))))
+                    validationErrors.isEmpty() -> {
+                        log.info("Command validated: $command")
+                        val eventsToApply = commandProcessingService.process(command)
+                        val eventsToSend = commandProcessingService.batchApply(eventsToApply)
+                        processedEventsNumber.compute(readOnlyKey) { _: String, u: Long? -> (u ?: 0) + 1 }
+                        if (processedEventsNumber.getOrDefault(readOnlyKey, 0) % 10 == 0L) {
+                            getState(readOnlyKey).map { newState ->
+                                CompetitionStateSnapshot(command.competitionId, clusterSession.localMemberId(), context.partition(), context.offset(),
+                                        emptySet(), emptySet(),
+                                        mapper.writeValueAsString(newState.toDTO(includeCompetitors = true, includeBrackets = true)))
+                            }
+                        }
+                        eventsToSend
+                    }
+                    else -> {
+                        log.error("Command not valid: ${validationErrors.joinToString(separator = ",")}")
+                        listOf(EventDTO()
+                                .setCategoryId(command.categoryId)
+                                .setCorrelationId(command.correlationId)
+                                .setCompetitionId(command.competitionId)
+                                .setMatId(command.matId)
+                                .setType(EventType.ERROR_EVENT)
+                                .setPayload(mapper.writeValueAsString(ErrorEventPayload(validationErrors.joinToString(separator = ","), command.correlationId))))
+                    }
                 }
             }
         } catch (e: Throwable) {

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.repository.*
+import compman.compsrv.service.CommandProducer
 import compman.compsrv.service.StateQueryService
 import io.scalecube.cluster.Cluster
 import io.scalecube.cluster.ClusterConfig
@@ -62,10 +63,11 @@ class ClusterConfiguration {
                        kafkaProperties: KafkaProperties,
                        serverProperties: ServerProperties,
                        objectMapper: ObjectMapper,
-                       competitionStateRepository: CompetitionStateRepository) =
+                       competitionStateRepository: CompetitionStateRepository,
+                       commandProducer: CommandProducer) =
             ClusterSession(clusterConfigurationProperties,
                     cluster,
-                    adminClient, kafkaProperties, serverProperties, objectMapper, competitionStateRepository)
+                    adminClient, kafkaProperties, serverProperties, objectMapper, competitionStateRepository, commandProducer)
 
     @Bean
     fun stateQueryService(restTemplate: RestTemplate,
