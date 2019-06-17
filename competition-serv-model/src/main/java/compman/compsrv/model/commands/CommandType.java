@@ -30,6 +30,7 @@ public enum CommandType {
 
     //dummy command
     DUMMY_COMMAND,
+    SEND_PROCESSING_INFO_COMMAND,
 
     //mat state commands
     INIT_MAT_STATE_COMMAND,

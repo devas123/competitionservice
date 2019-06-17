@@ -6,6 +6,7 @@ import compman.compsrv.config.ClusterConfigurationProperties
 import compman.compsrv.kafka.serde.ClusterInfoSerializer
 import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.repository.CompetitionStateRepository
+import compman.compsrv.service.CommandProducer
 import io.scalecube.cluster.Cluster
 import io.scalecube.cluster.Member
 import io.scalecube.cluster.membership.MembershipEvent
@@ -32,7 +33,8 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
                      private val kafkaProperties: KafkaProperties,
                      private val serverProperties: ServerProperties,
                      private val mapper: ObjectMapper,
-                     private val competitionStateRepository: CompetitionStateRepository) {
+                     private val competitionStateRepository: CompetitionStateRepository,
+                     private val commandProducer: CommandProducer) {
 
     companion object {
         private val log = LoggerFactory.getLogger(ClusterSession::class.java)
@@ -125,7 +127,8 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
             null
         }
     } ?: run {
-        log.info("Did not find processing instance for $competitionId")
+        log.info("Did not find processing instance for $competitionId, sending a command to find one")
+        commandProducer.sendCommand(CommandProducer.createSendProcessingInfoCommand(competitionId), competitionId)
         null
     }
 
