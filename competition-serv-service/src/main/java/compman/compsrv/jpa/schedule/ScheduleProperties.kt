@@ -45,15 +45,15 @@ class PeriodProperties(id: String,
 class ScheduleProperties(var id: String,
                          @OneToMany(orphanRemoval = true, cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
                          @JoinColumn(name = "SCHED_ID")
-                         var periodPropertiesList: List<PeriodProperties>) {
+                         var periodPropertiesList: List<PeriodProperties?>?) {
     fun toDTO(): SchedulePropertiesDTO? {
         return SchedulePropertiesDTO()
                 .setCompetitionId(id)
-                .setPeriodPropertiesList(periodPropertiesList.map { it.toDTO() }.toTypedArray())
+                .setPeriodPropertiesList(periodPropertiesList?.mapNotNull { it?.toDTO() }?.toTypedArray() ?: emptyArray())
     }
 
     companion object {
         fun fromDTO(dto: SchedulePropertiesDTO) =
-                ScheduleProperties(dto.competitionId, dto.periodPropertiesList.map { PeriodProperties.fromDTO(it, dto.competitionId) })
+                ScheduleProperties(dto.competitionId, dto.periodPropertiesList?.mapNotNull { pp -> pp?.let { PeriodProperties.fromDTO(it, dto.competitionId) } } ?: emptyList())
     }
 }
