@@ -54,6 +54,6 @@ class ScheduleProperties(var id: String,
 
     companion object {
         fun fromDTO(dto: SchedulePropertiesDTO) =
-                ScheduleProperties(dto.competitionId, dto.periodPropertiesList.map { PeriodProperties.fromDTO(it, dto.competitionId) })
+                ScheduleProperties(dto.competitionId, dto.periodPropertiesList?.mapNotNull { pp -> pp?.let { PeriodProperties.fromDTO(it, dto.competitionId) } } ?: emptyList())
     }
 }
