@@ -35,14 +35,14 @@ abstract class AbstractCommandTransformer(
         this.context = context ?: throw IllegalStateException("Context cannot be null")
     }
 
-    abstract fun initState(id: String)
+    abstract fun initState(id: String, timestamp: Long)
     abstract fun getState(id: String): Optional<CompetitionState>
 
     override fun transform(readOnlyKey: String, command: CommandDTO): List<EventDTO>? {
         return try {
             transactionTemplate.execute {
                 log.info("Processing command: $command")
-                initState(readOnlyKey)
+                initState(readOnlyKey, context.timestamp())
                 val validationErrors = canExecuteCommand(command)
                 when {
                     command.type == CommandType.SEND_PROCESSING_INFO_COMMAND -> {

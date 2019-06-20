@@ -30,8 +30,8 @@ class CompetitionCommandTransformer(competitionStateService: CompetitionStateSer
         snapshotStore = context?.getStateStore(snapshotStoreName) as KeyValueStore<String, CompetitionStateSnapshot>
     }
 
-    override fun initState(id: String) {
-        competitionStateResolver.resolveLatestCompetitionState(id) { _id -> snapshotStore.get(_id) }
+    override fun initState(id: String, timestamp: Long) {
+        competitionStateResolver.resolveLatestCompetitionState(id, timestamp) { _id -> snapshotStore.get(_id) }
     }
 
     override fun getState(id: String) = competitionStateRepository.findById(id)
