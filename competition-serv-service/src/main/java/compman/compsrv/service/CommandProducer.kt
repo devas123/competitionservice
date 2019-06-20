@@ -13,14 +13,13 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.util.*
-import kotlin.collections.LinkedHashMap
 
 @Component
 class CommandProducer(private val producer: KafkaProducer<String, CommandDTO>,
                       private val mapper: ObjectMapper) {
     companion object {
         private val log: Logger = LoggerFactory.getLogger(CommandProducer::class.java)
-        fun createSendProcessingInfoCommand(competitionId: String) = CommandDTO().setCompetitionId(competitionId)
+        fun createSendProcessingInfoCommand(competitionId: String): CommandDTO = CommandDTO().setCompetitionId(competitionId).setType(CommandType.SEND_PROCESSING_INFO_COMMAND)
     }
 
     fun sendCommand(command: CommandDTO, competitionId: String?): CommonResponse {
