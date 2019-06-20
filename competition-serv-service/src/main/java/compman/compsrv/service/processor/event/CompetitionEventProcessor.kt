@@ -2,7 +2,6 @@ package compman.compsrv.service.processor.event
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.jpa.competition.*
-import compman.compsrv.jpa.es.events.EventHolder
 import compman.compsrv.jpa.schedule.Schedule
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.model.events.EventDTO
@@ -16,7 +15,6 @@ import org.springframework.transaction.support.TransactionTemplate
 
 @Component
 class CompetitionEventProcessor(private val competitionStateCrudRepository: CompetitionStateCrudRepository,
-                                private val eventCrudRepository: EventCrudRepository,
                                 private val scheduleCrudRepository: ScheduleCrudRepository,
                                 private val categoryCrudRepository: CategoryDescriptorCrudRepository,
                                 private val periodCrudRepository: PeriodCrudRepository,
@@ -230,9 +228,6 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                     log.warn("Skipping unknown event: $event")
                     emptyList()
                 }
-            }
-            ns?.let {
-                eventCrudRepository.saveAll(it.map { eventDTO -> EventHolder.fromDTO(eventDTO) })
             }
             ns ?: emptyList()
         } catch (e: Exception) {

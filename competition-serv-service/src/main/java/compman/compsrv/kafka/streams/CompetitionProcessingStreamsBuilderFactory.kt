@@ -49,7 +49,7 @@ class CompetitionProcessingStreamsBuilderFactory(
                 Serdes.String(),
                 JsonSerde(CompetitionStateSnapshot::class.java, mapper))
         val builder = StreamsBuilder().addStateStore(keyValueStoreBuilder)
-        val allCommands = builder.stream<String, CommandDTO>(competitionCommandsTopic, Consumed.with(Serdes.String(), CommandSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
+        val allCommands = builder.stream<String, CommandDTO>(competitionCommandsTopic, Consumed.with(Serdes.String(), CommandSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.LATEST))
                 .filter { key, value -> value != null && !key.isNullOrBlank() }
 
         //Process commands
@@ -67,7 +67,7 @@ class CompetitionProcessingStreamsBuilderFactory(
                     KafkaAdminUtils.getEventRouting(event, competitionEventsTopic)
                 }, Produced.with(Serdes.String(), EventSerde()))
 
-        val allEvents = builder.table<String, EventDTO>(competitionEventsTopic, Consumed.with(Serdes.String(), EventSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.EARLIEST))
+        val allEvents = builder.table<String, EventDTO>(competitionEventsTopic, Consumed.with(Serdes.String(), EventSerde()).withOffsetResetPolicy(Topology.AutoOffsetReset.LATEST))
         allEvents.toStream().foreach { key, event ->
             if (event.type == EventType.COMPETITION_DELETED) {
                 clusterSession.broadcastCompetitionProcessingStopped(setOf(key))
