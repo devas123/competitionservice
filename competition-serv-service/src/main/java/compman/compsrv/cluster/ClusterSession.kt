@@ -22,8 +22,9 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListSet
 
-data class MemberWithRestPort(val id: String, val host: String, val port: Int, val restPort: Int): Serializable {
-    constructor(member: Member, restPort: Int): this(member.id(), member.address().host(), member.address().port(), restPort)
+data class MemberWithRestPort(val id: String, val host: String, val port: Int, val restPort: Int) : Serializable {
+    constructor(member: Member, restPort: Int) : this(member.id(), member.address().host(), member.address().port(), restPort)
+
     fun restAddress(): Address = Address.create(host, restPort)
 }
 
@@ -71,7 +72,7 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
                                             .setPort(serverProperties.port.toString())
                                 }?.toTypedArray())))
         producer.flush()
-        cluster.listenGossips().subscribe{
+        cluster.listenGossips().subscribe {
             log.info("Received a gossip: $it")
             processMessage(it)
         }
@@ -197,20 +198,23 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
             producer.send(ProducerRecord(leaderChangelogTopic, COMPETITION_LEADER_KEY,
                     ClusterInfo()
                             .setClusterMembers(cluster.members()
-                                    ?.map { member ->
-                                        val hostName = cluster.metadata(member)?.get(MEMBER_HOSTNAME_METADATA_KEY)
-                                                ?: member.address().host()
-                                        val port = cluster.metadata(member)?.get(REST_PORT_METADATA_KEY)
-                                                ?: member.address().port().toString()
-                                        ClusterMember()
-                                                .setId(member.id())
-                                                .setUri(getUrlPrefix(hostName, port.toInt()))
-                                                .setHost(hostName)
-                                                .setPort(port)
-                                    }?.toTypedArray())))
+                                    ?.mapNotNull { member -> createClusterMember(member) }?.toTypedArray())))
             producer.flush()
         }
     }
+
+    private fun createClusterMember(member: Member): ClusterMember? {
+        val hostName = cluster.metadata(member)?.get(MEMBER_HOSTNAME_METADATA_KEY)
+                ?: member.address().host()
+        val port = cluster.metadata(member)?.get(REST_PORT_METADATA_KEY)
+                ?: member.address().port().toString()
+        return ClusterMember()
+                .setId(member.id())
+                .setUri(getUrlPrefix(hostName, port.toInt()))
+                .setHost(hostName)
+                .setPort(port)
+    }
+
 
     fun stop() {
         producer.close()
@@ -219,4 +223,8 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
     fun localMemberId(): String {
         return cluster.member().id()
     }
+
+    fun getClusterMembers(): Array<ClusterMember> =
+            cluster.members()?.mapNotNull { createClusterMember(it) }?.toTypedArray() ?: emptyArray()
+
 }
