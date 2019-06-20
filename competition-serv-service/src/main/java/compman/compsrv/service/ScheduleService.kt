@@ -174,7 +174,7 @@ class ScheduleService(private val fightCrudRepository: FightCrudRepository) {
     fun generateSchedule(properties: ScheduleProperties, brackets: List<BracketDescriptor>, fightDurations: Map<String, BigDecimal>, timeZone: String): Schedule {
 
 
-        if (properties.periodPropertiesList.isNotEmpty()) {
+        if (!properties.periodPropertiesList.isNullOrEmpty()) {
             val fightsByIds: Map<String, List<FightDescription>> = brackets.flatMap { it.fights.toList() }.groupBy { it.categoryId }
             if (fightsByIds.isEmpty()) {
                 throw ServiceException("No fights generated.")
@@ -189,19 +189,21 @@ class ScheduleService(private val fightCrudRepository: FightCrudRepository) {
     private fun doGenerateSchedule(fightsByIds: Map<String, List<FightDescription>>, exceptionCategoryIds: List<String>, properties: ScheduleProperties, fightDurations: Map<String, BigDecimal>, timeZone: String): Schedule {
         return Schedule(
                 id = properties.id,
-                periods = properties.periodPropertiesList.map { p ->
-                    val id = createPeriodId(properties.id)
-                    val periodStartTime = p.startTime
-                    val brackets = p.categories.map { cat -> BracketSimulator(fightsByIds[cat.id], exceptionCategoryIds.contains(cat.id)) }
-                    val composer = ScheduleComposer(periodStartTime, p.numberOfMats, fightDurations, brackets, BigDecimal(p.timeBetweenFights), p.riskPercent, id, timeZone)
-                    composer.simulate()
-                    Period(id = id,
-                            schedule = composer.schedule,
-                            fightsByMats = composer.fightsByMats,
-                            startTime = periodStartTime,
-                            name = p.name,
-                            numberOfMats = p.numberOfMats,
-                            categories = p.categories)
+                periods = properties.periodPropertiesList?.mapNotNull {
+                    it?.let { p ->
+                        val id = createPeriodId(properties.id)
+                        val periodStartTime = p.startTime
+                        val brackets = p.categories.map { cat -> BracketSimulator(fightsByIds[cat.id], exceptionCategoryIds.contains(cat.id)) }
+                        val composer = ScheduleComposer(periodStartTime, p.numberOfMats, fightDurations, brackets, BigDecimal(p.timeBetweenFights), p.riskPercent, id, timeZone)
+                        composer.simulate()
+                        Period(id = id,
+                                schedule = composer.schedule,
+                                fightsByMats = composer.fightsByMats,
+                                startTime = periodStartTime,
+                                name = p.name,
+                                numberOfMats = p.numberOfMats,
+                                categories = p.categories)
+                    }
                 },
                 scheduleProperties = properties)
     }
