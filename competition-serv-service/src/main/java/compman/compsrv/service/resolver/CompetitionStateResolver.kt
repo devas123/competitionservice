@@ -23,7 +23,6 @@ import org.springframework.stereotype.Component
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.Duration
 import java.time.temporal.ChronoUnit
-import java.time.temporal.TemporalUnit
 import java.util.*
 
 @Component
@@ -65,7 +64,8 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                         do {
                             log.info("Getting the events from the event log and applying them to the competition $competitionId")
                             val result = cons.poll(Duration.ofMillis(1000))
-                            records = result?.records(topicPartition)?.filter { it.timestamp() <= currentTimestamp } ?: emptyList()
+                            records = result?.records(topicPartition)?.filter { it.timestamp() <= currentTimestamp }
+                                    ?: emptyList()
                             for (record in records.filter { it.key() == competitionId }) {
                                 competitionStateService.apply(record.value())
                             }
@@ -90,28 +90,34 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                                 cons.seek(it.key, it.value.offset())
                             }
                             var records: List<ConsumerRecord<String, EventDTO>>?
-                            var isFirst = true
+                            var competitionCreated = false
                             do {
                                 val result = cons.poll(Duration.of(10, ChronoUnit.SECONDS))
-                                records = result?.records(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME)?.filter { it.timestamp() <= currentTimestamp } ?: emptyList()
-                                if (isFirst) {
+                                records = result?.records(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME)?.filter { it.timestamp() <= currentTimestamp }
+                                        ?: emptyList()
+                                if (!competitionCreated) {
                                     val createdEvent = records?.filter { it.key() == competitionId }?.find { it.value()?.type == EventType.COMPETITION_CREATED }
                                     if (createdEvent != null) {
                                         log.info("Yay! Found the 'COMPETITION_CREATED' event for $competitionId !")
-                                        isFirst = false
+                                        competitionCreated = true
                                         competitionStateService.apply(createdEvent.value())
                                         competitionStateService.batchApply(records?.filter { it.key() == competitionId && it.value()?.type != EventType.COMPETITION_CREATED }?.map { it.value() }?.toList()
                                                 ?: emptyList())
                                     } else {
-                                        throw IllegalStateException("Could not find the 'COMPETITION_CREATED' event for $competitionId, maybe the competition was created more than 30 days ago.")
+                                        log.error("Could not find the 'COMPETITION_CREATED' event for $competitionId, maybe the competition was created more than 30 days ago.")
+                                        break
                                     }
                                 } else {
                                     competitionStateService.batchApply(records?.filter { it.key() == competitionId }?.map { it.value() }?.toList()
                                             ?: emptyList())
                                 }
                             } while (!records.isNullOrEmpty())
-                            log.info("We have initialized the state from the first event to the last. Fingers crossed")
-                            clusterSesion.broadcastCompetitionProcessingInfo(setOf(competitionId))
+                            if (competitionCreated) {
+                                log.info("We have initialized the state from the first event to the last for $competitionId. Fingers crossed")
+                                clusterSesion.broadcastCompetitionProcessingInfo(setOf(competitionId))
+                            } else {
+                                log.error("Could not initialize the state for $competitionId")
+                            }
                         }
                     }
                 }
