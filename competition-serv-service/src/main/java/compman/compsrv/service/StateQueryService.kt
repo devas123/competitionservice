@@ -41,7 +41,6 @@ class StateQueryService(private val clusterSession: ClusterSession,
         private val log = LoggerFactory.getLogger(StateQueryService::class.java)
     }
 
-
     private fun getLocalCompetitors(competitionId: String, categoryId: String?, searchString: String?, pageSize: Int, page: Int): Page<CompetitorDTO> {
         val pageNumber = if (page > 0) {
             page - 1

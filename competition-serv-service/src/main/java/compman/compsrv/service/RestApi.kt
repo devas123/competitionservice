@@ -1,5 +1,6 @@
 package compman.compsrv.service
 
+import compman.compsrv.cluster.ClusterMember
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.jpa.schedule.Schedule
 import compman.compsrv.model.CommonResponse
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/api/v1")
 class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
               private val stateQueryService: StateQueryService,
+              private val clusterInfoService: ClusterInfoService,
               private val commandProducer: CommandProducer) {
 
     companion object {
@@ -34,6 +36,9 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
         }
     }
 
+    @RequestMapping(path = ["/cluster/info"], method = [RequestMethod.GET])
+    fun getClusterInfo(): Array<ClusterMember> = clusterInfoService.getClusterInfo()
+
 
     @RequestMapping("/store/categorystate", method = [RequestMethod.GET])
     fun getCategoryState(@RequestParam("competitionId") competitionId: String, @RequestParam("categoryId") categoryId: String): Any? {
@@ -45,6 +50,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     fun getMats(@RequestParam("competitionId") competitionId: String, @RequestParam("periodId") periodId: String): List<MatDTO> {
         return stateQueryService.getMats(competitionId, periodId)?.toList() ?: emptyList()
     }
+
     @RequestMapping("/store/matfights", method = [RequestMethod.GET])
     fun getMatFights(@RequestParam("competitionId") competitionId: String, @RequestParam("matId") matId: String, @RequestParam("maxResults") maxResults: Int): List<FightDescriptionDTO> {
         return stateQueryService.getMatFights(competitionId, matId, maxResults)?.toList() ?: emptyList()

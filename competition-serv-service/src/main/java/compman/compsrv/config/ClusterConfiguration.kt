@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.kafka.utils.KafkaAdminUtils
 import compman.compsrv.repository.*
+import compman.compsrv.service.ClusterInfoService
 import compman.compsrv.service.CommandProducer
 import compman.compsrv.service.StateQueryService
 import io.scalecube.cluster.Cluster
@@ -89,4 +90,7 @@ class ClusterConfiguration {
                     dashboardStateCrudRepository,
                     dashboardPeriodCrudRepository,
                     bracketsCrudRepository)
+
+    @Bean
+    fun clusterInfoService(clusterSession: ClusterSession) = ClusterInfoService(clusterSession)
 }
