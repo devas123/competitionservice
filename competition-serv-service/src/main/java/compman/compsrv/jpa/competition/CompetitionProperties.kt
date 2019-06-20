@@ -26,7 +26,9 @@ class CompetitionProperties(
         var timeZone: String,
         @OneToOne(cascade = [CascadeType.ALL], optional = false, orphanRemoval = true, fetch = FetchType.LAZY)
         @PrimaryKeyJoinColumn
-        var registrationInfo: RegistrationInfo) : AbstractJpaPersistable<String>(id) {
+        var registrationInfo: RegistrationInfo,
+        @Column(nullable = false)
+        var creationTimestamp: Long) : AbstractJpaPersistable<String>(id) {
 
     companion object {
         fun fromDTO(dto: CompetitionPropertiesDTO): CompetitionProperties {
@@ -47,7 +49,8 @@ class CompetitionProperties(
                             it.id = dto.id
                         }
                         RegistrationInfo.fromDTO(it)
-                    } ?: RegistrationInfo(dto.id, false, mutableListOf()))
+                    } ?: RegistrationInfo(dto.id, false, mutableListOf()),
+                    creationTimestamp = dto.creationTimestamp ?: System.currentTimeMillis())
         }
     }
 
@@ -64,7 +67,8 @@ class CompetitionProperties(
             bracketsPublished = false,
             endDate = Instant.now(),
             timeZone = ZoneId.systemDefault().id,
-            registrationInfo = RegistrationInfo(competitionId, false, mutableListOf())
+            registrationInfo = RegistrationInfo(competitionId, false, mutableListOf()),
+            creationTimestamp = System.currentTimeMillis()
     )
 
     private fun parseDate(date: Any?, default: Instant?) = if (date != null && !date.toString().isBlank()) {
@@ -101,5 +105,6 @@ class CompetitionProperties(
             .setPromoCodes(promoCodes?.map { it.toDTO() })
             .setTimeZone(timeZone)
             .setRegistrationInfo(registrationInfo.toDTO())
+            .setCreationTimestamp(creationTimestamp)
 
 }

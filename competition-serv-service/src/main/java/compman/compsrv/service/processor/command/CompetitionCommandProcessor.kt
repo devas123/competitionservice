@@ -1,6 +1,7 @@
 package compman.compsrv.service.processor.command
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.jpa.brackets.BracketDescriptor
 import compman.compsrv.jpa.competition.CompetitionDashboardState
 import compman.compsrv.jpa.competition.RegistrationInfo
@@ -29,6 +30,7 @@ import java.util.*
 
 @Component
 class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
+                                  private val clusterSession: ClusterSession,
                                   private val competitionStateCrudRepository: CompetitionStateCrudRepository,
                                   private val categoryCrudRepository: CategoryStateCrudRepository,
                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
@@ -40,6 +42,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val mapper: ObjectMapper) : ICommandProcessor {
     override fun affectedCommands(): Set<CommandType> {
         return setOf(CommandType.ASSIGN_REGISTRATION_GROUP_CATEGORIES_COMMAND,
+                CommandType.SEND_PROCESSING_INFO_COMMAND,
                 CommandType.DELETE_REGISTRATION_PERIOD_COMMAND,
                 CommandType.DELETE_REGISTRATION_GROUP_COMMAND,
                 CommandType.ADD_REGISTRATION_GROUP_COMMAND,
@@ -98,6 +101,12 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
             }
 
             return when (command.type) {
+                CommandType.SEND_PROCESSING_INFO_COMMAND -> {
+                    if (competitionStateCrudRepository.existsById(command.competitionId)) {
+                        clusterSession.broadcastCompetitionProcessingInfo(setOf(command.competitionId))
+                    }
+                    emptyList()
+                }
                 CommandType.ASSIGN_REGISTRATION_GROUP_CATEGORIES_COMMAND -> {
                     val payload = mapper.convertValue(command.payload, AssignRegistrationGroupCategoriesPayload::class.java)
                     if (registrationPeriodCrudRepository.existsById(payload.periodId)) {

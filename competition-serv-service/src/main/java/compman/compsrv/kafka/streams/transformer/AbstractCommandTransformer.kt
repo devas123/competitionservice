@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.dto.competition.CompetitionStateSnapshot
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
@@ -45,16 +44,12 @@ abstract class AbstractCommandTransformer(
                 initState(readOnlyKey, context.timestamp())
                 val validationErrors = canExecuteCommand(command)
                 when {
-                    command.type == CommandType.SEND_PROCESSING_INFO_COMMAND -> {
-                        clusterSession.broadcastCompetitionProcessingInfo(setOf(command.competitionId ?: readOnlyKey))
-                        emptyList()
-                    }
                     validationErrors.isEmpty() -> {
                         log.info("Command validated: $command")
                         val eventsToApply = commandProcessingService.process(command)
                         val eventsToSend = commandProcessingService.batchApply(eventsToApply)
                         processedEventsNumber.compute(readOnlyKey) { _: String, u: Long? -> (u ?: 0) + 1 }
-                        if (processedEventsNumber.getOrDefault(readOnlyKey, 0) % 10 == 0L) {
+                        if (processedEventsNumber.getOrDefault(readOnlyKey, 0) % 10 == 0L || eventsToSend.any { it.type == EventType.COMPETITION_CREATED }) {
                             getState(readOnlyKey).map { newState ->
                                 CompetitionStateSnapshot(command.competitionId, clusterSession.localMemberId(), context.partition(), context.offset(),
                                         emptySet(), emptySet(),
