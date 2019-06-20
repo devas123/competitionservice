@@ -18,6 +18,7 @@ import org.apache.kafka.common.serialization.StringDeserializer
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.Duration
 import java.util.*
 
@@ -26,6 +27,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                                private val competitionStateService: CompetitionStateService,
                                private val competitionStateCrudRepository: CompetitionStateCrudRepository,
                                private val clusterSesion: ClusterSession,
+                               private val transactionTemplate: TransactionTemplate,
                                private val mapper: ObjectMapper) {
 
     companion object {
@@ -52,22 +54,25 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                     cons.assign(listOf(topicPartition))
                     cons.seek(topicPartition, stateSnapshot.eventOffset)
                     val snapshot = mapper.readValue(stateSnapshot.serializedState, CompetitionStateDTO::class.java)
-                    competitionStateCrudRepository.save(CompetitionState.fromDTO(snapshot))
-                    while (true) {
-                        log.info("Getting the events from the event log and applying them to the competition $competitionId")
-                        val result = cons.poll(Duration.ofMillis(1000))
-                        if (result != null && !result.isEmpty) {
-                            for (record in result.records(topicPartition).filter { it.key() == competitionId }) {
-                                if (record.timestamp() <= timestamp) {
-                                    competitionStateService.apply(record.value())
-                                } else {
-                                    break
+                    transactionTemplate.execute {
+                        competitionStateCrudRepository.deleteById(snapshot.competitionId)
+                        competitionStateCrudRepository.save(CompetitionState.fromDTO(snapshot))
+                        while (true) {
+                            log.info("Getting the events from the event log and applying them to the competition $competitionId")
+                            val result = cons.poll(Duration.ofMillis(1000))
+                            if (result != null && !result.isEmpty) {
+                                for (record in result.records(topicPartition).filter { it.key() == competitionId }) {
+                                    if (record.timestamp() <= timestamp) {
+                                        competitionStateService.apply(record.value())
+                                    } else {
+                                        break
+                                    }
                                 }
+                            } else {
+                                break
                             }
-                        } else {
-                            break
+                            cons.commitSync()
                         }
-                        cons.commitSync()
                     }
                     log.info("Successfully retrieved state for the competition $competitionId")
                 }
