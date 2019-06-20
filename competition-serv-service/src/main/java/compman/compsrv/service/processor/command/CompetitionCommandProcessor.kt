@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.jpa.brackets.BracketDescriptor
 import compman.compsrv.jpa.competition.CompetitionDashboardState
 import compman.compsrv.jpa.competition.RegistrationInfo
-import compman.compsrv.jpa.es.commands.Command
 import compman.compsrv.jpa.schedule.DashboardPeriod
 import compman.compsrv.jpa.schedule.ScheduleProperties
 import compman.compsrv.model.commands.CommandDTO
@@ -34,7 +33,6 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val categoryCrudRepository: CategoryStateCrudRepository,
                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
                                   private val bracketsCrudRepository: BracketsCrudRepository,
-                                  private val commandCrudRepository: CommandCrudRepository,
                                   private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
                                   private val registrationPeriodCrudRepository: RegistrationPeriodCrudRepository,
                                   private val registrationInfoCrudRepository: RegistrationInfoCrudRepository,
@@ -294,7 +292,6 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
             }
         }
         log.info("Executing command: $command")
-        commandCrudRepository.save(Command.fromDTO(command))
         return execute(command)
     }
 

@@ -1,12 +1,10 @@
 package compman.compsrv.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.jpa.es.commands.Command
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.ErrorEventPayload
-import compman.compsrv.repository.CommandCrudRepository
 import compman.compsrv.service.processor.command.ICommandProcessor
 import compman.compsrv.service.processor.event.IEventProcessor
 import org.slf4j.LoggerFactory
@@ -15,8 +13,7 @@ import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 
 @Component
-class CompetitionStateService(private val commandCrudRepository: CommandCrudRepository,
-                              private val eventProcessors: List<IEventProcessor>,
+class CompetitionStateService(private val eventProcessors: List<IEventProcessor>,
                               private val commandProcessors: List<ICommandProcessor>,
                               private val mapper: ObjectMapper) : ICommandProcessingService<CommandDTO, EventDTO> {
 
@@ -53,7 +50,6 @@ class CompetitionStateService(private val commandCrudRepository: CommandCrudRepo
                 .setPayload(mapper.writeValueAsString(ErrorEventPayload(error, command.correlationId)))
         log.info("Executing command: $command")
         return try {
-            commandCrudRepository.save(Command.fromDTO(command))
             if (command.competitionId.isNullOrBlank()) {
                 log.error("Competition id is empty, command $command")
                 return listOf(createErrorEvent("Competition ID is empty."))
