@@ -80,8 +80,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
 
     @RequestMapping("/store/comprops", method = [RequestMethod.GET])
     fun getCompetitionProperties(@RequestParam("competitionId") competitionId: String?): CompetitionPropertiesDTO? {
-        val k = stateQueryService.getCompetitionProperties(competitionId)
-        return k
+        return stateQueryService.getCompetitionProperties(competitionId)
     }
 
     @RequestMapping("/store/competitionstate", method = [RequestMethod.GET])
