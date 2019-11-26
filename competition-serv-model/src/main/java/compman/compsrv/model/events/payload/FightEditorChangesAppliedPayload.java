@@ -10,7 +10,7 @@ import java.io.Serializable;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class CompetitorMovedPayload implements Serializable {
+public class FightEditorChangesAppliedPayload implements Serializable {
     private FightDescriptionDTO updatedSourceFight;
     private FightDescriptionDTO updatedTargetFight;
 

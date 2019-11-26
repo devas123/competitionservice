@@ -36,7 +36,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                 CommandType.ADD_CATEGORY_COMMAND,
                 CommandType.UPDATE_COMPETITOR_COMMAND,
                 CommandType.CHANGE_COMPETITOR_CATEGORY_COMMAND,
-                CommandType.CHANGE_COMPETITOR_FIGHT_COMMAND,
+                CommandType.FIGHTS_EDITOR_APPLY_CHANGE,
                 CommandType.GENERATE_BRACKETS_COMMAND,
                 CommandType.DELETE_CATEGORY_COMMAND,
                 CommandType.CREATE_FAKE_COMPETITORS_COMMAND,
@@ -51,7 +51,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
             CommandType.ADD_CATEGORY_COMMAND -> processAddCategoryCommandDTO(command)
             CommandType.UPDATE_COMPETITOR_COMMAND -> doUpdateCompetitor(command)
             CommandType.CHANGE_COMPETITOR_CATEGORY_COMMAND -> doChangeCompetitorCategory(command)
-            CommandType.CHANGE_COMPETITOR_FIGHT_COMMAND -> doMoveCompetitor(command)
+            CommandType.FIGHTS_EDITOR_APPLY_CHANGE -> doApplyFightsEditorChanges(command)
             CommandType.GENERATE_BRACKETS_COMMAND -> doGenerateBrackets(command)
             CommandType.DELETE_CATEGORY_COMMAND -> doDeleteCategoryState(command)
             CommandType.CREATE_FAKE_COMPETITORS_COMMAND -> doCreateFakeCompetitors(command)
@@ -96,9 +96,9 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
     }
 
 
-    private fun doMoveCompetitor(command: CommandDTO): List<EventDTO> {
+    private fun doApplyFightsEditorChanges(command: CommandDTO): List<EventDTO> {
         if (command.categoryId != null && categoryCrudRepository.existsById(command.categoryId)) {
-            val payload = mapper.convertValue(command.payload, MoveCompetitorPayload::class.java)
+            val payload = mapper.convertValue(command.payload, FightEditorApplyChangesPayload::class.java)
             val competitorId = payload?.competitorId
             val fromFightId = payload?.sourceFightId
             val toFightId = payload?.targetFightId
@@ -119,7 +119,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                             }
                             sourceFight.scores = sourceFight.scores.filter { it.competitor.id != compScorePair.competitor.id }.toTypedArray()
                             val updatedTargetFight = targetFight.setCompetitorWithIndex(compScorePair.competitor, tmpInd)
-                            return listOf(createEvent(command, EventType.COMPETITORS_MOVED, mapper.writeValueAsString(CompetitorMovedPayload(sourceFight.toDTO(), updatedTargetFight.toDTO()))))
+                            return listOf(createEvent(command, EventType.FIGHTS_EDITOR_CHANGE_APPLIED, mapper.writeValueAsString(FightEditorChangesAppliedPayload(sourceFight.toDTO(), updatedTargetFight.toDTO()))))
                         }
                         targetFight.scores.size == 2 -> {
                             //need to swap
@@ -130,7 +130,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                             val competitorToSwap = targetFight.scores.drop(tmpInd).first()
                             sourceFight.scores = ((sourceFight.scores.filter { it.competitor.id != compScorePair.competitor.id }) + competitorToSwap).toTypedArray()
                             val updatedTargetFight = targetFight.setCompetitorWithIndex(compScorePair.competitor, tmpInd)
-                            return listOf(createEvent(command, EventType.COMPETITORS_MOVED, mapper.writeValueAsString(CompetitorMovedPayload(sourceFight.toDTO(), updatedTargetFight.toDTO()))))
+                            return listOf(createEvent(command, EventType.FIGHTS_EDITOR_CHANGE_APPLIED, mapper.writeValueAsString(FightEditorChangesAppliedPayload(sourceFight.toDTO(), updatedTargetFight.toDTO()))))
                         }
                         else -> //strange... do nothing and throw error
                             return listOf(createErrorEvent(command, "Number of competitors in the target fight is greater than 2: $targetFight"))

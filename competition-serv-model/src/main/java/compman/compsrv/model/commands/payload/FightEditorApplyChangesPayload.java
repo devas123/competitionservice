@@ -7,8 +7,7 @@ import java.io.Serializable;
 
 @Data
 @NoArgsConstructor
-public class MoveCompetitorPayload implements Serializable {
-
+public class FightEditorApplyChangesPayload implements Serializable {
     private String competitorId;
     private String sourceFightId;
     private String targetFightId;

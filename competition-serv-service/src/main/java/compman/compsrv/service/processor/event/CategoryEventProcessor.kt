@@ -28,7 +28,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
                 EventType.COMPETITOR_ADDED,
                 EventType.COMPETITOR_REMOVED,
                 EventType.COMPETITOR_UPDATED,
-                EventType.COMPETITORS_MOVED,
+                EventType.FIGHTS_EDITOR_CHANGE_APPLIED,
                 EventType.BRACKETS_GENERATED,
                 EventType.FIGHTS_START_TIME_UPDATED,
                 EventType.CATEGORY_DELETED,
@@ -41,7 +41,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
             EventType.COMPETITOR_ADDED -> applyCompetitorAddedEvent(event)
             EventType.COMPETITOR_REMOVED -> applyCompetitorRemovedEvent(event)
             EventType.COMPETITOR_UPDATED -> applyCompetitorUpdatedEvent(event)
-            EventType.COMPETITORS_MOVED -> applyCompetitorMovedEvent(event)
+            EventType.FIGHTS_EDITOR_CHANGE_APPLIED -> applyCompetitorMovedEvent(event)
             EventType.BRACKETS_GENERATED -> applyBracketsGeneratedEvent(event)
             EventType.FIGHTS_START_TIME_UPDATED -> applyFighStartTimeUpdatedEvent(event)
             EventType.CATEGORY_DELETED -> applyCategoryStateDeletedEvent(event)
@@ -95,7 +95,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
     }
 
     private fun applyCompetitorMovedEvent(event: EventDTO): List<EventDTO> {
-        val payload = getPayloadAs(event.payload, CompetitorMovedPayload::class.java)
+        val payload = getPayloadAs(event.payload, FightEditorChangesAppliedPayload::class.java)
         val updatedSourceFight = payload?.updatedSourceFight
         val updatedTargetFight = payload?.updatedTargetFight
         return if (updatedSourceFight != null && updatedTargetFight != null && fightCrudRepository.existsById(updatedSourceFight.id) && fightCrudRepository.existsById(updatedTargetFight.id)) {
