@@ -1,13 +1,11 @@
 package compman.compsrv.config
 
-import com.compman.starter.properties.KafkaProperties
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
-import compman.compsrv.kafka.utils.KafkaAdminUtils
-import compman.compsrv.repository.*
+import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.repository.CompetitionStateRepository
 import compman.compsrv.service.ClusterInfoService
-import compman.compsrv.service.CommandProducer
-import compman.compsrv.service.StateQueryService
+import compman.compsrv.service.CommandCache
 import io.scalecube.cluster.Cluster
 import io.scalecube.cluster.ClusterConfig
 import io.scalecube.transport.Address
@@ -18,7 +16,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.DependsOn
-import org.springframework.web.client.RestTemplate
+import org.springframework.kafka.core.KafkaTemplate
 import kotlin.concurrent.thread
 
 @Configuration
@@ -57,39 +55,21 @@ class ClusterConfiguration {
     }
 
     @Bean(initMethod = "init", destroyMethod = "stop")
-    @DependsOn("cluster")
+    @DependsOn("cluster", "leaderChangelogTopic", "kafkaAdmin")
     fun clusterSession(clusterConfigurationProperties: ClusterConfigurationProperties,
                        cluster: Cluster,
-                       adminClient: KafkaAdminUtils,
-                       kafkaProperties: KafkaProperties,
+                       kafkaProperties: org.springframework.boot.autoconfigure.kafka.KafkaProperties,
                        serverProperties: ServerProperties,
                        objectMapper: ObjectMapper,
                        competitionStateRepository: CompetitionStateRepository,
-                       commandProducer: CommandProducer) =
+                       commandCache: CommandCache,
+                       kafkaTemplate: KafkaTemplate<String, CommandDTO>) =
             ClusterSession(clusterConfigurationProperties,
                     cluster,
-                    adminClient, kafkaProperties, serverProperties, objectMapper, competitionStateRepository, commandProducer)
+                    kafkaProperties,
+                    serverProperties, objectMapper, competitionStateRepository,
+                    commandCache, kafkaTemplate)
 
-    @Bean
-    fun stateQueryService(restTemplate: RestTemplate,
-                          clusterSession: ClusterSession,
-                          categoryStateCrudRepository: CategoryStateCrudRepository,
-                          competitionStateCrudRepository: CompetitionStateCrudRepository,
-                          scheduleCrudRepository: ScheduleCrudRepository,
-                          competitorCrudRepository: CompetitorCrudRepository,
-                          bracketsCrudRepository: BracketsCrudRepository,
-                          dashboardStateCrudRepository: DashboardStateCrudRepository,
-                          fightCrudRepository: FightCrudRepository,
-                          dashboardPeriodCrudRepository: DashboardPeriodCrudRepository,
-                          competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository) =
-            StateQueryService(clusterSession, restTemplate,
-                    competitionStateCrudRepository, competitionPropertiesCrudRepository, scheduleCrudRepository,
-                    fightCrudRepository,
-                    categoryStateCrudRepository,
-                    competitorCrudRepository,
-                    dashboardStateCrudRepository,
-                    dashboardPeriodCrudRepository,
-                    bracketsCrudRepository)
 
     @Bean
     fun clusterInfoService(clusterSession: ClusterSession) = ClusterInfoService(clusterSession)

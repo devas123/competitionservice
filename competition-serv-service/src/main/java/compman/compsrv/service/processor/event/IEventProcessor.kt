@@ -3,7 +3,7 @@ package compman.compsrv.service.processor.event
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 
-interface IEventProcessor {
+interface IEventProcessor<State> {
     fun affectedEvents(): Set<EventType>
-    fun applyEvent(event: EventDTO): List<EventDTO>
+    fun applyEvent(state: State, event: EventDTO): Pair<State, List<EventDTO>>
 }

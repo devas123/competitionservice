@@ -14,5 +14,5 @@ interface CategoryStateCrudRepository : JpaRepository<CategoryState, String> {
     fun findByIdAndCompetitionId(id: String, competitionId: String): CategoryState?
 
     @Query("SELECT * FROM category_state c WHERE c.competition_id = ?1", nativeQuery = true)
-    fun findByCompetitionId(competitionId: String): Array<CategoryState>?
+    fun findByCompetitionId(competitionId: String): Set<CategoryState>?
 }

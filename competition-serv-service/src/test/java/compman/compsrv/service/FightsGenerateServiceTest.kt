@@ -1,9 +1,9 @@
 package compman.compsrv.service
 
-import compman.compsrv.jpa.competition.AgeDivision
 import compman.compsrv.jpa.competition.BeltType
 import compman.compsrv.jpa.competition.CategoryDescriptor
 import compman.compsrv.jpa.competition.Weight
+import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.dto.competition.AgeDivisionDTO
 import compman.compsrv.model.dto.competition.FightStage
 import compman.compsrv.model.dto.competition.Gender
@@ -114,13 +114,13 @@ class FightsGenerateServiceTest {
     companion object {
         const val competitionId = "UG9wZW5nYWdlbiBPcGVu"
 
-        val category = CategoryDescriptor(competitionId, "BJJ", AgeDivision.fromDTO(AgeDivisionDTO.ADULT), Gender.MALE.name, Weight("Light", BigDecimal.TEN), BeltType.BROWN, UUID.randomUUID().toString(), BigDecimal(8))
+        val category = CategoryDescriptor(competitionId, "BJJ", AgeDivisionDTO.ADULT.toEntity(), mutableSetOf(), Gender.MALE.name, Weight("Light", BigDecimal.TEN), BeltType.BROWN, UUID.randomUUID().toString(), BigDecimal(8))
     }
 
     @Test
     fun testGenerateFights() {
         val competitors = FightsGenerateService.generateRandomCompetitorsForCategory(50, 30, category, competitionId)
-        val fights = fightsGenerateService.generatePlayOff(competitors, competitionId)
+        val fights = fightsGenerateService.generateRoundsForCategory(category.id!!, competitors, competitionId)
 
         fights.forEach {
             assertEquals(competitionId, it.competitionId)

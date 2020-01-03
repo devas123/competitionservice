@@ -1,11 +1,15 @@
 package compman.compsrv.cluster
 
-import com.compman.starter.properties.KafkaProperties
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.config.ClusterConfigurationProperties
 import compman.compsrv.kafka.serde.ClusterInfoSerializer
-import compman.compsrv.kafka.utils.KafkaAdminUtils
+import compman.compsrv.kafka.topics.CompetitionServiceTopics
+import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.events.EventDTO
+import compman.compsrv.model.events.EventType
+import compman.compsrv.model.events.payload.CompetitionInfoPayload
 import compman.compsrv.repository.CompetitionStateRepository
+import compman.compsrv.service.CommandCache
 import compman.compsrv.service.CommandProducer
 import io.scalecube.cluster.Cluster
 import io.scalecube.cluster.Member
@@ -15,72 +19,60 @@ import io.scalecube.transport.Message
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.common.serialization.StringSerializer
 import org.slf4j.LoggerFactory
+import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.boot.autoconfigure.web.ServerProperties
-import java.io.Serializable
+import org.springframework.kafka.core.KafkaTemplate
+import java.time.Duration
 import java.util.*
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListSet
 
-data class MemberWithRestPort(val id: String, val host: String, val port: Int, val restPort: Int) : Serializable {
-    constructor(member: Member, restPort: Int) : this(member.id(), member.address().host(), member.address().port(), restPort)
-
-    fun restAddress(): Address = Address.create(host, restPort)
-}
-
 class ClusterSession(private val clusterConfigurationProperties: ClusterConfigurationProperties,
                      private val cluster: Cluster,
-                     adminClient: KafkaAdminUtils,
-                     private val kafkaProperties: KafkaProperties,
+                     kafkaProperties: KafkaProperties,
                      private val serverProperties: ServerProperties,
                      private val mapper: ObjectMapper,
                      private val competitionStateRepository: CompetitionStateRepository,
-                     private val commandProducer: CommandProducer) {
+                     private val commandCache: CommandCache,
+                     private val kafkaTemplate: KafkaTemplate<String, CommandDTO>) {
 
     companion object {
         private val log = LoggerFactory.getLogger(ClusterSession::class.java)
         const val COMPETITION_LEADER_KEY = "compservice-leader"
-        const val COMPETITION_PROCESSING_STARTED = "competitionProcessing"
+        const val COMPETITION_PROCESSING_STARTED = "competitionProcessingStarted"
+        const val COMPETITION_PROCESSING_INFO = "competitionProcessingInfo"
         const val COMPETITION_PROCESSING_STOPPED = "competitionProcessingStopped"
         const val REST_PORT_METADATA_KEY = "rest_port"
         const val MEMBER_HOSTNAME_METADATA_KEY = "member_hostname"
         const val TYPE = "type"
     }
 
-    private val leaderChangelogTopic = adminClient.createTopicIfMissing(
-            kafkaProperties.leaderChangelogTopic,
-            kafkaProperties.defaultTopicOptions.partitions,
-            kafkaProperties.defaultTopicOptions.replicationFactor,
-            compacted = true)
-
+    private val leaderChangelogTopic = CompetitionServiceTopics.LEADER_CHANGELOG_TOPIC
     private val producer: KafkaProducer<String, ClusterInfo>
 
     init {
-        val props = Properties().apply { putAll(kafkaProperties.producer.properties) }
-        props[ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG] = ClusterInfoSerializer::class.java.canonicalName
+        val props = kafkaProperties.buildProducerProperties()
+        props[ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG] = ClusterInfoSerializer::class.java
+        props[ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG] = StringSerializer::class.java
         producer = KafkaProducer(props)
-        producer.send(ProducerRecord(leaderChangelogTopic, COMPETITION_LEADER_KEY,
-                ClusterInfo()
-                        .setClusterMembers(cluster.members()
-                                ?.map { member ->
-                                    val hostName = cluster.metadata(member)?.get(MEMBER_HOSTNAME_METADATA_KEY)
-                                            ?: member.address().host()
-                                    ClusterMember()
-                                            .setId(member.id())
-                                            .setUri(getUrlPrefix(hostName, serverProperties.port))
-                                            .setHost(hostName)
-                                            .setPort(serverProperties.port.toString())
-                                }?.toTypedArray())))
-        producer.flush()
-        cluster.listenGossips().subscribe {
-            log.info("Received a gossip: $it")
-            processMessage(it)
-        }
+    }
+
+    fun createProcessingInfoEvents(correlationId: String, competitionIds: Set<String>): Array<EventDTO> {
+        val member = MemberWithRestPort(cluster.member(), serverProperties.port)
+        return competitionIds.map {
+            EventDTO(null, correlationId, it, null, null, EventType.INTERNAL_COMPETITION_INFO,
+                    mapper.writeValueAsString(CompetitionInfoPayload().setHost(member.host).setPort(member.restPort)
+                            .setCompetitionId(it).setMemberId(member.id)),
+                    emptyMap())
+        }.toTypedArray()
     }
 
     private fun processMessage(it: Message?) {
         try {
-            if (it?.header(TYPE) == COMPETITION_PROCESSING_STARTED) {
+            if (it?.header(TYPE) == COMPETITION_PROCESSING_STARTED || it?.header(TYPE) == COMPETITION_PROCESSING_INFO) {
                 val msgData = mapper.readValue(it.data<String>(), CompetitionProcessingMessage::class.java)
                 log.info("Received competition processing started message. $msgData")
                 msgData?.info?.competitionIds?.forEach { s ->
@@ -88,6 +80,9 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
                         localCompetitionIds.remove(s)
                     }
                     clusterMembers[s] = msgData.memberWithRestPort
+                }
+                if (!msgData.correlationId.isNullOrBlank()) {
+                    commandCache.commandCallback(msgData.correlationId, createProcessingInfoEvents(msgData.correlationId, msgData.info.competitionIds))
                 }
             }
             if (it?.header(TYPE) == COMPETITION_PROCESSING_STOPPED) {
@@ -128,25 +123,47 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
             null
         }
     } ?: run {
-        log.info("Did not find processing instance for $competitionId, sending a command to find one")
-        commandProducer.sendCommand(CommandProducer.createSendProcessingInfoCommand(competitionId), competitionId)
-        null
+        log.info("Did not find processing instance for $competitionId, sending command to find the instance.")
+        val correlationId = UUID.randomUUID().toString()
+        val future = CompletableFuture<Array<EventDTO>>()
+        commandCache.executeCommand(correlationId, future) {
+            kafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId,
+                    CommandProducer.createSendProcessingInfoCommand(competitionId, correlationId)))
+        }
+        kotlin.runCatching { commandCache.waitForResult(future, Duration.ofSeconds(30)) }.recover { e ->
+            log.error("Error while executing competition info command", e)
+            null
+        }.map { arrayOfEventDTOs ->
+            arrayOfEventDTOs?.find { e -> e.type == EventType.INTERNAL_COMPETITION_INFO }?.let {
+                val payload = mapper.readValue(it.payload, CompetitionInfoPayload::class.java)
+                Address.create(payload.host, payload.port)
+            }
+        }.getOrNull()
     }
 
     private val clusterMembers = ConcurrentHashMap<String, MemberWithRestPort>()
     private val localCompetitionIds = ConcurrentSkipListSet<String>()
 
 
-    fun broadcastCompetitionProcessingInfo(competitionIds: Set<String>) {
+    fun broadcastCompetitionProcessingInfo(competitionIds: Set<String>, correlationId: String? = null) {
+        log.info("Broadcast competition processing info method call: $competitionIds, $correlationId")
+        if (!correlationId.isNullOrBlank()) {
+            val member = MemberWithRestPort(cluster.member(), serverProperties.port)
+            val data = CompetitionProcessingMessage(correlationId, member, CompetitionProcessingInfo(member, competitionIds))
+            data.correlationId?.let {
+                val events = createProcessingInfoEvents(correlationId, competitionIds)
+                log.info("Executing command callback, correlation ID: $it, data: $events")
+                commandCache.commandCallback(it, events) }
+        }
         if (competitionIds.fold(false) { acc, s -> (acc || localCompetitionIds.add(s)) }) {
             val member = MemberWithRestPort(cluster.member(), serverProperties.port)
-            val data = mapper.writeValueAsString(CompetitionProcessingMessage(member, CompetitionProcessingInfo(member, competitionIds)))
-            val message = Message.withData(data)
+            val data = CompetitionProcessingMessage(correlationId, member, CompetitionProcessingInfo(member, competitionIds))
+            val message = Message.withData(mapper.writeValueAsString(data))
                     .header(TYPE, COMPETITION_PROCESSING_STARTED)
                     .sender(cluster.member().address())
                     .build()
             cluster.spreadGossip(message).subscribe {
-                log.info("Broadcasting the following competition processing info: ${cluster.member()} -> $competitionIds")
+                log.info("Broadcasting the following competition processing info: ${cluster.member()} -> $data")
             }
         }
     }
@@ -170,6 +187,25 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
     fun isLocal(address: Address) = (cluster.address().host() == address.host() || address.host() == clusterConfigurationProperties.advertisedHost) && address.port() == serverProperties.port
 
     fun init() {
+        cluster.listenGossips().subscribe {
+            log.info("Received a gossip: $it")
+            processMessage(it)
+        }
+
+        producer.send(ProducerRecord(leaderChangelogTopic, COMPETITION_LEADER_KEY,
+                ClusterInfo()
+                        .setClusterMembers(cluster.members()
+                                ?.map { member ->
+                                    val hostName = cluster.metadata(member)?.get(MEMBER_HOSTNAME_METADATA_KEY)
+                                            ?: member.address().host()
+                                    ClusterMember()
+                                            .setId(member.id())
+                                            .setUri(getUrlPrefix(hostName, serverProperties.port))
+                                            .setHost(hostName)
+                                            .setPort(serverProperties.port.toString())
+                                }?.toTypedArray())))
+        producer.flush()
+
         cluster.listenMembership().subscribe {
             broadcastCompetitionProcessingInfo(this.localCompetitionIds)
             when (it.type()) {

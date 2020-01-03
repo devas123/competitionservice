@@ -1,34 +1,34 @@
 package compman.compsrv.service.processor.event
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.jpa.competition.*
-import compman.compsrv.jpa.schedule.Schedule
+import compman.compsrv.jpa.competition.CompetitionState
+import compman.compsrv.mapping.toDTO
+import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
+import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.*
+import compman.compsrv.util.applyProperties
 import org.slf4j.LoggerFactory
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
-import org.springframework.transaction.support.TransactionTemplate
 
 @Component
 class CompetitionEventProcessor(private val competitionStateCrudRepository: CompetitionStateCrudRepository,
                                 private val scheduleCrudRepository: ScheduleCrudRepository,
-                                private val categoryCrudRepository: CategoryDescriptorCrudRepository,
-                                private val periodCrudRepository: PeriodCrudRepository,
+                                private val competitorCrudRepository: CompetitorCrudRepository,
                                 private val bracketsCrudRepository: BracketsCrudRepository,
                                 private val fightCrudRepository: FightCrudRepository,
                                 private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
                                 private val registrationPeriodCrudRepository: RegistrationPeriodCrudRepository,
                                 private val registrationInfoCrudRepository: RegistrationInfoCrudRepository,
-                                private val transactionTemplate: TransactionTemplate,
-                                private val mapper: ObjectMapper) : IEventProcessor {
+                                private val mapper: ObjectMapper) : IEventProcessor<CompetitionState> {
     override fun affectedEvents(): Set<EventType> {
         return setOf(
                 EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED,
-                EventType.REGISTRATION_GROUP_ADDED,
+                EventType.REGISTRATION_GROUP_CREATED,
                 EventType.REGISTRATION_GROUP_DELETED,
                 EventType.REGISTRATION_PERIOD_ADDED,
                 EventType.REGISTRATION_PERIOD_DELETED,
@@ -45,8 +45,9 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                 EventType.COMPETITION_UNPUBLISHED,
                 EventType.DASHBOARD_CREATED,
                 EventType.DASHBOARD_DELETED,
-                EventType.ERROR_EVENT
-
+                EventType.ERROR_EVENT,
+                EventType.REGISTRATION_INFO_UPDATED,
+                EventType.INTERNAL_COMPETITION_INFO
         )
     }
 
@@ -61,7 +62,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
         return null
     }
 
-    override fun applyEvent(event: EventDTO): List<EventDTO> {
+    override fun applyEvent(state: CompetitionState, event: EventDTO): Pair<CompetitionState, List<EventDTO>> {
         fun createErrorEvent(error: String) =
                 EventDTO()
                         .setCategoryId(event.categoryId)
@@ -72,31 +73,49 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                         .setPayload(mapper.writeValueAsString(ErrorEventPayload(error, null)))
         return try {
             val ns = when (event.type) {
-                EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED -> transactionTemplate.execute {
+                EventType.INTERNAL_COMPETITION_INFO -> {
+                    listOf(event)
+                }
+                EventType.REGISTRATION_INFO_UPDATED -> {
+                    val payload = getPayloadAs(event.payload, RegistrationInfoUpdatedPayload::class.java)
+                    payload?.registrationInfo?.let {
+                        kotlin.runCatching {
+                            val regInfo = it.toEntity()
+                            listOf(event.setPayload(
+                                    mapper.writeValueAsString(
+                                            payload.setRegistrationInfo(
+                                                    registrationInfoCrudRepository.save(regInfo).toDTO()))))
+                        }.recover { e ->
+                            log.error("Error while executing operation.", e)
+                            listOf(event)
+                        }.getOrDefault(emptyList())
+                    } ?: listOf(createErrorEvent("Registration info is null."))
+                }
+                EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED ->  {
                     val payload = getPayloadAs(event.payload, RegistrationGroupCategoriesAssignedPayload::class.java)
                     if (payload != null) {
                         val group = registrationGroupCrudRepository.findByIdOrNull(payload.groupId)
                         if (group != null) {
-                            group.categories = payload.categories
+                            group.categories = payload.categories.toMutableSet()
                             listOf(event.setPayload(mapper.writeValueAsString(RegistrationGroupCategoriesAssignedPayload(payload.periodId, payload.groupId,
-                                    registrationGroupCrudRepository.save(group).categories))))
+                                    registrationGroupCrudRepository.save(group).categories?.toTypedArray()))))
                         } else {
-                            emptyList()
+                            listOf(createErrorEvent("Registration group not found."))
                         }
                     } else {
-                        emptyList()
+                        listOf(createErrorEvent("Payload is null."))
                     }
                 }
-                EventType.REGISTRATION_GROUP_ADDED -> transactionTemplate.execute {
+                EventType.REGISTRATION_GROUP_CREATED ->  {
                     val payload = getPayloadAs(event.payload, RegistrationGroupAddedPayload::class.java)!!
                     val regPeriod = registrationPeriodCrudRepository.findByIdOrNull(payload.periodId)
                     if (regPeriod != null) {
-                        val group = RegistrationGroup.fromDTO(payload.group)
-                        group.registrationPeriod = regPeriod
+                        val group = payload.group.toEntity { registrationInfoCrudRepository.findById(event.competitionId).orElseThrow { EventApplyingException("registration info with id ${event.competitionId} not found", event) } }
+                        group.registrationPeriods = mutableSetOf(regPeriod)
                         if (regPeriod.registrationGroups != null) {
                             regPeriod.registrationGroups!!.add(group)
                         } else {
-                            regPeriod.registrationGroups = mutableListOf(group)
+                            regPeriod.registrationGroups = mutableSetOf(group)
                         }
                         registrationPeriodCrudRepository.save(regPeriod)
                     }
@@ -108,8 +127,18 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                 }
                 EventType.REGISTRATION_GROUP_DELETED -> {
                     val payload = getPayloadAs(event.payload, RegistrationGroupDeletedPayload::class.java)!!
-                    registrationGroupCrudRepository.deleteById(payload.groupId)
-                    listOf(event)
+                    val period = registrationPeriodCrudRepository.findById(payload.periodId)
+                    period.map {
+                        it.registrationGroups?.removeIf { gr -> gr.id == payload.groupId }
+                        registrationPeriodCrudRepository.save(it)
+                        if (registrationGroupCrudRepository.findByIdOrNull(payload.groupId)?.registrationPeriods.isNullOrEmpty()) {
+                            registrationGroupCrudRepository.deleteById(payload.groupId)
+                        }
+                        listOf(event)
+                    }.orElseGet {
+                        log.error("Didn't find period with id ${payload.periodId}")
+                        emptyList()
+                    }
                 }
                 EventType.DASHBOARD_DELETED -> {
                     val competitionState = competitionStateCrudRepository.findByIdOrNull(event.competitionId)
@@ -122,13 +151,13 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                     }
 
                 }
-                EventType.DASHBOARD_CREATED -> transactionTemplate.execute {
+                EventType.DASHBOARD_CREATED ->  {
                     val payload = getPayloadAs(event.payload, DashboardCreatedPayload::class.java)
                     if (payload?.dashboardState != null) {
                         val competitionState = competitionStateCrudRepository.findByIdOrNull(event.competitionId)
                         if (competitionState != null) {
-                            competitionState.dashboardState = CompetitionDashboardState.fromDTO(payload.dashboardState)
-                            val newcompState = competitionStateCrudRepository.saveAndFlush(competitionState)
+                            competitionState.dashboardState = payload.dashboardState.toEntity()
+                            val newcompState = competitionStateCrudRepository.save(competitionState)
                             listOf(event.setPayload(mapper.writeValueAsString(DashboardCreatedPayload(newcompState.dashboardState?.toDTO()))))
                         } else {
                             listOf(createErrorEvent("Cannot load competition state for competition ${event.competitionId}"))
@@ -137,11 +166,12 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                         listOf(createErrorEvent("Cannot load dashboard state from event $event"))
                     }
                 }
-                EventType.REGISTRATION_PERIOD_ADDED -> transactionTemplate.execute {
+                EventType.REGISTRATION_PERIOD_ADDED ->  {
                     val payload = getPayloadAs(event.payload, RegistrationPeriodAddedPayload::class.java)!!
                     val info = registrationInfoCrudRepository.findByIdOrNull(event.competitionId)
                     if (info != null) {
-                        val period = RegistrationPeriod.fromDTO(payload.period)
+                        val period = payload.period.toEntity({ id -> registrationGroupCrudRepository.findById(id).orElseThrow { EventApplyingException("Cannot get registration group with id $id", event) } },
+                                { id -> registrationInfoCrudRepository.findById(id).orElseThrow { EventApplyingException("Cannot get registration info with id $id", event) } })
                         period.registrationInfo = info
                         info.registrationPeriods.add(period)
                         registrationInfoCrudRepository.save(info)
@@ -156,16 +186,16 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                     registrationPeriodCrudRepository.deleteById(payload!!)
                     listOf(event)
                 }
-                EventType.COMPETITION_DELETED -> transactionTemplate.execute {
+                EventType.COMPETITION_DELETED ->  {
                     if (competitionStateCrudRepository.existsById(event.competitionId)) {
                         competitionStateCrudRepository.deleteById(event.competitionId)
                     }
                     listOf(event)
                 }
-                EventType.COMPETITION_CREATED -> transactionTemplate.execute {
+                EventType.COMPETITION_CREATED ->  {
                     val payload = getPayloadAs(event.payload, CompetitionCreatedPayload::class.java)
                     payload?.properties?.let { props ->
-                        val state = CompetitionState(props.id, CompetitionProperties.fromDTO(props))
+                        val state = CompetitionState(props.id, props.toEntity())
                         state.properties?.registrationInfo?.let {
                             registrationInfoCrudRepository.save(it)
                         }
@@ -187,26 +217,22 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                     bracketsCrudRepository.deleteByCompetitionId(event.competitionId)
                     listOf(event)
                 }
-                EventType.SCHEDULE_GENERATED -> transactionTemplate.execute {
+                EventType.SCHEDULE_GENERATED ->  {
                     val scheduleGeneratedPayload = getPayloadAs(event.payload, ScheduleGeneratedPayload::class.java)
                     if (scheduleGeneratedPayload?.schedule != null) {
-                        val schedule = Schedule.fromDTO(scheduleGeneratedPayload.schedule, fightCrudRepository)
-                        schedule.periods?.forEach {
-                            periodCrudRepository.save(it)
-                            if (!it.categories.isNullOrEmpty()) {
-                                categoryCrudRepository.saveAll(it.categories)
-                            }
-                        }
-                        scheduleCrudRepository.save(schedule)
-                        listOf(event)
+                        val schedule = scheduleGeneratedPayload.schedule?.toEntity ({ fightId -> fightCrudRepository.getOne(fightId) }, { competitorId -> competitorCrudRepository.findByIdOrNull(competitorId)})
+                        schedule?.let {
+                            scheduleCrudRepository.save(schedule)
+                            listOf(event)
+                        } ?: listOf(createErrorEvent("Schedule not found."))
                     } else {
-                        emptyList()
+                        listOf(createErrorEvent("Schedule not provided."))
                     }
                 }
                 EventType.COMPETITION_PROPERTIES_UPDATED -> {
                     val payload = getPayloadAs(event.payload, CompetitionPropertiesUpdatedPayload::class.java)
                     val comp = competitionStateCrudRepository.getOne(event.competitionId)
-                    comp.properties = comp.properties?.applyProperties(payload?.properties)
+                    comp.properties = comp.properties.applyProperties(payload?.properties)
                     competitionStateCrudRepository.save(comp)
                     listOf(event)
                 }

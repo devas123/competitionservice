@@ -4,8 +4,8 @@ import com.compmanager.service.ServiceException
 import compman.compsrv.jpa.brackets.BracketDescriptor
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.jpa.schedule.*
-import compman.compsrv.repository.FightCrudRepository
 import compman.compsrv.util.IDGenerator
+import compman.compsrv.util.compNotEmpty
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.time.Instant
@@ -15,7 +15,7 @@ import java.util.*
 import kotlin.collections.ArrayList
 
 @Component
-class ScheduleService(private val fightCrudRepository: FightCrudRepository) {
+class ScheduleService {
 
     companion object {
         fun createPeriodId(competitionId: String) = IDGenerator.hashString("$competitionId-period-${UUID.randomUUID()}")
@@ -25,7 +25,7 @@ class ScheduleService(private val fightCrudRepository: FightCrudRepository) {
                 return false
             }
             if ((f.parentId1 != null) || (f.parentId2 != null)) return false
-            return !(f.scores.size == 2 && f.scores.all { Schedule.compNotEmpty(it.competitor) })
+            return !(f.scores?.size == 2 && (f.scores?.all { compNotEmpty(it.competitor) } == true))
         }
     }
 
@@ -110,10 +110,10 @@ class ScheduleService(private val fightCrudRepository: FightCrudRepository) {
                                         ?: -1) < (f.round ?: -1)
                             }
                     if (matsWithTheSameCategory.isNotEmpty() && lastrun != true) {
-                        mat = matsWithTheSameCategory.sortedBy { it.currentTime.toEpochMilli() }.first()
+                        mat = matsWithTheSameCategory.minBy { it.currentTime.toEpochMilli() }!!
                         mat.pending.add(f)
                     } else {
-                        mat = this.fightsByMats.sortedBy { it.currentTime.toEpochMilli() }.first()
+                        mat = this.fightsByMats.minBy { it.currentTime.toEpochMilli() }!!
                         val currentTime = mat.currentTime
                         this.updateSchedule(f, currentTime)
                         mat.currentTime = currentTime.plusSeconds(duration.toLong() * 60)
@@ -166,16 +166,11 @@ class ScheduleService(private val fightCrudRepository: FightCrudRepository) {
         }
     }
 
-    private fun getNumberOfFights(categoryId: String): Int {
-        return fightCrudRepository.countByCategoryId(categoryId)
-    }
-
-
     fun generateSchedule(properties: ScheduleProperties, brackets: List<BracketDescriptor>, fightDurations: Map<String, BigDecimal>, timeZone: String): Schedule {
 
 
         if (!properties.periodPropertiesList.isNullOrEmpty()) {
-            val fightsByIds: Map<String, List<FightDescription>> = brackets.flatMap { it.fights.toList() }.groupBy { it.categoryId }
+            val fightsByIds: Map<String, List<FightDescription>> = brackets.flatMap { it.fights?.toList() ?: emptyList() }.groupBy { it.categoryId }
             if (fightsByIds.isEmpty()) {
                 throw ServiceException("No fights generated.")
             }

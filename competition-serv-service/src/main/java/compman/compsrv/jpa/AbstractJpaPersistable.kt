@@ -7,10 +7,6 @@ import javax.persistence.MappedSuperclass
 @MappedSuperclass
 abstract class AbstractJpaPersistable<T : Serializable>(@Id var id: T? = null) {
 
-    companion object {
-        private val serialVersionUID = -5554308939380869754L
-    }
-
     override fun equals(other: Any?): Boolean {
         other ?: return false
 

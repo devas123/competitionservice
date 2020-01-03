@@ -4,7 +4,7 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.events.EventDTO
 
-interface ICommandProcessor {
+interface ICommandProcessor<State> {
     fun affectedCommands(): Set<CommandType>
-    fun executeCommand(command: CommandDTO): List<EventDTO>
+    fun executeCommand(state: State, command: CommandDTO): List<EventDTO>
 }

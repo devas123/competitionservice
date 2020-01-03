@@ -5,6 +5,7 @@ import compman.compsrv.model.dto.competition.AgeDivisionDTO
 import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
 import compman.compsrv.model.dto.competition.Gender
 import compman.compsrv.model.dto.competition.WeightDTO
+import compman.compsrv.util.IDGenerator
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.util.*
@@ -12,24 +13,24 @@ import java.util.*
 @Component
 class CategoryGeneratorService {
     fun createDefaultBjjCategories(competitionId: String): List<CategoryDescriptorDTO> {
-        val adultMaleRooster = CategoryDescriptorDTO("BJJ", AgeDivisionDTO.ADULT, Gender.MALE.name, WeightDTO(WeightDTO.ROOSTER, BigDecimal("57.5")), BeltType.WHITE, UUID.randomUUID().toString(), BigDecimal(5))
-        val adultMaleLightFeather = adultMaleRooster.setWeight(WeightDTO(WeightDTO.LIGHT_FEATHER, BigDecimal("64")))
-        val adultMaleFeather = adultMaleRooster.setWeight(WeightDTO(WeightDTO.FEATHER, BigDecimal("70")))
-        val adultMaleLight = adultMaleRooster.setWeight(WeightDTO(WeightDTO.LIGHT, BigDecimal("76")))
-        val adultMaleMiddle = adultMaleRooster.setWeight(WeightDTO(WeightDTO.MIDDLE, BigDecimal("82.3")))
-        val adultMaleMiddleHeavy = adultMaleRooster.setWeight(WeightDTO(WeightDTO.MEDIUM_HEAVY, BigDecimal("88.3")))
-        val adultMaleHeavy = adultMaleRooster.setWeight(WeightDTO(WeightDTO.HEAVY, BigDecimal("94.3")))
-        val adultMaleSuperHeavy = adultMaleRooster.setWeight(WeightDTO(WeightDTO.SUPER_HEAVY, BigDecimal("100.5")))
-        val adultMaleUltraHeavy = adultMaleRooster.setWeight(WeightDTO(WeightDTO.ULTRA_HEAVY, BigDecimal("300")))
+        val adultMaleRooster = CategoryDescriptorDTO("BJJ", AgeDivisionDTO.ADULT, Gender.MALE.name, WeightDTO(IDGenerator.hashString(WeightDTO.ROOSTER), BigDecimal("57.5")).setName(WeightDTO.ROOSTER), BeltType.WHITE, UUID.randomUUID().toString(), BigDecimal(5), emptyArray())
+        val adultMaleLightFeather = adultMaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.LIGHT_FEATHER), BigDecimal("64")).setName(WeightDTO.LIGHT_FEATHER))
+        val adultMaleFeather = adultMaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.FEATHER), BigDecimal("70")).setName(WeightDTO.FEATHER))
+        val adultMaleLight = adultMaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.LIGHT), BigDecimal("76")).setName(WeightDTO.LIGHT))
+        val adultMaleMiddle = adultMaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.MIDDLE), BigDecimal("82.3")).setName(WeightDTO.MIDDLE))
+        val adultMaleMiddleHeavy = adultMaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.MEDIUM_HEAVY), BigDecimal("88.3")).setName(WeightDTO.MEDIUM_HEAVY))
+        val adultMaleHeavy = adultMaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.HEAVY), BigDecimal("94.3")).setName(WeightDTO.HEAVY))
+        val adultMaleSuperHeavy = adultMaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.SUPER_HEAVY), BigDecimal("100.5")).setName(WeightDTO.SUPER_HEAVY))
+        val adultMaleUltraHeavy = adultMaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.ULTRA_HEAVY), BigDecimal("300")).setName(WeightDTO.ULTRA_HEAVY))
 
-        val adultFemaleRooster = CategoryDescriptorDTO("BJJ", AgeDivisionDTO.ADULT, Gender.FEMALE.name, WeightDTO(WeightDTO.ROOSTER, BigDecimal("48.5")), BeltType.WHITE, UUID.randomUUID().toString(), BigDecimal(5))
-        val adultFemaleLightFeather = adultFemaleRooster.setWeight(WeightDTO(WeightDTO.LIGHT_FEATHER, BigDecimal("53.5")))
-        val adultFemaleFeather = adultFemaleRooster.setWeight(WeightDTO(WeightDTO.FEATHER, BigDecimal("58.5")))
-        val adultFemaleLight = adultFemaleRooster.setWeight(WeightDTO(WeightDTO.LIGHT, BigDecimal("64")))
-        val adultFemaleMiddle = adultFemaleRooster.setWeight(WeightDTO(WeightDTO.MIDDLE, BigDecimal("69")))
-        val adultFemaleMiddleHeavy = adultFemaleRooster.setWeight(WeightDTO(WeightDTO.MEDIUM_HEAVY, BigDecimal("74")))
-        val adultFemaleHeavy = adultFemaleRooster.setWeight(WeightDTO(WeightDTO.HEAVY, BigDecimal("79.3")))
-        val adultFemaleSuperHeavy = adultFemaleRooster.setWeight(WeightDTO(WeightDTO.SUPER_HEAVY, BigDecimal("300")))
+        val adultFemaleRooster = CategoryDescriptorDTO("BJJ", AgeDivisionDTO.ADULT, Gender.FEMALE.name, WeightDTO(IDGenerator.hashString(WeightDTO.ROOSTER), BigDecimal("48.5")).setName(WeightDTO.ROOSTER), BeltType.WHITE, UUID.randomUUID().toString(), BigDecimal(5), emptyArray())
+        val adultFemaleLightFeather = adultFemaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.LIGHT_FEATHER), BigDecimal("53.5")).setName(WeightDTO.LIGHT_FEATHER))
+        val adultFemaleFeather = adultFemaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.FEATHER), BigDecimal("58.5")).setName(WeightDTO.FEATHER))
+        val adultFemaleLight = adultFemaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.LIGHT), BigDecimal("64")).setName(WeightDTO.LIGHT))
+        val adultFemaleMiddle = adultFemaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.MIDDLE), BigDecimal("69")).setName(WeightDTO.MIDDLE))
+        val adultFemaleMiddleHeavy = adultFemaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.MEDIUM_HEAVY), BigDecimal("74")).setName(WeightDTO.MEDIUM_HEAVY))
+        val adultFemaleHeavy = adultFemaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.HEAVY), BigDecimal("79.3")).setName(WeightDTO.HEAVY))
+        val adultFemaleSuperHeavy = adultFemaleRooster.setWeight(WeightDTO(IDGenerator.hashString(WeightDTO.SUPER_HEAVY), BigDecimal("300")).setName(WeightDTO.SUPER_HEAVY))
 
 
         return listOf(adultMaleRooster.setAgeDivision(AgeDivisionDTO.MASTER_1),

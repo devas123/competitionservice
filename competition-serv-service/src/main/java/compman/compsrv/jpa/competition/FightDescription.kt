@@ -1,8 +1,8 @@
 package compman.compsrv.jpa.competition
 
 import compman.compsrv.jpa.AbstractJpaPersistable
-import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.competition.FightStage
+import org.hibernate.annotations.Cascade
 import java.io.Serializable
 import java.time.Instant
 import javax.persistence.*
@@ -14,12 +14,10 @@ class FightDescription(id: String,
                        var winFight: String?,
                        var loseFight: String?,
                        @OrderColumn(name = "comp_score_order")
-                       @ElementCollection
-                       @CollectionTable(
-                               name = "comp_scores",
-                               joinColumns = [JoinColumn(name = "fight_id")]
-                       )
-                       var scores: Array<CompScore>,
+                       @OneToMany(orphanRemoval = true, fetch = FetchType.LAZY)
+                       @Cascade(org.hibernate.annotations.CascadeType.ALL)
+                       @JoinColumn(name = "comp_score_id")
+                       var scores: MutableList<CompScore>?,
                        var parentId1: String?,
                        var parentId2: String?,
                        var duration: Long?,
@@ -36,57 +34,12 @@ class FightDescription(id: String,
                        var startTime: Instant?,
                        var numberInRound: Int) : AbstractJpaPersistable<String>(id), Serializable {
 
-    companion object {
-        fun fromDTO(dto: FightDescriptionDTO) =
-                FightDescription(
-                        id = dto.id,
-                        categoryId = dto.categoryId,
-                        winFight = dto.winFight,
-                        loseFight = dto.loseFight,
-                        scores = dto.scores?.map { CompScore(Competitor.fromDTO(it.competitor), Score(it.score.points, it.score.advantages, it.score.penalties)) }?.toTypedArray() ?: emptyArray(),
-                        parentId1 = dto.parentId1,
-                        parentId2 = dto.parentId2,
-                        duration = dto.duration,
-                        round = dto.round,
-                        stage = dto.stage,
-                        fightResult = dto.fightResult?.let { FightResult.fromDTO(it) },
-                        matId = dto.matId,
-                        numberOnMat = dto.numberOnMat,
-                        priority = dto.priority,
-                        competitionId = dto.competitionId,
-                        period = dto.period,
-                        startTime = dto.startTime,
-                        numberInRound = dto.numberInRound
-
-                )
-    }
-
-    fun toDTO() = FightDescriptionDTO(
-            id,
-            categoryId,
-            winFight,
-            loseFight,
-            scores.map { it.toDTO() }.toTypedArray(),
-            parentId1,
-            parentId2,
-            duration,
-            round,
-            stage,
-            fightResult?.toDTO(),
-            matId,
-            numberOnMat,
-            priority,
-            competitionId,
-            period,
-            startTime,
-            numberInRound
-    )
 
     constructor(fightId: String, categoryId: String, competitionId: String) : this(id = fightId,
             categoryId = categoryId,
             winFight = null,
             loseFight = null,
-            scores = emptyArray(),
+            scores = mutableListOf(),
             parentId1 = null,
             parentId2 = null,
             duration = null,
@@ -105,7 +58,7 @@ class FightDescription(id: String,
             categoryId = categoryId,
             winFight = null,
             loseFight = null,
-            scores = emptyArray(),
+            scores = mutableListOf(),
             parentId1 = null,
             parentId2 = null,
             duration = null,
@@ -124,7 +77,7 @@ class FightDescription(id: String,
             categoryId = categoryId,
             winFight = winFight,
             loseFight = null,
-            scores = emptyArray(),
+            scores = mutableListOf(),
             parentId1 = null,
             parentId2 = null,
             duration = null,
@@ -144,7 +97,7 @@ class FightDescription(id: String,
              categoryId: String = this.categoryId,
              winFight: String? = this.winFight,
              loseFight: String? = this.loseFight,
-             scores: Array<CompScore> = this.scores,
+             scores: MutableList<CompScore>? = this.scores,
              parentId1: String? = this.parentId1,
              parentId2: String? = this.parentId2,
              duration: Long? = this.duration,
@@ -162,43 +115,21 @@ class FightDescription(id: String,
             duration, round, stage, fightResult, matId, numberOnMat,
             priority, competitionId, period, startTime, numberInRound)
 
-    private fun canModifyFight() =
-            stage == FightStage.PENDING && scores.all { it.score.isEmpty() }
-
-
-    fun setCompetitorWithIndex(competitor: Competitor, index: Int): FightDescription {
-        if (!canModifyFight()) {
-            return this
-        }
-        if (scores.size > 2) {
-            return this
-        }
-        val needToShift = scores.size == 2
-        if (index == 0) {
-            scores = if (needToShift) {
-                arrayOf(CompScore(competitor, Score()), scores[1])
-            } else {
-                arrayOf(CompScore(competitor, Score()), scores[0])
-            }
-        } else if (index == 1) {
-            scores = if (needToShift) {
-                arrayOf(scores[0], CompScore(competitor, Score()))
-            } else {
-                arrayOf(CompScore(competitor, Score()))
-            }
-        }
-        return this
-    }
 
     fun pushCompetitor(competitor: Competitor): FightDescription {
         if (competitor.id == "fake") {
             return this
         }
-        if (scores.size < 2) {
-            scores += CompScore(competitor, Score())
+        var localScores = scores
+        if (localScores == null) {
+            localScores = mutableListOf()
+        }
+        if (localScores.size < 2) {
+            localScores.add(CompScore(competitor, Score()))
         } else {
             throw RuntimeException("Fight is already packed. Cannot add competitors")
         }
+        scores = localScores
         return this
     }
 

@@ -57,6 +57,7 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -65,7 +66,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @RunWith(SpringRunner.class)
-@WebMvcTest(value = RestApi.class, secure = false)
+@WebMvcTest(value = RestApi.class)
 @ActiveProfiles("mongo-embed")
 @ContextConfiguration(classes = {ZookeeperSessionTest.TestConfig.class}, initializers = ZookeeperSessionTest.RandomPortInitailizer.class)
 @EnableConfigurationProperties({ClusterConfigurationProperties.class, KafkaProperties.class})
@@ -114,6 +115,8 @@ public final class ZookeeperSessionTest {
             props.setProperty(KafkaConfig.ListenersProp(), "EXTERNAL://" + ip + ":61384,INTERNAL://localhost:61383");
             props.setProperty(KafkaConfig.ListenerSecurityProtocolMapProp(), "EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT");
             props.setProperty(KafkaConfig.InterBrokerListenerNameProp(), "INTERNAL");
+            props.setProperty(KafkaConfig.TransactionsTopicMinISRProp(), "1");
+            props.setProperty(KafkaConfig.TransactionsTopicReplicationFactorProp(), "1");
         } catch (SocketException | UnknownHostException e) {
             e.printStackTrace();
         }
@@ -280,8 +283,8 @@ public final class ZookeeperSessionTest {
             TestCase.assertNotNull(result);
         });
 
-        producer.close(1, TimeUnit.SECONDS);
-        adminClient.close(1, TimeUnit.SECONDS);
+        producer.close(Duration.ofSeconds(1));
+        adminClient.close(Duration.ofSeconds(1));
         sleep(1000);
     }
 
@@ -291,6 +294,7 @@ public final class ZookeeperSessionTest {
         log.info("Zookeeper Connect: " + CLUSTER.zookeeperConnect());
         log.info("Bootstrap servers: " + CLUSTER.bootstrapServers());
         Thread.sleep(10000000);
+        log.info("Stopiing.");
         CLUSTER.stop();
     }
 

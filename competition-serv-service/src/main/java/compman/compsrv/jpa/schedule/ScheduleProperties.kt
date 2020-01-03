@@ -4,6 +4,7 @@ import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.jpa.competition.CategoryDescriptor
 import compman.compsrv.model.dto.schedule.PeriodPropertiesDTO
 import compman.compsrv.model.dto.schedule.SchedulePropertiesDTO
+import org.hibernate.annotations.Cascade
 import java.math.BigDecimal
 import java.time.Instant
 import javax.persistence.*
@@ -17,43 +18,11 @@ class PeriodProperties(id: String,
                        var riskPercent: BigDecimal,
                        @OneToMany(fetch = FetchType.LAZY)
                        @JoinColumn(name = "PERIOD_PROPERTIES_ID", nullable = true)
-                       var categories: List<CategoryDescriptor>) : AbstractJpaPersistable<String>(id) {
-    fun toDTO(): PeriodPropertiesDTO {
-        return PeriodPropertiesDTO()
-                .setId(id)
-                .setName(name)
-                .setStartTime(startTime)
-                .setNumberOfMats(numberOfMats)
-                .setTimeBetweenFights(timeBetweenFights)
-                .setRiskPercent(riskPercent)
-                .setCategories(categories.map { it.toDTO() }.toTypedArray())
-    }
-
-    companion object {
-        fun fromDTO(props: PeriodPropertiesDTO, competitionId: String) = PeriodProperties(props.id,
-                props.name,
-                props.startTime,
-                props.numberOfMats,
-                props.timeBetweenFights,
-                props.riskPercent,
-                props.categories.map { CategoryDescriptor.fromDTO(it, competitionId) })
-    }
-}
-
+                       var categories: List<CategoryDescriptor>) : AbstractJpaPersistable<String>(id)
 @Embeddable
 @Access(AccessType.FIELD)
 class ScheduleProperties(var id: String,
-                         @OneToMany(orphanRemoval = true, cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
+                         @OneToMany(orphanRemoval = true, fetch = FetchType.LAZY)
+                         @Cascade(org.hibernate.annotations.CascadeType.ALL)
                          @JoinColumn(name = "SCHED_ID")
-                         var periodPropertiesList: List<PeriodProperties?>?) {
-    fun toDTO(): SchedulePropertiesDTO? {
-        return SchedulePropertiesDTO()
-                .setCompetitionId(id)
-                .setPeriodPropertiesList(periodPropertiesList?.mapNotNull { it?.toDTO() }?.toTypedArray() ?: emptyArray())
-    }
-
-    companion object {
-        fun fromDTO(dto: SchedulePropertiesDTO) =
-                ScheduleProperties(dto.competitionId, dto.periodPropertiesList?.mapNotNull { pp -> pp?.let { PeriodProperties.fromDTO(it, dto.competitionId) } } ?: emptyList())
-    }
-}
+                         var periodPropertiesList: List<PeriodProperties?>?)

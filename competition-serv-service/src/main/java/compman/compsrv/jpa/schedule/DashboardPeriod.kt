@@ -3,29 +3,18 @@ package compman.compsrv.jpa.schedule
 import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.model.dto.schedule.DashboardPeriodDTO
 import java.time.Instant
-import javax.persistence.*
+import javax.persistence.ElementCollection
+import javax.persistence.Entity
+import javax.persistence.OrderColumn
 
 @Entity
 class DashboardPeriod(id: String,
                       var name: String,
                       @ElementCollection
-                      @OrderColumn
-                      var matIds: Array<String>,
+                      var matIds: MutableSet<String>?,
                       var startTime: Instant,
                       var isActive: Boolean) : AbstractJpaPersistable<String>(id) {
-
-    companion object {
-        fun fromDTO(dto: DashboardPeriodDTO) = DashboardPeriod(dto.id, dto.name, dto.matIds, dto.startTime, dto.isActive)
-    }
-
     override fun toString(): String {
         return "DashboardPeriod(id='$id', name='$name', matIds='$matIds', startTime=$startTime, isActive=$isActive)"
     }
-
-    fun toDTO(): DashboardPeriodDTO = DashboardPeriodDTO()
-            .setId(id)
-            .setName(name)
-            .setMatIds(matIds)
-            .setStartTime(startTime)
-            .setIsActive(isActive)
 }
