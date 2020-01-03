@@ -15,5 +15,5 @@ public class RegistrationPeriodDTO {
     private String competitionId;
     private Instant start;
     private Instant end;
-    private RegistrationGroupDTO[] registrationGroups;
+    private String[] registrationGroupIds;
 }

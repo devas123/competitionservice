@@ -11,4 +11,5 @@ public class RegistrationInfoDTO {
     private String id;
     private Boolean registrationOpen;
     private RegistrationPeriodDTO[] registrationPeriods;
+    private RegistrationGroupDTO[] registrationGroups;
 }
