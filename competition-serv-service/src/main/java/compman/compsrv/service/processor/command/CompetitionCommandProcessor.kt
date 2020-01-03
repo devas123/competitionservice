@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.jpa.brackets.BracketDescriptor
 import compman.compsrv.jpa.competition.CompetitionDashboardState
-import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.jpa.competition.RegistrationInfo
 import compman.compsrv.jpa.schedule.DashboardPeriod
 import compman.compsrv.mapping.toDTO
@@ -45,7 +44,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val registrationPeriodCrudRepository: RegistrationPeriodCrudRepository,
                                   private val registrationInfoCrudRepository: RegistrationInfoCrudRepository,
                                   private val dashboardStateCrudRepository: DashboardStateCrudRepository,
-                                  private val mapper: ObjectMapper) : ICommandProcessor<CompetitionState> {
+                                  private val mapper: ObjectMapper) : ICommandProcessor {
     override fun affectedCommands(): Set<CommandType> {
         return setOf(CommandType.ASSIGN_REGISTRATION_GROUP_CATEGORIES_COMMAND,
                 CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND,
@@ -84,7 +83,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
 
 
     @Transactional(propagation = Propagation.REQUIRED, readOnly = false)
-    override fun executeCommand(state: CompetitionState, command: CommandDTO): List<EventDTO> {
+    override fun executeCommand(command: CommandDTO): List<EventDTO> {
         fun execute(command: CommandDTO): List<EventDTO> {
             fun createEvent(type: EventType, payload: Any?) =
                     EventDTO()

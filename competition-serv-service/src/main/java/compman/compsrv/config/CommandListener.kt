@@ -3,7 +3,9 @@ package compman.compsrv.config
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
+import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.repository.EventRepository
@@ -19,7 +21,6 @@ import org.springframework.kafka.support.Acknowledgment
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.transaction.support.TransactionTemplate
 import java.util.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -28,7 +29,6 @@ import javax.persistence.EntityManager
 @Component
 class CommandListener(private val commandTransformer: CompetitionCommandTransformer,
                       private val template: KafkaTemplate<String, EventDTO>,
-                      private val transactionTemplate: TransactionTemplate,
                       private val eventRepository: EventRepository,
                       private val clusterSession: ClusterSession,
                       private val entityManager: EntityManager,
@@ -91,5 +91,4 @@ class CommandListener(private val commandTransformer: CompetitionCommandTransfor
             }
         }
     }
-}
 }

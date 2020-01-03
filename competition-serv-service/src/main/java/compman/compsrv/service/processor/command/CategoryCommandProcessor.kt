@@ -1,7 +1,6 @@
 package compman.compsrv.service.processor.command
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.mapping.toDTO
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
@@ -31,7 +30,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                                            private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
                                            private val categoryCrudRepository: CategoryStateCrudRepository,
                                            private val competitorCrudRepository: CompetitorCrudRepository,
-                                           private val fightCrudRepository: FightCrudRepository) : ICommandProcessor<CompetitionState> {
+                                           private val fightCrudRepository: FightCrudRepository) : ICommandProcessor {
 
     override fun affectedCommands(): Set<CommandType> {
         return setOf(CommandType.ADD_COMPETITOR_COMMAND,
@@ -47,7 +46,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
     }
 
 
-    override fun executeCommand(state: CompetitionState, command: CommandDTO): List<EventDTO> {
+    override fun executeCommand(command: CommandDTO): List<EventDTO> {
         val events = when (command.type) {
             CommandType.ADD_COMPETITOR_COMMAND -> doAddCompetitor(command)
             CommandType.REMOVE_COMPETITOR_COMMAND -> doRemoveCompetitor(command)

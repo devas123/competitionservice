@@ -24,7 +24,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                                 private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
                                 private val registrationPeriodCrudRepository: RegistrationPeriodCrudRepository,
                                 private val registrationInfoCrudRepository: RegistrationInfoCrudRepository,
-                                private val mapper: ObjectMapper) : IEventProcessor<CompetitionState> {
+                                private val mapper: ObjectMapper) : IEventProcessor {
     override fun affectedEvents(): Set<EventType> {
         return setOf(
                 EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED,
@@ -62,7 +62,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
         return null
     }
 
-    override fun applyEvent(state: CompetitionState, event: EventDTO): Pair<CompetitionState, List<EventDTO>> {
+    override fun applyEvent(event: EventDTO): List<EventDTO> {
         fun createErrorEvent(error: String) =
                 EventDTO()
                         .setCategoryId(event.categoryId)

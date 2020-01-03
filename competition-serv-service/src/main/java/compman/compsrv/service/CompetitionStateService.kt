@@ -1,7 +1,6 @@
 package compman.compsrv.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
@@ -20,15 +19,15 @@ import org.springframework.transaction.annotation.Transactional
 @Transactional(propagation = Propagation.REQUIRED)
 class CompetitionStateService(
         private val eventRepository: EventRepository,
-        private val eventProcessors: List<IEventProcessor<CompetitionState>>,
-        private val commandProcessors: List<ICommandProcessor<CompetitionState>>,
-        private val mapper: ObjectMapper) : ICommandProcessingService<CommandDTO, EventDTO, CompetitionState> {
+        private val eventProcessors: List<IEventProcessor>,
+        private val commandProcessors: List<ICommandProcessor>,
+        private val mapper: ObjectMapper) : ICommandProcessingService<CommandDTO, EventDTO> {
 
     companion object {
         private val log = LoggerFactory.getLogger(CompetitionStateService::class.java)
     }
 
-    override fun apply(state: CompetitionState, event: EventDTO, isBatch: Boolean): Pair<CompetitionState, List<EventDTO>> {
+    override fun apply(event: EventDTO, isBatch: Boolean): List<EventDTO> {
         fun createErrorEvent(error: String, failedOn: String? = null) =
                 EventDTO()
                         .setCategoryId(event.categoryId)
