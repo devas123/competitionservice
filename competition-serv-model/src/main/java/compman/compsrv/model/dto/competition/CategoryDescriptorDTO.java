@@ -17,4 +17,5 @@ public class CategoryDescriptorDTO {
     private String beltType;
     private String id;
     private BigDecimal fightDuration;
+    private String[] competitors;
 }

@@ -4,12 +4,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.util.Timer;
 
 @Data
 @NoArgsConstructor
 public class FightEditorApplyChangesPayload implements Serializable {
-    private String competitorId;
-    private String sourceFightId;
-    private String targetFightId;
-    private int index;
+    private FightChanges[] changes;
 }
