@@ -1,12 +1,14 @@
 package compman.compsrv.jpa
 
 import compman.compsrv.model.events.EventType
+import org.hibernate.annotations.Immutable
 import javax.persistence.Basic
 import javax.persistence.Entity
 import javax.persistence.FetchType
 import javax.persistence.Lob
 
 @Entity
+@Immutable
 class Event(
         id: String?,
         var type: EventType?,

@@ -4,18 +4,17 @@ import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 
 @Transactional(propagation = Propagation.REQUIRED)
-interface ICommandProcessingService<CommandType, EventType, State> {
+interface ICommandProcessingService<CommandType, EventType> {
 
-    fun apply(state: State, event: EventType, isBatch: Boolean = false): Pair<State, List<EventType>>
+    fun apply(event: EventType, isBatch: Boolean = false): List<EventType>
 
-    fun batchApply(state: State, events: List<EventType>): Pair<State, List<EventType>> {
-        return events.filter { !duplicateCheck(it) }.fold((state to emptyList())) { acc, eventHolder ->
-            val newPair = apply(acc.first, eventHolder, isBatch = true)
-            newPair.first to (acc.second + newPair.second)
+    fun batchApply(events: List<EventType>): List<EventType> {
+        return events.filter { !duplicateCheck(it) }.fold(emptyList()) { acc, eventHolder ->
+            (acc + apply(eventHolder, isBatch = true))
         }
     }
 
     fun duplicateCheck(event: EventType): Boolean
 
-    fun process(state: State, command: CommandType): List<EventType>
+    fun process(command: CommandType): List<EventType>
 }

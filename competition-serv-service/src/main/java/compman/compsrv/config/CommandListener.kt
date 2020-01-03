@@ -1,17 +1,8 @@
 package compman.compsrv.config
 
-import arrow.core.Left
-import arrow.core.Option
-import arrow.core.Right
-import arrow.core.extensions.list.foldable.foldM
-import arrow.core.getOrHandle
-import arrow.fx.IO
-import arrow.fx.extensions.io.monad.monad
-import arrow.fx.fix
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
-import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
@@ -19,15 +10,17 @@ import compman.compsrv.repository.EventRepository
 import compman.compsrv.service.CommandCache
 import org.apache.kafka.clients.consumer.Consumer
 import org.apache.kafka.clients.consumer.ConsumerRecord
+import org.apache.kafka.clients.consumer.OffsetAndMetadata
+import org.apache.kafka.common.TopicPartition
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.listener.AcknowledgingConsumerAwareMessageListener
 import org.springframework.kafka.support.Acknowledgment
-import org.springframework.kafka.support.SendResult
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
+import java.util.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import javax.persistence.EntityManager
@@ -45,78 +38,58 @@ class CommandListener(private val commandTransformer: CompetitionCommandTransfor
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
-    override fun onMessage(data: ConsumerRecord<String, CommandDTO>, acknowledgment: Acknowledgment?, consumer: Consumer<*, *>?) {
-        if (data.value() != null && data.key() != null) {
-            log.info("Processing command: $data")
-            val k = IO {
-                commandTransformer.transform(data)
-            }.flatMap { events ->
-                val enventResults = events.filter {
-                    when (it.type) {
-                        EventType.ERROR_EVENT -> {
-                            log.warn("Error event: $it")
-                            false
-                        }
-                        EventType.DUMMY, EventType.INTERNAL_COMPETITION_INFO -> false
-                        else -> true
+    override fun onMessage(m: ConsumerRecord<String, CommandDTO>, acknowledgment: Acknowledgment?, consumer: Consumer<*, *>?) {
+        if (m.value() != null && m.key() != null) {
+            log.info("Processing command: $m")
+            val events = commandTransformer.transform(m)
+            val filteredEvents = events.filter {
+                when (it.type) {
+                    EventType.ERROR_EVENT -> {
+                        log.warn("Error event: $it")
+                        false
                     }
+                    EventType.DUMMY, EventType.INTERNAL_COMPETITION_INFO -> false
+                    else -> true
                 }
-                IO {
-                    log.info("All the events were processed. Sending commit offsets.")
-                    eventRepository.saveAll(enventResults.map { it.toEntity() })
-                    events
-                }.flatMap {
-                    val l = CountDownLatch(enventResults.size)
-                    enventResults.foldM(IO.monad(), Option.empty<SendResult<String, EventDTO>>())
-                    { _, event ->
-                        IO.async { callback ->
-                            template.send(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME, data.key(), event)
-                                    .addCallback({
-                                        l.countDown()
-                                        callback.invoke(Right(Option.fromNullable(it)))
-                                    }, { callback.invoke(Left(it)) })
-                        }
-                    }.fix().flatMap {
-                        IO.async<Unit> { callback ->
-                            if (l.await(10, TimeUnit.SECONDS)) {
-                                callback.invoke(Right(Unit))
-                            } else {
-                                log.error("The events were not sent to the event log. The offsets of the incomming messages will not be committed.")
-                                callback.invoke(Left(IllegalStateException("The events were not sent to the event log. The offsets of the incomming messages will not be committed.")))
-                            }
-                        }
-                    }.flatMap { IO.just(events) }
-                }.flatMap {
-                    IO {
-                        if (it.any { it.type == EventType.INTERNAL_COMPETITION_INFO }) {
-                            log.info("Flushing database.")
-                            entityManager.flush()
-                        }
-                        acknowledgment?.acknowledge()
-                        it
-                    }
-                }
-            }.flatMap { events ->
-                val io = if (events.any { it.type == EventType.INTERNAL_COMPETITION_INFO }) {
-                    IO {
-                        log.info("Sending competition info to the cluster.")
-                        clusterSession.broadcastCompetitionProcessingInfo(setOf(data.key()), data.value().correlationId)
-                    }
-                } else {
-                    IO { commandCache.commandCallback(data.value().correlationId, events.toCollection(mutableListOf()).toTypedArray()) }
-                }
-                IO {
-                    events.asSequence().onEach {
-                        if (it.type == EventType.COMPETITION_DELETED) kotlin.runCatching {
-                            clusterSession.broadcastCompetitionProcessingStopped(setOf(data.key()))
-                        }
-                        if (it.type == EventType.COMPETITION_CREATED) kotlin.runCatching {
-                            clusterSession.broadcastCompetitionProcessingInfo(setOf(data.key()), data.value().correlationId)
-                        }
-                    }
-                }.flatMap { io }
             }
-            k.attempt().unsafeRunSync().getOrHandle { throw it }
+            val latch = CountDownLatch(filteredEvents.size)
+            fun <T> callback() = { _: T -> latch.countDown() }
+
+            filteredEvents.asSequence().forEach {
+                template.send(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME, m.key(), it).addCallback(callback(), { ex ->
+                    log.error("Exception when sending events to kafka.", ex)
+                    throw ex
+                })
+            }
+
+            if (latch.await(10, TimeUnit.SECONDS)) {
+                log.info("All the events were processed. Sending commit offsets.")
+                eventRepository.saveAll(events.map { it.toEntity() })
+                template.sendOffsetsToTransaction(
+                        Collections.singletonMap(TopicPartition(m.topic(), m.partition()),
+                                OffsetAndMetadata(m.offset() + 1)))
+                log.info("Commit offsets were sent. Executing post-processing.")
+                filteredEvents.asSequence().onEach {
+                    if (it.type == EventType.COMPETITION_DELETED) kotlin.runCatching {
+                        clusterSession.broadcastCompetitionProcessingStopped(setOf(m.key()))
+                    }
+                    if (it.type == EventType.COMPETITION_CREATED) kotlin.runCatching {
+                        clusterSession.broadcastCompetitionProcessingInfo(setOf(m.key()), m.value().correlationId)
+                    }
+                }
+                if (!m.value().correlationId.isNullOrBlank()) {
+                    if (m.value().type == CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND) {
+                        entityManager.flush()
+                        clusterSession.broadcastCompetitionProcessingInfo(setOf(m.key()), m.value().correlationId)
+                    } else {
+                        commandCache.commandCallback(m.value().correlationId, events.toTypedArray())
+                    }
+                }
+            } else {
+                log.error("The events were not sent to the event log. The offsets of the incomming messages will not be committed.")
+                throw IllegalStateException("The events were not sent to the event log. The offsets of the incomming messages will not be committed.")
+            }
         }
     }
+}
 }
