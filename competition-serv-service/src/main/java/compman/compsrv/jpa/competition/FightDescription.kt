@@ -3,6 +3,7 @@ package compman.compsrv.jpa.competition
 import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.model.dto.competition.FightStage
 import org.hibernate.annotations.Cascade
+import org.hibernate.annotations.CascadeType
 import java.io.Serializable
 import java.time.Instant
 import javax.persistence.*
@@ -15,7 +16,7 @@ class FightDescription(id: String,
                        var loseFight: String?,
                        @OrderColumn(name = "comp_score_order")
                        @OneToMany(orphanRemoval = true, fetch = FetchType.LAZY)
-                       @Cascade(org.hibernate.annotations.CascadeType.ALL)
+                       @Cascade(CascadeType.ALL)
                        @JoinColumn(name = "comp_score_id")
                        var scores: MutableList<CompScore>?,
                        var parentId1: String?,

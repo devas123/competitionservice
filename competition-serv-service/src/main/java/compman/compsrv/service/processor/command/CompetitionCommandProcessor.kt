@@ -19,6 +19,8 @@ import compman.compsrv.model.events.payload.*
 import compman.compsrv.repository.*
 import compman.compsrv.service.ScheduleService
 import compman.compsrv.util.IDGenerator
+import compman.compsrv.util.createErrorEvent
+import compman.compsrv.util.createEvent
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.data.domain.Pageable
@@ -26,7 +28,6 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
-import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneId
 import java.util.*
@@ -76,31 +77,13 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
         return bracketsCrudRepository.findByCompetitionId(competitionId) ?: emptyList()
     }
 
-    private fun getFightDurations(scheduleProperties: SchedulePropertiesDTO): Map<String, BigDecimal> {
-        val categories = scheduleProperties.periodPropertiesList.flatMap { it.categories.toList() }
-        return categories.map { it.id to it.fightDuration }.toMap()
-    }
-
 
     @Transactional(propagation = Propagation.REQUIRED, readOnly = false)
     override fun executeCommand(command: CommandDTO): List<EventDTO> {
         fun execute(command: CommandDTO): List<EventDTO> {
-            fun createEvent(type: EventType, payload: Any?) =
-                    EventDTO()
-                            .setCategoryId(command.categoryId)
-                            .setCorrelationId(command.correlationId)
-                            .setCompetitionId(command.competitionId)
-                            .setMatId(command.matId)
-                            .setType(type)
-                            .setPayload(mapper.writeValueAsString(payload))
+            fun createEvent(type: EventType, payload: Any?) = mapper.createEvent(command, type, payload)
 
-            fun createErrorEvent(error: String) = EventDTO()
-                    .setCategoryId(command.categoryId)
-                    .setCorrelationId(command.correlationId)
-                    .setCompetitionId(command.competitionId)
-                    .setMatId(command.matId)
-                    .setType(EventType.ERROR_EVENT)
-                    .setPayload(mapper.writeValueAsString(ErrorEventPayload(error, command.correlationId)))
+            fun createErrorEvent(error: String) = mapper.createErrorEvent(command, error)
 
             if (command.competitionId.isNullOrBlank()) {
                 log.error("Competition id is empty, command $command")
@@ -302,8 +285,10 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                             val categoryIds = categories?.map { it.id } ?: emptyList()
                             val competitors = competitorCrudRepository.findByCompetitionIdAndCategoriesContaining(command.competitionId, categoryIds, Pageable.unpaged()).content
 
-                            val schedule = scheduleService.generateSchedule(scheduleProperties.toEntity {id -> competitors.firstOrNull { competitor -> competitor.id == id }}, getAllBrackets(scheduleProperties.competitionId), getFightDurations(scheduleProperties), compProps.timeZone)
-                            val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(schedule.periods?.flatMap { period -> period.fightsByMats ?: emptyList() }?.flatMap { it.fights.map { f -> f.toDTO(it.id ?: "") } }?.toTypedArray())
+                            val schedule = scheduleService.generateSchedule(scheduleProperties.toEntity {id -> competitors.firstOrNull { competitor -> competitor.id == id }}, getAllBrackets(scheduleProperties.competitionId), compProps.timeZone)
+                            val newFights = schedule.periods?.flatMap { period -> period.fightsByMats?.flatMap { it.fights.map { f -> f.toDTO(it.id!!).setPeriodId(period.id) } } ?: emptyList() }?.toTypedArray()
+                            val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(newFights)
+
                             listOf(createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule.toDTO())), createEvent(EventType.FIGHTS_START_TIME_UPDATED, fightStartTimeUpdatedPayload))
                         } else {
                             listOf(createErrorEvent("Categories $missingCategories are missing"))

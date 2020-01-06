@@ -4,16 +4,16 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.model.events.EventType
-import compman.compsrv.model.events.payload.ErrorEventPayload
 import compman.compsrv.repository.EventRepository
 import compman.compsrv.service.processor.command.ICommandProcessor
 import compman.compsrv.service.processor.event.IEventProcessor
 import compman.compsrv.util.IDGenerator
+import compman.compsrv.util.createErrorEvent
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import javax.persistence.EntityManager
 
 @Component
 @Transactional(propagation = Propagation.REQUIRED)
@@ -21,6 +21,7 @@ class CompetitionStateService(
         private val eventRepository: EventRepository,
         private val eventProcessors: List<IEventProcessor>,
         private val commandProcessors: List<ICommandProcessor>,
+        private val entityManager: EntityManager,
         private val mapper: ObjectMapper) : ICommandProcessingService<CommandDTO, EventDTO> {
 
     companion object {
@@ -28,22 +29,14 @@ class CompetitionStateService(
     }
 
     override fun apply(event: EventDTO, isBatch: Boolean): List<EventDTO> {
-        fun createErrorEvent(error: String, failedOn: String? = null) =
-                EventDTO()
-                        .setCategoryId(event.categoryId)
-                        .setCorrelationId(event.correlationId ?: "")
-                        .setCompetitionId(event.competitionId)
-                        .setMatId(event.matId)
-                        .setType(EventType.ERROR_EVENT)
-                        .setPayload(mapper.writeValueAsString(ErrorEventPayload(error, failedOn)))
+        fun createErrorEvent(error: String) = mapper.createErrorEvent(event, error)
         return try {
             val eventWithId = event.setId(event.id ?: IDGenerator.uid())
             if (isBatch || !duplicateCheck(event)) {
                 eventProcessors.filter { it.affectedEvents().contains(event.type) }.flatMap { it.applyEvent(eventWithId) }
-                eventRepository.save(eventWithId.toEntity())
                 listOf(eventWithId)
             } else {
-                listOf(createErrorEvent("Duplicate event: CorrelationId: ${eventWithId.correlationId}", eventWithId.id.toString()))
+                listOf(createErrorEvent("Duplicate event: CorrelationId: ${eventWithId.correlationId}"))
             }
         } catch (e: Exception) {
             log.error("Error while applying event.", e)
@@ -53,14 +46,7 @@ class CompetitionStateService(
 
     override fun process(command: CommandDTO): List<EventDTO> {
 
-        fun createErrorEvent(error: String) = EventDTO()
-                .setId(IDGenerator.uid())
-                .setCategoryId(command.categoryId)
-                .setCorrelationId(command.correlationId)
-                .setCompetitionId(command.competitionId)
-                .setMatId(command.matId)
-                .setType(EventType.ERROR_EVENT)
-                .setPayload(mapper.writeValueAsString(ErrorEventPayload(error, command.correlationId)))
+        fun createErrorEvent(error: String) = mapper.createErrorEvent(command, error)
         return kotlin.runCatching {
             when {
                 command.competitionId.isNullOrBlank() -> {
@@ -82,6 +68,7 @@ class CompetitionStateService(
     }
 
     override fun duplicateCheck(event: EventDTO): Boolean = event.id?.let { eventRepository.existsById(it) } == true
-
-
+    override fun flush() {
+        entityManager.flush()
+    }
 }

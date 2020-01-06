@@ -12,18 +12,17 @@ class CategoryDescriptor(
         @Column(columnDefinition = "varchar(255)")
         var competitionId: String,
         var sportsType: String,
-        @ManyToOne(fetch = FetchType.LAZY)
-        @Cascade(CascadeType.SAVE_UPDATE, CascadeType.MERGE, CascadeType.PERSIST)
-        @JoinColumn(name = "age_id")
+        @ManyToOne(fetch = FetchType.LAZY, optional = false, cascade = [javax.persistence.CascadeType.MERGE, javax.persistence.CascadeType.REFRESH])
+        @Cascade(CascadeType.SAVE_UPDATE)
+        @JoinColumn(name = "age_id", nullable = false)
         var ageDivision: AgeDivision,
         @ManyToMany(mappedBy = "categories", fetch = FetchType.LAZY)
         var competitors: MutableSet<Competitor>?,
         var gender: String,
-        @ManyToOne(fetch = FetchType.LAZY)
-        @Cascade(CascadeType.SAVE_UPDATE, CascadeType.MERGE, CascadeType.PERSIST)
+        @ManyToOne(fetch = FetchType.LAZY, cascade = [javax.persistence.CascadeType.MERGE, javax.persistence.CascadeType.REFRESH])
+        @Cascade(CascadeType.SAVE_UPDATE)
         @JoinColumn(name = "weight_id")
         var weight: Weight,
         var beltType: String,
         id: String,
-        var fightDuration: BigDecimal) : AbstractJpaPersistable<String>(id) {
-}
+        var fightDuration: BigDecimal) : AbstractJpaPersistable<String>(id)

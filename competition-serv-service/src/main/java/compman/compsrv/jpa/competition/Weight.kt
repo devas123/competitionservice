@@ -15,7 +15,7 @@ class Weight(id: String,
 
     constructor(name: String,
                 maxValue: BigDecimal?,
-                minValue: BigDecimal?) : this(getId(name), name, maxValue, minValue)
+                minValue: BigDecimal?) : this(getId("$name/$maxValue/$minValue"), name, maxValue, minValue)
 
     constructor(name: String, maxvalue: BigDecimal) : this(name, maxvalue, BigDecimal.ZERO)
 }

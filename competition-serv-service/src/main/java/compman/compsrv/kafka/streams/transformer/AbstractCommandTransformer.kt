@@ -9,6 +9,7 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.ErrorEventPayload
 import compman.compsrv.service.ICommandProcessingService
 import compman.compsrv.util.IDGenerator
+import compman.compsrv.util.createErrorEvent
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
 import org.springframework.transaction.annotation.Propagation
@@ -22,23 +23,17 @@ abstract class AbstractCommandTransformer(
 
     private val log = LoggerFactory.getLogger(this.javaClass)
 
-    abstract fun initState(id: String, flushDb: Boolean)
+    abstract fun initState(id: String)
     abstract fun getState(id: String): Optional<CompetitionState>
 
     @Transactional(propagation = Propagation.REQUIRED)
     open fun transform(record: ConsumerRecord<String, CommandDTO>): List<EventDTO> {
         val command = record.value()
         val readOnlyKey = record.key()
-        fun createErrorEvent(message: String?) = listOf(EventDTO()
-                .setCategoryId(command.categoryId)
-                .setCorrelationId(command.correlationId)
-                .setCompetitionId(command.competitionId)
-                .setMatId(command.matId)
-                .setType(EventType.ERROR_EVENT)
-                .setPayload(mapper.writeValueAsString(ErrorEventPayload(message, command.correlationId))))
+        fun createErrorEvent(message: String?) = listOf(mapper.createErrorEvent(command, message))
         return try {
             if (command.type != CommandType.CREATE_COMPETITION_COMMAND) {
-                initState(readOnlyKey, command.type == CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND)
+                initState(readOnlyKey)
             }
             val validationErrors = canExecuteCommand(command)
             when {

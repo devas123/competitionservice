@@ -20,12 +20,10 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.*
-import javax.persistence.EntityManager
 
 @Component
 class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                                private val competitionStateService: CompetitionStateService,
-                               private val entityManager: EntityManager,
                                private val clusterSesion: ClusterSession) {
 
     companion object {
@@ -40,7 +38,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
-    fun resolveLatestCompetitionState(competitionId: String, flushDb: Boolean = false) {
+    fun resolveLatestCompetitionState(competitionId: String) {
         log.info("Retrieving state for the competitionId: $competitionId")
         if (!clusterSesion.isProcessedLocally(competitionId)) {
             log.error("Trying to find the 'COMPETITION_CREATED' event in the events for the past 365 days.")
@@ -81,10 +79,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                         }
                     } while (!records.isNullOrEmpty())
                     if (competitionCreated) {
-                        log.info("We have initialized the state from the first event to the last for $competitionId. Fingers crossed")
-                        if (flushDb) {
-                            entityManager.flush()
-                        }
+                        log.info("We have initialized the state from the first event to the last for $competitionId")
                         clusterSesion.broadcastCompetitionProcessingInfo(setOf(competitionId))
                     } else {
                         log.error("Could not initialize the state for $competitionId")

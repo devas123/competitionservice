@@ -39,6 +39,7 @@ public enum EventType {
 
     DASHBOARD_CREATED,
     DASHBOARD_DELETED,
+    DASHBOARD_FIGHT_ORDER_CHANGED,
 
     //Dummy
     DUMMY,

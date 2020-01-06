@@ -10,6 +10,7 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.ErrorEventPayload
 import compman.compsrv.util.IDGenerator
+import compman.compsrv.util.createErrorEvent
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -59,8 +60,7 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
     }
 
     fun sendCommandSync(command: CommandDTO, competitionId: String?): Array<EventDTO> {
-        fun createErrorEvent(errorMsg: String) = arrayOf(EventDTO(null, command.correlationId, competitionId, command.categoryId, command.matId, EventType.ERROR_EVENT,
-                mapper.writeValueAsString(ErrorEventPayload(errorMsg, command.id)), emptyMap()))
+        fun createErrorEvent(errorMsg: String) = arrayOf(mapper.createErrorEvent(command, errorMsg))
         command.id = command.id ?: UUID.randomUUID().toString()
         if (competitionId.isNullOrBlank()) {
             //this is a global command, can process anywhere

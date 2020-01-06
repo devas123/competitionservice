@@ -13,7 +13,7 @@ import javax.persistence.*
 @Access(AccessType.FIELD)
 class FightStartTimePair(
         @ManyToOne(optional = false)
-        @JoinColumn(name = "FIGHT_ID")
+        @JoinColumn(name = "FIGHT_ID", nullable = false, updatable = false)
         val fight: FightDescription,
         val fightNumber: Int,
         val startTime: Instant) : Serializable

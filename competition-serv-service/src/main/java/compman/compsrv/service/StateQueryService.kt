@@ -50,7 +50,8 @@ class StateQueryService(private val clusterSession: ClusterSession,
     private val firstName = "firstName"
 
     private val lastName = "lastName"
-    private val startTime = "startTime"
+    private val notFinished = listOf(FightStage.PENDING, FightStage.IN_PROGRESS, FightStage.GET_READY, FightStage.PAUSED)
+
 
 
     private fun getLocalCompetitors(competitionId: String, categoryId: String?, searchString: String?, pageSize: Int, page: Int): Page<CompetitorDTO> {
@@ -163,7 +164,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getCategoryState(competitionId: String, categoryId: String): CategoryStateDTO? {
         log.info("Getting state for category $categoryId")
-        return localOrRemote(competitionId, { categoryStateCrudRepository.findByIdAndCompetitionId(categoryId, competitionId)?.toDTO(includeBrackets = true) },
+        return localOrRemote(competitionId, { categoryStateCrudRepository.findByIdAndCompetitionId(categoryId, competitionId)?.toDTO(includeBrackets = true, competitionId = competitionId) },
                 { it, restTemplate, _ ->
                     restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/categorystate?competitionId=$competitionId&categoryId=$categoryId", CategoryStateDTO::class.java)
                 })
@@ -174,8 +175,9 @@ class StateQueryService(private val clusterSession: ClusterSession,
         log.info("Getting mats for competition $competitionId and period $periodId")
         return localOrRemote(competitionId, {
             dashboardPeriodCrudRepository.findByIdOrNull(periodId)?.matIds?.map { matId ->
-                val pageRequest = PageRequest.of(0, 5, Sort.by(Sort.Direction.ASC, startTime))
-                val topFiveFights = fightCrudRepository.findByCompetitionIdAndMatId(competitionId, matId, pageRequest)?.content?.map { it.toDTO() }?.toTypedArray()
+                val pageRequest = PageRequest.of(0, 5, Sort.unsorted())
+                val topFiveFights = fightCrudRepository.findDistinctByCompetitionIdAndMatIdAndStageInAndScoresNotNullOrderByNumberOnMat(competitionId, matId,
+                        notFinished, pageRequest)?.content?.map { it.toDTO() }?.toTypedArray()
                 MatDTO()
                         .setMatId(matId)
                         .setNumberOfFights(fightCrudRepository.countByMatId(matId))
@@ -191,7 +193,8 @@ class StateQueryService(private val clusterSession: ClusterSession,
     fun getMatFights(competitionId: String, matId: String, maxResults: Int): List<FightDescriptionDTO>? {
         log.info("Getting competitors for competition $competitionId and mat $matId")
         return localOrRemote(competitionId, {
-            fightCrudRepository.findByCompetitionIdAndMatId(competitionId, matId, PageRequest.of(0, maxResults, Sort.by(Sort.Direction.ASC, startTime)))?.get()
+            val pageRequest = PageRequest.of(0, 10, Sort.unsorted())
+            fightCrudRepository.findDistinctByCompetitionIdAndMatIdAndStageInAndScoresNotNullOrderByNumberOnMat(competitionId, matId, notFinished, pageRequest)?.get()
                     ?.filter { f -> f.scores?.size == 2 && (f.scores?.all { compNotEmpty(it.competitor) } == true) }
                     ?.map { it.toDTO() }
                     ?.collect(Collectors.toList())
@@ -204,7 +207,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getCategories(competitionId: String): Array<CategoryStateDTO> {
         return localOrRemote(competitionId, {
-            categoryStateCrudRepository.findByCompetitionId(competitionId)?.filter { !it.id.isNullOrBlank() }?.map { it.toDTO() }?.toTypedArray()
+            categoryStateCrudRepository.findByCompetitionId(competitionId)?.filter { !it.id.isNullOrBlank() }?.map { it.toDTO(competitionId = competitionId) }?.toTypedArray()
         }, { it, restTemplate, _ ->
             restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/categories?competitionId=$competitionId", Array<CategoryStateDTO>::class.java)
         }) ?: emptyArray()

@@ -64,7 +64,7 @@ fun Schedule.toDTO(): ScheduleDTO = ScheduleDTO()
 fun ScheduleDTO.toEntity(getFight: (fightId: String) -> FightDescription, findCompetitor: (id: String) -> Competitor?) = Schedule(
         id = id,
         scheduleProperties = scheduleProperties.toEntity(findCompetitor),
-        periods = periods.mapNotNull { it.toEntity(scheduleProperties.competitionId, getFight, findCompetitor) }
+        periods = periods.mapNotNull { it.toEntity(scheduleProperties.competitionId, getFight, findCompetitor) }.toMutableList()
 )
 
 
@@ -181,7 +181,7 @@ fun CompScore.toDTO(): CompScoreDTO = CompScoreDTO().setScore(score.toDTO()).set
 
 fun CompetitionState.toDTO(includeCompetitors: Boolean = false, includeBrackets: Boolean = false): CompetitionStateDTO =
         CompetitionStateDTO()
-                .setCategories(categories.map { it.toDTO(includeCompetitors, includeBrackets) }.toTypedArray())
+                .setCategories(categories.map { it.toDTO(includeCompetitors, includeBrackets, id!!) }.toTypedArray())
                 .setCompetitionId(id)
                 .setDashboardState(dashboardState?.toDTO())
                 .setProperties(properties?.toDTO())
@@ -192,9 +192,9 @@ fun CompetitionStateDTO.toEntity() = this.let { dto ->
     val properties = dto.properties.toEntity()
     CompetitionState(
             id = dto.competitionId,
-            categories = emptyList(),
+            categories = mutableSetOf(),
             properties = properties,
-            schedule = Schedule(competitionId, ScheduleProperties(competitionId, emptyList()), emptyList()),
+            schedule = Schedule(competitionId, ScheduleProperties(competitionId, emptyList()), mutableListOf()),
             dashboardState = dto.dashboardState?.toEntity()
                     ?: CompetitionDashboardState(competitionId, emptySet()),
             status = dto.status
@@ -204,7 +204,7 @@ fun CompetitionStateDTO.toEntity() = this.let { dto ->
         val findCompetitor = { id: String -> allCompetitors.find { competitor -> competitor.id == id }}
         val fights = dto.categories?.flatMap { it.brackets?.fights?.toList() ?: emptyList() }?.mapNotNull { it.toEntity(findCategory)  }
                 ?: emptyList()
-        categories = dto.categories.mapNotNull { it?.toEntity(this, findCompetitor) }
+        categories = dto.categories.mapNotNull { it?.toEntity(this, findCompetitor) }.toMutableSet()
         schedule = dto.schedule?.toEntity( { fightId -> fights.first { it.id == fightId } }, findCompetitor)
                 ?: this.schedule
     }
@@ -293,8 +293,8 @@ fun Competitor.toDTO(): CompetitorDTO = CompetitorDTO()
 fun Academy.toDTO(): AcademyDTO = AcademyDTO().setId(id).setName(name)
 fun AcademyDTO.toEntity(): Academy = Academy(id, name)
 
-fun CategoryState.toDTO(includeCompetitors: Boolean = false, includeBrackets: Boolean = false): CategoryStateDTO = CategoryStateDTO().setId(id)
-        .setCompetitionId(competition?.id)
+fun CategoryState.toDTO(includeCompetitors: Boolean = false, includeBrackets: Boolean = false, competitionId: String): CategoryStateDTO = CategoryStateDTO().setId(id)
+        .setCompetitionId(competitionId)
         .setCategory(category?.toDTO())
         .setStatus(status)
         .setBrackets(if (includeBrackets) brackets?.toDTO() else null)
@@ -311,7 +311,6 @@ fun CategoryStateDTO.toEntity(competition: CompetitionState, findCompetitor: (id
     val cat = category.toEntity(competition.id!!, findCompetitor)
     return CategoryState(
         id = id,
-        competition = competition,
         category = cat,
         status = status,
         brackets = brackets?.toEntity { cat } ?: emptyBracketDescriptor(id, competitionId)
@@ -333,7 +332,7 @@ fun CategoryDescriptorDTO.toEntity(competitionId: String, findCompetitor: (id: S
 
 fun CategoryDescriptor.toDTO() = CategoryDescriptorDTO(sportsType, ageDivision.toDTO(), gender, weight.toDTO(), beltType, id, fightDuration, competitors?.mapNotNull { it.id }?.toTypedArray())
 
-fun AgeDivisionDTO.toEntity() = AgeDivision(id ?: IDGenerator.hashString(name), name, minimalAge, maximalAge)
+fun AgeDivisionDTO.toEntity() = AgeDivision(id ?: IDGenerator.hashString("$name/$minimalAge/$maximalAge"), name, minimalAge, maximalAge)
 
 fun AgeDivision.toDTO(): AgeDivisionDTO? = AgeDivisionDTO(id, name, minimalAge, maximalAge)
 

@@ -1,7 +1,6 @@
 package compman.compsrv.service.processor.event
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.jpa.brackets.BracketDescriptor
 import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.commands.payload.JsonPatch
 import compman.compsrv.model.dto.brackets.BracketType
@@ -10,9 +9,11 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.*
+import compman.compsrv.util.getPayloadAs
 import org.slf4j.LoggerFactory
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
+import javax.persistence.EntityManager
 import kotlin.math.min
 
 
@@ -21,14 +22,16 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
                              private val competitionStateCrudRepository: CompetitionStateCrudRepository,
                              private val categoryCrudRepository: CategoryStateCrudRepository,
                              private val categoryDescriptorCrudRepository: CategoryDescriptorCrudRepository,
+                             private val ageDivisionCrudRepository: AgeDivisionCrudRepository,
+                             private val weightCrudRepository: WeightCrudRepository,
                              private val competitorCrudRepository: CompetitorCrudRepository,
                              private val fightCrudRepository: FightCrudRepository,
-                             private val bracketsCrudRepository: BracketsCrudRepository) : IEventProcessor {
+                             private val bracketsCrudRepository: BracketsCrudRepository,
+                             private val entityManager: EntityManager) : IEventProcessor {
     override fun affectedEvents(): Set<EventType> {
         return setOf(
                 EventType.COMPETITOR_ADDED,
                 EventType.COMPETITOR_REMOVED,
-                EventType.COMPETITOR_UPDATED,
                 EventType.COMPETITOR_UPDATED,
                 EventType.FIGHTS_EDITOR_CHANGE_APPLIED,
                 EventType.BRACKETS_GENERATED,
@@ -137,10 +140,10 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
             fightCrudRepository.findAllById(array.map { it.fightId }).size == array.size
         }
         return if (newFights != null && allFightsExist == true) {
-            newFights.forEach { fightCrudRepository.updateStartTimeAndMatById(it.fightId, it.startTime, it.matId) }
+            newFights.forEach { fightCrudRepository.updateStartTimeAndMatAndNumberOnMatAndPeriodById(it.fightId, it.startTime, it.matId, it.fightNumber, it.periodId) }
             listOf(event)
         } else {
-            throw EventApplyingException("Fights are null or not all fights are present in the repository.", event)
+            throw EventApplyingException("Fights are null (${newFights == null}) or not all fights are present (${allFightsExist == true}) in the repository.", event)
         }
     }
 
@@ -149,11 +152,12 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
         val fights = payload?.fights
         val bracketType = payload?.bracketType
         val categoryId = event.categoryId
-        val compId = event.competitionId
         return if (fights != null && !categoryId.isNullOrBlank()) {
+            val catState = categoryCrudRepository.getOne(categoryId)
             val categories = categoryDescriptorCrudRepository.findAllById(fights.map { it.categoryId }.toSet()).groupBy { it.id }
-            bracketsCrudRepository.save(BracketDescriptor(categoryId, compId, bracketType
-                    ?: BracketType.SINGLE_ELIMINATION, fights.mapNotNull { it.toEntity { id -> categories[id]?.firstOrNull() } }.toMutableList()))
+            catState.brackets?.fights!!.clear()
+            catState.brackets?.fights!!.addAll(fights.mapNotNull { it.toEntity { id -> categories[id]?.firstOrNull() } })
+            catState.brackets?.bracketType = bracketType ?: BracketType.SINGLE_ELIMINATION
             listOf(event)
         } else {
             throw EventApplyingException("Fights are null or empty or category ID is empty.", event)
@@ -167,8 +171,14 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
             log.info("Adding category: ${event.categoryId} to competition ${event.competitionId}")
             val newState = c.toEntity(competitionState) { competitorCrudRepository.findByIdOrNull(it) }
             newState.category?.let {
-                categoryDescriptorCrudRepository.saveAndFlush(it)
-                categoryCrudRepository.save(newState)
+                val age = ageDivisionCrudRepository.save(it.ageDivision)
+                val weight = weightCrudRepository.save(it.weight)
+                val brackets = bracketsCrudRepository.save(newState.brackets!!)
+                it.ageDivision = age
+                it.weight = weight
+                newState.category = categoryDescriptorCrudRepository.save(it)
+                newState.brackets = brackets
+                competitionState.categories.add(newState)
                 listOf(event)
             } ?: emptyList()
         } else {
@@ -186,10 +196,5 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
     }
     private val log = LoggerFactory.getLogger(CategoryEventProcessor::class.java)
 
-    private fun <T> getPayloadAs(payload: String?, clazz: Class<T>): T? {
-        if (payload != null) {
-            return mapper.readValue(payload, clazz)
-        }
-        return null
-    }
+    private fun <T> getPayloadAs(payload: String?, clazz: Class<T>): T? = mapper.getPayloadAs(payload, clazz)
 }

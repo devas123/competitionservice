@@ -20,4 +20,4 @@ class Schedule(id: String,
                @OneToMany(orphanRemoval = true)
                @Cascade(org.hibernate.annotations.CascadeType.ALL)
                @JoinColumn(name = "SCHED_ID")
-               var periods: List<Period>?) : AbstractJpaPersistable<String>(id)
+               var periods: MutableList<Period>?) : AbstractJpaPersistable<String>(id)

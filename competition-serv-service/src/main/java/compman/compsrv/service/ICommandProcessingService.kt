@@ -10,9 +10,13 @@ interface ICommandProcessingService<CommandType, EventType> {
 
     fun batchApply(events: List<EventType>): List<EventType> {
         return events.filter { !duplicateCheck(it) }.fold(emptyList()) { acc, eventHolder ->
-            (acc + apply(eventHolder, isBatch = true))
+            val res = (acc + apply(eventHolder, isBatch = true))
+            flush()
+            res
         }
     }
+
+    fun flush()
 
     fun duplicateCheck(event: EventType): Boolean
 

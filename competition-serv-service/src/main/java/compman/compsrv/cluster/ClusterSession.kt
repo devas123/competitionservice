@@ -153,7 +153,8 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
             data.correlationId?.let {
                 val events = createProcessingInfoEvents(correlationId, competitionIds)
                 log.info("Executing command callback, correlation ID: $it, data: $events")
-                commandCache.commandCallback(it, events) }
+                commandCache.commandCallback(it, events)
+            }
         }
         if (competitionIds.fold(false) { acc, s -> (acc || localCompetitionIds.add(s)) }) {
             val member = MemberWithRestPort(cluster.member(), serverProperties.port)
@@ -169,16 +170,21 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
     }
 
     fun broadcastCompetitionProcessingStopped(competitionIds: Set<String>) {
+        log.info("Broadcast competition processing stopped: $competitionIds")
         localCompetitionIds.removeAll(competitionIds)
         val member = MemberWithRestPort(cluster.member(), serverProperties.port)
+        log.info("ClusterMembers now are: $clusterMembers")
+        competitionIds.forEach {
+            if (clusterMembers[it]?.id == cluster.member().id()) {
+                clusterMembers.remove(it)
+            }
+        }
+        log.info("Updated clusterMembers now are: $clusterMembers")
         val data = mapper.writeValueAsString(CompetitionProcessingMessage(member, CompetitionProcessingInfo(member, competitionIds)))
         val message = Message.withData(data)
                 .header(TYPE, COMPETITION_PROCESSING_STOPPED)
                 .sender(cluster.member().address())
                 .build()
-        cluster.members().forEach {
-            cluster.send(it, message)
-        }
         cluster.spreadGossip(message).subscribe {
             log.info("Broadcasting the following competition stopped processing info: ${cluster.member()} -> $competitionIds")
         }

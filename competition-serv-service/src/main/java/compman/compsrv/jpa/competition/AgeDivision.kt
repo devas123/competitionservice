@@ -12,5 +12,5 @@ class AgeDivision(
         var minimalAge: Int,
         var maximalAge: Int) : AbstractJpaPersistable<String>(id) {
 
-    constructor(name: String, minimalAge: Int, maximalAge: Int) : this(IDGenerator.hashString(name), name, minimalAge, maximalAge)
+    constructor(name: String, minimalAge: Int, maximalAge: Int) : this(IDGenerator.hashString("$name/$minimalAge/$maximalAge"), name, minimalAge, maximalAge)
 }
