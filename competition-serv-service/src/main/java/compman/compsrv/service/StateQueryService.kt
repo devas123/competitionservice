@@ -9,7 +9,7 @@ import compman.compsrv.jpa.competition.Competitor
 import compman.compsrv.mapping.toDTO
 import compman.compsrv.model.dto.brackets.BracketDescriptorDTO
 import compman.compsrv.model.dto.competition.*
-import compman.compsrv.model.dto.dashboard.MatDTO
+import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.repository.*
 import compman.compsrv.util.compNotEmpty
@@ -171,21 +171,22 @@ class StateQueryService(private val clusterSession: ClusterSession,
     }
 
 
-    fun getMats(competitionId: String, periodId: String): List<MatDTO>? {
+    fun getMats(competitionId: String, periodId: String): List<MatStateDTO>? {
         log.info("Getting mats for competition $competitionId and period $periodId")
         return localOrRemote(competitionId, {
-            dashboardPeriodCrudRepository.findByIdOrNull(periodId)?.matIds?.map { matId ->
+            dashboardPeriodCrudRepository.findByIdOrNull(periodId)?.mats?.map { mat ->
                 val pageRequest = PageRequest.of(0, 5, Sort.unsorted())
-                val topFiveFights = fightCrudRepository.findDistinctByCompetitionIdAndMatIdAndStageInAndScoresNotNullOrderByNumberOnMat(competitionId, matId,
+                val topFiveFights =
+                        fightCrudRepository.findDistinctByCompetitionIdAndMatIdAndStageInAndScoresNotNullOrderByNumberOnMat(competitionId, mat.id!!,
                         notFinished, pageRequest)?.content?.map { it.toDTO() }?.toTypedArray()
-                MatDTO()
-                        .setMatId(matId)
-                        .setNumberOfFights(fightCrudRepository.countByMatId(matId))
+                MatStateDTO()
+                        .setMatDescription(mat.toDTO())
+                        .setNumberOfFights(fightCrudRepository.countByMatId(mat.id!!))
                         .setTopFiveFights(topFiveFights)
             }
         },
                 { it, restTemplate, _ ->
-                    restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/mats?competitionId=$competitionId&periodId=$periodId", Array<MatDTO>::class.java)?.toList()
+                    restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/mats?competitionId=$competitionId&periodId=$periodId", Array<MatStateDTO>::class.java)?.toList()
                             ?: emptyList()
                 })
     }
@@ -215,7 +216,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getDashboardState(competitionId: String): CompetitionDashboardStateDTO? {
         return localOrRemote(competitionId, {
-            dashboardStateCrudRepository.findById(competitionId).orElse(null)?.toDTO()
+            dashboardStateCrudRepository.findById(competitionId).map { it.toDTO() }.orElse(null)
         }, { it, restTemplate, _ ->
             restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/dashboardstate?competitionId=$competitionId", CompetitionDashboardStateDTO::class.java)
         })

@@ -1,6 +1,7 @@
 package compman.compsrv.jpa.competition
 
 import compman.compsrv.jpa.AbstractJpaPersistable
+import compman.compsrv.jpa.dashboard.CompetitionDashboardState
 import compman.compsrv.jpa.schedule.Schedule
 import compman.compsrv.jpa.schedule.ScheduleProperties
 import compman.compsrv.model.dto.competition.CompetitionStatus

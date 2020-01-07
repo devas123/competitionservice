@@ -4,10 +4,14 @@ import com.compmanager.model.payment.RegistrationStatus
 import compman.compsrv.jpa.Event
 import compman.compsrv.jpa.brackets.BracketDescriptor
 import compman.compsrv.jpa.competition.*
+import compman.compsrv.jpa.dashboard.CompetitionDashboardState
+import compman.compsrv.jpa.dashboard.DashboardPeriod
+import compman.compsrv.jpa.dashboard.MatDescription
 import compman.compsrv.jpa.schedule.*
 import compman.compsrv.model.dto.brackets.BracketDescriptorDTO
 import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.dto.competition.*
+import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.*
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.service.ScheduleService
@@ -247,14 +251,18 @@ fun CompetitionProperties.toDTO(): CompetitionPropertiesDTO =
                 .setRegistrationInfo(registrationInfo.toDTO())
                 .setCreationTimestamp(creationTimestamp)
 
-fun DashboardPeriodDTO.toEntity() = DashboardPeriod(id, name, matIds?.toMutableSet(), startTime, isActive)
+fun DashboardPeriodDTO.toEntity() = DashboardPeriod(id, name, mutableListOf(), startTime, isActive)
+        .also { per -> per.mats = mats?.map { it.toEntity().apply { dashboardPeriod = per } }?.toMutableList() }
 
 fun DashboardPeriod.toDTO(): DashboardPeriodDTO = DashboardPeriodDTO()
         .setId(id)
         .setName(name)
-        .setMatIds(matIds?.toTypedArray() ?: emptyArray())
+        .setMats(mats?.map { it.toDTO() }?.toTypedArray() ?: emptyArray())
         .setStartTime(startTime)
         .setIsActive(isActive)
+
+fun MatDescription.toDTO(): MatDescriptionDTO = MatDescriptionDTO().setId(id).setName(name).setDashboardPeriodId(dashboardPeriod?.id)
+fun MatDescriptionDTO.toEntity() = MatDescription(id, name, null)
 
 fun CompetitionDashboardState.toDTO(): CompetitionDashboardStateDTO = CompetitionDashboardStateDTO()
         .setCompetitionId(id)

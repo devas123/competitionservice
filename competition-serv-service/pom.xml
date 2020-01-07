@@ -13,10 +13,25 @@
 
     <properties>
         <scalecube.version>2.2.5</scalecube.version>
+        <flyway-core.version>6.1.4</flyway-core.version>
+        <flyway-maven-plugin.version>6.1.4</flyway-maven-plugin.version>
+        <!-- Properties are prefixed with flyway. -->
+        <flyway.user>postgres</flyway.user>
+        <flyway.password>admin</flyway.password>
+        <flyway.url>jdbc:postgresql://localhost:5432/postgres?serverTimezone=UTC</flyway.url>
+<!--        <flyway.locations>/db/migration</flyway.locations>-->
+
+        <!-- List are defined as comma-separated values -->
+        <flyway.schemas>public</flyway.schemas>
+        <flyway.defaultSchema>public</flyway.defaultSchema>
     </properties>
 
     <dependencies>
-
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+            <version>${flyway-core.version}</version>
+        </dependency>
         <dependency>
             <groupId>io.arrow-kt</groupId>
             <artifactId>arrow-core</artifactId>
@@ -274,6 +289,14 @@
             </resource>
         </resources>
         <plugins>
+            <plugin>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-maven-plugin</artifactId>
+                <version>${flyway-maven-plugin.version}</version>
+                <configuration>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>
                 <artifactId>kotlin-maven-plugin</artifactId>

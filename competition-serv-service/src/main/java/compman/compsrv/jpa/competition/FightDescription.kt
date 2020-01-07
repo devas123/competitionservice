@@ -1,6 +1,7 @@
 package compman.compsrv.jpa.competition
 
 import compman.compsrv.jpa.AbstractJpaPersistable
+import compman.compsrv.jpa.dashboard.MatDescription
 import compman.compsrv.model.dto.competition.FightStage
 import org.hibernate.annotations.Cascade
 import org.hibernate.annotations.CascadeType

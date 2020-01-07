@@ -3,9 +3,10 @@ package compman.compsrv.service.processor.command
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.jpa.brackets.BracketDescriptor
-import compman.compsrv.jpa.competition.CompetitionDashboardState
+import compman.compsrv.jpa.dashboard.CompetitionDashboardState
 import compman.compsrv.jpa.competition.RegistrationInfo
-import compman.compsrv.jpa.schedule.DashboardPeriod
+import compman.compsrv.jpa.dashboard.DashboardPeriod
+import compman.compsrv.jpa.dashboard.MatDescription
 import compman.compsrv.mapping.toDTO
 import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.commands.CommandDTO
@@ -129,7 +130,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                         if (!periods.isNullOrEmpty()) {
                             val dashbPeriods = periods.map { period ->
                                 val fightsByMats = period.fightsByMats
-                                val mats = if (!fightsByMats.isNullOrEmpty()) {
+                                val matIds = if (!fightsByMats.isNullOrEmpty()) {
                                     fightsByMats.groupBy { it.id }.keys.filterNotNull().toMutableSet()
                                 } else {
                                     (0..period.numberOfMats).map { number -> IDGenerator.hashString("${command.competitionId}/${period.id}/$number") }.toMutableSet()
@@ -139,7 +140,11 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                 } else {
                                     IDGenerator.hashString("${command.competitionId}/dashboard/period/${period.name}")
                                 }
-                                DashboardPeriod(id, period.name, mats, period.startTime, false)
+                                DashboardPeriod(id, period.name, mutableListOf(), period.startTime, false).apply {
+                                    mats = matIds
+                                            .mapIndexed { index, s -> MatDescription(s, "Mat ${index + 1}", this) }
+                                            .toMutableList()
+                                }
                             }.toSet()
                             val state = CompetitionDashboardState(command.competitionId, dashbPeriods)
                             listOf(createEvent(EventType.DASHBOARD_CREATED, DashboardCreatedPayload(state.toDTO())))

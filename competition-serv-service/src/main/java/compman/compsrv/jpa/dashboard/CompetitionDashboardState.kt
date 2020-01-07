@@ -1,7 +1,7 @@
-package compman.compsrv.jpa.competition
+package compman.compsrv.jpa.dashboard
 
 import compman.compsrv.jpa.AbstractJpaPersistable
-import compman.compsrv.jpa.schedule.DashboardPeriod
+import compman.compsrv.jpa.dashboard.DashboardPeriod
 import compman.compsrv.model.dto.competition.CompetitionDashboardStateDTO
 import org.hibernate.annotations.Cascade
 import javax.persistence.Entity
