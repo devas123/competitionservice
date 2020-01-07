@@ -11,18 +11,16 @@ import javax.persistence.*
 class CategoryDescriptor(
         @Column(columnDefinition = "varchar(255)")
         var competitionId: String,
-        var sportsType: String,
-        @ManyToOne(fetch = FetchType.LAZY, optional = false, cascade = [javax.persistence.CascadeType.MERGE, javax.persistence.CascadeType.REFRESH])
-        @Cascade(CascadeType.SAVE_UPDATE)
-        @JoinColumn(name = "age_id", nullable = false)
-        var ageDivision: AgeDivision,
+        var name: String?,
+        @ManyToMany
+        @JoinTable(
+                name = "category_descriptor_restriction",
+                joinColumns = [JoinColumn(name = "category_descriptor_id")],
+                inverseJoinColumns = [ JoinColumn(name = "category_restriction_id") ]
+        )
+        @Cascade(CascadeType.SAVE_UPDATE, CascadeType.PERSIST, CascadeType.MERGE, CascadeType.REFRESH)
+        var restrictions: MutableSet<CategoryRestriction>?,
         @ManyToMany(mappedBy = "categories", fetch = FetchType.LAZY)
         var competitors: MutableSet<Competitor>?,
-        var gender: String,
-        @ManyToOne(fetch = FetchType.LAZY, cascade = [javax.persistence.CascadeType.MERGE, javax.persistence.CascadeType.REFRESH])
-        @Cascade(CascadeType.SAVE_UPDATE)
-        @JoinColumn(name = "weight_id")
-        var weight: Weight,
-        var beltType: String,
         id: String,
         var fightDuration: BigDecimal) : AbstractJpaPersistable<String>(id)

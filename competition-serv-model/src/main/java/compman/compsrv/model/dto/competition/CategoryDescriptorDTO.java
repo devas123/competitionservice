@@ -10,12 +10,9 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @Accessors(chain = true)
 public class CategoryDescriptorDTO {
-    private String sportsType;
-    private AgeDivisionDTO ageDivision;
-    private String gender;
-    private WeightDTO weight;
-    private String beltType;
+    private CategoryRestrictionDTO[] restrictions;
     private String id;
+    private String name;
     private BigDecimal fightDuration;
     private String[] competitors;
 }

@@ -120,18 +120,6 @@ create table dashboard_period_mat_ids
 
 alter table dashboard_period_mat_ids owner to postgres;
 
-create table age_division
-(
-    id varchar(255) not null
-        constraint age_division_pkey
-            primary key,
-    maximal_age integer not null,
-    minimal_age integer not null,
-    name varchar(255)
-);
-
-alter table age_division owner to postgres;
-
 create table bracket_descriptor
 (
     id varchar(255) not null
@@ -142,6 +130,20 @@ create table bracket_descriptor
 );
 
 alter table bracket_descriptor owner to postgres;
+
+create table category_restriction
+(
+    id varchar(255) not null
+        constraint category_restriction_pkey
+            primary key,
+    max_value varchar(255),
+    min_value varchar(255),
+    name varchar(255),
+    type integer,
+    unit varchar(255)
+);
+
+alter table category_restriction owner to postgres;
 
 create table competition_state
 (
@@ -392,34 +394,14 @@ create table period_properties
 
 alter table period_properties owner to postgres;
 
-create table weight
-(
-    id varchar(255) not null
-        constraint weight_pkey
-            primary key,
-    max_value numeric(19,2),
-    min_value numeric(19,2),
-    name varchar(255)
-);
-
-alter table weight owner to postgres;
-
 create table category_descriptor
 (
     id varchar(255) not null
         constraint category_descriptor_pkey
             primary key,
-    belt_type varchar(255),
     competition_id varchar(255),
     fight_duration numeric(19,2),
-    gender varchar(255),
-    sports_type varchar(255),
-    age_id varchar(255) not null
-        constraint fkk3yrif4mwbr9qh1jdrgp16lim
-            references age_division,
-    weight_id varchar(255)
-        constraint fkdttgdo28itsjoy0bu6i57hqyh
-            references weight,
+    name varchar(255),
     period_properties_id varchar(255)
         constraint fkmpbsg54mghn26gyse486xwwry
             references period_properties,
@@ -429,6 +411,20 @@ create table category_descriptor
 );
 
 alter table category_descriptor owner to postgres;
+
+create table category_descriptor_restriction
+(
+    category_descriptor_id varchar(255) not null
+        constraint fkk8wjeh0jor53tmgwqf9ksnvh
+            references category_descriptor,
+    category_restriction_id varchar(255) not null
+        constraint fkkrfbh806v4qi47vg3fatmcol0
+            references category_restriction,
+    constraint category_descriptor_restriction_pkey
+        primary key (category_descriptor_id, category_restriction_id)
+);
+
+alter table category_descriptor_restriction owner to postgres;
 
 create table category_state
 (
@@ -475,6 +471,7 @@ create table fight_description
     reason varchar(255),
     winner_id varchar(255),
     lose_fight varchar(255),
+    mat_id varchar(255),
     number_in_round integer not null,
     number_on_mat integer,
     parent_id1 varchar(255),
@@ -485,7 +482,6 @@ create table fight_description
     stage integer,
     start_time timestamp,
     win_fight varchar(255),
-    mat_id varchar(255),
     bracket_id varchar(255)
         constraint fkrgfv0m4epy75keoof9hx0nvge
             references bracket_descriptor,
@@ -547,3 +543,4 @@ create table schedule_entries
 );
 
 alter table schedule_entries owner to postgres;
+

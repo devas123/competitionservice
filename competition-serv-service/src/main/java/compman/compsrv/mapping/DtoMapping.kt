@@ -15,8 +15,6 @@ import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.*
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.service.ScheduleService
-import compman.compsrv.util.IDGenerator
-import java.math.BigDecimal
 import java.time.Instant
 import java.util.*
 
@@ -111,9 +109,9 @@ fun FightStartTimePairDTO.toEntity(fight: () -> FightDescription) = FightStartTi
 )
 
 
-fun Weight.toDTO() = WeightDTO(id!!, name, maxValue ?: BigDecimal.valueOf(200), minValue)
+fun CategoryRestriction.toDTO() = CategoryRestrictionDTO(id, type, name, minValue, maxValue, unit)
 
-fun WeightDTO.toEntity() = Weight(id, name, maxValue, minValue)
+fun CategoryRestrictionDTO.toEntity() = CategoryRestriction(id, type, name, minValue, maxValue, unit, mutableSetOf())
 
 fun Score.toDTO() = ScoreDTO(points, advantages, penalties)
 
@@ -177,7 +175,8 @@ fun FightResultDTO.toEntity() = FightResult(winnerId = winnerId, draw = draw, re
 
 fun CompScoreDTO.toEntity(findCategory: (id: String) -> CategoryDescriptor?) = CompScore(
         id = id ?: "${competitor.id}_${UUID.randomUUID()}",
-        competitor = competitor?.toEntity(findCategory) ?: throw IllegalArgumentException("Competitor must not be null."),
+        competitor = competitor?.toEntity(findCategory)
+                ?: throw IllegalArgumentException("Competitor must not be null."),
         score = score.toEntity()
 )
 
@@ -203,13 +202,15 @@ fun CompetitionStateDTO.toEntity() = this.let { dto ->
                     ?: CompetitionDashboardState(competitionId, emptySet()),
             status = dto.status
     ).apply {
-        val findCategory = { id: String -> this.categories.find { categoryState -> categoryState.id == id }?.category}
+        val findCategory = { id: String -> this.categories.find { categoryState -> categoryState.id == id }?.category }
         val allCompetitors = this.categories.flatMap { it.category?.competitors?.toList() ?: emptyList() }
-        val findCompetitor = { id: String -> allCompetitors.find { competitor -> competitor.id == id }}
-        val fights = dto.categories?.flatMap { it.brackets?.fights?.toList() ?: emptyList() }?.mapNotNull { it.toEntity(findCategory)  }
+        val findCompetitor = { id: String -> allCompetitors.find { competitor -> competitor.id == id } }
+        val fights = dto.categories?.flatMap {
+            it.brackets?.fights?.toList() ?: emptyList()
+        }?.mapNotNull { it.toEntity(findCategory) }
                 ?: emptyList()
         categories = dto.categories.mapNotNull { it?.toEntity(this, findCompetitor) }.toMutableSet()
-        schedule = dto.schedule?.toEntity( { fightId -> fights.first { it.id == fightId } }, findCompetitor)
+        schedule = dto.schedule?.toEntity({ fightId -> fights.first { it.id == fightId } }, findCompetitor)
                 ?: this.schedule
     }
 }
@@ -318,31 +319,27 @@ fun EventDTO.toEntity(): Event = Event(id, type, competitionId, correlationId, c
 fun CategoryStateDTO.toEntity(competition: CompetitionState, findCompetitor: (id: String) -> Competitor?): CategoryState {
     val cat = category.toEntity(competition.id!!, findCompetitor)
     return CategoryState(
-        id = id,
-        category = cat,
-        status = status,
-        brackets = brackets?.toEntity { cat } ?: emptyBracketDescriptor(id, competitionId)
-)}
+            id = id,
+            category = cat,
+            status = status,
+            brackets = brackets?.toEntity { cat } ?: emptyBracketDescriptor(id, competitionId)
+    )
+}
 
 
 fun CategoryDescriptorDTO.toEntity(competitionId: String, findCompetitor: (id: String) -> Competitor?) = CategoryDescriptor(
         competitionId = competitionId,
-        sportsType = sportsType ?: "BJJ", //TODO: take default value from competition
-        ageDivision = this.ageDivision!!.toEntity(),
-        gender = gender,
-        weight = weight!!.toEntity(),
-        beltType = beltType,
+        restrictions = restrictions?.mapNotNull { it.toEntity() }?.toMutableSet(),
         id = id,
         fightDuration = fightDuration,
-        competitors = competitors?.mapNotNull { findCompetitor(it) }?.toMutableSet()
+        competitors = competitors?.mapNotNull { findCompetitor(it) }?.toMutableSet(),
+        name = name
 )
 
 
-fun CategoryDescriptor.toDTO() = CategoryDescriptorDTO(sportsType, ageDivision.toDTO(), gender, weight.toDTO(), beltType, id, fightDuration, competitors?.mapNotNull { it.id }?.toTypedArray())
+fun CategoryDescriptor.toDTO(): CategoryDescriptorDTO = CategoryDescriptorDTO().setId(id).setFightDuration(fightDuration).setCompetitors(competitors?.mapNotNull { it.id }?.toTypedArray())
+        .setRestrictions(restrictions?.map { it.toDTO() }?.toTypedArray()).setName(name)
 
-fun AgeDivisionDTO.toEntity() = AgeDivision(id ?: IDGenerator.hashString("$name/$minimalAge/$maximalAge"), name, minimalAge, maximalAge)
-
-fun AgeDivision.toDTO(): AgeDivisionDTO? = AgeDivisionDTO(id, name, minimalAge, maximalAge)
 
 fun BracketDescriptorDTO.toEntity(findCategory: (id: String) -> CategoryDescriptor?) = BracketDescriptor(id, competitionId, bracketType, fights.mapNotNull { f -> f?.toEntity(findCategory) }.toMutableList())
 

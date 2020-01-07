@@ -1,8 +1,6 @@
 package compman.compsrv.service
 
-import compman.compsrv.jpa.competition.BeltType
 import compman.compsrv.jpa.competition.CategoryDescriptor
-import compman.compsrv.jpa.competition.Weight
 import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.dto.competition.AgeDivisionDTO
 import compman.compsrv.model.dto.competition.FightStage
@@ -28,7 +26,8 @@ class FightsGenerateServiceTest {
     companion object {
         const val competitionId = "UG9wZW5nYWdlbiBPcGVu"
 
-        val category = CategoryDescriptor(competitionId, "BJJ", AgeDivisionDTO.ADULT.toEntity(), mutableSetOf(), Gender.MALE.name, Weight("Light", BigDecimal.TEN), BeltType.BROWN, UUID.randomUUID().toString(), BigDecimal(8))
+//        val category = CategoryDescriptor(competitionId, "BJJ", AgeDivisionDTO.ADULT.toEntity(), mutableSetOf(), Gender.MALE.name, Weight("Light", BigDecimal.TEN), BeltType.BROWN, UUID.randomUUID().toString(), BigDecimal(8))
+        val category = CategoryGeneratorService.createCategory(8, CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.brown).toEntity(competitionId) {null}
     }
 
 

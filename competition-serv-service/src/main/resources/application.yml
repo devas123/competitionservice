@@ -8,7 +8,6 @@ spring:
     url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/postgres?serverTimezone=UTC}
     username: ${POSTGRES_USERNAME:postgres}
     password: ${POSTGRES_PASSWORD:admin}
-
   jpa:
     hibernate:
       ddl-auto: validate
@@ -49,6 +48,9 @@ spring:
         key.serializer: org.apache.kafka.common.serialization.StringSerializer
         value.serializer: org.apache.kafka.common.serialization.StringSerializer
       transaction-id-prefix: tx-
+  flyway:
+    enabled: true
+
 
 logging:
   level:

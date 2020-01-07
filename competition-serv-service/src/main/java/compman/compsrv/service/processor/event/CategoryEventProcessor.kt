@@ -13,7 +13,6 @@ import compman.compsrv.util.getPayloadAs
 import org.slf4j.LoggerFactory
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
-import javax.persistence.EntityManager
 import kotlin.math.min
 
 
@@ -22,12 +21,10 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
                              private val competitionStateCrudRepository: CompetitionStateCrudRepository,
                              private val categoryCrudRepository: CategoryStateCrudRepository,
                              private val categoryDescriptorCrudRepository: CategoryDescriptorCrudRepository,
-                             private val ageDivisionCrudRepository: AgeDivisionCrudRepository,
-                             private val weightCrudRepository: WeightCrudRepository,
+                             private val categoryRestrictionCrudRepository: CategoryRestrictionCrudRepository,
                              private val competitorCrudRepository: CompetitorCrudRepository,
                              private val fightCrudRepository: FightCrudRepository,
-                             private val bracketsCrudRepository: BracketsCrudRepository,
-                             private val entityManager: EntityManager) : IEventProcessor {
+                             private val bracketsCrudRepository: BracketsCrudRepository) : IEventProcessor {
     override fun affectedEvents(): Set<EventType> {
         return setOf(
                 EventType.COMPETITOR_ADDED,
@@ -167,15 +164,14 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
     private fun applyCategoryAddedEvent(event: EventDTO): List<EventDTO> {
         val c = getPayloadAs(event.payload, CategoryAddedPayload::class.java)?.categoryState
         val competitionState = competitionStateCrudRepository.findByIdOrNull(event.competitionId)
-        return if (c != null && event.categoryId != null && competitionState != null) {
+        return if (c != null && event.categoryId != null && competitionState != null && c.category != null
+                && !c.category.restrictions.isNullOrEmpty()) {
             log.info("Adding category: ${event.categoryId} to competition ${event.competitionId}")
             val newState = c.toEntity(competitionState) { competitorCrudRepository.findByIdOrNull(it) }
             newState.category?.let {
-                val age = ageDivisionCrudRepository.save(it.ageDivision)
-                val weight = weightCrudRepository.save(it.weight)
+                val restrictions = it.restrictions?.map { res -> categoryRestrictionCrudRepository.save(res) }
                 val brackets = bracketsCrudRepository.save(newState.brackets!!)
-                it.ageDivision = age
-                it.weight = weight
+                it.restrictions = restrictions?.toMutableSet()
                 newState.category = categoryDescriptorCrudRepository.save(it)
                 newState.brackets = brackets
                 competitionState.categories.add(newState)

@@ -3,7 +3,6 @@ package compman.compsrv.util
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.jpa.competition.CompetitionProperties
 import compman.compsrv.jpa.competition.Competitor
-import compman.compsrv.jpa.competition.Weight
 import compman.compsrv.jpa.schedule.Period
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.dto.competition.WeightDTO
@@ -47,7 +46,7 @@ fun compNotEmpty(comp: Competitor?): Boolean {
 
 fun getPeriodDuration(period: Period): BigDecimal? {
     val startTime = period.startTime.toEpochMilli()
-    val endTime = period.fightsByMats?.map { it.currentTime }?.sortedBy { it.toEpochMilli() }?.lastOrNull()?.toEpochMilli()
+    val endTime = period.fightsByMats?.map { it.currentTime }?.maxBy { it.toEpochMilli() }?.toEpochMilli()
             ?: startTime
     val durationMillis = endTime - startTime
     if (durationMillis > 0) {
