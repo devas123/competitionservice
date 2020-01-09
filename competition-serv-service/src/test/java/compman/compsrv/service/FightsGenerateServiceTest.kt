@@ -1,10 +1,7 @@
 package compman.compsrv.service
 
-import compman.compsrv.jpa.competition.CategoryDescriptor
 import compman.compsrv.mapping.toEntity
-import compman.compsrv.model.dto.competition.AgeDivisionDTO
 import compman.compsrv.model.dto.competition.FightStage
-import compman.compsrv.model.dto.competition.Gender
 import compman.compsrv.repository.CategoryDescriptorCrudRepository
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -12,7 +9,6 @@ import org.mockito.ArgumentMatchers
 import org.mockito.Mockito.`when`
 import org.mockito.Mockito.mock
 import org.mockito.junit.MockitoJUnitRunner
-import java.math.BigDecimal
 import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

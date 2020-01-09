@@ -111,6 +111,9 @@ class CategoryGeneratorService {
                 CategoryDescriptorDTO()
                         .setRestrictions(restrictions)
                         .setFightDuration(BigDecimal.valueOf(fightDuration))
+                        .apply {
+                            id = IDGenerator.categoryId(this)
+                        }
 
     }
 
