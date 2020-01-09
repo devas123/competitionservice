@@ -3,13 +3,10 @@ package compman.compsrv.jpa
 import java.io.Serializable
 import javax.persistence.Id
 import javax.persistence.MappedSuperclass
+import javax.persistence.Version
 
 @MappedSuperclass
 abstract class AbstractJpaPersistable<T : Serializable>(@Id var id: T? = null) {
-
-    companion object {
-        private val serialVersionUID = -5554308939380869754L
-    }
 
     override fun equals(other: Any?): Boolean {
         other ?: return false

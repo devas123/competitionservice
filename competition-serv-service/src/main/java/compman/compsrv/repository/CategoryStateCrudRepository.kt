@@ -3,6 +3,7 @@ package compman.compsrv.repository
 
 import compman.compsrv.jpa.competition.CategoryState
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import javax.transaction.Transactional
@@ -14,5 +15,10 @@ interface CategoryStateCrudRepository : JpaRepository<CategoryState, String> {
     fun findByIdAndCompetitionId(id: String, competitionId: String): CategoryState?
 
     @Query("SELECT * FROM category_state c WHERE c.competition_id = ?1", nativeQuery = true)
-    fun findByCompetitionId(competitionId: String): Array<CategoryState>?
+    fun findByCompetitionId(competitionId: String): Set<CategoryState>?
+
+    @Modifying
+    @Transactional(Transactional.TxType.REQUIRED)
+    @Query("DELETE FROM category_state c WHERE c.competition_id = ?1", nativeQuery = true)
+    fun deleteAllByCompetitionId(competitionId: String)
 }

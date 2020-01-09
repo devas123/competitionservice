@@ -28,6 +28,7 @@ import org.apache.kafka.test.TestUtils;
 import org.junit.rules.ExternalResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.Option;
 
 import java.io.IOException;
 import java.util.*;
@@ -83,7 +84,8 @@ public class EmbeddedSingleNodeKafkaCluster extends ExternalResource {
                 2147483647,
                 Time.SYSTEM,
                 "MetricGroup",
-                "MetricType"
+                "MetricType",
+                Option.empty()
         );
 
         Properties effectiveBrokerConfig = effectiveBrokerConfigFrom(brokerConfig, zookeeper);

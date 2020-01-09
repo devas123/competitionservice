@@ -14,9 +14,6 @@ class PromoCode(
         var competitionId: String,
         var startAt: Instant,
         var expireAt: Instant) {
-    companion object {
-        fun fromDTO(dto: PromoCodeDTO) = PromoCode(dto.id?.toLong(), dto.coefficient, dto.competitionId, dto.startAt, dto.expireAt)
-    }
 
     override fun equals(other: Any?): Boolean {
         other ?: return false
@@ -33,11 +30,4 @@ class PromoCode(
     override fun hashCode(): Int {
         return 31
     }
-
-    fun toDTO() = PromoCodeDTO()
-            .setId(id.toString())
-            .setCoefficient(coefficient)
-            .setCompetitionId(competitionId)
-            .setStartAt(startAt)
-            .setExpireAt(expireAt)
 }

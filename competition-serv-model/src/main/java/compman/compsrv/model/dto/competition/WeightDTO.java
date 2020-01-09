@@ -36,6 +36,7 @@ public class WeightDTO {
 
     @NonNull
     private String id;
+    private String name;
     @NonNull
     private BigDecimal maxValue;
     private BigDecimal minValue = BigDecimal.ZERO;

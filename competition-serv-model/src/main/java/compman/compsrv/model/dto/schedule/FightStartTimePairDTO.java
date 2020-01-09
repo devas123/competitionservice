@@ -16,4 +16,5 @@ public class FightStartTimePairDTO {
     private String matId;
     private Integer fightNumber;
     private Instant startTime;
+    private String periodId;
 }

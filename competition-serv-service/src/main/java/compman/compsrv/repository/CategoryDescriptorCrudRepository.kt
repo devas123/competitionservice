@@ -8,4 +8,6 @@ import org.springframework.stereotype.Repository
 
 @Repository
 @Primary
-interface CategoryDescriptorCrudRepository : JpaRepository<CategoryDescriptor, String>
+interface CategoryDescriptorCrudRepository : JpaRepository<CategoryDescriptor, String> {
+    fun deleteAllByCompetitionId(competitionId: String)
+}

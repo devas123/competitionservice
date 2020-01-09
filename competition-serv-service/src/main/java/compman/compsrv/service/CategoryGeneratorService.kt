@@ -1,150 +1,147 @@
 package compman.compsrv.service
 
-import compman.compsrv.jpa.competition.BeltType
-import compman.compsrv.model.dto.competition.AgeDivisionDTO
-import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
-import compman.compsrv.model.dto.competition.Gender
-import compman.compsrv.model.dto.competition.WeightDTO
+import compman.compsrv.model.dto.competition.*
+import compman.compsrv.util.IDGenerator
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.util.*
 
 @Component
 class CategoryGeneratorService {
+    companion object {
+        val bjj: CategoryRestrictionDTO = CategoryRestrictionDTO().setId(UUID.randomUUID().toString()).setType(CategoryRestrictionType.SPORTS).setName("BJJ")
+        private fun weightRestriction(name: String, maxValue: String, minValue: String = "0"): CategoryRestrictionDTO = CategoryRestrictionDTO()
+                .setId(IDGenerator.hashString("$name/$minValue/$maxValue"))
+                .setType(CategoryRestrictionType.WEIGHT)
+                .setName(name)
+                .setMaxValue(maxValue)
+                .setMinValue(minValue)
+                .setUnit("kg")
+
+        private fun ageRestriction(name: String, minValue: String, maxValue: String = minValue): CategoryRestrictionDTO = CategoryRestrictionDTO()
+                .setId(IDGenerator.hashString("$name/$minValue/$maxValue"))
+                .setType(CategoryRestrictionType.AGE)
+                .setName(name)
+                .setMaxValue(maxValue)
+                .setMinValue(minValue)
+                .setUnit("y.o.")
+
+        private fun beltRestriction(name: String): CategoryRestrictionDTO = CategoryRestrictionDTO()
+                .setId(IDGenerator.hashString(name))
+                .setType(CategoryRestrictionType.SKILL)
+                .setName(name)
+
+
+        private fun genderRestriction(name: String): CategoryRestrictionDTO = CategoryRestrictionDTO()
+                .setId(IDGenerator.hashString(name))
+                .setType(CategoryRestrictionType.GENDER)
+                .setName(name)
+
+        val male = genderRestriction("MALE")
+        val female = genderRestriction("FEMALE")
+
+        val white = beltRestriction(BeltType.WHITE.name)
+        val gray = beltRestriction(BeltType.GRAY.name)
+        val yellow = beltRestriction(BeltType.YELLOW.name)
+        val orange = beltRestriction(BeltType.ORANGE.name)
+        val green = beltRestriction(BeltType.GREEN.name)
+        val blue = beltRestriction(BeltType.BLUE.name)
+        val purple = beltRestriction(BeltType.PURPLE.name)
+        val brown = beltRestriction(BeltType.BROWN.name)
+        val black = beltRestriction(BeltType.BLACK.name)
+
+        val adult = ageRestriction(AgeDivisionDTO.ADULT, "18", "100")
+        val junior1 = ageRestriction(AgeDivisionDTO.JUNIOR_I, "10")
+        val junior2 = ageRestriction(AgeDivisionDTO.JUNIOR_II, "11")
+        val junior3 = ageRestriction(AgeDivisionDTO.JUNIOR_III, "12")
+        val juvenile1 = ageRestriction(AgeDivisionDTO.JUVENILE_I, "16")
+        val juvenile2 = ageRestriction(AgeDivisionDTO.JUVENILE_II, "17")
+        val master1 = ageRestriction(AgeDivisionDTO.MASTER_1, "30", "100")
+        val master2 = ageRestriction(AgeDivisionDTO.MASTER_2, "35", "100")
+        val master3 = ageRestriction(AgeDivisionDTO.MASTER_3, "40", "100")
+        val master4 = ageRestriction(AgeDivisionDTO.MASTER_4, "45", "100")
+        val master5 = ageRestriction(AgeDivisionDTO.MASTER_5, "50", "100")
+        val master6 = ageRestriction(AgeDivisionDTO.MASTER_6, "55", "100")
+        val mightyMite1 = ageRestriction(AgeDivisionDTO.MIGHTY_MITE_I, "4")
+        val mightyMite2 = ageRestriction(AgeDivisionDTO.MIGHTY_MITE_II, "5")
+        val mightyMite3 = ageRestriction(AgeDivisionDTO.MIGHTY_MITE_III, "6")
+        val peeWee1 = ageRestriction(AgeDivisionDTO.PEE_WEE_I, "7")
+        val peeWee2 = ageRestriction(AgeDivisionDTO.PEE_WEE_II, "8")
+        val peeWee3 = ageRestriction(AgeDivisionDTO.PEE_WEE_III, "9")
+        val teen1 = ageRestriction(AgeDivisionDTO.TEEN_I, "13")
+        val teen2 = ageRestriction(AgeDivisionDTO.TEEN_II, "14")
+        val teen3 = ageRestriction(AgeDivisionDTO.TEEN_III, "15")
+
+        val admrooster = weightRestriction(WeightDTO.ROOSTER, "57.5")
+        val admlightFeather = weightRestriction(WeightDTO.LIGHT_FEATHER, "64")
+        val admfeather = weightRestriction(WeightDTO.FEATHER, "70")
+        val admlight = weightRestriction(WeightDTO.LIGHT, "76")
+        val admmiddle = weightRestriction(WeightDTO.MIDDLE, "82.3")
+        val admmediumHeavy = weightRestriction(WeightDTO.MEDIUM_HEAVY, "88.3")
+        val admheavy = weightRestriction(WeightDTO.HEAVY, "94.3")
+        val admsuperHeavy = weightRestriction(WeightDTO.SUPER_HEAVY, "100.5")
+        val jmrooster = weightRestriction(WeightDTO.ROOSTER, "53.5")
+
+        val jmlightFeather = weightRestriction(WeightDTO.LIGHT_FEATHER, "58.5")
+        val jmfeather = weightRestriction(WeightDTO.FEATHER, "64")
+        val jmlight = weightRestriction(WeightDTO.LIGHT, "69")
+        val jmmiddle = weightRestriction(WeightDTO.MIDDLE, "74")
+        val jmmediumHeavy = weightRestriction(WeightDTO.MEDIUM_HEAVY, "79.3")
+        val jmheavy = weightRestriction(WeightDTO.HEAVY, "84.3")
+        val jmsuperHeavy = weightRestriction(WeightDTO.SUPER_HEAVY, "89.3")
+
+        val multraHeavy = weightRestriction(WeightDTO.ULTRA_HEAVY, "300")
+        val openClass = weightRestriction(WeightDTO.OPEN_CLASS, "300")
+
+        val adflightFeather = weightRestriction(WeightDTO.LIGHT_FEATHER, "53.5")
+        val adffeather = weightRestriction(WeightDTO.FEATHER, "58.5")
+        val adflight = weightRestriction(WeightDTO.LIGHT, "64")
+        val adfmiddle = weightRestriction(WeightDTO.MIDDLE, "69")
+        val adfmediumHeavy = weightRestriction(WeightDTO.MEDIUM_HEAVY, "74")
+
+        val jflightFeather = weightRestriction(WeightDTO.LIGHT_FEATHER, "48.3")
+        val jffeather = weightRestriction(WeightDTO.FEATHER, "52.5")
+        val jflight = weightRestriction(WeightDTO.LIGHT, "56.5")
+        val jfmiddle = weightRestriction(WeightDTO.MIDDLE, "60.5")
+        val jfmediumHeavy = weightRestriction(WeightDTO.MEDIUM_HEAVY, "65")
+
+        val fheavy = weightRestriction(WeightDTO.HEAVY, "300")
+
+        fun createCategory(fightDuration: Long, vararg restrictions: CategoryRestrictionDTO): CategoryDescriptorDTO =
+                CategoryDescriptorDTO()
+                        .setRestrictions(restrictions)
+                        .setFightDuration(BigDecimal.valueOf(fightDuration))
+                        .apply {
+                            id = IDGenerator.categoryId(this)
+                        }
+
+    }
+
     fun createDefaultBjjCategories(competitionId: String): List<CategoryDescriptorDTO> {
-        val adultMaleRooster = CategoryDescriptorDTO("BJJ", AgeDivisionDTO.ADULT, Gender.MALE.name, WeightDTO(WeightDTO.ROOSTER, BigDecimal("57.5")), BeltType.WHITE, UUID.randomUUID().toString(), BigDecimal(5))
-        val adultMaleLightFeather = adultMaleRooster.setWeight(WeightDTO(WeightDTO.LIGHT_FEATHER, BigDecimal("64")))
-        val adultMaleFeather = adultMaleRooster.setWeight(WeightDTO(WeightDTO.FEATHER, BigDecimal("70")))
-        val adultMaleLight = adultMaleRooster.setWeight(WeightDTO(WeightDTO.LIGHT, BigDecimal("76")))
-        val adultMaleMiddle = adultMaleRooster.setWeight(WeightDTO(WeightDTO.MIDDLE, BigDecimal("82.3")))
-        val adultMaleMiddleHeavy = adultMaleRooster.setWeight(WeightDTO(WeightDTO.MEDIUM_HEAVY, BigDecimal("88.3")))
-        val adultMaleHeavy = adultMaleRooster.setWeight(WeightDTO(WeightDTO.HEAVY, BigDecimal("94.3")))
-        val adultMaleSuperHeavy = adultMaleRooster.setWeight(WeightDTO(WeightDTO.SUPER_HEAVY, BigDecimal("100.5")))
-        val adultMaleUltraHeavy = adultMaleRooster.setWeight(WeightDTO(WeightDTO.ULTRA_HEAVY, BigDecimal("300")))
 
-        val adultFemaleRooster = CategoryDescriptorDTO("BJJ", AgeDivisionDTO.ADULT, Gender.FEMALE.name, WeightDTO(WeightDTO.ROOSTER, BigDecimal("48.5")), BeltType.WHITE, UUID.randomUUID().toString(), BigDecimal(5))
-        val adultFemaleLightFeather = adultFemaleRooster.setWeight(WeightDTO(WeightDTO.LIGHT_FEATHER, BigDecimal("53.5")))
-        val adultFemaleFeather = adultFemaleRooster.setWeight(WeightDTO(WeightDTO.FEATHER, BigDecimal("58.5")))
-        val adultFemaleLight = adultFemaleRooster.setWeight(WeightDTO(WeightDTO.LIGHT, BigDecimal("64")))
-        val adultFemaleMiddle = adultFemaleRooster.setWeight(WeightDTO(WeightDTO.MIDDLE, BigDecimal("69")))
-        val adultFemaleMiddleHeavy = adultFemaleRooster.setWeight(WeightDTO(WeightDTO.MEDIUM_HEAVY, BigDecimal("74")))
-        val adultFemaleHeavy = adultFemaleRooster.setWeight(WeightDTO(WeightDTO.HEAVY, BigDecimal("79.3")))
-        val adultFemaleSuperHeavy = adultFemaleRooster.setWeight(WeightDTO(WeightDTO.SUPER_HEAVY, BigDecimal("300")))
-
-
-        return listOf(adultMaleRooster.setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleRooster.setBeltType(BeltType.BLUE).setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleRooster.setBeltType(BeltType.PURPLE).setAgeDivision(AgeDivisionDTO.MASTER_1).setFightDuration(BigDecimal(6)),
-
-                adultMaleLightFeather.setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleLightFeather.setBeltType(BeltType.BLUE).setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleLightFeather.setBeltType(BeltType.PURPLE).setAgeDivision(AgeDivisionDTO.MASTER_1).setFightDuration(BigDecimal(6)),
-
-                adultMaleFeather.setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleFeather.setBeltType(BeltType.BLUE).setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleFeather.setBeltType(BeltType.PURPLE).setAgeDivision(AgeDivisionDTO.MASTER_1).setFightDuration(BigDecimal(6)),
-
-                adultMaleLight.setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleLight.setBeltType(BeltType.BLUE).setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleLight.setBeltType(BeltType.PURPLE).setAgeDivision(AgeDivisionDTO.MASTER_1).setFightDuration(BigDecimal(6)),
-
-                adultMaleMiddle.setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleMiddle.setBeltType(BeltType.BLUE).setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleMiddle.setBeltType(BeltType.PURPLE).setAgeDivision(AgeDivisionDTO.MASTER_1).setFightDuration(BigDecimal(6)),
-
-                adultMaleMiddleHeavy.setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleMiddleHeavy.setBeltType(BeltType.BLUE).setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleMiddleHeavy.setBeltType(BeltType.PURPLE).setAgeDivision(AgeDivisionDTO.MASTER_1).setFightDuration(BigDecimal(6)),
-
-                adultMaleHeavy.setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleHeavy.setBeltType(BeltType.BLUE).setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleHeavy.setBeltType(BeltType.PURPLE).setAgeDivision(AgeDivisionDTO.MASTER_1).setFightDuration(BigDecimal(6)),
-
-                adultMaleSuperHeavy.setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleSuperHeavy.setBeltType(BeltType.BLUE).setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleSuperHeavy.setBeltType(BeltType.PURPLE).setAgeDivision(AgeDivisionDTO.MASTER_1).setFightDuration(BigDecimal(6)),
-
-                adultMaleUltraHeavy.setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleUltraHeavy.setBeltType(BeltType.BLUE).setAgeDivision(AgeDivisionDTO.MASTER_1),
-                adultMaleUltraHeavy.setBeltType(BeltType.PURPLE).setAgeDivision(AgeDivisionDTO.MASTER_1).setFightDuration(BigDecimal(6)),
-
-                adultFemaleRooster,
-                adultFemaleRooster.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-
-                adultFemaleLightFeather,
-                adultFemaleLightFeather.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-
-                adultFemaleFeather,
-                adultFemaleFeather.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-
-                adultFemaleLight,
-                adultFemaleLight.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-
-                adultFemaleMiddle,
-                adultFemaleMiddle.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-
-                adultFemaleMiddleHeavy,
-                adultFemaleMiddleHeavy.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-
-                adultFemaleHeavy,
-                adultFemaleHeavy.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-
-                adultFemaleSuperHeavy,
-                adultFemaleSuperHeavy.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-
-                adultMaleRooster,
-                adultMaleRooster.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-                adultMaleRooster.setBeltType(BeltType.PURPLE).setFightDuration(BigDecimal(7)),
-                adultMaleRooster.setBeltType(BeltType.BROWN).setFightDuration(BigDecimal(8)),
-                adultMaleRooster.setBeltType(BeltType.BLACK).setFightDuration(BigDecimal(10)),
-
-                adultMaleLightFeather,
-                adultMaleLightFeather.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-                adultMaleLightFeather.setBeltType(BeltType.PURPLE).setFightDuration(BigDecimal(7)),
-                adultMaleLightFeather.setBeltType(BeltType.BROWN).setFightDuration(BigDecimal(8)),
-                adultMaleLightFeather.setBeltType(BeltType.BLACK).setFightDuration(BigDecimal(10)),
-
-                adultMaleFeather,
-                adultMaleFeather.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-                adultMaleFeather.setBeltType(BeltType.PURPLE).setFightDuration(BigDecimal(7)),
-                adultMaleFeather.setBeltType(BeltType.BROWN).setFightDuration(BigDecimal(8)),
-                adultMaleFeather.setBeltType(BeltType.BLACK).setFightDuration(BigDecimal(10)),
-
-                adultMaleLight,
-                adultMaleLight.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-                adultMaleLight.setBeltType(BeltType.PURPLE).setFightDuration(BigDecimal(7)),
-                adultMaleLight.setBeltType(BeltType.BROWN).setFightDuration(BigDecimal(8)),
-                adultMaleLight.setBeltType(BeltType.BLACK).setFightDuration(BigDecimal(10)),
-
-                adultMaleMiddle,
-                adultMaleMiddle.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-                adultMaleMiddle.setBeltType(BeltType.PURPLE).setFightDuration(BigDecimal(7)),
-                adultMaleMiddle.setBeltType(BeltType.BROWN).setFightDuration(BigDecimal(8)),
-                adultMaleMiddle.setBeltType(BeltType.BLACK).setFightDuration(BigDecimal(10)),
-
-                adultMaleMiddleHeavy,
-                adultMaleMiddleHeavy.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-                adultMaleMiddleHeavy.setBeltType(BeltType.PURPLE).setFightDuration(BigDecimal(7)),
-                adultMaleMiddleHeavy.setBeltType(BeltType.BROWN).setFightDuration(BigDecimal(8)),
-                adultMaleMiddleHeavy.setBeltType(BeltType.BLACK).setFightDuration(BigDecimal(10)),
-
-                adultMaleHeavy,
-                adultMaleHeavy.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-                adultMaleHeavy.setBeltType(BeltType.PURPLE).setFightDuration(BigDecimal(7)),
-                adultMaleHeavy.setBeltType(BeltType.BROWN).setFightDuration(BigDecimal(8)),
-                adultMaleHeavy.setBeltType(BeltType.BLACK).setFightDuration(BigDecimal(10)),
-
-                adultMaleSuperHeavy,
-                adultMaleSuperHeavy.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-                adultMaleSuperHeavy.setBeltType(BeltType.PURPLE).setFightDuration(BigDecimal(7)),
-                adultMaleSuperHeavy.setBeltType(BeltType.BROWN).setFightDuration(BigDecimal(8)),
-                adultMaleSuperHeavy.setBeltType(BeltType.BLACK).setFightDuration(BigDecimal(10)),
-
-                adultMaleUltraHeavy,
-                adultMaleUltraHeavy.setBeltType(BeltType.BLUE).setFightDuration(BigDecimal(6)),
-                adultMaleUltraHeavy.setBeltType(BeltType.PURPLE).setFightDuration(BigDecimal(7)),
-                adultMaleUltraHeavy.setBeltType(BeltType.BROWN).setFightDuration(BigDecimal(8)),
-                adultMaleUltraHeavy.setBeltType(BeltType.BLACK).setFightDuration(BigDecimal(10))
+        fun createMaleAdultBeltWeights(duration: Long, belt: CategoryRestrictionDTO) = listOf(
+                createCategory(duration, bjj, adult, male, admrooster, belt),
+                createCategory(duration, bjj, adult, male, admlightFeather, belt),
+                createCategory(duration, bjj, adult, male, admfeather, belt),
+                createCategory(duration, bjj, adult, male, admlight, belt),
+                createCategory(duration, bjj, adult, male, admmiddle, belt),
+                createCategory(duration, bjj, adult, male, admmediumHeavy, belt),
+                createCategory(duration, bjj, adult, male, admheavy, belt),
+                createCategory(duration, bjj, adult, male, admsuperHeavy, belt),
+                createCategory(duration, bjj, adult, male, multraHeavy, belt)
         )
+        fun createFemaleAdultBeltWeights(duration: Long, belt: CategoryRestrictionDTO) = listOf(
+                createCategory(duration, bjj, adult, female, admlightFeather, belt),
+                createCategory(duration, bjj, adult, female, admfeather, belt),
+                createCategory(duration, bjj, adult, female, admlight, belt),
+                createCategory(duration, bjj, adult, female, admmiddle, belt),
+                createCategory(duration, bjj, adult, female, admmediumHeavy, belt),
+                createCategory(duration, bjj, adult, female, admheavy, belt)
+        )
+
+        val maleAdult = createMaleAdultBeltWeights(5, white) + createMaleAdultBeltWeights(6, blue) + createMaleAdultBeltWeights(7, purple) + createMaleAdultBeltWeights(8, brown) + createMaleAdultBeltWeights(10, black)
+        val femaleAdult = createFemaleAdultBeltWeights(5, white) + createFemaleAdultBeltWeights(6, blue) + createFemaleAdultBeltWeights(7, purple) + createFemaleAdultBeltWeights(8, brown) + createFemaleAdultBeltWeights(10, black)
+
+        return maleAdult + femaleAdult
     }
 }

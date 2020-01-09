@@ -8,9 +8,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.cache.annotation.EnableCaching
 import org.springframework.context.annotation.Bean
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories
-import org.springframework.orm.jpa.JpaTransactionManager
-import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean
-import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.EnableTransactionManagement
 import org.springframework.web.filter.CommonsRequestLoggingFilter
 
@@ -25,13 +22,6 @@ class CompetitionServiceApplication {
         @JvmStatic fun main(args: Array<String>) {
             SpringApplication.run(CompetitionServiceApplication::class.java, *args)
         }
-    }
-
-    @Bean
-    fun transactionManager(entityManagerFactoryBean: LocalContainerEntityManagerFactoryBean): PlatformTransactionManager {
-        val transactionManager = JpaTransactionManager()
-        transactionManager.entityManagerFactory = entityManagerFactoryBean.getObject()
-        return transactionManager
     }
 
     @Bean

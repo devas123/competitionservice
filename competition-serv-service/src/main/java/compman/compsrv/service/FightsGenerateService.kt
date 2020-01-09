@@ -11,6 +11,7 @@ import compman.compsrv.util.IDGenerator
 import org.springframework.stereotype.Component
 import java.time.Instant
 import java.util.*
+import kotlin.math.ln
 
 @Component
 class FightsGenerateService(private val categoryCrudRepository: CategoryDescriptorCrudRepository) {
@@ -21,11 +22,14 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
         private val validChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".toCharArray()
 
         private fun generateRandomString(chars: CharArray, random: Random, length: Int): String {
-            val builder = StringBuilder()
-            for (i in 0..length) {
-                builder.append(chars[random.nextInt(chars.size)])
+            tailrec fun loop(result: StringBuilder, chars: CharArray, length: Int, random: Random): String {
+                return if (result.length >= length) {
+                    result.toString()
+                } else {
+                    loop(result.append(chars[random.nextInt(chars.size)]), chars, length, random)
+                }
             }
-            return builder.toString()
+            return loop(StringBuilder(), chars, length, random)
         }
 
         private fun generateEmail(random: Random): String {
@@ -48,8 +52,8 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                         names[random.nextInt(names.size)],
                         surnames[random.nextInt(surnames.size)],
                         Instant.now(),
-                        Academy("Academy${random.nextInt(academies)}", emptyList()).id,
-                        category.id!!,
+                        Academy(UUID.randomUUID().toString(), "Academy${random.nextInt(academies)}"),
+                        mutableSetOf(category),
                         competitionId,
                         RegistrationStatus.UNKNOWN,
                         null))
@@ -58,57 +62,8 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
         }
     }
 
-//    private fun createFakeCompetitors(size: Int, competitionId: String): List<Competitor> = Collections.nCopies(size,
-//            Competitor(email = "fake", firstName = "fake", lastName = "fake",
-//                    registrationStatus = RegistrationStatus.UNKNOWN, competitionId = competitionId,
-//                    category = Category(
-//                            ageDivision = AgeDivision("fake", Int.MIN_VALUE),
-//                            competitionId = competitionId,
-//                            categoryId = "fake",
-//                            beltType = null,
-//                            fightDuration = BigDecimal(Int.MAX_VALUE),
-//                            gender = "FAKE",
-//                            weight = null),
-//                    promo = null, academy = null, birthDate = null, userId = null))
-
-//    private fun getAbsCategoryMaxSize(absCategoryId: String, competitors: List<Competitor>?): Int {
-//        return competitors
-//                ?.filter { it.category.categoryId?.startsWith(absCategoryId) == true }
-//                ?.groupBy { it.category.categoryId }
-//                ?.map { (_, competitors: List<Competitor>) -> if (competitors.size >= 4) 4 else competitors.size }
-//                ?.reduce { size1, size2 -> size1 + size2 } ?: 0
-//    }
-
-//    private fun createAbsoluteCategoryData(competitors: List<Competitor>?, competitionId: String): Map<Category, List<Competitor>> {
-//        return competitors
-//                ?.filter { it.category.beltType?.contains("WHITE", ignoreCase = true) == false }
-//                ?.distinct()
-//                ?.map { competitor ->
-//                    val size = getAbsCategoryMaxSize(competitor.category.categoryId!!, competitors)
-//                    val absCat = competitor.category.setCategoryId("${competitor.category.categoryId}/ABSOLUTE")
-//                    if (size > 0) {
-//                        absCat to createFakeCompetitors(size, competitionId)
-//                    } else {
-//                        absCat to emptyList()
-//                    }
-//                }?.toMap()?.filter { it.value.isNotEmpty() } ?: emptyMap()
-//    }
-
-    fun generatePlayOff(competitors: List<Competitor>?, competitionId: String): List<FightDescription> = ArrayList<FightDescription>()
-            .apply {
-                competitors
-                        ?.filter { !it.categoryId.isBlank() }
-                        ?.groupBy { it.categoryId }
-                        ?.forEach { category, categoryCompetitors ->
-                            this.addAll(generateRoundsForCategory(category, ArrayList<Competitor>().apply { addAll(categoryCompetitors) }, competitionId))
-                        }
-//        createAbsoluteCategoryData(competitors, competitionId).forEach { category, categoryCompetitors ->
-//            addAll(generateRoundsForCategory(category, ArrayList<Competitor>().apply { addAll(categoryCompetitors.sortedBy { it.timestamp }) }, competitionId))
-//        }
-            }
-
-
-    fun generateRoundsForCategory(categoryId: String, competitors: MutableList<Competitor>, competitionId: String) = ArrayList<FightDescription>().apply {
+    fun generateRoundsForCategory(categoryId: String, comps: List<Competitor>, competitionId: String) = ArrayList<FightDescription>().apply {
+        val competitors = comps.toMutableList()
         if (competitors.size == 1) {
             add(FightDescription(
                     fightId = createFightId(competitionId, categoryId, 1, 0),
@@ -122,7 +77,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
         } else {
             var qualifiyngCount = 0
             nearestPowTwo(competitors.size).let { clearCompetitorsSize ->
-                (Math.log(clearCompetitorsSize.toDouble()) / Math.log(2.0)).toInt().let { rounds ->
+                (ln(clearCompetitorsSize.toDouble()) / ln(2.0)).toInt().let { rounds ->
                     if ((competitors.size and (competitors.size - 1)) != 0) {
                         qualifiyngCount = competitors.size - clearCompetitorsSize
                         addAll(fightsForRound(0, categoryId, clearCompetitorsSize, 0, competitors, competitionId)) //if need only hard counted fights in round 0  then instead of clearCompetitorsSize need to pass competitors.size-clearCompetitorsSize

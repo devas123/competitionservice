@@ -1,7 +1,8 @@
 package compman.compsrv.jpa.competition
 
 import compman.compsrv.jpa.AbstractJpaPersistable
-import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
+import org.hibernate.annotations.Cascade
+import org.hibernate.annotations.CascadeType
 import java.math.BigDecimal
 import javax.persistence.*
 
@@ -10,33 +11,18 @@ import javax.persistence.*
 class CategoryDescriptor(
         @Column(columnDefinition = "varchar(255)")
         var competitionId: String,
-        var sportsType: String,
-        @ManyToOne(fetch = FetchType.LAZY, cascade = [CascadeType.PERSIST, CascadeType.MERGE])
-        @JoinColumn(name = "age_id")
-        var ageDivision: AgeDivision,
-        var gender: String,
-        @ManyToOne(fetch = FetchType.LAZY, cascade = [CascadeType.PERSIST, CascadeType.MERGE])
-        @JoinColumn(name = "weight_id")
-        var weight: Weight,
-        var beltType: String,
+        var name: String?,
+        @ManyToMany
+        @JoinTable(
+                name = "category_descriptor_restriction",
+                joinColumns = [JoinColumn(name = "category_descriptor_id")],
+                inverseJoinColumns = [ JoinColumn(name = "category_restriction_id") ]
+        )
+        @Cascade(CascadeType.SAVE_UPDATE, CascadeType.PERSIST, CascadeType.MERGE, CascadeType.REFRESH)
+        var restrictions: MutableSet<CategoryRestriction>?,
+        @ManyToMany(mappedBy = "categories", fetch = FetchType.LAZY)
+        var competitors: MutableSet<Competitor>?,
         id: String,
-        var fightDuration: BigDecimal) : AbstractJpaPersistable<String>(id) {
-    fun toDTO(): CategoryDescriptorDTO? {
-        return CategoryDescriptorDTO(sportsType, ageDivision.toDTO(), gender, weight.toDTO(), beltType, id, fightDuration)
-    }
-
-    companion object {
-        fun fromDTO(dto: CategoryDescriptorDTO, competitionId: String): CategoryDescriptor {
-            return CategoryDescriptor(
-                    competitionId = competitionId,
-                    sportsType = dto.sportsType ?: "BJJ", //TODO: take default value from competition
-                    ageDivision = AgeDivision(dto.ageDivision.id, dto.ageDivision.minimalAge, dto.ageDivision.maximalAge),
-                    gender = dto.gender,
-                    weight = Weight(dto.weight.id, dto.weight.maxValue, dto.weight.minValue),
-                    beltType = dto.beltType,
-                    id = dto.id,
-                    fightDuration = dto.fightDuration
-            )
-        }
-    }
-}
+        var fightDuration: BigDecimal,
+        @Column(nullable = false)
+        var registrationOpen: Boolean?) : AbstractJpaPersistable<String>(id)

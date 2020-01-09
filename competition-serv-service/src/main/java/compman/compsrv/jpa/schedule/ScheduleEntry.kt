@@ -16,21 +16,4 @@ class ScheduleEntry(
         var startTime: Instant,
         var numberOfFights: Int,
         var fightDuration: BigDecimal) {
-    fun toDTO(): ScheduleEntryDTO {
-        return ScheduleEntryDTO()
-                .setCategoryId(categoryId)
-                .setStartTime(startTime)
-                .setNumberOfFights(numberOfFights)
-                .setFightDuration(fightDuration)
-    }
-
-    companion object {
-        fun fromDTO(dto: ScheduleEntryDTO) =
-                ScheduleEntry(
-                        categoryId = dto.categoryId,
-                        startTime = dto.startTime,
-                        numberOfFights = dto.numberOfFights,
-                        fightDuration = dto.fightDuration
-                )
-    }
 }

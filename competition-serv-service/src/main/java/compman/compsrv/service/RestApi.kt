@@ -1,15 +1,14 @@
 package compman.compsrv.service
 
 import compman.compsrv.cluster.ClusterMember
-import compman.compsrv.jpa.competition.FightDescription
-import compman.compsrv.jpa.schedule.Schedule
 import compman.compsrv.model.CommonResponse
 import compman.compsrv.model.PageResponse
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.dto.brackets.BracketDescriptorDTO
 import compman.compsrv.model.dto.competition.*
-import compman.compsrv.model.dto.dashboard.MatDTO
+import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
+import compman.compsrv.model.events.EventDTO
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -29,12 +28,18 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     @RequestMapping(path = ["/command/{competitionId}", "/command"], method = [RequestMethod.POST])
     fun sendCommand(@RequestBody command: CommandDTO, @PathVariable competitionId: String?): ResponseEntity<CommonResponse> {
         return try {
-            val response = commandProducer.sendCommand(command, competitionId)
+            val response = commandProducer.sendCommandAsync(command, competitionId)
             ResponseEntity(response, HttpStatus.resolve(response.status) ?: HttpStatus.OK)
         } catch (e: Exception) {
             ResponseEntity(CommonResponse(500, "Exception: ${e.message}", null), HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
+
+    @RequestMapping(path = ["/commandsync/{competitionId}", "/commandsync"], method = [RequestMethod.POST])
+    fun sendCommandSync(@RequestBody command: CommandDTO, @PathVariable competitionId: String?): ResponseEntity<Array<EventDTO>> {
+        return ResponseEntity(commandProducer.sendCommandSync(command, competitionId), HttpStatus.OK)
+    }
+
 
     @RequestMapping(path = ["/cluster/info"], method = [RequestMethod.GET])
     fun getClusterInfo(): Array<ClusterMember> = clusterInfoService.getClusterInfo()
@@ -47,7 +52,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     }
 
     @RequestMapping("/store/mats", method = [RequestMethod.GET])
-    fun getMats(@RequestParam("competitionId") competitionId: String, @RequestParam("periodId") periodId: String): List<MatDTO> {
+    fun getMats(@RequestParam("competitionId") competitionId: String, @RequestParam("periodId") periodId: String): List<MatStateDTO> {
         return stateQueryService.getMats(competitionId, periodId)?.toList() ?: emptyList()
     }
 
@@ -133,6 +138,4 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
             stateQueryService.getDashboardState(competitionId)
         }
     }
-
-    private fun fightReady(fight: FightDescription) = fight.stage != FightStage.FINISHED && fight.scores.isNotEmpty() && fight.scores.all { Schedule.compNotEmpty(it.competitor) }
 }

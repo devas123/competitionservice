@@ -19,8 +19,8 @@ public class CompetitorDTO {
     private String firstName;
     private String lastName;
     private Instant birthDate;
-    private String academy;
-    private String categoryId;
+    private AcademyDTO academy;
+    private String[] categories;
     private String competitionId;
     private String registrationStatus;
     private String promo;

@@ -4,28 +4,25 @@ import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.model.dto.brackets.BracketDescriptorDTO
 import compman.compsrv.model.dto.brackets.BracketType
+import org.hibernate.annotations.Cascade
 import java.util.*
-import javax.persistence.*
+import javax.persistence.Entity
+import javax.persistence.JoinColumn
+import javax.persistence.OneToMany
+import javax.persistence.OrderColumn
 
 @Entity
 class BracketDescriptor(
         id: String,
         var competitionId: String,
         var bracketType: BracketType,
-        @OrderColumn
-        @OneToMany(orphanRemoval = true, cascade = [CascadeType.ALL])
+        @OrderColumn(name = "fight_order")
+        @OneToMany(orphanRemoval = true)
+        @Cascade(org.hibernate.annotations.CascadeType.ALL)
         @JoinColumn(name = "bracket_id")
-        var fights: Array<FightDescription>) : AbstractJpaPersistable<String>(id) {
-
-    companion object {
-        fun fromDTO(dto: BracketDescriptorDTO) = BracketDescriptor(dto.id, dto.competitionId, dto.bracketType, dto.fights.map { FightDescription.fromDTO(it) }.toTypedArray())
-    }
+        var fights: MutableList<FightDescription>?) : AbstractJpaPersistable<String>(id) {
 
     override fun toString(): String {
-        return "BracketDescriptor(id='$id', competitionId='$competitionId', bracketType=$bracketType, fights=${Arrays.toString(fights)})"
-    }
-
-    fun toDTO(): BracketDescriptorDTO? {
-        return BracketDescriptorDTO(id, competitionId, bracketType, fights.map { it.toDTO() }.toTypedArray())
+        return "BracketDescriptor(id='$id', competitionId='$competitionId', bracketType=$bracketType, fights=${fights?.joinToString("\n")})"
     }
 }

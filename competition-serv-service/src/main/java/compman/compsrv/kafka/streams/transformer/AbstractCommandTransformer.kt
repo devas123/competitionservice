@@ -1,84 +1,55 @@
 package compman.compsrv.kafka.streams.transformer
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.dto.competition.CompetitionStateSnapshot
+import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.ErrorEventPayload
 import compman.compsrv.service.ICommandProcessingService
-import org.apache.kafka.streams.kstream.ValueTransformerWithKey
-import org.apache.kafka.streams.processor.ProcessorContext
+import compman.compsrv.util.IDGenerator
+import compman.compsrv.util.createErrorEvent
+import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.support.TransactionTemplate
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 
 abstract class AbstractCommandTransformer(
         private val commandProcessingService: ICommandProcessingService<CommandDTO, EventDTO>,
-        private val transactionTemplate: TransactionTemplate,
-        private val clusterSession: ClusterSession,
-        private val mapper: ObjectMapper) : ValueTransformerWithKey<String, CommandDTO, List<EventDTO>> {
+        private val mapper: ObjectMapper) {
 
 
     private val log = LoggerFactory.getLogger(this.javaClass)
 
-
-    private lateinit var context: ProcessorContext
-
-    private val processedEventsNumber = ConcurrentHashMap<String, Long>()
-
-    override fun init(context: ProcessorContext?) {
-        this.context = context ?: throw IllegalStateException("Context cannot be null")
-    }
-
-    abstract fun initState(id: String, timestamp: Long)
+    abstract fun initState(id: String)
     abstract fun getState(id: String): Optional<CompetitionState>
 
-    override fun transform(readOnlyKey: String, command: CommandDTO): List<EventDTO>? {
+    @Transactional(propagation = Propagation.REQUIRED)
+    open fun transform(record: ConsumerRecord<String, CommandDTO>): List<EventDTO> {
+        val command = record.value()
+        val readOnlyKey = record.key()
+        fun createErrorEvent(message: String?) = listOf(mapper.createErrorEvent(command, message))
         return try {
-            transactionTemplate.execute {
-                log.info("Processing command: $command")
-                initState(readOnlyKey, context.timestamp())
-                val validationErrors = canExecuteCommand(command)
-                when {
-                    validationErrors.isEmpty() -> {
-                        log.info("Command validated: $command")
-                        val eventsToApply = commandProcessingService.process(command)
-                        val eventsToSend = commandProcessingService.batchApply(eventsToApply)
-                        processedEventsNumber.compute(readOnlyKey) { _: String, u: Long? -> (u ?: 0) + 1 }
-                        if (processedEventsNumber.getOrDefault(readOnlyKey, 0) % 10 == 0L || eventsToSend.any { it.type == EventType.COMPETITION_CREATED }) {
-                            getState(readOnlyKey).map { newState ->
-                                CompetitionStateSnapshot(command.competitionId, clusterSession.localMemberId(), context.partition(), context.offset(),
-                                        emptySet(), emptySet(),
-                                        mapper.writeValueAsString(newState.toDTO(includeCompetitors = true, includeBrackets = true)))
-                            }
-                        }
-                        eventsToSend
-                    }
-                    else -> {
-                        log.error("Command not valid: ${validationErrors.joinToString(separator = ",")}")
-                        listOf(EventDTO()
-                                .setCategoryId(command.categoryId)
-                                .setCorrelationId(command.correlationId)
-                                .setCompetitionId(command.competitionId)
-                                .setMatId(command.matId)
-                                .setType(EventType.ERROR_EVENT)
-                                .setPayload(mapper.writeValueAsString(ErrorEventPayload(validationErrors.joinToString(separator = ","), command.correlationId))))
-                    }
+            if (command.type != CommandType.CREATE_COMPETITION_COMMAND) {
+                initState(readOnlyKey)
+            }
+            val validationErrors = canExecuteCommand(command)
+            when {
+                validationErrors.isEmpty() -> {
+                    log.info("Command validated: $command")
+                    val eventsToApply = commandProcessingService.process(command)
+                    commandProcessingService.batchApply(eventsToApply)
+                }
+                else -> {
+                    log.error("Command not valid: ${validationErrors.joinToString(separator = ",")}")
+                    createErrorEvent(validationErrors.joinToString(separator = ","))
                 }
             }
         } catch (e: Throwable) {
             log.error("Exception while processing command: ", e)
-            listOf(EventDTO()
-                    .setCategoryId(command.categoryId)
-                    .setCorrelationId(command.correlationId)
-                    .setCompetitionId(command.competitionId)
-                    .setMatId(command.matId)
-                    .setType(EventType.ERROR_EVENT)
-                    .setPayload(mapper.writeValueAsString(ErrorEventPayload(e.localizedMessage, command.correlationId))))
+            createErrorEvent(e.message)
         }
     }
 
