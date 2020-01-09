@@ -2,6 +2,7 @@ package compman.compsrv.service.processor.event
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.mapping.toEntity
+import compman.compsrv.model.commands.payload.CategoryRegistrationStatusChangePayload
 import compman.compsrv.model.commands.payload.JsonPatch
 import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.events.EventDTO
@@ -36,11 +37,13 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
                 EventType.CATEGORY_DELETED,
                 EventType.CATEGORY_BRACKETS_DROPPED,
                 EventType.CATEGORY_ADDED,
+                EventType.CATEGORY_REGISTRATION_STATUS_CHANGED,
                 EventType.COMPETITOR_CATEGORY_CHANGED)
     }
 
     override fun applyEvent(event: EventDTO): List<EventDTO> {
         return when (event.type) {
+            EventType.CATEGORY_REGISTRATION_STATUS_CHANGED -> applyCategoryRegistrationStatusChanged(event)
             EventType.COMPETITOR_ADDED -> applyCompetitorAddedEvent(event)
             EventType.COMPETITOR_REMOVED -> applyCompetitorRemovedEvent(event)
             EventType.COMPETITOR_UPDATED, EventType.COMPETITOR_CATEGORY_CHANGED -> applyCompetitorUpdatedEvent(event)
@@ -59,7 +62,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
     }
 
     private fun applyCategoryBracketsDroppedEvent(event: EventDTO): List<EventDTO> {
-        bracketsCrudRepository.deleteById(event.categoryId!!)
+        categoryCrudRepository.getOne(event.categoryId!!).brackets?.fights?.clear()
         return listOf(event)
     }
 
@@ -88,11 +91,23 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
         }
     }
 
+    private fun applyCategoryRegistrationStatusChanged(event: EventDTO): List<EventDTO> {
+        val payload = getPayloadAs(event.payload, CategoryRegistrationStatusChangePayload::class.java)
+        val newStatus = payload?.isNewStatus
+        return if (newStatus != null) {
+            val category = categoryDescriptorCrudRepository.getOne(event.categoryId)
+            category.registrationOpen = newStatus
+            listOf(event)
+        } else {
+            throw EventApplyingException("No competitor in the event payload: $event", event)
+        }
+    }
+
 
     private fun applyCompetitorRemovedEvent(event: EventDTO): List<EventDTO> {
         val competitorId = getPayloadAs(event.payload, CompetitorRemovedPayload::class.java)?.fighterId
         return if (competitorId != null) {
-            competitorCrudRepository.deleteById(competitorId)
+            categoryCrudRepository.getOne(event.categoryId).category?.competitors?.removeIf { it.id == competitorId }
             listOf(event)
         } else {
             throw EventApplyingException("Competitor id is null.", event)
@@ -151,7 +166,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
         val categoryId = event.categoryId
         return if (fights != null && !categoryId.isNullOrBlank()) {
             val catState = categoryCrudRepository.getOne(categoryId)
-            val categories = categoryDescriptorCrudRepository.findAllById(fights.map { it.categoryId }.toSet()).groupBy { it.id }
+            val categories = categoryDescriptorCrudRepository.findAllById(fights.map { it.category?.id }.toSet()).groupBy { it.id }
             catState.brackets?.fights!!.clear()
             catState.brackets?.fights!!.addAll(fights.mapNotNull { it.toEntity { id -> categories[id]?.firstOrNull() } })
             catState.brackets?.bracketType = bracketType ?: BracketType.SINGLE_ELIMINATION

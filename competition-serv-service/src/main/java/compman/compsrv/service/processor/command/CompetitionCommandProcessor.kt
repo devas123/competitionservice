@@ -251,7 +251,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 CommandType.DROP_ALL_BRACKETS_COMMAND -> {
                     val state = competitionStateCrudRepository.getOne(command.competitionId)
                     if (state.properties?.bracketsPublished != true) {
-                        listOf(createEvent(EventType.ALL_BRACKETS_DROPPED, command.payload))
+                        state.categories.map { cat -> createEvent(EventType.CATEGORY_BRACKETS_DROPPED, command.payload).setCategoryId(cat.id!!)}
                     } else {
                         listOf(createErrorEvent("Cannot drop brackets, they are already published."))
                     }

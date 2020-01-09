@@ -17,6 +17,8 @@ import javax.transaction.Transactional
 @Transactional(Transactional.TxType.SUPPORTS)
 interface FightCrudRepository : JpaRepository<FightDescription, String> {
     fun findDistinctByCompetitionIdAndCategoryId(competitionId: String, categoryId: String): List<FightDescription>?
+    @Query("select f from FightDescription f join f.scores sc where f.competitionId = ?1 and sc.competitor.id = ?2")
+    fun findByCompetitionIdAndScoresCompetitorId(competitionId: String, competitorId: String): List<FightDescription>?
     fun findByCompetitionId(competitionId: String): List<FightDescription>?
     @Query("SELECT count(*) FROM fight_description f WHERE f.category_id = ?1", nativeQuery = true)
     fun countByCategoryId(categoryId: String): Int

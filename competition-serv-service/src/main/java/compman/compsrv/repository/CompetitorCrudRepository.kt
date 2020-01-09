@@ -7,7 +7,6 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
-import java.util.*
 import javax.transaction.Transactional
 
 @Repository
@@ -22,6 +21,9 @@ interface CompetitorCrudRepository : JpaRepository<Competitor, String> {
     fun findByCompetitionId(competitionId: String, pageable: Pageable): Page<Competitor>
     @Query("select u from Competitor u join u.categories c where u.competitionId = ?1 and c.id in ?2")
     fun findByCompetitionIdAndCategoriesContaining(competitionId: String, categories: Iterable<String>, pageable: Pageable): Page<Competitor>
+
+    @Query("select count(u) from Competitor u join u.categories c where u.competitionId = ?1 and c.id in ?2")
+    fun existsByCompetitionIdAndCategoriesContaining(competitionId: String, categories: Set<String>): Boolean
 
     fun deleteAllByCompetitionId(competitionId: String)
 }

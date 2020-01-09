@@ -41,7 +41,6 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                 EventType.COMPETITION_CREATED,
                 EventType.DUMMY,
                 EventType.SCHEDULE_DROPPED,
-                EventType.ALL_BRACKETS_DROPPED,
                 EventType.SCHEDULE_GENERATED,
                 EventType.COMPETITION_PROPERTIES_UPDATED,
                 EventType.COMPETITION_STARTED,
@@ -197,10 +196,6 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                 }
                 EventType.SCHEDULE_DROPPED -> {
                     competitionStateCrudRepository.getOne(event.competitionId).schedule?.periods?.clear()
-                    listOf(event)
-                }
-                EventType.ALL_BRACKETS_DROPPED -> {
-                    bracketsCrudRepository.deleteAllByCompetitionId(event.competitionId)
                     listOf(event)
                 }
                 EventType.SCHEDULE_GENERATED ->  {

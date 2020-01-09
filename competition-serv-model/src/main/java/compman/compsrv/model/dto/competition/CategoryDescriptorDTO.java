@@ -13,6 +13,7 @@ public class CategoryDescriptorDTO {
     private CategoryRestrictionDTO[] restrictions;
     private String id;
     private String name;
+    private Boolean registrationOpen;
     private BigDecimal fightDuration;
     private String[] competitors;
 }

@@ -3,7 +3,6 @@ package compman.compsrv.model.events;
 public enum EventType {
     //Category and competition
     ERROR_EVENT,
-    ALL_BRACKETS_DROPPED,
     BRACKETS_GENERATED,
     SCHEDULE_GENERATED,
 
@@ -16,6 +15,7 @@ public enum EventType {
     CATEGORY_ADDED,
     CATEGORY_DELETED,
     CATEGORY_BRACKETS_DROPPED,
+    CATEGORY_REGISTRATION_STATUS_CHANGED,
 
     COMPETITION_STARTED,
     COMPETITION_CREATED,

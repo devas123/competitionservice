@@ -1,9 +1,6 @@
 -- create schema public;
 --
--- comment on schema public is 'standard public schema';
---
 -- alter schema public owner to postgres;
---
 
 create sequence hibernate_sequence;
 
@@ -402,6 +399,7 @@ create table category_descriptor
     competition_id varchar(255),
     fight_duration numeric(19,2),
     name varchar(255),
+    registration_open boolean not null,
     period_properties_id varchar(255)
         constraint fkmpbsg54mghn26gyse486xwwry
             references period_properties,

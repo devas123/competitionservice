@@ -23,4 +23,6 @@ class CategoryDescriptor(
         @ManyToMany(mappedBy = "categories", fetch = FetchType.LAZY)
         var competitors: MutableSet<Competitor>?,
         id: String,
-        var fightDuration: BigDecimal) : AbstractJpaPersistable<String>(id)
+        var fightDuration: BigDecimal,
+        @Column(nullable = false)
+        var registrationOpen: Boolean?) : AbstractJpaPersistable<String>(id)

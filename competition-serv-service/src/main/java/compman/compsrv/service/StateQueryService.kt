@@ -38,6 +38,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
                         private val scheduleCrudRepository: ScheduleCrudRepository,
                         private val fightCrudRepository: FightCrudRepository,
                         private val categoryStateCrudRepository: CategoryStateCrudRepository,
+                        private val categoryDescriptorCrudRepository: CategoryDescriptorCrudRepository,
                         private val competitorCrudRepository: CompetitorCrudRepository,
                         private val dashboardStateCrudRepository: DashboardStateCrudRepository,
                         private val dashboardPeriodCrudRepository: DashboardPeriodCrudRepository,
@@ -178,7 +179,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
                 val pageRequest = PageRequest.of(0, 5, Sort.unsorted())
                 val topFiveFights =
                         fightCrudRepository.findDistinctByCompetitionIdAndMatIdAndStageInAndScoresNotNullOrderByNumberOnMat(competitionId, mat.id!!,
-                        notFinished, pageRequest)?.content?.map { it.toDTO() }?.toTypedArray()
+                        notFinished, pageRequest)?.content?.map { it.toDTO{id -> categoryDescriptorCrudRepository.findByIdOrNull(id)?.toDTO()} }?.toTypedArray()
                 MatStateDTO()
                         .setMatDescription(mat.toDTO())
                         .setNumberOfFights(fightCrudRepository.countByMatId(mat.id!!))
@@ -197,7 +198,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
             val pageRequest = PageRequest.of(0, 10, Sort.unsorted())
             fightCrudRepository.findDistinctByCompetitionIdAndMatIdAndStageInAndScoresNotNullOrderByNumberOnMat(competitionId, matId, notFinished, pageRequest)?.get()
                     ?.filter { f -> f.scores?.size == 2 && (f.scores?.all { compNotEmpty(it.competitor) } == true) }
-                    ?.map { it.toDTO() }
+                    ?.map { it.toDTO{id -> categoryDescriptorCrudRepository.findByIdOrNull(id)?.toDTO()} }
                     ?.collect(Collectors.toList())
         }, { it, restTemplate, _ ->
             restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/matfights?competitionId=$competitionId&matId=$matId&maxResults=$maxResults", Array<FightDescriptionDTO>::class.java)?.toList()
@@ -216,7 +217,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getDashboardState(competitionId: String): CompetitionDashboardStateDTO? {
         return localOrRemote(competitionId, {
-            dashboardStateCrudRepository.findById(competitionId).map { it.toDTO() }.orElse(null)
+            dashboardStateCrudRepository.findByIdOrNull(competitionId)?.toDTO()
         }, { it, restTemplate, _ ->
             restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/dashboardstate?competitionId=$competitionId", CompetitionDashboardStateDTO::class.java)
         })
@@ -224,14 +225,15 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getBracketsForCompetition(competitionId: String): Array<BracketDescriptorDTO>? =
             localOrRemote(competitionId, {
-                bracketsCrudRepository.findByCompetitionId(competitionId)?.mapNotNull { it.toDTO() }?.toTypedArray()
+                bracketsCrudRepository.findByCompetitionId(competitionId)?.mapNotNull { it.toDTO { id -> categoryDescriptorCrudRepository.findByIdOrNull(id)?.toDTO() } }?.toTypedArray()
             }, { it, restTemplate, _ ->
                 restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/brackets?competitionId=$competitionId", Array<BracketDescriptorDTO>::class.java)
             })
 
     fun getBrackets(competitionId: String, categoryId: String): Array<BracketDescriptorDTO>? =
             localOrRemote(competitionId, {
-                bracketsCrudRepository.findById(categoryId).map { it.toDTO()!! }.map { arrayOf(it) }.orElse(emptyArray())
+                val category = categoryDescriptorCrudRepository.findByIdOrNull(categoryId)?.toDTO()
+                bracketsCrudRepository.findByIdOrNull(categoryId)?.toDTO{category}?.let {arrayOf(it)} ?: emptyArray()
             }, { it, restTemplate, _ ->
                 restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/brackets?competitionId=$competitionId&categoryId=$categoryId", Array<BracketDescriptorDTO>::class.java)
             })
