@@ -27,6 +27,10 @@ class CompetitionState(id: String,
                        @Cascade(org.hibernate.annotations.CascadeType.ALL)
                        @PrimaryKeyJoinColumn
                        var dashboardState: CompetitionDashboardState?,
+                       @Lob @Basic(fetch = FetchType.LAZY)
+                       var competitionInfoTemplate: ByteArray?,
+                       @Lob @Basic(fetch = FetchType.LAZY)
+                       var competitionImage: ByteArray?,
                        var status: CompetitionStatus) : AbstractJpaPersistable<String>(id), Serializable {
 
     constructor(competitionId: String, properties: CompetitionProperties) : this(
@@ -35,7 +39,10 @@ class CompetitionState(id: String,
             categories = mutableSetOf(),
             schedule = Schedule(competitionId, ScheduleProperties(competitionId, emptyList()), mutableListOf()),
             dashboardState = CompetitionDashboardState(competitionId, emptySet()),
-            status = CompetitionStatus.CREATED)
+            status = CompetitionStatus.CREATED,
+            competitionInfoTemplate = ByteArray(0),
+            competitionImage = ByteArray(0)
+            )
 
 
     fun withStatus(status: CompetitionStatus): CompetitionState {

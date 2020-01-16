@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component
 class DashboardEventProcessor(private val competitionStateCrudRepository: CompetitionStateCrudRepository,
                               private val scheduleCrudRepository: ScheduleCrudRepository,
                               private val competitorCrudRepository: CompetitorCrudRepository,
-                              private val bracketsCrudRepository: BracketsCrudRepository,
+                              private val stageDescriptorCrudRepository: StageDescriptorCrudRepository,
                               private val categoryDescriptorCrudRepository: CategoryDescriptorCrudRepository,
                               private val fightCrudRepository: FightCrudRepository,
                               private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,

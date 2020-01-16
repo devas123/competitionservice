@@ -36,7 +36,7 @@ class DashboardCommandProcessor(private val scheduleService: ScheduleService,
                                 private val categoryCrudRepository: CategoryStateCrudRepository,
                                 private val fightCrudRepository: FightCrudRepository,
                                 private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
-                                private val bracketsCrudRepository: BracketsCrudRepository,
+                                private val stageDescriptorCrudRepository: StageDescriptorCrudRepository,
                                 private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
                                 private val registrationPeriodCrudRepository: RegistrationPeriodCrudRepository,
                                 private val registrationInfoCrudRepository: RegistrationInfoCrudRepository,
@@ -71,7 +71,7 @@ class DashboardCommandProcessor(private val scheduleService: ScheduleService,
                                 val fightsToMoveOnCurrentMat = fightCrudRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStageNotInOrderByNumberOnMat(payload.currentMatId,
                                         command.competitionId, fight.numberOnMat!! + 1, listOf(FightStage.FINISHED, FightStage.IN_PROGRESS))
                                 val fightOrderChangesCurrentMat = fightsToMoveOnCurrentMat?.map {
-                                    DashboardFightOrderChange().setFightId(it.id).setNewMatId(it.matId).setNewOrderOnMat(it.numberOnMat!! - 1).setNewStartTime(it.startTime!!.minus(Duration.ofMinutes(fight.duration!!)))
+                                    DashboardFightOrderChange().setFightId(it.id).setNewMatId(it.matId).setNewOrderOnMat(it.numberOnMat!! - 1).setNewStartTime(it.startTime!!.minus(Duration.ofMinutes(fight.duration!!.toLong())))
                                 }?.collect(Collectors.toList())?.toList() ?: emptyList()
 
                                 //fights on the new mat:
@@ -80,7 +80,7 @@ class DashboardCommandProcessor(private val scheduleService: ScheduleService,
                                         command.competitionId, newOrderOnMat, listOf(FightStage.FINISHED, FightStage.IN_PROGRESS))
 
                                 val fightOrderChangesNewMat = fightsToMoveOnTheNewMat?.map {
-                                    DashboardFightOrderChange().setFightId(it.id).setNewMatId(it.matId).setNewOrderOnMat(it.numberOnMat!! + 1).setNewStartTime(it.startTime!!.plus(Duration.ofMinutes(fight.duration!!)))
+                                    DashboardFightOrderChange().setFightId(it.id).setNewMatId(it.matId).setNewOrderOnMat(it.numberOnMat!! + 1).setNewStartTime(it.startTime!!.plus(Duration.ofMinutes(fight.duration!!.toLong())))
                                 }?.collect(Collectors.toList())?.toList() ?: emptyList()
                                 val newStartTimeOfTheCurrentFight = Option.fromNullable(fightOrderChangesNewMat).flatMap { Option.fromNullable(it.firstOrNull()) }.map { f -> f.newStartTime!! }
                                         .orElse {
@@ -103,18 +103,18 @@ class DashboardCommandProcessor(private val scheduleService: ScheduleService,
                                             command.competitionId, start, end, listOf(FightStage.FINISHED, FightStage.IN_PROGRESS))
                                     val fightOrderChangesCurrentMat = fightsToMoveOnCurrentMat?.map {
                                         val newStartTime = if (sign > 0) {
-                                            it.startTime!!.plus(Duration.ofMinutes(fight.duration!!))
+                                            it.startTime!!.plus(Duration.ofMinutes(fight.duration!!.toLong()))
                                         } else {
-                                            it.startTime!!.minus(Duration.ofMinutes(fight.duration!!))
+                                            it.startTime!!.minus(Duration.ofMinutes(fight.duration!!.toLong()))
                                         }
                                         DashboardFightOrderChange().setFightId(it.id).setNewMatId(payload.newMatId).setNewOrderOnMat(it.numberOnMat!! + sign).setNewStartTime(newStartTime)
                                     }?.collect(Collectors.toList())?.toList() ?: emptyList()
 
                                     val newStartTimeOfTheCurrentFight = Option.fromNullable(fightOrderChangesCurrentMat.lastOrNull()).map { it.newStartTime }.map {
                                         if (sign > 0) {
-                                            it.minus(Duration.ofMinutes(fight.duration!!))
+                                            it.minus(Duration.ofMinutes(fight.duration!!.toLong()))
                                         } else {
-                                            it.plus(Duration.ofMinutes(fight.duration!!))
+                                            it.plus(Duration.ofMinutes(fight.duration!!.toLong()))
                                         }
                                     }.getOrElse { fight.startTime!! }
                                     val currentFightOrderChange = DashboardFightOrderChange().setFightId(fight.id).setNewMatId(payload.newMatId).setNewOrderOnMat(newOrderOnMat).setNewStartTime(newStartTimeOfTheCurrentFight)

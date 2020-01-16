@@ -1,10 +1,12 @@
 package compman.compsrv.service.processor.command
 
+import arrow.core.Either
+import arrow.core.flatMap
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
-import compman.compsrv.jpa.brackets.BracketDescriptor
-import compman.compsrv.jpa.dashboard.CompetitionDashboardState
+import compman.compsrv.jpa.brackets.StageDescriptor
 import compman.compsrv.jpa.competition.RegistrationInfo
+import compman.compsrv.jpa.dashboard.CompetitionDashboardState
 import compman.compsrv.jpa.dashboard.DashboardPeriod
 import compman.compsrv.jpa.dashboard.MatDescription
 import compman.compsrv.mapping.toDTO
@@ -13,6 +15,7 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
 import compman.compsrv.model.dto.competition.CompetitionStatus
+import compman.compsrv.model.dto.competition.RegistrationGroupDTO
 import compman.compsrv.model.dto.schedule.SchedulePropertiesDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
@@ -41,7 +44,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val competitorCrudRepository: CompetitorCrudRepository,
                                   private val categoryCrudRepository: CategoryStateCrudRepository,
                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
-                                  private val bracketsCrudRepository: BracketsCrudRepository,
+                                  private val stageDescriptorCrudRepository: StageDescriptorCrudRepository,
                                   private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
                                   private val registrationPeriodCrudRepository: RegistrationPeriodCrudRepository,
                                   private val registrationInfoCrudRepository: RegistrationInfoCrudRepository,
@@ -52,7 +55,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND,
                 CommandType.DELETE_REGISTRATION_PERIOD_COMMAND,
                 CommandType.DELETE_REGISTRATION_GROUP_COMMAND,
-                CommandType.CREATE_REGISTRATION_GROUP_COMMAND,
+                CommandType.ADD_REGISTRATION_GROUP_COMMAND,
                 CommandType.ADD_REGISTRATION_PERIOD_COMMAND,
                 CommandType.CREATE_COMPETITION_COMMAND,
                 CommandType.CREATE_DASHBOARD_COMMAND,
@@ -74,8 +77,8 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
         private val log = LoggerFactory.getLogger(CompetitionCommandProcessor::class.java)
     }
 
-    private fun getAllBrackets(competitionId: String): List<BracketDescriptor> {
-        return bracketsCrudRepository.findByCompetitionId(competitionId) ?: emptyList()
+    private fun getAllBrackets(competitionId: String): List<StageDescriptor> {
+        return stageDescriptorCrudRepository.findByCompetitionId(competitionId) ?: emptyList()
     }
 
 
@@ -164,38 +167,45 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                         emptyList()
                     }
                 }
-                CommandType.CREATE_REGISTRATION_GROUP_COMMAND -> {
+                CommandType.ADD_REGISTRATION_GROUP_COMMAND -> {
                     val payload = mapper.convertValue(command.payload, AddRegistrationGroupPayload::class.java)
-                    if (!payload.periodId.isNullOrBlank()) {
-                        val period = registrationPeriodCrudRepository.findById(payload.periodId)
-                        if (!payload.group?.displayName.isNullOrBlank() && !payload.group?.registrationInfoId.isNullOrBlank()) {
-                            val groupId = IDGenerator.hashString("${payload.periodId}/${payload.group.displayName}")
-                            val regInfoId = payload.group.registrationInfoId ?: command.competitionId
-                            val defaultGroup = Optional.ofNullable(payload.group.defaultGroup).flatMap {
-                                if (it) {
-                                    registrationGroupCrudRepository.findDefaultGroupByRegistrationInfoId(regInfoId)
+                    if (!payload.periodId.isNullOrBlank() && !payload.groups.isNullOrEmpty()) {
+                        val k = payload.groups.fold(Either.right(emptyList<RegistrationGroupDTO>()) as Either<String, List<RegistrationGroupDTO>>) { either, group ->
+                            either.flatMap {
+                                val period = registrationPeriodCrudRepository.findById(payload.periodId)
+                                if (!group?.displayName.isNullOrBlank() && !group?.registrationInfoId.isNullOrBlank()) {
+                                    val groupId = IDGenerator.hashString("${group.registrationInfoId}/${group.displayName}")
+                                    val regInfoId = group.registrationInfoId ?: command.competitionId
+                                    val defaultGroup = Optional.ofNullable(group.defaultGroup).flatMap {
+                                        if (it) {
+                                            registrationGroupCrudRepository.findDefaultGroupByRegistrationInfoIdAndIdNotEqual(regInfoId, groupId)
+                                        } else {
+                                            Optional.empty()
+                                        }
+                                    }
+                                    if (defaultGroup.isPresent) {
+                                        Either.left("There is already a default group for competition ${command.competitionId} with different id: ${defaultGroup.map { gr -> gr.displayName }.orElse("<Unknown>")}")
+                                    } else {
+                                        period.map { p ->
+                                            if (p.registrationGroups?.any { it.id == groupId } != true) {
+                                                Either.right(it + group.setId(groupId).setRegistrationInfoId(regInfoId))
+                                            } else {
+                                                Either.left("Group with id $groupId already exists")
+                                            }
+                                        }.orElse(Either.left("Cannot find period with ID: ${payload.periodId}"))
+                                    }
+
                                 } else {
-                                    Optional.empty()
+                                    Either.left("Group name is not specified ${group?.displayName}.")
                                 }
                             }
-
-                            if (defaultGroup.isPresent) {
-                                listOf(createErrorEvent("There is already a default group for competition ${command.competitionId}: ${defaultGroup.map { gr -> gr.displayName }.orElse("<Unknown>")}"))
-                            } else {
-                                period.map { p ->
-                                    if (p.registrationGroups?.any { it.id == groupId } != true) {
-                                        listOf(createEvent(EventType.REGISTRATION_GROUP_CREATED, RegistrationGroupAddedPayload(payload.periodId, payload.group.setId(groupId).setRegistrationInfoId(regInfoId))))
-                                    } else {
-                                        listOf(createErrorEvent("Group with id $groupId already exists"))
-                                    }
-                                }.orElse(listOf(createErrorEvent("Cannot find period with ID: ${payload.periodId}")))
-                            }
-
-                        } else {
-                            listOf(createErrorEvent("Group name is not specified ${payload.group?.displayName}."))
                         }
+                        k.fold({
+                            log.error(it)
+                            listOf(createErrorEvent(it))
+                        }, { listOf(createEvent(EventType.REGISTRATION_GROUP_ADDED, RegistrationGroupAddedPayload(payload.periodId, it.toTypedArray()))) })
                     } else {
-                        listOf(createErrorEvent("Period Id is not specified"))
+                        listOf(createErrorEvent("Period Id is not specified or no groups to add"))
                     }
                 }
                 CommandType.ADD_REGISTRATION_PERIOD_COMMAND -> {
@@ -251,7 +261,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 CommandType.DROP_ALL_BRACKETS_COMMAND -> {
                     val state = competitionStateCrudRepository.getOne(command.competitionId)
                     if (state.properties?.bracketsPublished != true) {
-                        state.categories.map { cat -> createEvent(EventType.CATEGORY_BRACKETS_DROPPED, command.payload).setCategoryId(cat.id!!)}
+                        state.categories.map { cat -> createEvent(EventType.CATEGORY_BRACKETS_DROPPED, command.payload).setCategoryId(cat.id!!) }
                     } else {
                         listOf(createErrorEvent("Cannot drop brackets, they are already published."))
                     }
@@ -290,8 +300,11 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                             val categoryIds = categories?.map { it.id } ?: emptyList()
                             val competitors = competitorCrudRepository.findByCompetitionIdAndCategoriesContaining(command.competitionId, categoryIds, Pageable.unpaged()).content
 
-                            val schedule = scheduleService.generateSchedule(scheduleProperties.toEntity {id -> competitors.firstOrNull { competitor -> competitor.id == id }}, getAllBrackets(scheduleProperties.competitionId), compProps.timeZone)
-                            val newFights = schedule.periods?.flatMap { period -> period.fightsByMats?.flatMap { it.fights.map { f -> f.toDTO(it.id!!).setPeriodId(period.id) } } ?: emptyList() }?.toTypedArray()
+                            val schedule = scheduleService.generateSchedule(scheduleProperties.toEntity { id -> competitors.firstOrNull { competitor -> competitor.id == id } }, getAllBrackets(scheduleProperties.competitionId), compProps.timeZone)
+                            val newFights = schedule.periods?.flatMap { period ->
+                                period.fightsByMats?.flatMap { it.fights.map { f -> f.toDTO(it.id!!).setPeriodId(period.id) } }
+                                        ?: emptyList()
+                            }?.toTypedArray()
                             val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(newFights)
 
                             listOf(createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule.toDTO())), createEvent(EventType.FIGHTS_START_TIME_UPDATED, fightStartTimeUpdatedPayload))
@@ -325,6 +338,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 }
             }
         }
+
         val events = execute(command)
         return events.mapIndexed { _, eventDTO -> eventDTO.setId(IDGenerator.uid()) }
     }

@@ -34,32 +34,6 @@ create table command_metadata_entry
 
 alter table command_metadata_entry owner to postgres;
 
-create table event_holder
-(
-    id varchar(255) not null
-        constraint event_holder_pkey
-            primary key,
-    category_id varchar(255),
-    competition_id varchar(255),
-    correlation_id varchar(255),
-    mat_id varchar(255),
-    payload text,
-    timestamp bigint not null,
-    type integer
-);
-
-alter table event_holder owner to postgres;
-
-create table event_metadata_entry
-(
-    event_metadata_id varchar(255) not null
-        constraint fk18qm96pvfutqi2ruh45tv1ach
-            references event_holder,
-    metadata_key varchar(255),
-    metadata_value varchar(255)
-);
-
-alter table event_metadata_entry owner to postgres;
 
 create table comp_scores
 (
@@ -147,6 +121,8 @@ create table competition_state
     id varchar(255) not null
         constraint competition_state_pkey
             primary key,
+    competition_image oid,
+    competition_info_template oid,
     status integer
 );
 

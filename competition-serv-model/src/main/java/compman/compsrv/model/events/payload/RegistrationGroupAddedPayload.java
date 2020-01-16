@@ -13,5 +13,5 @@ import java.io.Serializable;
 public class RegistrationGroupAddedPayload implements Serializable {
 
     private String periodId;
-    private RegistrationGroupDTO group;
+    private RegistrationGroupDTO[] groups;
 }

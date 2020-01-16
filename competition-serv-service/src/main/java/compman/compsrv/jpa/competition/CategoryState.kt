@@ -1,10 +1,8 @@
 package compman.compsrv.jpa.competition
 
 import compman.compsrv.jpa.AbstractJpaPersistable
-import compman.compsrv.jpa.brackets.BracketDescriptor
-import compman.compsrv.model.dto.competition.CategoryStateDTO
+import compman.compsrv.jpa.brackets.StageDescriptor
 import compman.compsrv.model.dto.competition.CategoryStatus
-import compman.compsrv.service.ScheduleService
 import org.hibernate.annotations.Cascade
 import org.hibernate.annotations.CascadeType
 import javax.persistence.*

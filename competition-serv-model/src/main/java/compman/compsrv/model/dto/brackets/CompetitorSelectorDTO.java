@@ -9,8 +9,11 @@ import lombok.experimental.Accessors;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-public class BracketDescriptorDTO {
+public class CompetitorSelectorDTO {
     private String id;
-    private String competitionId;
-    private StageDescriptorDTO[] stages;
+    private String applyToStageId;
+    private LogicalOperator logicalOperator;
+    private SelectorClassifier classifier;
+    private OperatorType operator;
+    private String[] selectorValue;
 }

@@ -9,8 +9,7 @@ import lombok.experimental.Accessors;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-public class BracketDescriptorDTO {
-    private String id;
-    private String competitionId;
-    private StageDescriptorDTO[] stages;
+public class ParentFightReferenceDTO {
+    private FightReferenceType referenceType;
+    private String fightId;
 }

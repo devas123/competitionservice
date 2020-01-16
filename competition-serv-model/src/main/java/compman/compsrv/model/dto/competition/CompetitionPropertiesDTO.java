@@ -27,4 +27,5 @@ public class CompetitionPropertiesDTO {
     private String timeZone;
     private RegistrationInfoDTO registrationInfo;
     private Long creationTimestamp;
+    private CompetitionStatus status;
 }

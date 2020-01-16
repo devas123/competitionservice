@@ -4,7 +4,7 @@ import compman.compsrv.cluster.ClusterMember
 import compman.compsrv.model.CommonResponse
 import compman.compsrv.model.PageResponse
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.dto.brackets.BracketDescriptorDTO
+import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
@@ -91,11 +91,14 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     @RequestMapping("/store/competitionstate", method = [RequestMethod.GET])
     fun getCompetitionState(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionState(competitionId)
 
+    @RequestMapping("/store/infotemplate", method = [RequestMethod.GET])
+    fun getCompetitionInfo(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionInfoTemplate(competitionId)
+
     @RequestMapping("/store/categories", method = [RequestMethod.GET])
     fun getCategories(@RequestParam("competitionId") competitionId: String) = stateQueryService.getCategories(competitionId)
 
     @RequestMapping("/store/brackets", method = [RequestMethod.GET])
-    fun getBrackets(@RequestParam("competitionId") competitionId: String?, @RequestParam("categoryId") categoryId: String?): Array<BracketDescriptorDTO> {
+    fun getBrackets(@RequestParam("competitionId") competitionId: String?, @RequestParam("categoryId") categoryId: String?): Array<StageDescriptorDTO> {
         return if (competitionId.isNullOrBlank() && categoryId.isNullOrBlank()) {
             log.warn("Competition id is missing.")
             emptyArray()

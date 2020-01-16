@@ -32,4 +32,5 @@ object IDGenerator {
     }/${category.fightDuration}")
 
     fun hashString(str: String) = Hashing.sha256().hashBytes("$SALT$str".toByteArray(Charsets.UTF_8)).toString()
+    fun fightId(competitionId: String, categoryId: String?, rount: Int, number: Int) = hashString("$competitionId-$categoryId-$rount-$number")
 }

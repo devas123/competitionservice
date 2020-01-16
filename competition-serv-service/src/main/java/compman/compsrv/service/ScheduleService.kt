@@ -1,7 +1,7 @@
 package compman.compsrv.service
 
 import com.compmanager.service.ServiceException
-import compman.compsrv.jpa.brackets.BracketDescriptor
+import compman.compsrv.jpa.brackets.StageDescriptor
 import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.jpa.schedule.*
 import compman.compsrv.util.IDGenerator
@@ -82,7 +82,7 @@ class ScheduleService {
                         categoryId = f.categoryId,
                         startTime = startTime,
                         numberOfFights = 1,
-                        fightDuration = BigDecimal.valueOf(f.duration ?: 0L)))
+                        fightDuration = f.duration ?: BigDecimal.ZERO))
             } else {
                 val entry = this.schedule.first { it.categoryId == f.categoryId }
                 entry.numberOfFights += 1
@@ -134,8 +134,7 @@ class ScheduleService {
 
         }
 
-        fun getFightDuration(fight: FightDescription) = (fight.duration?.let { BigDecimal.valueOf(it) }
-                ?: BigDecimal(7)).multiply(riskCoeff).plus(this.pause)
+        fun getFightDuration(fight: FightDescription) = fight.duration!!.multiply(riskCoeff).plus(this.pause)
 
         fun simulate() {
             val activeBrackets = ArrayList<BracketSimulator>()
@@ -167,11 +166,11 @@ class ScheduleService {
         }
     }
 
-    fun generateSchedule(properties: ScheduleProperties, brackets: List<BracketDescriptor>, timeZone: String): Schedule {
+    fun generateSchedule(properties: ScheduleProperties, stages: List<StageDescriptor>, timeZone: String): Schedule {
 
 
         if (!properties.periodPropertiesList.isNullOrEmpty()) {
-            val fightsByIds: Map<String, List<FightDescription>> = brackets.flatMap { it.fights?.toList() ?: emptyList() }.groupBy { it.categoryId }
+            val fightsByIds: Map<String, List<FightDescription>> = stages.flatMap { it.fights?.toList() ?: emptyList() }.groupBy { it.categoryId }
             if (fightsByIds.isEmpty()) {
                 throw ServiceException("No fights generated.")
             }

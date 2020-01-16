@@ -7,6 +7,9 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
 import compman.compsrv.model.dto.brackets.BracketType
+import compman.compsrv.model.dto.brackets.StageDescriptorDTO
+import compman.compsrv.model.dto.brackets.StageInputDescriptorDTO
+import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.model.dto.competition.CategoryStateDTO
 import compman.compsrv.model.dto.competition.CategoryStatus
 import compman.compsrv.model.dto.competition.CompetitorDTO
@@ -124,9 +127,14 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         val payload = mapper.convertValue(command.payload, GenerateBracketsPayload::class.java)
         return if (competitors.isNotEmpty() && fightCrudRepository.findDistinctByCompetitionIdAndCategoryId(command.competitionId, command.categoryId).isNullOrEmpty()) {
             val category = categoryDescriptorCrudRepository.findByIdOrNull(command.categoryId)?.toDTO()
-            val fights = fightsGenerateService.generateRoundsForCategory(command.categoryId, competitors.toMutableList(), command.competitionId)
-            listOf(createEvent(command, EventType.BRACKETS_GENERATED, BracketsGeneratedPayload(fights.map { it.toDTO { category } }.toTypedArray(), payload?.bracketType
-                    ?: BracketType.SINGLE_ELIMINATION)))
+            val fights = fightsGenerateService.generateEmptyWinnerRoundsForCategory(command.categoryId, command.competitionId, competitors.size)
+            //TODO: add fighters to fight.
+            listOf(createEvent(command, EventType.BRACKETS_GENERATED, BracketsGeneratedPayload(arrayOf(StageDescriptorDTO().setFights(fights.map { it.toDTO({ category }, { null } )}.toTypedArray())
+                    .setBracketType(payload?.bracketType
+                    ?: BracketType.SINGLE_ELIMINATION).setCompetitionId(command.competitionId).setName("Default brackets").setOrder(0)
+                    .setPointsAssignments(emptyArray())
+                    .setStageStatus(StageStatus.WAITING_FOR_APPROVAL)
+                    .setInputDescriptor(StageInputDescriptorDTO())))))
         } else {
             listOf(createErrorEvent(command, "Brackets are already generated"))
         }

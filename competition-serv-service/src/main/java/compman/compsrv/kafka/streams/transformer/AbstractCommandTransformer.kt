@@ -6,9 +6,7 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
-import compman.compsrv.model.events.payload.ErrorEventPayload
 import compman.compsrv.service.ICommandProcessingService
-import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.createErrorEvent
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
@@ -32,7 +30,7 @@ abstract class AbstractCommandTransformer(
         val readOnlyKey = record.key()
         fun createErrorEvent(message: String?) = listOf(mapper.createErrorEvent(command, message))
         return try {
-            if (command.type != CommandType.CREATE_COMPETITION_COMMAND) {
+            if (command.type != CommandType.CREATE_COMPETITION_COMMAND && command.type != CommandType.DELETE_COMPETITION_COMMAND) {
                 initState(readOnlyKey)
             }
             val validationErrors = canExecuteCommand(command)
@@ -40,7 +38,12 @@ abstract class AbstractCommandTransformer(
                 validationErrors.isEmpty() -> {
                     log.info("Command validated: $command")
                     val eventsToApply = commandProcessingService.process(command)
-                    commandProcessingService.batchApply(eventsToApply)
+                    if (eventsToApply.any { it.type == EventType.ERROR_EVENT }) {
+                        log.info("There were errors while processing the command. Returning error events.")
+                        eventsToApply.filter { it.type == EventType.ERROR_EVENT }
+                    } else {
+                        commandProcessingService.batchApply(eventsToApply)
+                    }
                 }
                 else -> {
                     log.error("Command not valid: ${validationErrors.joinToString(separator = ",")}")
