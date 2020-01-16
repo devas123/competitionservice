@@ -32,5 +32,5 @@ class CompetitorResult(id: String?,
                        var round: Int?,
                        var place: Int?,
                        var groupId: String?,
-                       @ManyToMany(mappedBy = "competitors")
+                       @ManyToMany(mappedBy = "competitorResults")
                        var stageResultDescriptors: MutableSet<StageResultDescriptor>) : AbstractJpaPersistable<String>(id)

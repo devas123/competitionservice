@@ -131,7 +131,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
             //TODO: add fighters to fight.
             listOf(createEvent(command, EventType.BRACKETS_GENERATED, BracketsGeneratedPayload(arrayOf(StageDescriptorDTO().setFights(fights.map { it.toDTO({ category }, { null } )}.toTypedArray())
                     .setBracketType(payload?.bracketType
-                    ?: BracketType.SINGLE_ELIMINATION).setCompetitionId(command.competitionId).setName("Default brackets").setOrder(0)
+                    ?: BracketType.SINGLE_ELIMINATION).setCompetitionId(command.competitionId).setName("Default brackets").setStageOrder(0)
                     .setPointsAssignments(emptyArray())
                     .setStageStatus(StageStatus.WAITING_FOR_APPROVAL)
                     .setInputDescriptor(StageInputDescriptorDTO())))))

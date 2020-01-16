@@ -382,7 +382,7 @@ fun StageDescriptorDTO.toEntity(findCategory: (id: String) -> CategoryDescriptor
         bracketType = bracketType,
         fights = fights?.mapNotNull { f -> f?.toEntity(findCategory) }?.toMutableList(),
         name = name,
-        order = order,
+        stageOrder = stageOrder,
         inputDescriptor = inputDescriptor?.toEntity(),
         pointsAssignments = pointsAssignments?.map { it.toEntity() }?.toMutableSet(),
         stageResultDescriptor = stageResultDescriptor?.toEntity(findCompetitor),
@@ -397,7 +397,7 @@ fun StageDescriptor.toDTO(getCategory: (id: String) -> CategoryDescriptorDTO?, g
         .setFights(fights?.map { it.toDTO(getCategory, getMat) }?.toTypedArray())
         .setInputDescriptor(inputDescriptor?.toDTO())
         .setName(name)
-        .setOrder(order)
+        .setStageOrder(stageOrder)
         .setPointsAssignments(pointsAssignments?.map { it.toDTO() }?.toTypedArray())
         .setStageResultDescriptor(stageResultDescriptor?.toDTO())
         .setStageStatus(stageStatus)

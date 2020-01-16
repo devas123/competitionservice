@@ -17,7 +17,7 @@ class StageDescriptor(
         var bracketType: BracketType,
         var stageType: StageType?,
         var stageStatus: StageStatus?,
-        var order: Long?,
+        var stageOrder: Long?,
         var waitForPrevious: Boolean?,
         @OneToMany(orphanRemoval = true)
         @Cascade(CascadeType.ALL)

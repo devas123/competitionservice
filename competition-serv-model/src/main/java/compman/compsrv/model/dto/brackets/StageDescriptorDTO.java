@@ -21,6 +21,6 @@ public class StageDescriptorDTO {
     private PointsAssignmentDescriptorDTO[] pointsAssignments;
     private StageResultDescriptorDTO stageResultDescriptor;
     private StageInputDescriptorDTO inputDescriptor;
-    private Long order;
+    private Long stageOrder;
     private Boolean waitForPrevious;
 }
