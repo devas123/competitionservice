@@ -10,6 +10,5 @@ import javax.transaction.Transactional
 @Transactional(Transactional.TxType.SUPPORTS)
 interface StageDescriptorCrudRepository : JpaRepository<StageDescriptor, String> {
     fun findByCompetitionId(competitionId: String): List<StageDescriptor>?
-
     fun deleteAllByCompetitionId(competitionId: String)
 }

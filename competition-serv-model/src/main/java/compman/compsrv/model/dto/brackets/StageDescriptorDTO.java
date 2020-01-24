@@ -13,6 +13,7 @@ import lombok.experimental.Accessors;
 public class StageDescriptorDTO {
     private String id;
     private String name;
+    private String categoryId;
     private String competitionId;
     private BracketType bracketType;
     private StageType stageType;
@@ -21,6 +22,7 @@ public class StageDescriptorDTO {
     private PointsAssignmentDescriptorDTO[] pointsAssignments;
     private StageResultDescriptorDTO stageResultDescriptor;
     private StageInputDescriptorDTO inputDescriptor;
-    private Long stageOrder;
+    private Integer stageOrder;
     private Boolean waitForPrevious;
+    private Boolean hasThirdPlaceFight;
 }

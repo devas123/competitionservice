@@ -382,13 +382,17 @@ create table stage_descriptor
     id varchar(255) not null
         constraint stage_descriptor_pkey
             primary key,
+    category_id varchar(255)
+        constraint stage_descriptor_category_id_fkey
+            references category_descriptor,
     bracket_type integer,
     competition_id varchar(255),
     name varchar(255),
-    stage_order bigint,
+    stage_order integer,
     stage_status integer,
     stage_type integer,
     wait_for_previous boolean,
+    has_third_place_fight boolean,
     brackets_id varchar(255)
         constraint fk3gxuyn45r1t81qshw89xuicub
             references bracket_descriptor
@@ -409,7 +413,7 @@ create table fight_description
             references competition_properties,
     duration numeric(19,2),
     fight_name varchar(255),
-    fighter_id varchar(255),
+    winner_id varchar(255),
     reason varchar(255),
     result_type integer,
     lose_fight varchar(255),
@@ -446,7 +450,7 @@ create table comp_score
     compscore_competitor_id varchar(255) not null
         constraint fkiuy2929idw7lx296op7w8govx
             references competitor,
-    comp_score_id varchar(255)
+    compscore_fight_description_id      varchar(255)
         constraint fk5jdsq3wdtfltdvjb7hmmqu497
             references fight_description,
     comp_score_order integer

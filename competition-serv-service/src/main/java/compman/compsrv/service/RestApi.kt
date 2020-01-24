@@ -47,8 +47,9 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
 
     @RequestMapping("/store/categorystate", method = [RequestMethod.GET])
     fun getCategoryState(@RequestParam("competitionId") competitionId: String, @RequestParam("categoryId") categoryId: String): Any? {
-        return stateQueryService.getCategoryState(
+        val state = stateQueryService.getCategoryState(
                 competitionId, categoryId)
+        return state?.setBrackets(state.brackets?.setStages(state.brackets.stages?.map { it.setFights(emptyArray()) }?.toTypedArray()))
     }
 
     @RequestMapping("/store/mats", method = [RequestMethod.GET])
@@ -59,6 +60,11 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     @RequestMapping("/store/matfights", method = [RequestMethod.GET])
     fun getMatFights(@RequestParam("competitionId") competitionId: String, @RequestParam("matId") matId: String, @RequestParam("maxResults") maxResults: Int): List<FightDescriptionDTO> {
         return stateQueryService.getMatFights(competitionId, matId, maxResults)?.toList() ?: emptyList()
+    }
+
+    @RequestMapping("/store/stagefights", method = [RequestMethod.GET])
+    fun getStageFights(@RequestParam("competitionId") competitionId: String, @RequestParam("stageId") stageId: String): List<FightDescriptionDTO> {
+        return stateQueryService.getStageFights(competitionId, stageId)?.toList() ?: emptyList()
     }
 
     @RequestMapping("/store/competitors", method = [RequestMethod.GET])

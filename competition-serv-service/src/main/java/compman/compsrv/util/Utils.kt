@@ -41,7 +41,7 @@ fun compNotEmpty(comp: Competitor?): Boolean {
     if (comp == null) return false
     val firstName = comp.firstName
     val lastName = comp.lastName
-    return firstName.trim().isNotEmpty() && lastName.trim().isNotEmpty()
+    return firstName?.trim().isNotEmpty() && lastName?.trim().isNotEmpty()
 }
 
 fun getPeriodDuration(period: Period): BigDecimal? {

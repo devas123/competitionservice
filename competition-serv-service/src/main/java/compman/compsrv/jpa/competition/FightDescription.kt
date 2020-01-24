@@ -21,7 +21,7 @@ class FightDescription(id: String,
                        @OrderColumn(name = "comp_score_order")
                        @OneToMany(orphanRemoval = true, fetch = FetchType.LAZY)
                        @Cascade(CascadeType.ALL)
-                       @JoinColumn(name = "comp_score_id")
+                       @JoinColumn(name = "compscore_fight_description_id")
                        var scores: MutableList<CompScore>?,
                        @Embedded
                        @AttributeOverrides(
@@ -144,10 +144,7 @@ class FightDescription(id: String,
         if (competitor.id == "fake") {
             return this
         }
-        var localScores = scores
-        if (localScores == null) {
-            localScores = mutableListOf()
-        }
+        val localScores = mutableListOf<CompScore>().apply { scores?.toList() ?. let { this.addAll(it) } }
         if (localScores.size < 2) {
             localScores.add(CompScore(competitor, Score()))
         } else {

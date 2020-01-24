@@ -7,6 +7,6 @@ import javax.persistence.Embeddable
 
 @Embeddable
 @Access(AccessType.FIELD)
-class FightResult(var fighterId: String?,
+class FightResult(var winnerId: String?,
                   var resultType: CompetitorResultType?,
                   var reason: String?)

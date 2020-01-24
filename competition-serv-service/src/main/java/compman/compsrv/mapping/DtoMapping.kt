@@ -170,11 +170,11 @@ fun PromoCode.toDTO(): PromoCodeDTO = PromoCodeDTO()
 
 fun PromoCodeDTO.toEntity() = PromoCode(id?.toLong(), coefficient, competitionId, startAt, expireAt)
 
-fun FightResult.toDTO(): FightResultDTO = FightResultDTO().setResultType(resultType).setReason(reason).setWinnerId(fighterId)
-fun FightResultDTO.toEntity() = FightResult(fighterId = winnerId, resultType = resultType, reason = winnerId)
+fun FightResult.toDTO(): FightResultDTO = FightResultDTO().setResultType(resultType).setReason(reason).setWinnerId(winnerId)
+fun FightResultDTO.toEntity() = FightResult(winnerId = winnerId, resultType = resultType, reason = reason)
 
 fun CompScoreDTO.toEntity(findCategory: (id: String) -> CategoryDescriptor?) = CompScore(
-        id = id ?: "${competitor.id}_${UUID.randomUUID()}",
+        id = id ?: IDGenerator.compScoreId(competitor.id),
         competitor = competitor?.toEntity(findCategory)
                 ?: throw IllegalArgumentException("Competitor must not be null."),
         score = score.toEntity()
@@ -388,7 +388,9 @@ fun StageDescriptorDTO.toEntity(findCategory: (id: String) -> CategoryDescriptor
         stageResultDescriptor = stageResultDescriptor?.toEntity(findCompetitor),
         stageStatus = stageStatus,
         stageType = stageType,
-        waitForPrevious = waitForPrevious)
+        hasThirdPlaceFight = hasThirdPlaceFight,
+        waitForPrevious = waitForPrevious,
+        categoryId = categoryId)
 
 fun StageDescriptor.toDTO(getCategory: (id: String) -> CategoryDescriptorDTO?, getMat: (id: String?) -> MatDescriptionDTO?): StageDescriptorDTO = StageDescriptorDTO()
         .setId(id)
@@ -403,6 +405,8 @@ fun StageDescriptor.toDTO(getCategory: (id: String) -> CategoryDescriptorDTO?, g
         .setStageStatus(stageStatus)
         .setWaitForPrevious(waitForPrevious)
         .setStageType(stageType)
+        .setHasThirdPlaceFight(hasThirdPlaceFight)
+        .setCategoryId(categoryId)
 
 
 fun ParentFightReferenceDTO.toEntity() = ParentFightReference(referenceType, fightId)
@@ -420,8 +424,8 @@ fun FightDescriptionDTO.toEntity(findCategory: (id: String) -> CategoryDescripto
         loseFight = loseFight,
         scores = scores?.mapNotNull { it?.toEntity(findCategory) }?.toMutableList()
                 ?: mutableListOf(),
-        parentId1 = parentId1.toEntity(),
-        parentId2 = parentId2.toEntity(),
+        parentId1 = parentId1?.toEntity(),
+        parentId2 = parentId2?.toEntity(),
         duration = duration,
         round = round,
         stage = stage,

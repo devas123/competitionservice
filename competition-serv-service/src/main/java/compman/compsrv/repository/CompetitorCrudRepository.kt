@@ -23,7 +23,7 @@ interface CompetitorCrudRepository : JpaRepository<Competitor, String> {
     fun findByCompetitionIdAndCategoriesContaining(competitionId: String, categories: Iterable<String>, pageable: Pageable): Page<Competitor>
 
     @Query("select count(u) from Competitor u join u.categories c where u.competitionId = ?1 and c.id in ?2")
-    fun existsByCompetitionIdAndCategoriesContaining(competitionId: String, categories: Set<String>): Boolean
+    fun countByCompetitionIdAndCategoriesContaining(competitionId: String, categories: Set<String>): Long
 
     fun deleteAllByCompetitionId(competitionId: String)
 }

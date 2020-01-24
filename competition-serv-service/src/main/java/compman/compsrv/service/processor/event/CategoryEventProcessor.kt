@@ -168,7 +168,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
             val catState = categoryCrudRepository.getOne(categoryId)
             val categories = categoryDescriptorCrudRepository.findAllById(allFights.map { it.category?.id }.toSet()).groupBy { it.id }
             catState.brackets?.stages!!.clear()
-            catState.brackets?.stages!!.addAll(stages.mapNotNull { it.toEntity ({ id -> categories[id]?.firstOrNull() }, {id -> competitorCrudRepository?.findByIdOrNull(id)}) })
+            catState.brackets?.stages!!.addAll(stages.mapNotNull { it.toEntity ({ id -> categories[id]?.firstOrNull() }, {id -> competitorCrudRepository.findByIdOrNull(id)}) })
             listOf(event)
         } else {
             throw EventApplyingException("Fights are null or empty or category ID is empty.", event)

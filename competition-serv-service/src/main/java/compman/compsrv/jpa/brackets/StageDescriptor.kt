@@ -14,11 +14,14 @@ class StageDescriptor(
         id: String,
         var name: String,
         var competitionId: String,
+        @Column(columnDefinition = "VARCHAR(255) REFERENCES category_descriptor(id)")
+        var categoryId: String,
         var bracketType: BracketType,
         var stageType: StageType?,
         var stageStatus: StageStatus?,
-        var stageOrder: Long?,
+        var stageOrder: Int?,
         var waitForPrevious: Boolean?,
+        var hasThirdPlaceFight: Boolean?,
         @OneToMany(orphanRemoval = true)
         @Cascade(CascadeType.ALL)
         @JoinColumn(name = "stage_id")

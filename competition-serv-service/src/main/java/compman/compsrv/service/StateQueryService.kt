@@ -55,7 +55,6 @@ class StateQueryService(private val clusterSession: ClusterSession,
     private val notFinished = listOf(FightStage.PENDING, FightStage.IN_PROGRESS, FightStage.GET_READY, FightStage.PAUSED)
 
 
-
     private fun getLocalCompetitors(competitionId: String, categoryId: String?, searchString: String?, pageSize: Int, page: Int): Page<CompetitorDTO> {
         val pageNumber = max(page - 1, 0)
         return if (!searchString.isNullOrBlank()) {
@@ -201,7 +200,10 @@ class StateQueryService(private val clusterSession: ClusterSession,
                 val matDescrDto = mat.toDTO()
                 val topFiveFights =
                         fightCrudRepository.findDistinctByCompetitionIdAndMatIdAndStageInAndScoresNotNullOrderByNumberOnMat(competitionId, mat.id!!,
-                        notFinished, pageRequest)?.content?.map { it.toDTO(getCategory, {matDescrDto}) }?.toTypedArray()
+                                notFinished, pageRequest)?.content
+                                ?.filter { f -> f.scores?.size == 2 && (f.scores?.all { compNotEmpty(it.competitor) } == true) }
+                                ?.map { it.toDTO(getCategory, { matDescrDto }) }
+                                ?.toTypedArray()
                 MatStateDTO()
                         .setMatDescription(matDescrDto)
                         .setNumberOfFights(fightCrudRepository.countByMatId(mat.id!!))
@@ -220,12 +222,24 @@ class StateQueryService(private val clusterSession: ClusterSession,
             val pageRequest = PageRequest.of(0, 10, Sort.unsorted())
             fightCrudRepository.findDistinctByCompetitionIdAndMatIdAndStageInAndScoresNotNullOrderByNumberOnMat(competitionId, matId, notFinished, pageRequest)?.get()
                     ?.filter { f -> f.scores?.size == 2 && (f.scores?.all { compNotEmpty(it.competitor) } == true) }
-                    ?.map { it.toDTO( getCategory, getMat) }
+                    ?.map { it.toDTO(getCategory, getMat) }
                     ?.collect(Collectors.toList())
         }, { it, restTemplate, _ ->
             restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/matfights?competitionId=$competitionId&matId=$matId&maxResults=$maxResults", Array<FightDescriptionDTO>::class.java)?.toList()
                     ?: emptyList()
         })
+    }
+
+    fun getStageFights(competitionId: String, stageId: String): Array<FightDescriptionDTO>? {
+        log.info("Getting competitors for stage $stageId")
+        return localOrRemote(competitionId, {
+            stageDescriptorCrudRepository.getOne(stageId).fights?.map { fightDescription ->
+                fightDescription.toDTO({ categoryDescriptorCrudRepository.findByIdOrNull(it)?.toDTO() }, { id -> id?.let { matDescriptionCrudRepository.findByIdOrNull(it)?.toDTO() } })
+            }?.toTypedArray()
+        }, { it, restTemplate, _ ->
+            restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/stagefights?competitionId=$competitionId&stageId=$stageId", Array<FightDescriptionDTO>::class.java)
+        })
+
     }
 
 
@@ -247,14 +261,15 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getBracketsForCompetition(competitionId: String): Array<StageDescriptorDTO>? =
             localOrRemote(competitionId, {
-                stageDescriptorCrudRepository.findByCompetitionId(competitionId)?.mapNotNull { it.toDTO (getCategory, getMat) }?.toTypedArray()
+                stageDescriptorCrudRepository.findByCompetitionId(competitionId)?.map { it.toDTO(getCategory, getMat) }?.toTypedArray()
             }, { it, restTemplate, _ ->
                 restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/brackets?competitionId=$competitionId", Array<StageDescriptorDTO>::class.java)
             })
 
     fun getBrackets(competitionId: String, categoryId: String): Array<StageDescriptorDTO>? =
             localOrRemote(competitionId, {
-                stageDescriptorCrudRepository.findByIdOrNull(categoryId)?.toDTO(getCategory, getMat)?.let {arrayOf(it)} ?: emptyArray()
+                stageDescriptorCrudRepository.findByIdOrNull(categoryId)?.toDTO(getCategory, getMat)?.let { arrayOf(it) }
+                        ?: emptyArray()
             }, { it, restTemplate, _ ->
                 restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/brackets?competitionId=$competitionId&categoryId=$categoryId", Array<StageDescriptorDTO>::class.java)
             })

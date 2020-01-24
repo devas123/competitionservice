@@ -5,5 +5,7 @@ public enum FightStage {
     GET_READY,
     IN_PROGRESS,
     PAUSED,
-    FINISHED
+    FINISHED,
+    UNCOMPLETE,
+    WALKOVER
 }

@@ -42,6 +42,7 @@ abstract class AbstractCommandTransformer(
                         log.info("There were errors while processing the command. Returning error events.")
                         eventsToApply.filter { it.type == EventType.ERROR_EVENT }
                     } else {
+                        log.info("Applying generated events: ${eventsToApply.joinToString("\n")}")
                         commandProcessingService.batchApply(eventsToApply)
                     }
                 }

@@ -1,6 +1,5 @@
 package compman.compsrv.jpa.competition
 
-import compman.compsrv.model.dto.competition.ScoreDTO
 import javax.persistence.Access
 import javax.persistence.AccessType
 import javax.persistence.Embeddable
