@@ -116,7 +116,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
         private fun canProduceReferenceToChild(it: Pair<FightReferenceType?, FightDescription?>, child: FightDescription, getFight: (id: String) -> FightDescription): Boolean {
             val result = (it.second?.scores?.all { sc -> child.scores!!.none { compScore -> compScore.competitor.id == sc.competitor.id } } == true) && checkIfFightCanProduceReference(it.second?.id!!, it.first!!, getFight)
             log.info("checking if fight ${it.second} \ncan produce reference ${it.first} to child \n$child \nResult: $result")
-            return result;
+            return result
         }
 
         fun checkIfFightCanBePacked(fightId: String, getFight: (id: String) -> FightDescription): Boolean {
@@ -204,10 +204,12 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
     fun generateDoubleEliminationBracket(competitionId: String, categoryId: String, stageId: String, compssize: Int) =
             generateLoserBracketAndGrandFinalForWinnerBracket(competitionId, categoryId, stageId, generateEmptyWinnerRoundsForCategory(competitionId, categoryId, stageId, compssize), false)
 
-    fun generateLoserBracketAndGrandFinalForWinnerBracket(competitionId: String, categoryId: String, stageId: String, winnerFights: List<FightDescription>, hasLoserGrandFinal: Boolean = false): List<FightDescription> {
+    fun generateLoserBracketAndGrandFinalForWinnerBracket(competitionId: String, categoryId: String, stageId: String, winnerFightsAndGrandFinal: List<FightDescription>, hasLoserGrandFinal: Boolean = false): List<FightDescription> {
         val duration = calculateDuration(categoryId)
-        assert(winnerFights.all { it.roundType == StageRoundType.WINNER_BRACKETS }) { "Winner brackets fights contain not winner-brackets round types." }
-        assert(winnerFights.none { it.parentId2?.referenceType == FightReferenceType.LOSER }) { "Winner brackets fights contain contain references from loser brackets." }
+        assert(winnerFightsAndGrandFinal.count { it.roundType == StageRoundType.GRAND_FINAL && it.round != null } == 1)
+        assert(winnerFightsAndGrandFinal.filter { it.roundType != StageRoundType.GRAND_FINAL }.all { it.roundType == StageRoundType.WINNER_BRACKETS && it.round != null }) { "Winner brackets fights contain not winner-brackets round types." }
+        assert(winnerFightsAndGrandFinal.none { it.parentId2?.referenceType == FightReferenceType.LOSER }) { "Winner brackets fights contain contain references from loser brackets." }
+        val winnerFights = winnerFightsAndGrandFinal.filter { it.roundType != StageRoundType.GRAND_FINAL } + winnerFightsAndGrandFinal.first { it.roundType == StageRoundType.GRAND_FINAL }.copy(roundType = StageRoundType.WINNER_BRACKETS)
         val totalWinnerRounds = winnerFights.maxBy { it.round!! }?.round!! + 1
         val grandFinal = fightDescription(competitionId, categoryId, stageId, totalWinnerRounds, StageRoundType.GRAND_FINAL, 0, duration, GRAND_FINAL)
         val totalLoserRounds = 2 * (totalWinnerRounds - 1)
@@ -307,7 +309,8 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
         if (winnerFights.isEmpty()) {
             return winnerFights
         }
-        assert(winnerFights.all { it.roundType == StageRoundType.WINNER_BRACKETS && it.round != null })
+        assert(winnerFights.count { it.roundType == StageRoundType.GRAND_FINAL && it.round != null } == 1)
+        assert(winnerFights.filter { it.roundType != StageRoundType.GRAND_FINAL }.all { it.roundType == StageRoundType.WINNER_BRACKETS && it.round != null })
         val semiFinal = winnerFights.fold(0) { acc, fightDescription -> max(fightDescription.round!!, acc) } - 1
         val semiFinalFights = winnerFights.filter { it.round == semiFinal }
         assert(semiFinalFights.size == 2) { "There should be exactly two semifinal fights, but there are ${winnerFights.count { it.round == semiFinal }}" }
