@@ -7,6 +7,8 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
 import compman.compsrv.model.dto.brackets.BracketType
+import compman.compsrv.model.dto.brackets.StageStatus
+import compman.compsrv.model.dto.brackets.StageType
 import compman.compsrv.model.dto.competition.CategoryStateDTO
 import compman.compsrv.model.dto.competition.CategoryStatus
 import compman.compsrv.model.dto.competition.CompetitorDTO
@@ -59,6 +61,14 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
     }
 
     private fun doChangeCategoryRegistrationStatus(command: CommandDTO): List<EventDTO> {
+        return if (categoryDescriptorCrudRepository.existsById(command.categoryId)) {
+            listOf(createEvent(command, EventType.CATEGORY_REGISTRATION_STATUS_CHANGED, command.payload))
+        } else {
+            listOf(createErrorEvent(command, "No category with id ${command.categoryId}"))
+        }
+    }
+
+    private fun doSetFightResult(command: CommandDTO): List<EventDTO> {
         return if (categoryDescriptorCrudRepository.existsById(command.categoryId)) {
             listOf(createEvent(command, EventType.CATEGORY_REGISTRATION_STATUS_CHANGED, command.payload))
         } else {
@@ -122,11 +132,58 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
     private fun doGenerateBrackets(command: CommandDTO): List<EventDTO> {
         val competitors = competitorCrudRepository.findByCompetitionIdAndCategoriesContaining(command.competitionId, setOf(command.categoryId), Pageable.unpaged()).content.toList()
         val payload = mapper.convertValue(command.payload, GenerateBracketsPayload::class.java)
-        return if (competitors.isNotEmpty() && fightCrudRepository.findDistinctByCompetitionIdAndCategoryId(command.competitionId, command.categoryId).isNullOrEmpty()) {
+        return if (competitors.isNotEmpty()
+                && fightCrudRepository.findDistinctByCompetitionIdAndCategoryId(command.competitionId, command.categoryId).isNullOrEmpty()
+                && !payload?.stageDescriptors.isNullOrEmpty()) {
             val category = categoryDescriptorCrudRepository.findByIdOrNull(command.categoryId)?.toDTO()
-            val fights = fightsGenerateService.generateRoundsForCategory(command.categoryId, competitors.toMutableList(), command.competitionId)
-            listOf(createEvent(command, EventType.BRACKETS_GENERATED, BracketsGeneratedPayload(fights.map { it.toDTO { category } }.toTypedArray(), payload?.bracketType
-                    ?: BracketType.SINGLE_ELIMINATION)))
+            val stages = payload.stageDescriptors.sortedBy { it.stageOrder }
+            val updatedStages = stages.mapIndexed { ind, stage ->
+                val outputSize = when(stage.stageType) {
+                    StageType.PRELIMINARY -> stages[ind + 1].inputDescriptor.numberOfCompetitors!!
+                    else -> 0
+                }
+                val stageId = IDGenerator.stageId(command.competitionId, command.categoryId, stage.name, stage.stageOrder)
+                val size = if (stage.stageOrder == 0) competitors.size else stage.inputDescriptor.numberOfCompetitors!!
+                val fights = when (stage.bracketType) {
+                    BracketType.SINGLE_ELIMINATION -> {
+                        if (stage?.hasThirdPlaceFight == true) {
+                            fightsGenerateService.generateThirdPlaceFightForOlympicSystem(command.competitionId, command.categoryId, stageId, fightsGenerateService.generateEmptyWinnerRoundsForCategory(command.categoryId, command.competitionId, stageId, size))
+                        } else {
+                            fightsGenerateService.generateEmptyWinnerRoundsForCategory(command.competitionId, command.categoryId, stageId, size)
+                        }
+                    }
+                    BracketType.DOUBLE_ELIMINATION -> fightsGenerateService.generateDoubleEliminationBracket(command.competitionId, command.categoryId, stageId, size)
+                    else -> TODO()
+                }
+
+                val assignedFights = when (stage.stageOrder) {
+                    0 -> {
+                        fightsGenerateService.distributeCompetitors(competitors, fights, stage.bracketType)
+                    }
+                    else -> {
+                        fights
+                    }
+                }
+
+                val processedFights = if (stage.stageType == StageType.PRELIMINARY) {
+                    fightsGenerateService.filterPreliminaryFights(outputSize, assignedFights, stage.bracketType)
+                } else {
+                    assignedFights
+                }
+
+                val twoFighterFights = fightsGenerateService.filterUncompleteFirstRoundFights(processedFights)
+
+                stage
+                        .setCategoryId(command.categoryId)
+                        .setId(stageId)
+                        .setFights(twoFighterFights.map { it.toDTO({ category }, { null }) }.toTypedArray())
+                        .setCompetitionId(command.competitionId)
+                        .setName(stage.name ?: "Default brackets")
+                        .setStageStatus(StageStatus.WAITING_FOR_APPROVAL)
+                        .setInputDescriptor(stage.inputDescriptor?.setId(stageId))
+                        .setPointsAssignments(stage.pointsAssignments?.mapIndexed { index, it -> it.setId("$stageId-pointAssignment-$index")}?.toTypedArray())
+            }
+            listOf(createEvent(command, EventType.BRACKETS_GENERATED, BracketsGeneratedPayload(updatedStages.toTypedArray())))
         } else {
             listOf(createErrorEvent(command, "Brackets are already generated"))
         }
@@ -179,7 +236,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
     }
 
     private fun doDeleteCategoryState(command: CommandDTO): List<EventDTO> {
-        return if (!competitorCrudRepository.existsByCompetitionIdAndCategoriesContaining(command.competitionId, setOf(command.categoryId))) {
+        return if (competitorCrudRepository.countByCompetitionIdAndCategoriesContaining(command.competitionId, setOf(command.categoryId)) == 0L) {
             listOf(createEvent(command, EventType.CATEGORY_DELETED, command.payload))
         } else {
             listOf(createErrorEvent(command, "There are already competitors registered to this category. Please move them to another category first."))

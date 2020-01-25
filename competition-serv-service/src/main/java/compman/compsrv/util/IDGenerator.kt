@@ -3,6 +3,8 @@ package compman.compsrv.util
 import com.google.common.hash.Hashing
 import compman.compsrv.jpa.competition.CategoryDescriptor
 import compman.compsrv.jpa.competition.CategoryRestriction
+import compman.compsrv.jpa.competition.CompScore
+import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
 import compman.compsrv.model.dto.competition.CategoryRestrictionDTO
 import java.util.*
@@ -31,5 +33,9 @@ object IDGenerator {
     }
     }/${category.fightDuration}")
 
+    fun compScoreId(competitorId: String) = "${competitorId}_${UUID.randomUUID()}"
+
     fun hashString(str: String) = Hashing.sha256().hashBytes("$SALT$str".toByteArray(Charsets.UTF_8)).toString()
+    fun fightId(competitionId: String, categoryId: String?, stageId: String, rount: Int, number: Int, roundType: StageRoundType?) = hashString("$competitionId-$categoryId-$rount-$number-$stageId-$roundType")
+    fun stageId(competitionId: String, categoryId: String?, stageName: String?, stageOrder: Int) = hashString("$competitionId-$categoryId-$stageName-$stageOrder")
 }

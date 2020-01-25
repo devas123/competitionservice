@@ -2,14 +2,13 @@ package compman.compsrv.mapping
 
 import com.compmanager.model.payment.RegistrationStatus
 import compman.compsrv.jpa.Event
-import compman.compsrv.jpa.brackets.BracketDescriptor
+import compman.compsrv.jpa.brackets.*
 import compman.compsrv.jpa.competition.*
 import compman.compsrv.jpa.dashboard.CompetitionDashboardState
 import compman.compsrv.jpa.dashboard.DashboardPeriod
 import compman.compsrv.jpa.dashboard.MatDescription
 import compman.compsrv.jpa.schedule.*
-import compman.compsrv.model.dto.brackets.BracketDescriptorDTO
-import compman.compsrv.model.dto.brackets.BracketType
+import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.*
@@ -171,11 +170,11 @@ fun PromoCode.toDTO(): PromoCodeDTO = PromoCodeDTO()
 
 fun PromoCodeDTO.toEntity() = PromoCode(id?.toLong(), coefficient, competitionId, startAt, expireAt)
 
-fun FightResult.toDTO(): FightResultDTO = FightResultDTO().setDraw(draw).setReason(reason).setWinnerId(winnerId)
-fun FightResultDTO.toEntity() = FightResult(winnerId = winnerId, draw = draw, reason = winnerId)
+fun FightResult.toDTO(): FightResultDTO = FightResultDTO().setResultType(resultType).setReason(reason).setWinnerId(winnerId)
+fun FightResultDTO.toEntity() = FightResult(winnerId = winnerId, resultType = resultType, reason = reason)
 
 fun CompScoreDTO.toEntity(findCategory: (id: String) -> CategoryDescriptor?) = CompScore(
-        id = id ?: "${competitor.id}_${UUID.randomUUID()}",
+        id = id ?: IDGenerator.compScoreId(competitor.id),
         competitor = competitor?.toEntity(findCategory)
                 ?: throw IllegalArgumentException("Competitor must not be null."),
         score = score.toEntity()
@@ -183,14 +182,16 @@ fun CompScoreDTO.toEntity(findCategory: (id: String) -> CategoryDescriptor?) = C
 
 fun CompScore.toDTO(): CompScoreDTO = CompScoreDTO().setScore(score.toDTO()).setCompetitor(competitor.toDTO()).setId(id)
 
-fun CompetitionState.toDTO(includeCompetitors: Boolean = false, includeBrackets: Boolean = false): CompetitionStateDTO =
-        CompetitionStateDTO()
-                .setCategories(categories.map { it.toDTO(includeCompetitors, includeBrackets, id!!) }.toTypedArray())
-                .setCompetitionId(id)
-                .setDashboardState(dashboardState?.toDTO())
-                .setProperties(properties?.toDTO())
-                .setSchedule(schedule?.toDTO())
-                .setStatus(status)
+fun CompetitionState.toDTO(includeCompetitors: Boolean = false, includeBrackets: Boolean = false): CompetitionStateDTO {
+    val mats = dashboardState?.periods?.flatMap { it.mats ?: mutableListOf() }?.distinctBy { it.id }
+    return CompetitionStateDTO()
+            .setCategories(categories.map { it.toDTO(includeCompetitors, includeBrackets, id!!) { id -> mats?.find { matDescription -> matDescription.id == id }?.toDTO() } }.toTypedArray())
+            .setCompetitionId(id)
+            .setDashboardState(dashboardState?.toDTO())
+            .setProperties(properties?.toDTO(status))
+            .setSchedule(schedule?.toDTO())
+            .setStatus(status)
+}
 
 fun CompetitionStateDTO.toEntity() = this.let { dto ->
     val properties = dto.properties.toEntity()
@@ -201,13 +202,15 @@ fun CompetitionStateDTO.toEntity() = this.let { dto ->
             schedule = Schedule(competitionId, ScheduleProperties(competitionId, emptyList()), mutableListOf()),
             dashboardState = dto.dashboardState?.toEntity()
                     ?: CompetitionDashboardState(competitionId, emptySet()),
-            status = dto.status
+            status = dto.status,
+            competitionInfoTemplate = ByteArray(0),
+            competitionImage = ByteArray(0)
     ).apply {
         val findCategory = { id: String -> this.categories.find { categoryState -> categoryState.id == id }?.category }
         val allCompetitors = this.categories.flatMap { it.category?.competitors?.toList() ?: emptyList() }
         val findCompetitor = { id: String -> allCompetitors.find { competitor -> competitor.id == id } }
         val fights = dto.categories?.flatMap {
-            it.brackets?.fights?.toList() ?: emptyList()
+            it.brackets?.stages?.flatMap { stageDescriptorDTO -> stageDescriptorDTO.fights?.toList() ?: emptyList() } ?: emptyList()
         }?.mapNotNull { it.toEntity(findCategory) }
                 ?: emptyList()
         categories = dto.categories.mapNotNull { it?.toEntity(this, findCompetitor) }.toMutableSet()
@@ -236,7 +239,7 @@ fun CompetitionPropertiesDTO.toEntity() = CompetitionProperties(id = id,
         } ?: RegistrationInfo(id, false, mutableSetOf()),
         creationTimestamp = creationTimestamp ?: System.currentTimeMillis())
 
-fun CompetitionProperties.toDTO(): CompetitionPropertiesDTO =
+fun CompetitionProperties.toDTO(status: CompetitionStatus?): CompetitionPropertiesDTO =
         CompetitionPropertiesDTO()
                 .setId(id)
                 .setBracketsPublished(bracketsPublished)
@@ -252,6 +255,7 @@ fun CompetitionProperties.toDTO(): CompetitionPropertiesDTO =
                 .setTimeZone(timeZone)
                 .setRegistrationInfo(registrationInfo.toDTO())
                 .setCreationTimestamp(creationTimestamp)
+                .setStatus(status)
 
 fun DashboardPeriodDTO.toEntity() = DashboardPeriod(id, name, mutableListOf(), startTime, isActive)
         .also { per -> per.mats = mats?.map { it.toEntity().apply { dashboardPeriod = per } }?.toMutableList() }
@@ -303,17 +307,22 @@ fun Competitor.toDTO(): CompetitorDTO = CompetitorDTO()
 fun Academy.toDTO(): AcademyDTO = AcademyDTO().setId(id).setName(name)
 fun AcademyDTO.toEntity(): Academy = Academy(id, name)
 
-fun CategoryState.toDTO(includeCompetitors: Boolean = false, includeBrackets: Boolean = false, competitionId: String): CategoryStateDTO = CategoryStateDTO().setId(id)
+fun BracketDescriptor.toDTO(getCategory: (id: String) -> CategoryDescriptorDTO?, getMat: (id: String?) -> MatDescriptionDTO?): BracketDescriptorDTO = BracketDescriptorDTO()
+        .setId(id)
+        .setCompetitionId(competitionId)
+        .setStages(stages?.map { it.toDTO(getCategory, getMat) }?.toTypedArray())
+
+fun CategoryState.toDTO(includeCompetitors: Boolean = false, includeBrackets: Boolean = false, competitionId: String, getMat: (id: String?) -> MatDescriptionDTO?): CategoryStateDTO = CategoryStateDTO().setId(id)
         .setCompetitionId(competitionId)
         .setCategory(category?.toDTO())
         .setStatus(status)
-        .setBrackets(if (includeBrackets) brackets?.toDTO { category?.toDTO() } else null)
+        .setBrackets(if (includeBrackets) brackets?.toDTO({ category?.toDTO() }, getMat) else null)
         .setNumberOfCompetitors(category?.competitors?.size ?: 0)
         .setCompetitors(if (includeCompetitors) category?.competitors?.map { it.toDTO() }?.toTypedArray() else emptyArray())
-        .setFightsNumber(brackets?.fights?.filter { !ScheduleService.obsoleteFight(it, category?.competitors?.size == 0) }?.size
+        .setFightsNumber(brackets?.stages?.flatMap { it.fights ?: mutableListOf() }?.filter { !ScheduleService.obsoleteFight(it, category?.competitors?.size == 0) }?.size
                 ?: 0)
 
-private fun emptyBracketDescriptor(id: String, competitionId: String) = BracketDescriptor(id, competitionId, BracketType.SINGLE_ELIMINATION, mutableListOf())
+private fun emptyBracketsDescriptor(id: String, competitionId: String) = BracketDescriptor(id, competitionId, mutableSetOf())
 
 fun EventDTO.toEntity(): Event = Event(id, type, competitionId, correlationId, categoryId, matId, payload)
 
@@ -323,9 +332,11 @@ fun CategoryStateDTO.toEntity(competition: CompetitionState, findCompetitor: (id
             id = id,
             category = cat,
             status = status,
-            brackets = brackets?.toEntity { cat } ?: emptyBracketDescriptor(id, competitionId)
+            brackets = brackets?.toEntity({ cat }, findCompetitor) ?: emptyBracketsDescriptor(id, competitionId)
     )
 }
+
+fun BracketDescriptorDTO.toEntity(findCategory: (id: String) -> CategoryDescriptor?, findCompetitor: (id: String) -> Competitor?) = BracketDescriptor(id, competitionId, stages?.map { it.toEntity(findCategory, findCompetitor) }?.toMutableSet())
 
 
 fun CategoryDescriptorDTO.toEntity(competitionId: String, findCompetitor: (id: String) -> Competitor?) = CategoryDescriptor(
@@ -342,47 +353,108 @@ fun CategoryDescriptorDTO.toEntity(competitionId: String, findCompetitor: (id: S
 fun CategoryDescriptor.toDTO(): CategoryDescriptorDTO = CategoryDescriptorDTO().setId(id).setFightDuration(fightDuration).setCompetitors(competitors?.mapNotNull { it.id }?.toTypedArray())
         .setRestrictions(restrictions?.map { it.toDTO() }?.toTypedArray()).setName(name).setRegistrationOpen(registrationOpen)
 
+fun StageInputDescriptorDTO.toEntity() = StageInputDescriptor(id = id, distributionType = distributionType,
+        numberOfCompetitors = numberOfCompetitors, selectors = selectors?.map { it.toEntity() }?.toMutableSet())
 
-fun BracketDescriptorDTO.toEntity(findCategory: (id: String) -> CategoryDescriptor?) = BracketDescriptor(id, competitionId, bracketType, fights.mapNotNull { f -> f?.toEntity(findCategory) }.toMutableList())
+fun StageInputDescriptor.toDTO(): StageInputDescriptorDTO = StageInputDescriptorDTO().setId(id).setDistributionType(distributionType)
+        .setNumberOfCompetitors(numberOfCompetitors).setSelectors(selectors?.map { it.toDTO() }?.toTypedArray())
 
-fun BracketDescriptor.toDTO(getCategory: (id: String) -> CategoryDescriptorDTO?): BracketDescriptorDTO? = BracketDescriptorDTO(id, competitionId, bracketType, fights?.map { it.toDTO(getCategory) }?.toTypedArray()
-        ?: emptyArray())
+fun StageResultDescriptorDTO.toEntity(findCompetitor: (id: String) -> Competitor?) = StageResultDescriptor(id = id, name = name, competitorResults = competitorResults?.map { it.toEntity(findCompetitor) }?.toMutableList())
+fun StageResultDescriptor.toDTO(): StageResultDescriptorDTO = StageResultDescriptorDTO().setId(id).setName(name).setCompetitorResults(competitorResults?.map { it.toDTO() }?.toTypedArray())
+
+
+
+fun CompetitorResultDTO.toEntity(findCompetitor: (id: String) -> Competitor?) = CompetitorResult(id = id, points = points, groupId = groupId, place = place, round = round, competitor = findCompetitor(competitorId), stageResultDescriptors = mutableSetOf())
+fun CompetitorResult.toDTO(): CompetitorResultDTO = CompetitorResultDTO()
+        .setId(id)
+        .setPoints(points)
+        .setGroupId(groupId)
+        .setPlace(place)
+        .setRound(round)
+        .setCompetitorId(competitor?.id)
+
+fun CompetitorSelectorDTO.toEntity() = CompetitorSelector(id = id, applyToStageId = applyToStageId, classifier = classifier, logicalOperator = logicalOperator, operator = operator, selectorValue = selectorValue?.toList())
+fun CompetitorSelector.toDTO() = CompetitorSelectorDTO(id, applyToStageId, logicalOperator, classifier, operator, selectorValue?.toTypedArray())
+
+fun StageDescriptorDTO.toEntity(findCategory: (id: String) -> CategoryDescriptor?, findCompetitor: (id: String) -> Competitor?) = StageDescriptor(
+        id = id,
+        competitionId = competitionId,
+        bracketType = bracketType,
+        fights = fights?.mapNotNull { f -> f?.toEntity(findCategory) }?.toMutableList(),
+        name = name,
+        stageOrder = stageOrder,
+        inputDescriptor = inputDescriptor?.toEntity(),
+        pointsAssignments = pointsAssignments?.map { it.toEntity() }?.toMutableSet(),
+        stageResultDescriptor = stageResultDescriptor?.toEntity(findCompetitor),
+        stageStatus = stageStatus,
+        stageType = stageType,
+        hasThirdPlaceFight = hasThirdPlaceFight,
+        waitForPrevious = waitForPrevious,
+        categoryId = categoryId)
+
+fun StageDescriptor.toDTO(getCategory: (id: String) -> CategoryDescriptorDTO?, getMat: (id: String?) -> MatDescriptionDTO?): StageDescriptorDTO = StageDescriptorDTO()
+        .setId(id)
+        .setBracketType(bracketType)
+        .setCompetitionId(competitionId)
+        .setFights(fights?.map { it.toDTO(getCategory, getMat) }?.toTypedArray())
+        .setInputDescriptor(inputDescriptor?.toDTO())
+        .setName(name)
+        .setStageOrder(stageOrder)
+        .setPointsAssignments(pointsAssignments?.map { it.toDTO() }?.toTypedArray())
+        .setStageResultDescriptor(stageResultDescriptor?.toDTO())
+        .setStageStatus(stageStatus)
+        .setWaitForPrevious(waitForPrevious)
+        .setStageType(stageType)
+        .setHasThirdPlaceFight(hasThirdPlaceFight)
+        .setCategoryId(categoryId)
+
+
+fun ParentFightReferenceDTO.toEntity() = ParentFightReference(referenceType, fightId)
+fun ParentFightReference.toDTO() = ParentFightReferenceDTO(referenceType, fightId)
+
+fun PointsAssignmentDescriptorDTO.toEntity() = PointsAssignmentDescriptor(id, classifier, points, additionalPoints)
+fun PointsAssignmentDescriptor.toDTO() = PointsAssignmentDescriptorDTO(id, classifier, points, additionalPoints)
+
 
 fun FightDescriptionDTO.toEntity(findCategory: (id: String) -> CategoryDescriptor?) = FightDescription(
         id = id,
         categoryId = category?.id!!,
+        fightName = fightName,
         winFight = winFight,
         loseFight = loseFight,
         scores = scores?.mapNotNull { it?.toEntity(findCategory) }?.toMutableList()
                 ?: mutableListOf(),
-        parentId1 = parentId1,
-        parentId2 = parentId2,
+        parentId1 = parentId1?.toEntity(),
+        parentId2 = parentId2?.toEntity(),
         duration = duration,
         round = round,
         stage = stage,
         fightResult = fightResult?.toEntity(),
-        matId = matId,
+        matId = mat?.id,
         numberOnMat = numberOnMat,
         priority = priority,
         competitionId = competitionId,
         period = period,
         startTime = startTime,
-        numberInRound = numberInRound
+        numberInRound = numberInRound,
+        roundType = roundType
 )
 
-fun FightDescription.toDTO(getCategory: (id: String) -> CategoryDescriptorDTO?) = FightDescriptionDTO(
+fun FightDescription.toDTO(getCategory: (id: String) -> CategoryDescriptorDTO?, getMat: (id: String?) -> MatDescriptionDTO?) = FightDescriptionDTO(
         id,
         getCategory(categoryId),
+        fightName,
         winFight,
         loseFight,
         scores?.map { it.toDTO() }?.toTypedArray(),
-        parentId1,
-        parentId2,
+        parentId1?.toDTO(),
+        parentId2?.toDTO(),
         duration,
         round,
+        roundType,
         stage,
         fightResult?.toDTO(),
-        matId,
+        getMat(matId),
         numberOnMat,
         priority,
         competitionId,

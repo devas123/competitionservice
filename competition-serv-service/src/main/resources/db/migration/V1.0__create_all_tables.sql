@@ -6,123 +6,11 @@ create sequence hibernate_sequence;
 
 alter sequence hibernate_sequence owner to postgres;
 
-create table command
-(
-    id varchar(255) not null
-        constraint command_pkey
-            primary key,
-    category_id varchar(255),
-    competition_id varchar(255),
-    correlation_id varchar(255),
-    executed boolean not null,
-    mat_id varchar(255),
-    payload oid,
-    timestamp bigint,
-    type integer
-);
-
-alter table command owner to postgres;
-
-create table command_metadata_entry
-(
-    command_metadata_id varchar(255) not null
-        constraint fks9l7afwo7h64e0qsjf3dowa22
-            references command,
-    metadata_key varchar(255),
-    metadata_value varchar(255)
-);
-
-alter table command_metadata_entry owner to postgres;
-
-create table event_holder
-(
-    id varchar(255) not null
-        constraint event_holder_pkey
-            primary key,
-    category_id varchar(255),
-    competition_id varchar(255),
-    correlation_id varchar(255),
-    mat_id varchar(255),
-    payload text,
-    timestamp bigint not null,
-    type integer
-);
-
-alter table event_holder owner to postgres;
-
-create table event_metadata_entry
-(
-    event_metadata_id varchar(255) not null
-        constraint fk18qm96pvfutqi2ruh45tv1ach
-            references event_holder,
-    metadata_key varchar(255),
-    metadata_value varchar(255)
-);
-
-alter table event_metadata_entry owner to postgres;
-
-create table comp_scores
-(
-    fight_id varchar(255) not null,
-    compscore_competitor_id varchar(255) not null,
-    advantages integer not null,
-    penalties integer not null,
-    points integer not null,
-    comp_score_order integer not null,
-    constraint comp_scores_pkey
-        primary key (fight_id, comp_score_order)
-);
-
-alter table comp_scores owner to postgres;
-
-create table academy
-(
-    id varchar(255) not null
-        constraint academy_pkey
-            primary key,
-    created bigint,
-    name varchar(255)
-);
-
-alter table academy owner to postgres;
-
-create table academy_coaches
-(
-    academy_id varchar(255) not null
-        constraint fkdrcx6riqu7hwsb00j1rwnxub2
-            references academy,
-    coaches varchar(255),
-    coaches_order integer not null,
-    constraint academy_coaches_pkey
-        primary key (academy_id, coaches_order)
-);
-
-alter table academy_coaches owner to postgres;
-
-create table category_descriptor_competitors
-(
-    categories_id varchar(255) not null,
-    competitors_id varchar(255) not null,
-    constraint category_descriptor_competitors_pkey
-        primary key (categories_id, competitors_id)
-);
-
-alter table category_descriptor_competitors owner to postgres;
-
-create table dashboard_period_mat_ids
-(
-    dashboard_period_id varchar(255) not null,
-    mat_ids varchar(255)
-);
-
-alter table dashboard_period_mat_ids owner to postgres;
-
 create table bracket_descriptor
 (
     id varchar(255) not null
         constraint bracket_descriptor_pkey
             primary key,
-    bracket_type integer,
     competition_id varchar(255)
 );
 
@@ -147,6 +35,8 @@ create table competition_state
     id varchar(255) not null
         constraint competition_state_pkey
             primary key,
+    competition_image oid,
+    competition_info_template oid,
     status integer
 );
 
@@ -266,6 +156,22 @@ create table competitor
 );
 
 alter table competitor owner to postgres;
+
+create table competitor_result
+(
+    id varchar(255) not null
+        constraint competitor_result_pkey
+            primary key,
+    group_id varchar(255),
+    place integer,
+    points integer,
+    round integer,
+    competitor_id varchar(255) not null
+        constraint fk9axdhjm23nfsx1xuofkmq5cyo
+            references competitor
+);
+
+alter table competitor_result owner to postgres;
 
 create table promo_code
 (
@@ -453,6 +359,47 @@ create table competitor_categories
 
 alter table competitor_categories owner to postgres;
 
+create table schedule_entries
+(
+    period_id varchar(255) not null
+        constraint fkafy2hinwcl6a1ugke2uctic0w
+            references period,
+    category_id varchar(255)
+        constraint schedule_entries_category_id_fkey
+            references category_descriptor,
+    fight_duration numeric(19,2),
+    number_of_fights integer not null,
+    start_time timestamp,
+    schedule_order integer not null,
+    constraint schedule_entries_pkey
+        primary key (period_id, schedule_order)
+);
+
+alter table schedule_entries owner to postgres;
+
+create table stage_descriptor
+(
+    id varchar(255) not null
+        constraint stage_descriptor_pkey
+            primary key,
+    category_id varchar(255)
+        constraint stage_descriptor_category_id_fkey
+            references category_descriptor,
+    bracket_type integer,
+    competition_id varchar(255),
+    name varchar(255),
+    stage_order integer,
+    stage_status integer,
+    stage_type integer,
+    wait_for_previous boolean,
+    has_third_place_fight boolean,
+    brackets_id varchar(255)
+        constraint fk3gxuyn45r1t81qshw89xuicub
+            references bracket_descriptor
+);
+
+alter table stage_descriptor owner to postgres;
+
 create table fight_description
 (
     id varchar(255) not null
@@ -464,25 +411,29 @@ create table fight_description
     competition_id varchar(255)
         constraint fight_description_competition_id_fkey
             references competition_properties,
-    duration bigint,
-    draw boolean,
-    reason varchar(255),
+    duration numeric(19,2),
+    fight_name varchar(255),
     winner_id varchar(255),
+    reason varchar(255),
+    result_type integer,
     lose_fight varchar(255),
     mat_id varchar(255),
     number_in_round integer not null,
     number_on_mat integer,
-    parent_id1 varchar(255),
-    parent_id2 varchar(255),
+    parent_1_fight_id varchar(255),
+    parent_1_reference_type integer,
+    parent_2_fight_id varchar(255),
+    parent_2_reference_type integer,
     period varchar(255),
     priority integer not null,
     round integer,
+    round_type integer,
     stage integer,
     start_time timestamp,
     win_fight varchar(255),
-    bracket_id varchar(255)
-        constraint fkrgfv0m4epy75keoof9hx0nvge
-            references bracket_descriptor,
+    stage_id varchar(255)
+        constraint fk83j4njug11q161thma55h5b6a
+            references stage_descriptor,
     fight_order integer
 );
 
@@ -499,7 +450,7 @@ create table comp_score
     compscore_competitor_id varchar(255) not null
         constraint fkiuy2929idw7lx296op7w8govx
             references competitor,
-    comp_score_id varchar(255)
+    compscore_fight_description_id      varchar(255)
         constraint fk5jdsq3wdtfltdvjb7hmmqu497
             references fight_description,
     comp_score_order integer
@@ -524,21 +475,80 @@ create table fight_start_times
 
 alter table fight_start_times owner to postgres;
 
-create table schedule_entries
+create table points_assignment_descriptor
 (
-    period_id varchar(255) not null
-        constraint fkafy2hinwcl6a1ugke2uctic0w
-            references period,
-    category_id varchar(255)
-        constraint schedule_entries_category_id_fkey
-            references category_descriptor,
-    fight_duration numeric(19,2),
-    number_of_fights integer not null,
-    start_time timestamp,
-    schedule_order integer not null,
-    constraint schedule_entries_pkey
-        primary key (period_id, schedule_order)
+    id varchar(255) not null
+        constraint points_assignment_descriptor_pkey
+            primary key,
+    additional_points numeric(19,2),
+    classifier integer,
+    points numeric(19,2),
+    stage_id varchar(255)
+        constraint fkhj7y0idxgjgbg8b4el2qr8nc6
+            references stage_descriptor
 );
 
-alter table schedule_entries owner to postgres;
+alter table points_assignment_descriptor owner to postgres;
+
+create table stage_input_descriptor
+(
+    id varchar(255) not null
+        constraint stage_input_descriptor_pkey
+            primary key,
+    distribution_type integer,
+    number_of_competitors integer not null
+);
+
+alter table stage_input_descriptor owner to postgres;
+
+create table competitor_selector
+(
+    id varchar(255) not null
+        constraint competitor_selector_pkey
+            primary key,
+    apply_to_stage_id varchar(255),
+    classifier integer,
+    logical_operator integer,
+    operator integer,
+    stage_input_id varchar(255)
+        constraint fkhn69xal0k08it5niovv40cr6l
+            references stage_input_descriptor
+);
+
+alter table competitor_selector owner to postgres;
+
+create table competitor_selector_selector_value
+(
+    competitor_selector_id varchar(255) not null
+        constraint fk1s0fmnd8kgdabvp3qml62yee2
+            references competitor_selector,
+    selector_value varchar(255)
+);
+
+alter table competitor_selector_selector_value owner to postgres;
+
+create table stage_result_descriptor
+(
+    id varchar(255) not null
+        constraint stage_result_descriptor_pkey
+            primary key,
+    name varchar(255)
+);
+
+alter table stage_result_descriptor owner to postgres;
+
+create table stage_competitor_result
+(
+    competitor_result_competitor_id varchar(255) not null
+        constraint fkpt1krwh7361c55w1hl37edxrl
+            references stage_result_descriptor,
+    stage_result_descriptor_id varchar(255) not null
+        constraint fkjr2xymnplj9r4qkop785prbpm
+            references competitor_result,
+    competitor_place integer not null,
+    constraint stage_competitor_result_pkey
+        primary key (competitor_result_competitor_id, competitor_place)
+);
+
+alter table stage_competitor_result owner to postgres;
 

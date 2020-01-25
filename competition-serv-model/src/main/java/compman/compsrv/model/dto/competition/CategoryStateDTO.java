@@ -1,6 +1,7 @@
 package compman.compsrv.model.dto.competition;
 
 import compman.compsrv.model.dto.brackets.BracketDescriptorDTO;
+import compman.compsrv.model.dto.brackets.StageDescriptorDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

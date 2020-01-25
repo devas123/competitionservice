@@ -1,6 +1,7 @@
 package compman.compsrv.jpa.competition
 
 import compman.compsrv.jpa.AbstractJpaPersistable
+import compman.compsrv.util.IDGenerator
 import java.util.*
 import javax.persistence.Embedded
 import javax.persistence.Entity
@@ -16,5 +17,5 @@ class CompScore(
         @Embedded
         val score: Score) : AbstractJpaPersistable<String>(id) {
 
-    constructor(competitor: Competitor, score: Score) : this("${competitor.id}_${UUID.randomUUID()}", competitor, score)
+    constructor(competitor: Competitor, score: Score) : this(IDGenerator.compScoreId(competitor.id!!), competitor, score)
 }

@@ -1,6 +1,5 @@
 package compman.compsrv.repository
 
-import compman.compsrv.jpa.competition.RegistrationPeriod
 import compman.compsrv.jpa.dashboard.DashboardPeriod
 import org.springframework.data.repository.CrudRepository
 import org.springframework.stereotype.Repository

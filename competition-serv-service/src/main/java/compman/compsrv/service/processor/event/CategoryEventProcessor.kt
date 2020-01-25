@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.commands.payload.CategoryRegistrationStatusChangePayload
 import compman.compsrv.model.commands.payload.JsonPatch
-import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
@@ -25,7 +24,8 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
                              private val categoryRestrictionCrudRepository: CategoryRestrictionCrudRepository,
                              private val competitorCrudRepository: CompetitorCrudRepository,
                              private val fightCrudRepository: FightCrudRepository,
-                             private val bracketsCrudRepository: BracketsCrudRepository) : IEventProcessor {
+                             private val stageDescriptorCrudRepository: StageDescriptorCrudRepository,
+                             private val bracketsDescriptorCrudRepository: BracketsDescriptorCrudRepository) : IEventProcessor {
     override fun affectedEvents(): Set<EventType> {
         return setOf(
                 EventType.COMPETITOR_ADDED,
@@ -62,7 +62,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
     }
 
     private fun applyCategoryBracketsDroppedEvent(event: EventDTO): List<EventDTO> {
-        categoryCrudRepository.getOne(event.categoryId!!).brackets?.fights?.clear()
+        categoryCrudRepository.getOne(event.categoryId!!).brackets?.stages?.clear()
         return listOf(event)
     }
 
@@ -161,15 +161,14 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
 
     private fun applyBracketsGeneratedEvent(event: EventDTO): List<EventDTO> {
         val payload = getPayloadAs(event.payload, BracketsGeneratedPayload::class.java)
-        val fights = payload?.fights
-        val bracketType = payload?.bracketType
+        val stages = payload?.stages
         val categoryId = event.categoryId
-        return if (fights != null && !categoryId.isNullOrBlank()) {
+        return if (stages != null && !categoryId.isNullOrBlank()) {
+            val allFights = stages.flatMap { it.fights?.toList() ?: emptyList() }
             val catState = categoryCrudRepository.getOne(categoryId)
-            val categories = categoryDescriptorCrudRepository.findAllById(fights.map { it.category?.id }.toSet()).groupBy { it.id }
-            catState.brackets?.fights!!.clear()
-            catState.brackets?.fights!!.addAll(fights.mapNotNull { it.toEntity { id -> categories[id]?.firstOrNull() } })
-            catState.brackets?.bracketType = bracketType ?: BracketType.SINGLE_ELIMINATION
+            val categories = categoryDescriptorCrudRepository.findAllById(allFights.map { it.category?.id }.toSet()).groupBy { it.id }
+            catState.brackets?.stages!!.clear()
+            catState.brackets?.stages!!.addAll(stages.mapNotNull { it.toEntity ({ id -> categories[id]?.firstOrNull() }, {id -> competitorCrudRepository.findByIdOrNull(id)}) })
             listOf(event)
         } else {
             throw EventApplyingException("Fights are null or empty or category ID is empty.", event)
@@ -185,7 +184,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
             val newState = c.toEntity(competitionState) { competitorCrudRepository.findByIdOrNull(it) }
             newState.category?.let {
                 val restrictions = it.restrictions?.map { res -> categoryRestrictionCrudRepository.save(res) }
-                val brackets = bracketsCrudRepository.save(newState.brackets!!)
+                val brackets = bracketsDescriptorCrudRepository.save(newState.brackets!!)
                 it.restrictions = restrictions?.toMutableSet()
                 newState.category = categoryDescriptorCrudRepository.save(it)
                 newState.brackets = brackets

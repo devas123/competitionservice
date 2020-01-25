@@ -1,9 +1,13 @@
 package compman.compsrv.model.dto.competition;
 
+import compman.compsrv.model.dto.brackets.ParentFightReferenceDTO;
+import compman.compsrv.model.dto.brackets.StageRoundType;
+import compman.compsrv.model.dto.dashboard.MatDescriptionDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 @Data
@@ -12,16 +16,18 @@ import java.time.Instant;
 public class FightDescriptionDTO {
     private String id;
     private CategoryDescriptorDTO category;
+    private String fightName;
     private String winFight;
     private String loseFight;
     private CompScoreDTO[] scores;
-    private String parentId1;
-    private String parentId2;
-    private Long duration;
+    private ParentFightReferenceDTO parentId1;
+    private ParentFightReferenceDTO parentId2;
+    private BigDecimal duration;
     private Integer round;
+    private StageRoundType roundType;
     private FightStage stage;
     private FightResultDTO fightResult;
-    private String matId;
+    private MatDescriptionDTO mat;
     private Integer numberOnMat;
     private Integer priority;
     private String competitionId;
