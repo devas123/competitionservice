@@ -13,7 +13,7 @@ import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.repository.*
 import compman.compsrv.util.compNotEmpty
-import io.scalecube.transport.Address
+import io.scalecube.net.Address
 import org.slf4j.LoggerFactory
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.data.domain.Page

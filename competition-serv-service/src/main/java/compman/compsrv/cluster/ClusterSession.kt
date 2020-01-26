@@ -1,6 +1,7 @@
 package compman.compsrv.cluster
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import compman.compsrv.config.ClusterConfiguration
 import compman.compsrv.config.ClusterConfigurationProperties
 import compman.compsrv.kafka.serde.ClusterInfoSerializer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
@@ -11,11 +12,10 @@ import compman.compsrv.model.events.payload.CompetitionInfoPayload
 import compman.compsrv.repository.CompetitionStateRepository
 import compman.compsrv.service.CommandCache
 import compman.compsrv.service.CommandProducer
-import io.scalecube.cluster.Cluster
-import io.scalecube.cluster.Member
+import io.scalecube.cluster.*
 import io.scalecube.cluster.membership.MembershipEvent
-import io.scalecube.transport.Address
-import io.scalecube.transport.Message
+import io.scalecube.cluster.transport.api.Message
+import io.scalecube.net.Address
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -24,14 +24,17 @@ import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.boot.autoconfigure.web.ServerProperties
 import org.springframework.kafka.core.KafkaTemplate
+import java.io.Serializable
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListSet
 
+data class MemberMetadata(val restPort: String?, val memberHostName: String?) : Serializable
+
 class ClusterSession(private val clusterConfigurationProperties: ClusterConfigurationProperties,
-                     private val cluster: Cluster,
+                     private val preconfiguredCluster: ClusterConfig,
                      kafkaProperties: KafkaProperties,
                      private val serverProperties: ServerProperties,
                      private val mapper: ObjectMapper,
@@ -45,19 +48,99 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
         const val COMPETITION_PROCESSING_STARTED = "competitionProcessingStarted"
         const val COMPETITION_PROCESSING_INFO = "competitionProcessingInfo"
         const val COMPETITION_PROCESSING_STOPPED = "competitionProcessingStopped"
-        const val REST_PORT_METADATA_KEY = "rest_port"
-        const val MEMBER_HOSTNAME_METADATA_KEY = "member_hostname"
         const val TYPE = "type"
     }
 
-    private val leaderChangelogTopic = CompetitionServiceTopics.LEADER_CHANGELOG_TOPIC
+    private val leaderChangelogTopic: String
     private val producer: KafkaProducer<String, ClusterInfo>
+    private val cluster: Cluster
+    private val clusterMembers: ConcurrentHashMap<String, MemberWithRestPort>
+    private val localCompetitionIds: ConcurrentSkipListSet<String>
 
     init {
         val props = kafkaProperties.buildProducerProperties()
         props[ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG] = ClusterInfoSerializer::class.java
         props[ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG] = StringSerializer::class.java
         producer = KafkaProducer(props)
+
+        clusterMembers = ConcurrentHashMap()
+        localCompetitionIds = ConcurrentSkipListSet()
+        leaderChangelogTopic = CompetitionServiceTopics.LEADER_CHANGELOG_TOPIC
+
+        cluster = ClusterImpl()
+                .handler { cl ->
+                    object : ClusterMessageHandler {
+                        override fun onMessage(message: Message?) {
+                            log.info("Message received: $message")
+                        }
+
+                        override fun onMembershipEvent(it: MembershipEvent?) {
+                            broadcastCompetitionProcessingInfo(localCompetitionIds)
+                            when (it?.type()) {
+                                MembershipEvent.Type.ADDED -> {
+                                    log.info("Member added to the cluster: ${it.member()}")
+                                }
+                                MembershipEvent.Type.REMOVED -> {
+                                    log.info("Member removed from the cluster: ${it.member()}")
+                                    val oldMetadata = mapper.readValue(it.oldMetadata().array(), MemberMetadata::class.java)
+                                    if (oldMetadata?.restPort != null) {
+                                        val m = MemberWithRestPort(it.member(), oldMetadata.restPort.toInt())
+                                        val keysToRemove = clusterMembers.filter { entry -> entry.value == m }.keys
+                                        keysToRemove.forEach { id -> clusterMembers.remove(id) }
+                                    }
+                                }
+                                MembershipEvent.Type.UPDATED -> {
+                                    log.info("Cluster member updated: ${it.member()}")
+                                    val oldMetadata = mapper.readValue(it.oldMetadata().array(), MemberMetadata::class.java)
+                                    val newMetadata = mapper.readValue(it.newMetadata().array(), MemberMetadata::class.java)
+                                    val om = MemberWithRestPort(it.member(), oldMetadata?.restPort?.toInt()!!)
+                                    val nm = MemberWithRestPort(it.member(), newMetadata?.restPort?.toInt()!!)
+                                    val keysToUpdate = clusterMembers.filter { entry -> entry.value == om }.keys
+                                    keysToUpdate.forEach { id -> clusterMembers[id] = nm }
+                                }
+                                else -> {
+                                    log.info("Strange membership event: $it")
+                                }
+                            }
+                            producer.send(ProducerRecord(leaderChangelogTopic, COMPETITION_LEADER_KEY,
+                                    ClusterInfo()
+                                            .setClusterMembers(cl.members()
+                                                    ?.mapNotNull { member -> createClusterMember(cl, member) }?.toTypedArray())))
+                            producer.flush()
+                        }
+
+                        override fun onGossip(gossip: Message?) {
+                            log.info("Received a gossip: $gossip")
+                            processMessage(gossip)
+                        }
+                    }
+                }.config { preconfiguredCluster }.start()
+                .doOnSuccess { cluster ->
+                    log.info("Started instance at ${cluster.address().host()}:${cluster.address().port()} with rest port: ${serverProperties.port}")
+                    log.info("Members of the cluster: ")
+                    cluster.members()?.forEach { member ->
+                        val metadata = cluster.metadata<MemberMetadata>(member)
+                        val host = metadata.map { it.memberHostName }.orElse("unknown")
+                        val port = metadata.map { it.restPort }.orElse("unknown")
+                        log.info("${member.id()} -> $host, ${member.address()}, $port")
+                    }
+
+                    producer.send(ProducerRecord(leaderChangelogTopic, COMPETITION_LEADER_KEY,
+                            ClusterInfo()
+                                    .setClusterMembers(cluster.members()
+                                            ?.map { member ->
+                                                val hostName = ClusterConfiguration.getClusterMetadataForMember(cluster, member)?.memberHostName
+                                                        ?: member.address().host()
+                                                ClusterMember()
+                                                        .setId(member.id())
+                                                        .setUri(getUrlPrefix(hostName, serverProperties.port))
+                                                        .setHost(hostName)
+                                                        .setPort(serverProperties.port.toString())
+                                            }?.toTypedArray())))
+                    producer.flush()
+                }
+                .doOnError { throw(it) }
+                .block(Duration.ofSeconds(5))!!
     }
 
     fun createProcessingInfoEvents(correlationId: String, competitionIds: Set<String>): Array<EventDTO> {
@@ -141,10 +224,6 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
         }.getOrNull()
     }
 
-    private val clusterMembers = ConcurrentHashMap<String, MemberWithRestPort>()
-    private val localCompetitionIds = ConcurrentSkipListSet<String>()
-
-
     fun broadcastCompetitionProcessingInfo(competitionIds: Set<String>, correlationId: String? = null) {
         log.info("Broadcast competition processing info method call: $competitionIds, $correlationId")
         if (!correlationId.isNullOrBlank()) {
@@ -193,62 +272,13 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
     fun isLocal(address: Address) = (cluster.address().host() == address.host() || address.host() == clusterConfigurationProperties.advertisedHost) && address.port() == serverProperties.port
 
     fun init() {
-        cluster.listenGossips().subscribe {
-            log.info("Received a gossip: $it")
-            processMessage(it)
-        }
-
-        producer.send(ProducerRecord(leaderChangelogTopic, COMPETITION_LEADER_KEY,
-                ClusterInfo()
-                        .setClusterMembers(cluster.members()
-                                ?.map { member ->
-                                    val hostName = cluster.metadata(member)?.get(MEMBER_HOSTNAME_METADATA_KEY)
-                                            ?: member.address().host()
-                                    ClusterMember()
-                                            .setId(member.id())
-                                            .setUri(getUrlPrefix(hostName, serverProperties.port))
-                                            .setHost(hostName)
-                                            .setPort(serverProperties.port.toString())
-                                }?.toTypedArray())))
-        producer.flush()
-
-        cluster.listenMembership().subscribe {
-            broadcastCompetitionProcessingInfo(this.localCompetitionIds)
-            when (it.type()) {
-                MembershipEvent.Type.ADDED -> {
-                    log.info("Member added to the cluster: ${it.member()}")
-                }
-                MembershipEvent.Type.REMOVED -> {
-                    log.info("Member removed from the cluster: ${it.member()}")
-                    if (it.oldMetadata()?.get(REST_PORT_METADATA_KEY) != null) {
-                        val m = MemberWithRestPort(it.member(), it.oldMetadata()?.get(REST_PORT_METADATA_KEY)?.toInt()!!)
-                        val keysToRemove = clusterMembers.filter { entry -> entry.value == m }.keys
-                        keysToRemove.forEach { id -> clusterMembers.remove(id) }
-                    }
-                }
-                MembershipEvent.Type.UPDATED -> {
-                    log.info("Cluster member updated: ${it.member()}")
-                    val om = MemberWithRestPort(it.member(), it.oldMetadata()?.get(REST_PORT_METADATA_KEY)?.toInt()!!)
-                    val nm = MemberWithRestPort(it.member(), it.newMetadata()?.get(REST_PORT_METADATA_KEY)?.toInt()!!)
-                    val keysToUpdate = clusterMembers.filter { entry -> entry.value == om }.keys
-                    keysToUpdate.forEach { id -> clusterMembers[id] = nm }
-                }
-                else -> {
-                    log.info("Strange membership event: $it")
-                }
-            }
-            producer.send(ProducerRecord(leaderChangelogTopic, COMPETITION_LEADER_KEY,
-                    ClusterInfo()
-                            .setClusterMembers(cluster.members()
-                                    ?.mapNotNull { member -> createClusterMember(member) }?.toTypedArray())))
-            producer.flush()
-        }
     }
 
-    private fun createClusterMember(member: Member): ClusterMember? {
-        val hostName = cluster.metadata(member)?.get(MEMBER_HOSTNAME_METADATA_KEY)
+    private fun createClusterMember(cluster: Cluster, member: Member): ClusterMember? {
+        val metadata = ClusterConfiguration.getClusterMetadataForMember(cluster, member)
+        val hostName = metadata?.memberHostName
                 ?: member.address().host()
-        val port = cluster.metadata(member)?.get(REST_PORT_METADATA_KEY)
+        val port = metadata?.restPort
                 ?: member.address().port().toString()
         return ClusterMember()
                 .setId(member.id())
@@ -262,11 +292,7 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
         producer.close()
     }
 
-    fun localMemberId(): String {
-        return cluster.member().id()
-    }
-
     fun getClusterMembers(): Array<ClusterMember> =
-            cluster.members()?.mapNotNull { createClusterMember(it) }?.toTypedArray() ?: emptyArray()
+            cluster.members()?.mapNotNull { createClusterMember(cluster, it) }?.toTypedArray() ?: emptyArray()
 
 }

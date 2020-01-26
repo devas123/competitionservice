@@ -3,84 +3,78 @@
 #el-curator: leader election with curator's recipe
 #dev - developer's profile (for test instances of zookeeper and kafka)
 
-
 spring:
-#    mongodb:
-#      host: localhost
-#      port: 27017
-#      username: compman
-#      password: compManagerPassword
-#      database: compservice
-#      authentication-database: admin
   datasource:
-    url: jdbc:postgresql://10.220.143.181:5432/postgres?serverTimezone=UTC
-    username: postgres
-    password: admin
-#    driver-class-name: com.mysql.cj.jdbc.Driver
-
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/postgres?serverTimezone=UTC}
+    username: ${POSTGRES_USERNAME:postgres}
+    password: ${POSTGRES_PASSWORD:admin}
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: validate
     properties:
       hibernate.dialect: org.hibernate.dialect.PostgreSQL95Dialect
+      hibernate:
+        event:
+          merge:
+            entity_copy_observer: allow
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      WRITE_DATES_AS_TIMESTAMPS: false
+      FAIL_ON_EMPTY_BEANS: false
+    deserialization:
+      FAIL_ON_UNKNOWN_PROPERTIES: false
+      READ_UNKNOWN_ENUM_VALUES_AS_NULL: true
+    visibility:
+      ALL: any
+  kafka:
+    admin:
+      client-id: "competition-service-admin"
+    bootstrap-servers: ${kafka.bootstrap-servers}
+    consumer:
+      group-id: compserv_consumer
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      properties:
+        isolation:
+          level: read_committed
+    producer:
+      properties:
+        acks: "all"
+        retries: 3
+        batch.size: 16384
+        linger.ms: 1
+        buffer.memory: 33554432
+        key.serializer: org.apache.kafka.common.serialization.StringSerializer
+        value.serializer: org.apache.kafka.common.serialization.StringSerializer
+      transaction-id-prefix: tx-
+  flyway:
+    enabled: true
+
 
 logging:
   level:
     org:
       hibernate:
-        SQL: INFO
+        SQL: DEBUG
         type:
           descriptor:
             sql:
-              BasicBinder: INFO
-
+              BasicBinder: WARN
 server:
   servlet.context-path: /competitions
   port: ${SERVER_PORT:3082}
-
-
-communication:
-  frontend-callback-url: http://localhost:8080/
-  account-service: http://localhost:8089/
-  query-service: http://localhost:9000/
-
+  max-http-header-size: 20000
 
 cluster:
   enable-cluster: true
   advertised-port: ${ADVERTISED_PORT:60390}
   advertised-host: ${ADVERTISED_HOST:localhost}
-  cluster-seed: ${CLUSTER_SEED}
+  cluster-seed: ${CLUSTER_SEED:localhost:60391}
 
 
 kafka:
-  bootstrap-servers: "10.220.143.181:50812"
-  stream-properties:
-    application.id: competition_service
-    bootstrap.servers: ${kafka.bootstrap-servers}
-    processing.guarantee: at_least_once
-    cache.max.bytes.buffering: 0
-    num.stream.threads: ${kafka.default-topic-options.partitions}
-  consumer:
-    properties:
-      bootstrap.servers: ${kafka.bootstrap-servers}
-      group.id: compserv_consumer
-      enable.auto.commit: true
-      value.deserializer: compman.compsrv.kafka.serde.CommandDeserializer
-      key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    topics:
-    - name: competition_commands
-  producer:
-    topic:
-      name: competition_events
-    properties:
-     bootstrap.servers: ${kafka.bootstrap-servers}
-     acks: "all"
-     retries: 0
-     batch.size: 16384
-     linger.ms: 1
-     buffer.memory: 33554432
-     key.serializer: org.apache.kafka.common.serialization.StringSerializer
-     value.serializer: org.apache.kafka.common.serialization.StringSerializer
+  bootstrap-servers: ${BOOTSTRAP_SERVERS:localhost:61383}
   default-topic-options:
     partitions: 4
     replication-factor: 1
