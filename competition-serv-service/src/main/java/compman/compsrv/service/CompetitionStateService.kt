@@ -29,6 +29,7 @@ class CompetitionStateService(
     }
 
     override fun apply(event: EventDTO, isBatch: Boolean): List<EventDTO> {
+        log.info("Applying event: $event, batch: $isBatch")
         fun createErrorEvent(error: String) = mapper.createErrorEvent(event, error)
         return try {
             val eventWithId = event.setId(event.id ?: IDGenerator.uid())

@@ -8,4 +8,6 @@ import org.springframework.transaction.annotation.Transactional
 
 @Repository
 @Transactional(propagation = Propagation.SUPPORTS)
-interface RegistrationPeriodCrudRepository : CrudRepository<RegistrationPeriod, String>
+interface RegistrationPeriodCrudRepository : CrudRepository<RegistrationPeriod, String> {
+    fun deleteAllByRegistrationInfoId(registrationInfoId: String)
+}

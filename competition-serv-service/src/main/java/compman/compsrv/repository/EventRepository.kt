@@ -9,4 +9,5 @@ import javax.transaction.Transactional
 @Transactional(Transactional.TxType.MANDATORY)
 interface EventRepository : JpaRepository<Event, String> {
     fun existsByCorrelationId(correlationId: String): Boolean
+    fun deleteAllByCompetitionId(competitionId: String)
 }
