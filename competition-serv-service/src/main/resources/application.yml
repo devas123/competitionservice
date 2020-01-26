@@ -70,7 +70,7 @@ cluster:
   enable-cluster: true
   advertised-port: ${ADVERTISED_PORT:60390}
   advertised-host: ${ADVERTISED_HOST:localhost}
-  cluster-seed: ${CLUSTER_SEED:}
+  cluster-seed: ${CLUSTER_SEED:localhost:60391}
 
 
 kafka:

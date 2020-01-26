@@ -12,7 +12,7 @@
     <artifactId>competition-serv-service</artifactId>
 
     <properties>
-        <scalecube.version>2.2.5</scalecube.version>
+        <scalecube.version>2.4.10-RC9</scalecube.version>
         <flyway-core.version>6.1.4</flyway-core.version>
         <flyway-maven-plugin.version>6.1.4</flyway-maven-plugin.version>
         <!-- Properties are prefixed with flyway. -->
@@ -28,13 +28,6 @@
 
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>io.projectreactor</groupId>
-                <artifactId>reactor-bom</artifactId>
-                <version>Californium-SR5</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
             <dependency>
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
@@ -59,10 +52,6 @@
     </dependencyManagement>
 
     <dependencies>
-        <dependency>
-            <groupId>io.projectreactor</groupId>
-            <artifactId>reactor-core</artifactId>
-        </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
