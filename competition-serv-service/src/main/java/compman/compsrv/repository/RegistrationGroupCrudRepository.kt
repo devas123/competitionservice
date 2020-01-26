@@ -13,4 +13,6 @@ import java.util.*
 interface RegistrationGroupCrudRepository : CrudRepository<RegistrationGroup, String> {
     @Query("SELECT * FROM registration_group g WHERE g.default_group = true AND g.registration_info_id = ?1 AND g.id != ?2", nativeQuery = true)
     fun findDefaultGroupByRegistrationInfoIdAndIdNotEqual(registrationGroupId: String, id: String): Optional<RegistrationGroup>
+
+    fun deleteAllByRegistrationInfoId(registrationInfoId: String)
 }

@@ -5,6 +5,7 @@ import compman.compsrv.kafka.serde.EventDeserializer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
+import compman.compsrv.service.CompetitionCleaner
 import compman.compsrv.service.CompetitionStateService
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord
@@ -24,7 +25,8 @@ import java.util.*
 @Component
 class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                                private val competitionStateService: CompetitionStateService,
-                               private val clusterSesion: ClusterSession) {
+                               private val clusterSesion: ClusterSession,
+                               private val competitionCleaner: CompetitionCleaner) {
 
     companion object {
         private val log: Logger = LoggerFactory.getLogger(CompetitionStateResolver::class.java)
@@ -38,10 +40,11 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
-    fun resolveLatestCompetitionState(competitionId: String) {
+    fun resolveLatestCompetitionState(competitionId: String, correlationId: String?) {
         log.info("Retrieving state for the competitionId: $competitionId")
         if (!clusterSesion.isProcessedLocally(competitionId)) {
             log.error("Trying to find the 'COMPETITION_CREATED' event in the events for the past 365 days.")
+            competitionCleaner.deleteCompetition(competitionId)
             val consumer = KafkaConsumer<String, EventDTO>(consumerProperties())
             consumer.use { cons ->
                 val topicPartitions = cons.partitionsFor(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME).map { TopicPartition(it.topic(), it.partition()) }
@@ -80,7 +83,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                     } while (!records.isNullOrEmpty())
                     if (competitionCreated) {
                         log.info("We have initialized the state from the first event to the last for $competitionId")
-                        clusterSesion.broadcastCompetitionProcessingInfo(setOf(competitionId))
+                        clusterSesion.broadcastCompetitionProcessingInfo(setOf(competitionId), correlationId)
                     } else {
                         log.error("Could not initialize the state for $competitionId")
                     }

@@ -4,9 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.cluster.MemberMetadata
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.repository.CompetitionStateRepository
+import compman.compsrv.repository.*
 import compman.compsrv.service.ClusterInfoService
 import compman.compsrv.service.CommandCache
+import compman.compsrv.service.CompetitionCleaner
 import io.scalecube.cluster.Cluster
 import io.scalecube.cluster.ClusterConfig
 import io.scalecube.cluster.Member
@@ -21,6 +22,7 @@ import org.springframework.context.annotation.DependsOn
 import org.springframework.kafka.core.KafkaTemplate
 import java.net.InetAddress
 import java.nio.ByteBuffer
+import javax.persistence.EntityManager
 
 @Configuration
 @EnableConfigurationProperties(ClusterConfigurationProperties::class)
@@ -45,17 +47,19 @@ class ClusterConfiguration {
         val clusterSeed = clusterConfigurationProperties.clusterSeed?.mapNotNull { s -> Address.from(s) } ?: emptyList()
         log.info("Configured initial cluster seed: $clusterSeed")
         return ClusterConfig.defaultConfig()
-                .transport { it
-                        .host(InetAddress.getLocalHost().hostAddress)
-                        .port(clusterConfigurationProperties.advertisedPort)
+                .transport {
+                    it
+                            .host(InetAddress.getLocalHost().hostAddress)
+                            .port(clusterConfigurationProperties.advertisedPort)
                 }
                 .membership { it.seedMembers(clusterSeed) }
 
                 .metadata(MemberMetadata(serverProperties.port.toString(), memberHost))
-                .metadataCodec(object: MetadataCodec {
+                .metadataCodec(object : MetadataCodec {
                     override fun deserialize(buffer: ByteBuffer?): Any? {
                         return buffer?.let { objectMapper.readValue(it.array(), MemberMetadata::class.java) }
                     }
+
                     override fun serialize(metadata: Any?): ByteBuffer? {
                         return metadata?.let { ByteBuffer.wrap(objectMapper.writeValueAsBytes(it)) }
                     }
@@ -69,13 +73,14 @@ class ClusterConfiguration {
                        kafkaProperties: org.springframework.boot.autoconfigure.kafka.KafkaProperties,
                        serverProperties: ServerProperties,
                        objectMapper: ObjectMapper,
-                       competitionStateRepository: CompetitionStateRepository,
+                       competitionCleaner: CompetitionCleaner,
                        commandCache: CommandCache,
                        kafkaTemplate: KafkaTemplate<String, CommandDTO>) =
             ClusterSession(clusterConfigurationProperties,
-                    cluster,
+                    cluster, competitionCleaner,
                     kafkaProperties,
-                    serverProperties, objectMapper, competitionStateRepository,
+                    serverProperties,
+                    objectMapper,
                     commandCache, kafkaTemplate)
 
 

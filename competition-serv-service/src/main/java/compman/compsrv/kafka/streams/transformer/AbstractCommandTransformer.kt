@@ -21,7 +21,7 @@ abstract class AbstractCommandTransformer(
 
     private val log = LoggerFactory.getLogger(this.javaClass)
 
-    abstract fun initState(id: String)
+    abstract fun initState(id: String, correlationId: String?)
     abstract fun getState(id: String): Optional<CompetitionState>
 
     @Transactional(propagation = Propagation.REQUIRED)
@@ -31,7 +31,7 @@ abstract class AbstractCommandTransformer(
         fun createErrorEvent(message: String?) = listOf(mapper.createErrorEvent(command, message))
         return try {
             if (command.type != CommandType.CREATE_COMPETITION_COMMAND && command.type != CommandType.DELETE_COMPETITION_COMMAND) {
-                initState(readOnlyKey)
+                initState(readOnlyKey, command.correlationId)
             }
             val validationErrors = canExecuteCommand(command)
             when {

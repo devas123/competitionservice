@@ -9,6 +9,7 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.*
+import compman.compsrv.service.CompetitionCleaner
 import compman.compsrv.util.applyProperties
 import compman.compsrv.util.createErrorEvent
 import compman.compsrv.util.getPayloadAs
@@ -21,12 +22,14 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                                 private val scheduleCrudRepository: ScheduleCrudRepository,
                                 private val competitorCrudRepository: CompetitorCrudRepository,
                                 private val stageDescriptorCrudRepository: StageDescriptorCrudRepository,
+                                private val compScoreCrudRepository: CompScoreCrudRepository,
                                 private val bracketsRepository: BracketsDescriptorCrudRepository,
                                 private val categoryStateCrudRepository: CategoryStateCrudRepository,
                                 private val fightCrudRepository: FightCrudRepository,
                                 private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
                                 private val registrationPeriodCrudRepository: RegistrationPeriodCrudRepository,
                                 private val registrationInfoCrudRepository: RegistrationInfoCrudRepository,
+                                private val competitionCleaner: CompetitionCleaner,
                                 private val mapper: ObjectMapper) : IEventProcessor {
     override fun affectedEvents(): Set<EventType> {
         return setOf(
@@ -181,14 +184,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                     listOf(event)
                 }
                 EventType.COMPETITION_DELETED -> {
-                    if (competitionStateCrudRepository.existsById(event.competitionId)) {
-                        scheduleCrudRepository.deleteById(event.competitionId)
-                        fightCrudRepository.deleteAllByCompetitionId(event.competitionId)
-                        stageDescriptorCrudRepository.deleteAllByCompetitionId(event.competitionId)
-                        competitorCrudRepository.deleteAllByCompetitionId(event.competitionId)
-                        categoryStateCrudRepository.deleteAllByCompetitionId(event.competitionId)
-                        competitionStateCrudRepository.deleteById(event.competitionId)
-                    }
+                    competitionCleaner.deleteCompetition(event.competitionId)
                     listOf(event)
                 }
                 EventType.COMPETITION_CREATED -> {

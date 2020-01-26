@@ -20,4 +20,6 @@ interface CompScoreCrudRepository : JpaRepository<CompScore, String> {
     @Modifying(flushAutomatically = true)
     @Query("INSERT INTO comp_score (id, advantages, penalties, points, compscore_competitor_id, compscore_fight_description_id, comp_score_order) values (?1, ?2, ?3, ?4, ?5, ?6, ?7)", nativeQuery = true)
     fun insertCompScore(id: String, advantages: Int, penalties: Int, points: Int,  competitorId: String, fightId: String, index: Int)
+
+    fun deleteAllByCompetitorCompetitionId(competitionId: String)
 }

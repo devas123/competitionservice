@@ -15,8 +15,8 @@ open class CompetitionCommandTransformer(competitionStateService: CompetitionSta
     : AbstractCommandTransformer(competitionStateService, mapper) {
 
 
-    override fun initState(id: String) {
-        competitionStateResolver.resolveLatestCompetitionState(id)
+    override fun initState(id: String, correlationId: String?) {
+        competitionStateResolver.resolveLatestCompetitionState(id, correlationId)
     }
 
     override fun getState(id: String) = competitionStateRepository.findById(id)
