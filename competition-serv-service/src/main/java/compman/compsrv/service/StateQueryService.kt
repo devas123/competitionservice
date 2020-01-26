@@ -141,7 +141,13 @@ class StateQueryService(private val clusterSession: ClusterSession,
                     IO { Option.fromNullable(competitionPropertiesCrudRepository.findByIdOrNull(competitionId)).map { state -> state.toDTO(competitionStateCrudRepository.findStatusById(competitionId!!)?.getStatus()) } }
                 },
                 { it, restTemplate, _ ->
-                    IO { Option.fromNullable(restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/comprops?competitionId=$competitionId", CompetitionPropertiesDTO::class.java)) }
+                    IO {
+                        val url = "${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/comprops?competitionId=$competitionId"
+                        log.info("Doing a remote request to address $it, url=$url")
+                        val result = Option.fromNullable(restTemplate.getForObject(url, CompetitionPropertiesDTO::class.java))
+                        log.info("Result: $result")
+                        result
+                    }
                 }
         )
         return io?.attempt()?.unsafeRunSync()?.getOrHandle {
