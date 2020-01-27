@@ -2,18 +2,33 @@
 #el-zookeeper: manual leader election with zookeeper
 #el-curator: leader election with curator's recipe
 #dev - developer's profile (for test instances of zookeeper and kafka)
-
 spring:
   datasource:
     url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/postgres?serverTimezone=UTC}
     username: ${POSTGRES_USERNAME:postgres}
     password: ${POSTGRES_PASSWORD:admin}
+  cache:
+    ehcache:
+      config: classpath:ehcache.xml
   jpa:
     hibernate:
       ddl-auto: validate
     properties:
+      javax:
+        persistence:
+          sharedCache:
+            mode: ALL
       hibernate.dialect: org.hibernate.dialect.PostgreSQL95Dialect
       hibernate:
+        javax:
+          cache:
+            provider: org.ehcache.jsr107.EhcacheCachingProvider
+            missing_cache_strategy: create
+        cache:
+          use_second_level_cache: true
+          use_query_cache: true
+          region:
+            factory_class: org.hibernate.cache.jcache.JCacheRegionFactory
         event:
           merge:
             entity_copy_observer: allow
