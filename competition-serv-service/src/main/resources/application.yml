@@ -20,11 +20,12 @@ spring:
             mode: ALL
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQL95Dialect
+        generate_statistics: true
+        order_inserts: true
+        order_updates: true
         jdbc:
           batch.size: 50
           batch_versioned_data: true
-        order_inserts: true
-        order_updates: true
         javax:
           cache:
             provider: org.ehcache.jsr107.EhcacheCachingProvider
@@ -71,17 +72,6 @@ spring:
   flyway:
     enabled: true
 
-
-
-logging:
-  level:
-    org:
-      hibernate:
-        SQL: WARN
-        type:
-          descriptor:
-            sql:
-              BasicBinder: WARN
 server:
   servlet.context-path: /competitions
   port: ${SERVER_PORT:3082}
