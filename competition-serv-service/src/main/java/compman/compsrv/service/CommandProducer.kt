@@ -76,7 +76,7 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
                             commandCache.executeCommand(correlationId, future) {
                                 sendCommandAsync(command, competitionId, correlationId)
                             }
-                            val result = commandCache.waitForResult(future, Duration.ofSeconds(10))
+                            val result = commandCache.waitForResult(future, Duration.ofSeconds(30))
                             result
                         },
                         { _, restTemplate, prefix ->

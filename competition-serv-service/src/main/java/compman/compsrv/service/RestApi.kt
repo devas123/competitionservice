@@ -4,7 +4,6 @@ import compman.compsrv.cluster.ClusterMember
 import compman.compsrv.model.CommonResponse
 import compman.compsrv.model.PageResponse
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
@@ -49,7 +48,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     fun getCategoryState(@RequestParam("competitionId") competitionId: String, @RequestParam("categoryId") categoryId: String): Any? {
         val state = stateQueryService.getCategoryState(
                 competitionId, categoryId)
-        return state?.setBrackets(state.brackets?.setStages(state.brackets.stages?.map { it.setFights(emptyArray()) }?.toTypedArray()))
+        return state?.setBrackets(state.brackets?.setStages(state.brackets.stages))
     }
 
     @RequestMapping("/store/mats", method = [RequestMethod.GET])
@@ -103,20 +102,6 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
 
     @RequestMapping("/store/categories", method = [RequestMethod.GET])
     fun getCategories(@RequestParam("competitionId") competitionId: String) = stateQueryService.getCategories(competitionId)
-
-    @RequestMapping("/store/brackets", method = [RequestMethod.GET])
-    fun getBrackets(@RequestParam("competitionId") competitionId: String?, @RequestParam("categoryId") categoryId: String?): Array<StageDescriptorDTO> {
-        return if (competitionId.isNullOrBlank() && categoryId.isNullOrBlank()) {
-            log.warn("Competition id is missing.")
-            emptyArray()
-        } else {
-            if (categoryId.isNullOrBlank()) {
-                stateQueryService.getBracketsForCompetition(competitionId!!) ?: emptyArray()
-            } else {
-                stateQueryService.getBrackets(competitionId!!, categoryId) ?: emptyArray()
-            }
-        }
-    }
 
 
     @RequestMapping("/store/schedule", method = [RequestMethod.GET])

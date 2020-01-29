@@ -3,15 +3,12 @@ package compman.compsrv.jpa.competition
 import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.util.IDGenerator
 import java.util.*
-import javax.persistence.Embedded
-import javax.persistence.Entity
-import javax.persistence.JoinColumn
-import javax.persistence.ManyToOne
+import javax.persistence.*
 
 @Entity
 class CompScore(
         id: String,
-        @ManyToOne(optional = false)
+        @ManyToOne(optional = false, fetch = FetchType.LAZY)
         @JoinColumn(name = "compscore_competitor_id", nullable = false, updatable = false)
         val competitor: Competitor,
         @Embedded

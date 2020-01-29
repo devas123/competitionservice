@@ -43,4 +43,7 @@ interface FightCrudRepository : JpaRepository<FightDescription, String> {
 
     fun findDistinctByCompetitionIdAndMatIdAndStageInAndScoresNotNullOrderByNumberOnMat(competitionId: String, matId: String, stages: List<FightStage>, pageable: Pageable): Page<FightDescription>?
     fun deleteAllByCompetitionId(competitionId: String)
+
+    @Query("select * from fight_description f left join comp_score cs on f.id = cs.compscore_fight_description_id full join competitor c on cs.compscore_competitor_id = c.id  where f.stage_id = ?1", nativeQuery = true)
+    fun findAllByStageId(stageId: String): Stream<FightDescription>
 }

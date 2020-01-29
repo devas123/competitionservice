@@ -1,5 +1,7 @@
 package compman.compsrv.service
 
+import arrow.core.Either
+import arrow.core.Either.Companion.right
 import arrow.core.None
 import arrow.core.Option
 import arrow.core.getOrHandle
@@ -7,7 +9,6 @@ import arrow.fx.IO
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.jpa.competition.Competitor
 import compman.compsrv.mapping.toDTO
-import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
@@ -15,6 +16,7 @@ import compman.compsrv.repository.*
 import compman.compsrv.util.compNotEmpty
 import io.scalecube.net.Address
 import org.slf4j.LoggerFactory
+import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
@@ -27,12 +29,15 @@ import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClientResponseException
 import org.springframework.web.client.RestTemplate
 import java.nio.charset.StandardCharsets
+import java.time.Duration
 import java.util.stream.Collectors
+import javax.transaction.Transactional
 import kotlin.math.max
+import kotlin.streams.toList
 
 @Component
 class StateQueryService(private val clusterSession: ClusterSession,
-                        private val restTemplate: RestTemplate,
+                        restTemplateBuilder: RestTemplateBuilder,
                         private val competitionStateCrudRepository: CompetitionStateCrudRepository,
                         private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
                         private val scheduleCrudRepository: ScheduleCrudRepository,
@@ -42,14 +47,17 @@ class StateQueryService(private val clusterSession: ClusterSession,
                         private val categoryDescriptorCrudRepository: CategoryDescriptorCrudRepository,
                         private val competitorCrudRepository: CompetitorCrudRepository,
                         private val dashboardStateCrudRepository: DashboardStateCrudRepository,
-                        private val dashboardPeriodCrudRepository: DashboardPeriodCrudRepository,
-                        private val stageDescriptorCrudRepository: StageDescriptorCrudRepository) {
+                        private val dashboardPeriodCrudRepository: DashboardPeriodCrudRepository) {
 
     companion object {
         private val log = LoggerFactory.getLogger(StateQueryService::class.java)
     }
 
     private val firstName = "firstName"
+
+    private val restTemplate = restTemplateBuilder
+            .setConnectTimeout(Duration.ofSeconds(3))
+            .setReadTimeout(Duration.ofSeconds(10)).build()
 
     private val lastName = "lastName"
     private val notFinished = listOf(FightStage.PENDING, FightStage.IN_PROGRESS, FightStage.GET_READY, FightStage.PAUSED)
@@ -157,20 +165,34 @@ class StateQueryService(private val clusterSession: ClusterSession,
     }
 
     fun <T> localOrRemote(competitionId: String?, ifLocal: () -> T?, ifRemote: (instanceAddress: Address, restTemplate: RestTemplate, urlPrefix: String) -> T?): T? {
-        return competitionId?.let { id ->
-            log.info("Looking for processing member for competition.")
-            val instanceAddress = clusterSession.findProcessingMember(competitionId)
-            log.info("Competition $id is processed by $instanceAddress")
-            instanceAddress?.let {
-                if (clusterSession.isLocal(instanceAddress)) {
-                    log.info("Competition $competitionId is processed locally!")
-                    ifLocal.invoke()
-                } else {
-                    log.info("Competition $competitionId is processed by $instanceAddress")
-                    ifRemote.invoke(instanceAddress, restTemplate, clusterSession.getUrlPrefix(it.host(), it.port()))
+        var k: Either<Throwable, T?> = Either.left(RuntimeException("Request failed for competition $competitionId, see logs for details. "))
+        competitionId?.let { id ->
+            var retries = 3
+            while (retries > 0 && k.isLeft()) {
+                log.info("Looking for processing member for competition.")
+                val instanceAddress = clusterSession.findProcessingMember(competitionId)
+                log.info("Competition $id is processed by $instanceAddress")
+                instanceAddress?.let {
+                    k = runCatching {
+                        if (clusterSession.isLocal(instanceAddress)) {
+                            log.info("Competition $competitionId is processed locally!")
+                            ifLocal.invoke()
+                        } else {
+                            log.info("Competition $competitionId is processed by $instanceAddress")
+                            ifRemote.invoke(instanceAddress, restTemplate, clusterSession.getUrlPrefix(it.host(), it.port()))
+                        }
+                    }.map { right(it) }.getOrElse {
+                        log.error("Error while doing a remote request.", it)
+                        clusterSession.invalidateMemberForCompetitionId(id)
+                        retries--
+                        Either.left(it)
+                    }
                 }
             }
         }
+        return k.fold({ throw it }, {
+            it
+        })
     }
 
     fun getSchedule(competitionId: String?): ScheduleDTO? {
@@ -190,7 +212,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
     fun getCategoryState(competitionId: String, categoryId: String): CategoryStateDTO? {
         log.info("Getting state for category $categoryId")
         return localOrRemote(competitionId, {
-            categoryStateCrudRepository.findByIdAndCompetitionId(categoryId, competitionId)?.toDTO(includeBrackets = true, competitionId = competitionId, getMat = getMat)
+            categoryStateCrudRepository.findByIdAndCompetitionId(categoryId, competitionId)?.toDTO(includeBrackets = true, competitionId = competitionId)
         },
                 { it, restTemplate, _ ->
                     restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/categorystate?competitionId=$competitionId&categoryId=$categoryId", CategoryStateDTO::class.java)
@@ -236,12 +258,16 @@ class StateQueryService(private val clusterSession: ClusterSession,
         })
     }
 
+    @Transactional
     fun getStageFights(competitionId: String, stageId: String): Array<FightDescriptionDTO>? {
         log.info("Getting competitors for stage $stageId")
         return localOrRemote(competitionId, {
-            stageDescriptorCrudRepository.getOne(stageId).fights?.map { fightDescription ->
-                fightDescription.toDTO({ categoryDescriptorCrudRepository.findByIdOrNull(it)?.toDTO() }, { id -> id?.let { matDescriptionCrudRepository.findByIdOrNull(it)?.toDTO() } })
-            }?.toTypedArray()
+            val unmappedFights = fightCrudRepository.findAllByStageId(stageId).toList()
+            val categories = categoryDescriptorCrudRepository.findAllById(unmappedFights.map { it.categoryId }.distinct())
+            val mats = matDescriptionCrudRepository.findAllById(unmappedFights.mapNotNull { it.matId }.distinct())
+            unmappedFights.map { fightDescription ->
+                fightDescription.toDTO({ categories.firstOrNull { cat -> cat.id == it }?.toDTO() }, { id -> id?.let { mats.firstOrNull { mat -> mat.id == it }?.toDTO() } })
+            }.toTypedArray()
         }, { it, restTemplate, _ ->
             restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/stagefights?competitionId=$competitionId&stageId=$stageId", Array<FightDescriptionDTO>::class.java)
         })
@@ -251,7 +277,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getCategories(competitionId: String): Array<CategoryStateDTO> {
         return localOrRemote(competitionId, {
-            categoryStateCrudRepository.findByCompetitionId(competitionId)?.filter { !it.id.isNullOrBlank() }?.map { it.toDTO(competitionId = competitionId, getMat = getMat) }?.toTypedArray()
+            categoryStateCrudRepository.findByCompetitionId(competitionId)?.filter { !it.id.isNullOrBlank() }?.map { it.toDTO(competitionId = competitionId) }?.toTypedArray()
         }, { it, restTemplate, _ ->
             restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/categories?competitionId=$competitionId", Array<CategoryStateDTO>::class.java)
         }) ?: emptyArray()
@@ -264,19 +290,4 @@ class StateQueryService(private val clusterSession: ClusterSession,
             restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/dashboardstate?competitionId=$competitionId", CompetitionDashboardStateDTO::class.java)
         })
     }
-
-    fun getBracketsForCompetition(competitionId: String): Array<StageDescriptorDTO>? =
-            localOrRemote(competitionId, {
-                stageDescriptorCrudRepository.findByCompetitionId(competitionId)?.map { it.toDTO(getCategory, getMat) }?.toTypedArray()
-            }, { it, restTemplate, _ ->
-                restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/brackets?competitionId=$competitionId", Array<StageDescriptorDTO>::class.java)
-            })
-
-    fun getBrackets(competitionId: String, categoryId: String): Array<StageDescriptorDTO>? =
-            localOrRemote(competitionId, {
-                stageDescriptorCrudRepository.findByIdOrNull(categoryId)?.toDTO(getCategory, getMat)?.let { arrayOf(it) }
-                        ?: emptyArray()
-            }, { it, restTemplate, _ ->
-                restTemplate.getForObject("${clusterSession.getUrlPrefix(it.host(), it.port())}/api/v1/store/brackets?competitionId=$competitionId&categoryId=$categoryId", Array<StageDescriptorDTO>::class.java)
-            })
 }

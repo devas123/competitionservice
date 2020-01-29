@@ -17,16 +17,15 @@ import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.listener.AcknowledgingConsumerAwareMessageListener
 import org.springframework.kafka.support.Acknowledgment
 import org.springframework.stereotype.Component
+import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import javax.persistence.EntityManager
 
 @Component
 class CommandListener(private val commandTransformer: CompetitionCommandTransformer,
                       private val template: KafkaTemplate<String, EventDTO>,
                       private val eventRepository: EventRepository,
                       private val clusterSession: ClusterSession,
-                      private val entityManager: EntityManager,
                       private val commandCache: CommandCache) : AcknowledgingConsumerAwareMessageListener<String, CommandDTO> {
     companion object {
         private val log = LoggerFactory.getLogger("commandProcessingLog")
@@ -34,8 +33,10 @@ class CommandListener(private val commandTransformer: CompetitionCommandTransfor
 
     fun handleMessage(m: ConsumerRecord<String, CommandDTO>, acknowledgment: Acknowledgment?, consumer: Consumer<*, *>?): List<EventDTO> {
         if (m.value() != null && m.key() != null) {
+            val start = System.currentTimeMillis()
             log.info("Processing command: $m")
             val events = commandTransformer.transform(m)
+            log.info("Processing commands and applying events finished. Took ${Duration.ofMillis(System.currentTimeMillis() - start)}")
             val filteredEvents = events.filter {
                 when (it.type) {
                     EventType.ERROR_EVENT -> {
@@ -46,8 +47,9 @@ class CommandListener(private val commandTransformer: CompetitionCommandTransfor
                     else -> true
                 }
             }
-            eventRepository.saveAll(events.map { it.toEntity() })
-            entityManager.flush()
+            val startSaving = System.currentTimeMillis()
+            eventRepository.saveAll(filteredEvents.map { it.toEntity() })
+            log.info("Events saved: took ${Duration.ofMillis(System.currentTimeMillis() - startSaving)}")
             log.info("Executing post-processing.")
             filteredEvents.asSequence().forEach {
                 if (it.type == EventType.COMPETITION_DELETED) kotlin.runCatching {
@@ -70,7 +72,9 @@ class CommandListener(private val commandTransformer: CompetitionCommandTransfor
     }
 
     override fun onMessage(m: ConsumerRecord<String, CommandDTO>, acknowledgment: Acknowledgment?, consumer: Consumer<*, *>?) {
+        val startHandle = System.currentTimeMillis()
         val filteredEvents = handleMessage(m, acknowledgment, consumer)
+        log.info("All events handled, took ${Duration.ofMillis(System.currentTimeMillis() - startHandle)}. Starting sending callbacks.")
         val latch = CountDownLatch(filteredEvents.size)
         fun <T> callback() = { _: T -> latch.countDown() }
         filteredEvents.asSequence().forEach {

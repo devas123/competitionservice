@@ -68,14 +68,6 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         }
     }
 
-    private fun doSetFightResult(command: CommandDTO): List<EventDTO> {
-        return if (categoryDescriptorCrudRepository.existsById(command.categoryId)) {
-            listOf(createEvent(command, EventType.CATEGORY_REGISTRATION_STATUS_CHANGED, command.payload))
-        } else {
-            listOf(createErrorEvent(command, "No category with id ${command.categoryId}"))
-        }
-    }
-
     private fun doDropCategoryBrackets(command: CommandDTO): List<EventDTO> = listOf(createEvent(command, EventType.CATEGORY_BRACKETS_DROPPED, command.payload))
 
     private fun doUpdateCompetitor(command: CommandDTO): List<EventDTO> {
@@ -133,7 +125,6 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         val competitors = competitorCrudRepository.findByCompetitionIdAndCategoriesContaining(command.competitionId, setOf(command.categoryId), Pageable.unpaged()).content.toList()
         val payload = mapper.convertValue(command.payload, GenerateBracketsPayload::class.java)
         return if (competitors.isNotEmpty()
-                && fightCrudRepository.findDistinctByCompetitionIdAndCategoryId(command.competitionId, command.categoryId).isNullOrEmpty()
                 && !payload?.stageDescriptors.isNullOrEmpty()) {
             val category = categoryDescriptorCrudRepository.findByIdOrNull(command.categoryId)?.toDTO()
             val stages = payload.stageDescriptors.sortedBy { it.stageOrder }
@@ -176,16 +167,19 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                 stage
                         .setCategoryId(command.categoryId)
                         .setId(stageId)
-                        .setFights(twoFighterFights.map { it.toDTO({ category }, { null }) }.toTypedArray())
                         .setCompetitionId(command.competitionId)
                         .setName(stage.name ?: "Default brackets")
                         .setStageStatus(StageStatus.WAITING_FOR_APPROVAL)
                         .setInputDescriptor(stage.inputDescriptor?.setId(stageId))
                         .setPointsAssignments(stage.pointsAssignments?.mapIndexed { index, it -> it.setId("$stageId-pointAssignment-$index")}?.toTypedArray())
+                        .setNumberOfFights(twoFighterFights.size) to twoFighterFights
             }
-            listOf(createEvent(command, EventType.BRACKETS_GENERATED, BracketsGeneratedPayload(updatedStages.toTypedArray())))
+            val fightAddedEvents = updatedStages.flatMap {  pair -> pair.second.chunked(30).map { createEvent(command, EventType.FIGHTS_ADDED_TO_STAGE,
+                    FightsAddedToStagePayload(it.map { f -> f.toDTO({category}, {null})}.toTypedArray(), pair.first.id)) } }
+            listOf(createEvent(command, EventType.BRACKETS_GENERATED, BracketsGeneratedPayload(updatedStages.mapNotNull { it.first }.toTypedArray()))) + fightAddedEvents
+
         } else {
-            listOf(createErrorEvent(command, "Brackets are already generated"))
+            listOf(createErrorEvent(command, "Category is empty or no stage description provided."))
         }
     }
 

@@ -140,6 +140,10 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
                 .block(Duration.ofSeconds(5))!!
     }
 
+    fun invalidateMemberForCompetitionId(competitionId: String) {
+        clusterMembers.remove(competitionId)
+    }
+
     fun createProcessingInfoEvents(correlationId: String, competitionIds: Set<String>): Array<EventDTO> {
         val member = MemberWithRestPort(cluster.member(), serverProperties.port)
         return competitionIds.map {
