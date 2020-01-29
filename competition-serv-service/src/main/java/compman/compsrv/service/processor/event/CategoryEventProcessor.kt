@@ -13,13 +13,7 @@ import compman.compsrv.repository.*
 import compman.compsrv.util.getPayloadAs
 import org.slf4j.LoggerFactory
 import org.springframework.data.repository.findByIdOrNull
-import org.springframework.jdbc.core.BatchPreparedStatementSetter
-import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Component
-import java.sql.PreparedStatement
-import java.sql.Timestamp
-import java.util.*
-import javax.persistence.EntityManager
 import kotlin.math.min
 
 
@@ -30,7 +24,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
                              private val categoryDescriptorCrudRepository: CategoryDescriptorCrudRepository,
                              private val categoryRestrictionCrudRepository: CategoryRestrictionCrudRepository,
                              private val competitorCrudRepository: CompetitorCrudRepository,
-                             private val jdbcTemplate: JdbcTemplate,
+                             private val jdbcRepository: JdbcRepository,
                              private val fightCrudRepository: FightCrudRepository,
                              private val stageDescriptorCrudRepository: StageDescriptorCrudRepository,
                              private val bracketsDescriptorCrudRepository: BracketsDescriptorCrudRepository) : IEventProcessor {
@@ -85,8 +79,10 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
         val stageId = payload?.stageId
         val fights = payload?.fights
         return if (!stageId.isNullOrBlank() && fights != null) {
-            stageDescriptorCrudRepository.findByIdOrNull(stageId)?.let {
-                it.fights?.addAll(fights.map { fight -> fight.toEntity { categoryDescriptorCrudRepository.getOne(it) }})
+            val categoryIds = fights.map { it.category?.id }.distinct()
+            val categories = categoryDescriptorCrudRepository.findAllById(categoryIds)
+            stageDescriptorCrudRepository.findByIdOrNull(stageId)?.let { stage ->
+                stage.fights?.addAll(fights.map { fight -> fight.toEntity { catId -> categories.firstOrNull { it.id == catId } }})
                 listOf(event)
             } ?: throw EventApplyingException("Could not find stage with id $stageId", event)
         } else {
@@ -183,22 +179,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
         val payload = getPayloadAs(event.payload, FightStartTimeUpdatedPayload::class.java)
         val newFights = payload?.newFights
         return if (!newFights.isNullOrEmpty()) {
-            jdbcTemplate.batchUpdate("UPDATE fight_description f SET start_time = ?, mat_id = ?, number_on_mat = ?, period = ? WHERE f.id = ?", object: BatchPreparedStatementSetter {
-                override fun setValues(ps: PreparedStatement, i: Int) {
-                    if (i < newFights.size) {
-                        val fight = newFights[i]
-                        fight?.let {
-                            ps.setTimestamp(1, Timestamp.from(it.startTime))
-                            ps.setString(2, it.matId)
-                            ps.setInt( 3, it.fightNumber)
-                            ps.setString(4, it.periodId)
-                            ps.setString(5, it.fightId)
-                        }
-                    }
-                }
-                override fun getBatchSize(): Int = newFights.size
-
-            })
+            jdbcRepository.batchUpdateFightStartTimesMatPeriodNumber(newFights.filterNotNull())
             listOf(event)
         } else {
             throw EventApplyingException("Fights are null.", event)
