@@ -89,18 +89,18 @@ class StateQueryService(private val clusterSession: ClusterSession,
                 { getLocalCompetitors(competitionId, categoryId, searchString, pageSize, pageNumber) },
                 { address, restTemplate, _ ->
                     val uri = "${clusterSession.getUrlPrefix(address.host(), address.port())}/api/v1/store/competitors?competitionId=$competitionId"
-                    val queryParams = mutableMapOf<String, String>()
+                    val queryParams = StringBuilder()
                     if (!categoryId.isNullOrBlank()) {
-                        queryParams["categoryId"] = categoryId
+                        queryParams.append("&categoryId=").append(categoryId)
                     }
                     if (!searchString.isNullOrBlank()) {
-                        queryParams["searchString"] = searchString
+                        queryParams.append("&searchString=").append(searchString)
                     }
-                    queryParams["pageSize"] = pageSize.toString()
-                    queryParams["pageNumber"] = pageNumber.toString()
+                    queryParams.append("&pageSize=").append(pageSize.toString())
+                    queryParams.append("&pageNumber=").append(pageNumber.toString())
 
                     val typeRef = getPageType()
-                    val respEntity = restTemplate.exchange(uri, HttpMethod.GET, HttpEntity.EMPTY, typeRef, queryParams)
+                    val respEntity = restTemplate.exchange(uri + queryParams.toString(), HttpMethod.GET, HttpEntity.EMPTY, typeRef)
                     if (respEntity.statusCode == HttpStatus.OK) {
                         respEntity.body?.map { competitor -> competitor.toDTO() }
                     } else {
