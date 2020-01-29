@@ -7,8 +7,8 @@ import arrow.core.Option
 import arrow.core.getOrHandle
 import arrow.fx.IO
 import compman.compsrv.cluster.ClusterSession
-import compman.compsrv.jpa.competition.Competitor
 import compman.compsrv.mapping.toDTO
+import compman.compsrv.model.PageResponse
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
@@ -81,12 +81,15 @@ class StateQueryService(private val clusterSession: ClusterSession,
         }
     }
 
-    fun getCompetitors(competitionId: String, categoryId: String?, searchString: String?, pageSize: Int, pageNumber: Int): Page<CompetitorDTO>? {
-        fun getPageType(): ParameterizedTypeReference<Page<Competitor>> {
-            return object : ParameterizedTypeReference<Page<Competitor>>() {}
+    fun getCompetitors(competitionId: String, categoryId: String?, searchString: String?, pageSize: Int, pageNumber: Int): PageResponse<CompetitorDTO>? {
+        fun getPageType(): ParameterizedTypeReference<PageResponse<CompetitorDTO>> {
+            return object : ParameterizedTypeReference<PageResponse<CompetitorDTO>>() {}
         }
         return localOrRemote(competitionId,
-                { getLocalCompetitors(competitionId, categoryId, searchString, pageSize, pageNumber) },
+                {  val page = getLocalCompetitors(competitionId, categoryId, searchString, pageSize, pageNumber)
+                    PageResponse(competitionId, page.totalElements, page.number + 1, page.content.toTypedArray())
+
+                },
                 { address, restTemplate, _ ->
                     val uri = "${clusterSession.getUrlPrefix(address.host(), address.port())}/api/v1/store/competitors?competitionId=$competitionId"
                     val queryParams = StringBuilder()
@@ -102,7 +105,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
                     val typeRef = getPageType()
                     val respEntity = restTemplate.exchange(uri + queryParams.toString(), HttpMethod.GET, HttpEntity.EMPTY, typeRef)
                     if (respEntity.statusCode == HttpStatus.OK) {
-                        respEntity.body?.map { competitor -> competitor.toDTO() }
+                        respEntity.body
                     } else {
                         throw RestClientResponseException("Error while getting competitors", respEntity.statusCodeValue, respEntity.statusCode.reasonPhrase, respEntity.headers, null, StandardCharsets.UTF_8)
                     }

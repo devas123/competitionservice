@@ -2,7 +2,6 @@ package compman.compsrv.service
 
 import compman.compsrv.cluster.ClusterMember
 import compman.compsrv.model.CommonResponse
-import compman.compsrv.model.PageResponse
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatStateDTO
@@ -72,10 +71,8 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
                        @RequestParam("searchString") searchString: String?,
                        @RequestParam("pageSize") pageSize: Int?,
                        @RequestParam("pageNumber") pageNumber: Int?): Any? {
-        val page = stateQueryService.getCompetitors(competitionId, categoryId, searchString, pageSize ?: 50, pageNumber
+        return stateQueryService.getCompetitors(competitionId, categoryId, searchString, pageSize ?: 50, pageNumber
                 ?: 0)
-        return PageResponse(competitionId, page?.totalElements ?: 0, (page?.number
-                ?: 0) + 1, page?.content?.toTypedArray() ?: emptyArray())
     }
 
 
