@@ -143,7 +143,8 @@ class DashboardCommandProcessor(private val scheduleService: ScheduleService,
                 val result = emptyList<EventDTO>()
                 val payload = mapper.getPayloadAs(command, SetFightResultPayload::class.java)!!
                 fun moveFightersToSiblings(fightIds: List<String?>, winnerId: String, compScores: Array<CompScoreDTO>, isSibling: Boolean = false): List<EventDTO> {
-                    fun newCompScores(winner: Boolean) = arrayOf(compScores.first {  (winner && it.competitor.id == winnerId) || (!winner && it.competitor.id != winnerId) }.setId(IDGenerator.compScoreId(winnerId))
+                    fun newCompScores(winner: Boolean) = arrayOf(compScores.first {  (winner && it.competitor.id == winnerId) || (!winner && it.competitor.id != winnerId) }
+                            .setId(IDGenerator.compScoreId(winnerId))
                             .setScore(ScoreDTO().setAdvantages(0).setPenalties(0).setPoints(0)))
 
                     fun loser() = compScores.first {  it.competitor.id != winnerId }.competitor.id
