@@ -12,7 +12,7 @@ import compman.compsrv.jpa.brackets.CompetitorSelector
 import compman.compsrv.jpa.brackets.StageInputDescriptor
 import compman.compsrv.jpa.competition.*
 import compman.compsrv.model.dto.brackets.*
-import compman.compsrv.model.dto.competition.FightStage
+import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.model.exceptions.CategoryNotFoundException
 import compman.compsrv.repository.CategoryDescriptorCrudRepository
 import compman.compsrv.util.IDGenerator
@@ -379,10 +379,10 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
         }
     }
 
-    fun filterUncompleteFirstRoundFights(fights: List<FightDescription>): List<FightDescription> {
+    fun filterUncompletableFirstRoundFights(fights: List<FightDescription>): List<FightDescription> {
         val firstRoundFights = fights.filter { it.id != null && !checkIfFightCanBePacked(it.id!!) { id -> fights.first { fight -> fight.id == id } } }
         return firstRoundFights.fold(fights) { acc, fightDescription ->
-            val updatedFight = fightDescription.copy(stage = FightStage.FINISHED, fightResult = FightResult(fightDescription.scores?.firstOrNull()?.competitor?.id, CompetitorResultType.WALKOVER, "BYE"))
+            val updatedFight = fightDescription.copy(status = FightStatus.UNCOMPLETABLE, fightResult = FightResult(fightDescription.scores?.firstOrNull()?.competitor?.id, CompetitorResultType.WALKOVER, "BYE"))
             val winFightId = fightDescription.winFight
             val updates = if (!winFightId.isNullOrBlank()) {
                 //find win fight
@@ -412,7 +412,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                         val grandFinal = fights.first { it.roundType == StageRoundType.GRAND_FINAL }
                         val thirdPlaceFight = fights.firstOrNull { it.roundType == StageRoundType.THIRD_PLACE_FIGHT }
                         val finalRound = grandFinal.round!!
-                        val fightsByRounds = thirdPlaceFight?.let { fights.filter { it.roundType != StageRoundType.GRAND_FINAL && it.roundType != StageRoundType.THIRD_PLACE_FIGHT && it.round != finalRound - 1 } }
+                        val filteredFights = thirdPlaceFight?.let { fights.filter { it.roundType != StageRoundType.GRAND_FINAL && it.roundType != StageRoundType.THIRD_PLACE_FIGHT && it.round != finalRound - 1 } }
                                 ?: fights.filter { it.roundType != StageRoundType.GRAND_FINAL }
                                 ?: emptyList()
 
@@ -421,21 +421,24 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                             assert(diff > 0) { "Grand final should be the only fight with the biggest round number." }
                             return diff * 2 + 1
                         }
-                        fightsByRounds.mapNotNull { f ->
-                            when (f.fightResult?.resultType) {
+                        filteredFights.mapNotNull { f ->
+                            log.info("Processing fight for result: $f")
+                            val result = when (f.fightResult?.resultType) {
                                 CompetitorResultType.WIN_DECISION, CompetitorResultType.WIN_POINTS, CompetitorResultType.WIN_SUBMISSION, CompetitorResultType.OPPONENT_DQ -> {
                                     f.scores?.find { it.competitor.id != f.fightResult?.winnerId!! }?.let { compScore ->
-                                        CompetitorResult(compScore.competitor.id + stageId + competitionId, compScore.competitor, 0, f.round, calculateLoserPlace(f.round!!), null, mutableSetOf())
+                                        CompetitorResult(IDGenerator.compResultId(compScore.competitor.id!!, stageId, competitionId), compScore.competitor, 0, f.round, calculateLoserPlace(f.round!!), null, mutableSetOf())
                                     }
                                 }
                                 else -> null
                             }
+                            log.info("Created competitor result: $result")
+                            result
                         } + grandFinal.scores!!.map {
                             val place = if (it.competitor.id == grandFinal.fightResult!!.winnerId) 1 else 2
-                            CompetitorResult(it.competitor.id + stageId + competitionId, it.competitor, 0, grandFinal.round, place, null, mutableSetOf())
+                            CompetitorResult(IDGenerator.compResultId(it.competitor.id!!, stageId, competitionId), it.competitor, 0, grandFinal.round, place, null, mutableSetOf())
                         } + (thirdPlaceFight?.scores?.map {
                             val place = if (it.competitor.id == thirdPlaceFight.fightResult!!.winnerId) 3 else 4
-                            CompetitorResult(it.competitor.id + stageId + competitionId, it.competitor, 0, thirdPlaceFight.round, place, null, mutableSetOf())
+                            CompetitorResult(IDGenerator.compResultId(it.competitor.id!!, stageId, competitionId), it.competitor, 0, thirdPlaceFight.round, place, null, mutableSetOf())
                         } ?: emptyList())
                     }
                     BracketType.DOUBLE_ELIMINATION -> {

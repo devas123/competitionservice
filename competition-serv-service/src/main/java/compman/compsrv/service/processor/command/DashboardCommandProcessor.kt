@@ -5,20 +5,22 @@ import arrow.core.getOrElse
 import arrow.core.orElse
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
+import compman.compsrv.mapping.toDTO
+import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.DashboardFightOrderChangePayload
 import compman.compsrv.model.commands.payload.SetFightResultPayload
-import compman.compsrv.model.dto.brackets.CompetitorResultType
+import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.model.dto.competition.CompScoreDTO
-import compman.compsrv.model.dto.competition.FightResultDTO
-import compman.compsrv.model.dto.competition.FightStage
+import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.model.dto.competition.ScoreDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.DashboardFightOrderChange
 import compman.compsrv.model.events.payload.DashboardFightOrderChangedPayload
 import compman.compsrv.model.events.payload.FightCompetitorsAssignedPayload
+import compman.compsrv.model.events.payload.StageResultSetPayload
 import compman.compsrv.repository.*
 import compman.compsrv.service.FightsGenerateService
 import compman.compsrv.service.ScheduleService
@@ -35,6 +37,7 @@ import java.util.stream.Collectors
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sign
+import kotlin.streams.toList
 
 @Component
 class DashboardCommandProcessor(private val scheduleService: ScheduleService,
@@ -43,6 +46,8 @@ class DashboardCommandProcessor(private val scheduleService: ScheduleService,
                                 private val competitorCrudRepository: CompetitorCrudRepository,
                                 private val categoryCrudRepository: CategoryStateCrudRepository,
                                 private val fightCrudRepository: FightCrudRepository,
+                                private val jdbcRepository: JdbcRepository,
+                                private val fightsGenerateService: FightsGenerateService,
                                 private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
                                 private val stageDescriptorCrudRepository: StageDescriptorCrudRepository,
                                 private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
@@ -69,32 +74,32 @@ class DashboardCommandProcessor(private val scheduleService: ScheduleService,
                     val newOrderOnMat = max(payload.newOrderOnMat, 0)
                     val fight = fightCrudRepository.getOne(payload.fightId)
                     val periodId = fight.period
-                    when (fight.stage) {
-                        FightStage.IN_PROGRESS, FightStage.FINISHED -> {
+                    when (fight.status) {
+                        FightStatus.IN_PROGRESS, FightStatus.FINISHED -> {
                             listOf(mapper.createErrorEvent(command, "Cannot move fight that is finished or in progress."))
                         }
                         else -> {
                             if (payload.newMatId != payload.currentMatId) {
                                 log.info("Moving fight $fight to the new mat: ${payload.newMatId}.")
                                 //all the fights after current on the current mat -> number - 1
-                                val fightsToMoveOnCurrentMat = fightCrudRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStageNotInOrderByNumberOnMat(payload.currentMatId,
-                                        command.competitionId, fight.numberOnMat!! + 1, listOf(FightStage.FINISHED, FightStage.IN_PROGRESS))
+                                val fightsToMoveOnCurrentMat = fightCrudRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStatusNotInOrderByNumberOnMat(payload.currentMatId,
+                                        command.competitionId, fight.numberOnMat!! + 1, FightCrudRepository.unMovableFightStatuses)
                                 val fightOrderChangesCurrentMat = fightsToMoveOnCurrentMat?.map {
                                     DashboardFightOrderChange().setFightId(it.id).setNewMatId(it.matId).setNewOrderOnMat(it.numberOnMat!! - 1).setNewStartTime(it.startTime!!.minus(Duration.ofMinutes(fight.duration!!.toLong())))
                                 }?.collect(Collectors.toList())?.toList() ?: emptyList()
 
                                 //fights on the new mat:
                                 //all the fights after current -> number + 1
-                                val fightsToMoveOnTheNewMat = fightCrudRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStageNotInOrderByNumberOnMat(payload.newMatId,
-                                        command.competitionId, newOrderOnMat, listOf(FightStage.FINISHED, FightStage.IN_PROGRESS))
+                                val fightsToMoveOnTheNewMat = fightCrudRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStatusNotInOrderByNumberOnMat(payload.newMatId,
+                                        command.competitionId, newOrderOnMat, FightCrudRepository.unMovableFightStatuses)
 
                                 val fightOrderChangesNewMat = fightsToMoveOnTheNewMat?.map {
                                     DashboardFightOrderChange().setFightId(it.id).setNewMatId(it.matId).setNewOrderOnMat(it.numberOnMat!! + 1).setNewStartTime(it.startTime!!.plus(Duration.ofMinutes(fight.duration!!.toLong())))
                                 }?.collect(Collectors.toList())?.toList() ?: emptyList()
                                 val newStartTimeOfTheCurrentFight = Option.fromNullable(fightOrderChangesNewMat).flatMap { Option.fromNullable(it.firstOrNull()) }.map { f -> f.newStartTime!! }
                                         .orElse {
-                                            Option.fromNullable(fightCrudRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatLessThanAndStageNotInOrderByNumberOnMatDesc(payload.newMatId,
-                                                    command.competitionId, newOrderOnMat, listOf(FightStage.FINISHED, FightStage.IN_PROGRESS))).flatMap { Option.fromNullable(it.findFirst().orElse(null)) }
+                                            Option.fromNullable(fightCrudRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatLessThanAndStatusNotInOrderByNumberOnMatDesc(payload.newMatId,
+                                                    command.competitionId, newOrderOnMat, FightCrudRepository.unMovableFightStatuses)).flatMap { Option.fromNullable(it.findFirst().orElse(null)) }
                                                     .map { f -> f.startTime!! }
                                         }
                                         .fold({ fight.startTime!! }, { it })
@@ -108,8 +113,8 @@ class DashboardCommandProcessor(private val scheduleService: ScheduleService,
                                     val sign = sign((fight.numberOnMat!! - newOrderOnMat).toDouble()).toInt()
                                     val start = min(fight.numberOnMat!!, newOrderOnMat) + (1 - sign) / 2
                                     val end = max(fight.numberOnMat!!, newOrderOnMat) - (1 + sign) / 2
-                                    val fightsToMoveOnCurrentMat = fightCrudRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatBetweenAndStageNotInOrderByNumberOnMat(payload.newMatId,
-                                            command.competitionId, start, end, listOf(FightStage.FINISHED, FightStage.IN_PROGRESS))
+                                    val fightsToMoveOnCurrentMat = fightCrudRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatBetweenAndStatusNotInOrderByNumberOnMat(payload.newMatId,
+                                            command.competitionId, start, end, FightCrudRepository.unMovableFightStatuses)
                                     val fightOrderChangesCurrentMat = fightsToMoveOnCurrentMat?.map {
                                         val newStartTime = if (sign > 0) {
                                             it.startTime!!.plus(Duration.ofMinutes(fight.duration!!.toLong()))
@@ -141,24 +146,29 @@ class DashboardCommandProcessor(private val scheduleService: ScheduleService,
             }
             CommandType.DASHBOARD_SET_FIGHT_RESULT_COMMAND -> {
                 val result = emptyList<EventDTO>()
+                val updatedFightIds = mutableSetOf<String>()
                 val payload = mapper.getPayloadAs(command, SetFightResultPayload::class.java)!!
                 fun moveFightersToSiblings(fightIds: List<String?>, winnerId: String, compScores: Array<CompScoreDTO>, isSibling: Boolean = false): List<EventDTO> {
-                    fun newCompScores(winner: Boolean) = arrayOf(compScores.first {  (winner && it.competitor.id == winnerId) || (!winner && it.competitor.id != winnerId) }
+                    fun newCompScores(winner: Boolean) = arrayOf(compScores.first { (winner && it.competitor.id == winnerId) || (!winner && it.competitor.id != winnerId) }
                             .setId(IDGenerator.compScoreId(winnerId))
                             .setScore(ScoreDTO().setAdvantages(0).setPenalties(0).setPoints(0)))
 
-                    fun loser() = compScores.first {  it.competitor.id != winnerId }.competitor.id
+                    fun loser() = compScores.first { it.competitor.id != winnerId }.competitor.id
                     val ids = fightIds.mapIndexed { index, id -> id to (index == 0) }.filter { !it.first.isNullOrBlank() }
                     return ids.flatMap { idAndWinFight ->
                         val id = idAndWinFight.first
                         val winner = idAndWinFight.second
-                        val idToSet = if (winner) { winnerId } else { loser() }
+                        val idToSet = if (winner) {
+                            winnerId
+                        } else {
+                            loser()
+                        }
                         if (!id.isNullOrBlank() && fightCrudRepository.existsById(id)) {
                             val processedFight = fightCrudRepository.getOne(id)
                             val fightResultSetAndWinnerMovedForward = if (isSibling) {
                                 listOf(mapper.createEvent(command, EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED, FightCompetitorsAssignedPayload()
-                                                .setFightId(id)
-                                                .setCompscores(newCompScores(winner))))
+                                        .setFightId(id)
+                                        .setCompscores(newCompScores(winner))))
                             } else {
                                 listOf(mapper.createEvent(command, EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED, FightCompetitorsAssignedPayload().setFightId(id)
                                         .setCompscores(compScores.filter {
@@ -188,18 +198,39 @@ class DashboardCommandProcessor(private val scheduleService: ScheduleService,
                     }
                 }
 
-                val fight = fightCrudRepository.getOne(payload.fightId)
-                if (!payload.fightResult?.winnerId.isNullOrBlank()) {
-                    result +
-                            mapper.createEvent(command, EventType.DASHBOARD_FIGHT_RESULT_SET, payload) +
-                            moveFightersToSiblings(listOf(fight.winFight, fight.loseFight), payload.fightResult.winnerId, payload.scores)
+
+                val fight = jdbcRepository.getFightBasicInfo(payload.fightId).get()
+
+                val fightUpdates = result +
+                        if (!payload.fightResult?.winnerId.isNullOrBlank()) {
+                            updatedFightIds.add(payload.fightId)
+                            listOf(mapper.createEvent(command, EventType.DASHBOARD_FIGHT_RESULT_SET, payload)) +
+                                    moveFightersToSiblings(listOf(fight.getWinFight(), fight.getLoseFight()), payload.fightResult.winnerId, payload.scores)
+                        } else {
+                            emptyList()
+                        }
+
+                fightUpdates + if (checkIfAllStageFightsFinished(fight.getStageId(), updatedFightIds)) {
+                    val stage = stageDescriptorCrudRepository.getOne(fight.getStageId()!!)
+                    val fightsWithResult = fightCrudRepository.findAllByStageId(stage.id!!).toList().map { fd ->
+                        if (fd.id == payload.fightId) {
+                            fd.copy(fightResult = payload.fightResult.toEntity())
+                        } else {
+                            fd
+                        }
+                    }
+                    val stageResults = fightsGenerateService.buildStageResults(stage.bracketType, StageStatus.FINISHED, fightsWithResult, stage.id!!, stage.competitionId)
+                    listOf(mapper.createEvent(command, EventType.DASHBOARD_STAGE_RESULT_SET, StageResultSetPayload().setStageId(stage.id).setResults(stageResults.map { it.toDTO() }.toTypedArray())))
                 } else {
-                    result
+                    emptyList()
                 }
             }
             else -> emptyList()
         }
     }
+
+    fun checkIfAllStageFightsFinished(stageId: String?, additionalFinishedFightIds: Set<String>) = stageId?.let { fightCrudRepository.findAllByStageId(stageId).allMatch { it.status == FightStatus.FINISHED || it.status == FightStatus.WALKOVER || it.status == FightStatus.UNCOMPLETABLE || additionalFinishedFightIds.contains(it.id) } }
+            ?: false
 
     fun checkIfFightCanBePacked(fightId: String) = FightsGenerateService.checkIfFightCanBePacked(fightId) { fightCrudRepository.getOne(it) }
 }

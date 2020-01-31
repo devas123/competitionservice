@@ -56,7 +56,6 @@ class StateQueryService(private val clusterSession: ClusterSession,
             .setReadTimeout(Duration.ofSeconds(10)).build()
 
     private val lastName = "lastName"
-    private val notFinished = listOf(FightStage.PENDING, FightStage.IN_PROGRESS, FightStage.GET_READY, FightStage.PAUSED)
 
 
     private fun getLocalCompetitors(competitionId: String, categoryId: String?, searchString: String?, pageSize: Int, page: Int): Page<CompetitorDTO> {
@@ -212,8 +211,8 @@ class StateQueryService(private val clusterSession: ClusterSession,
                 val pageRequest = PageRequest.of(0, 5, Sort.unsorted())
                 val matDescrDto = mat.toDTO()
                 val topFiveFights =
-                        fightCrudRepository.findDistinctByCompetitionIdAndMatIdAndStageInAndScoresNotNullOrderByNumberOnMat(competitionId, mat.id!!,
-                                notFinished, pageRequest)?.content
+                        fightCrudRepository.findDistinctByCompetitionIdAndMatIdAndStatusInAndScoresNotNullOrderByNumberOnMat(competitionId, mat.id!!,
+                                FightCrudRepository.notFinishedStatuses, pageRequest)?.content
                                 ?.filter { f -> f.scores?.size == 2 && (f.scores?.all { compNotEmpty(it.competitor) } == true) }
                                 ?.map { it.toDTO(getCategory, { matDescrDto }) }
                                 ?.toTypedArray()
@@ -233,7 +232,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
         log.info("Getting competitors for competition $competitionId and mat $matId")
         return localOrRemote(competitionId, {
             val pageRequest = PageRequest.of(0, 10, Sort.unsorted())
-            fightCrudRepository.findDistinctByCompetitionIdAndMatIdAndStageInAndScoresNotNullOrderByNumberOnMat(competitionId, matId, notFinished, pageRequest)?.get()
+            fightCrudRepository.findDistinctByCompetitionIdAndMatIdAndStatusInAndScoresNotNullOrderByNumberOnMat(competitionId, matId, FightCrudRepository.notFinishedStatuses, pageRequest)?.get()
                     ?.filter { f -> f.scores?.size == 2 && (f.scores?.all { compNotEmpty(it.competitor) } == true) }
                     ?.map { it.toDTO(getCategory, getMat) }
                     ?.collect(Collectors.toList())

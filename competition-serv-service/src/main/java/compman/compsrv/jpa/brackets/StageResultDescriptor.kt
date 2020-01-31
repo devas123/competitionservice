@@ -14,9 +14,9 @@ class StageResultDescriptor(id: String?,
                             @ManyToMany
                             @JoinTable(name = "STAGE_COMPETITOR_RESULT",
                                     joinColumns =
-                                    [JoinColumn(name = "COMPETITOR_RESULT_COMPETITOR_ID", referencedColumnName = "ID")],
+                                    [JoinColumn(name = "STAGE_RESULT_DESCRIPTOR_ID", referencedColumnName = "ID")],
                                     inverseJoinColumns =
-                                    [JoinColumn(name = "STAGE_RESULT_DESCRIPTOR_ID", referencedColumnName = "ID")]
+                                    [JoinColumn(name = "COMPETITOR_RESULT_COMPETITOR_ID", referencedColumnName = "ID")]
                             )
                             @Cascade(CascadeType.ALL)
                             var competitorResults: MutableList<CompetitorResult>?) : AbstractJpaPersistable<String>(id)

@@ -25,7 +25,7 @@ public class FightDescriptionDTO {
     private BigDecimal duration;
     private Integer round;
     private StageRoundType roundType;
-    private FightStage stage;
+    private FightStatus status;
     private FightResultDTO fightResult;
     private MatDescriptionDTO mat;
     private Integer numberOnMat;

@@ -2,7 +2,7 @@ package compman.compsrv.jpa.competition
 
 import compman.compsrv.jpa.AbstractJpaPersistable
 import compman.compsrv.model.dto.brackets.StageRoundType
-import compman.compsrv.model.dto.competition.FightStage
+import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.service.FightsGenerateService
 import org.hibernate.annotations.Cascade
 import org.hibernate.annotations.CascadeType
@@ -38,7 +38,7 @@ class FightDescription(id: String,
                        var duration: BigDecimal?,
                        var round: Int?,
                        var roundType: StageRoundType?,
-                       var stage: FightStage?,
+                       var status: FightStatus?,
                        @Embedded
                        var fightResult: FightResult?,
                        var matId: String?,
@@ -62,7 +62,7 @@ class FightDescription(id: String,
             duration = null,
             roundType = null,
             round = null,
-            stage = FightStage.PENDING,
+            status = FightStatus.PENDING,
             fightResult = null,
             matId = "",
             numberOnMat = 0,
@@ -83,7 +83,7 @@ class FightDescription(id: String,
             duration = null,
             roundType = StageRoundType.WINNER_BRACKETS,
             round = round,
-            stage = FightStage.PENDING,
+            status = FightStatus.PENDING,
             fightResult = null,
             matId = "",
             numberOnMat = 0,
@@ -105,7 +105,7 @@ class FightDescription(id: String,
             round = round,
             roundType = StageRoundType.WINNER_BRACKETS,
             numberInRound = numberInRound,
-            stage = FightStage.PENDING,
+            status = FightStatus.PENDING,
             fightResult = null,
             matId = "",
             numberOnMat = 0,
@@ -126,7 +126,7 @@ class FightDescription(id: String,
              duration: BigDecimal? = this.duration,
              roundType: StageRoundType? = this.roundType,
              round: Int? = this.round,
-             stage: FightStage? = this.stage,
+             status: FightStatus? = this.status,
              fightResult: FightResult? = this.fightResult,
              matId: String? = this.matId,
              numberOnMat: Int? = this.numberOnMat,
@@ -136,7 +136,7 @@ class FightDescription(id: String,
              startTime: Instant? = this.startTime,
              numberInRound: Int = this.numberInRound): FightDescription = FightDescription(id,
             categoryId, winFight, fightName, loseFight, scores, parentId1, parentId2,
-            duration, round, roundType, stage, fightResult, matId, numberOnMat,
+            duration, round, roundType, status, fightResult, matId, numberOnMat,
             priority, competitionId, period, startTime, numberInRound)
 
 
@@ -159,7 +159,7 @@ class FightDescription(id: String,
     }
 
     override fun toString(): String {
-        return "FightDescription(competitors.size = ${scores?.size},winFight=$winFight, loseFight=$loseFight, parentId1=$parentId1, parentId2=$parentId2, duration=$duration, round=$round, roundType=$roundType, stage=$stage, matId=$matId, numberOnMat=$numberOnMat, priority=$priority, competitionId='$competitionId', period='$period', startTime=$startTime, numberInRound=$numberInRound)"
+        return "FightDescription(competitors.size = ${scores?.size},winFight=$winFight, loseFight=$loseFight, parentId1=$parentId1, parentId2=$parentId2, duration=$duration, round=$round, roundType=$roundType, stage=$status, matId=$matId, numberOnMat=$numberOnMat, priority=$priority, competitionId='$competitionId', period='$period', startTime=$startTime, numberInRound=$numberInRound)"
     }
 
 

@@ -162,7 +162,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                     assignedFights
                 }
 
-                val twoFighterFights = fightsGenerateService.filterUncompleteFirstRoundFights(processedFights)
+                val twoFighterFights = fightsGenerateService.filterUncompletableFirstRoundFights(processedFights)
 
                 stage
                         .setCategoryId(command.categoryId)

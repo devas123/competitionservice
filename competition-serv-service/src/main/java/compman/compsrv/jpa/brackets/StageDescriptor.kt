@@ -22,21 +22,21 @@ class StageDescriptor(
         var stageOrder: Int?,
         var waitForPrevious: Boolean?,
         var hasThirdPlaceFight: Boolean?,
-        @OneToMany(orphanRemoval = true)
+        @OneToMany(orphanRemoval = true, fetch = FetchType.LAZY)
         @Cascade(CascadeType.ALL)
         @JoinColumn(name = "stage_id")
         var pointsAssignments: MutableSet<PointsAssignmentDescriptor>?,
-        @OneToOne(orphanRemoval = true)
+        @OneToOne(orphanRemoval = true, fetch = FetchType.LAZY)
         @Cascade(CascadeType.ALL)
         @PrimaryKeyJoinColumn
         var inputDescriptor: StageInputDescriptor?,
-        @OneToOne(orphanRemoval = true)
-        @Cascade(CascadeType.ALL)
+        @OneToOne(orphanRemoval = true, fetch = FetchType.LAZY)
+        @Cascade(CascadeType.SAVE_UPDATE, CascadeType.MERGE, CascadeType.DELETE, CascadeType.PERSIST)
         @PrimaryKeyJoinColumn
         var stageResultDescriptor: StageResultDescriptor?,
         @OrderColumn(name = "fight_order")
-        @OneToMany(orphanRemoval = true)
-        @Cascade(CascadeType.ALL)
+        @OneToMany(orphanRemoval = true, fetch = FetchType.LAZY)
+        @Cascade(CascadeType.SAVE_UPDATE, CascadeType.MERGE, CascadeType.DELETE, CascadeType.PERSIST)
         @JoinColumn(name = "stage_id")
         var fights: MutableList<FightDescription>?) : AbstractJpaPersistable<String>(id) {
 

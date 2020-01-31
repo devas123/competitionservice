@@ -1,18 +1,23 @@
 package compman.compsrv.service.processor.event
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import compman.compsrv.jpa.brackets.StageResultDescriptor
 import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.commands.payload.SetFightResultPayload
 import compman.compsrv.model.dto.competition.CompScoreDTO
-import compman.compsrv.model.dto.competition.FightStage
+import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.DashboardFightOrderChangedPayload
 import compman.compsrv.model.events.payload.FightCompetitorsAssignedPayload
+import compman.compsrv.model.events.payload.StageResultSetPayload
+import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.*
+import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.createErrorEvent
 import compman.compsrv.util.getPayloadAs
 import org.slf4j.LoggerFactory
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
 
 @Component
@@ -30,7 +35,8 @@ class DashboardEventProcessor(private val competitionStateCrudRepository: Compet
     override fun affectedEvents(): Set<EventType> {
         return setOf(EventType.DASHBOARD_FIGHT_ORDER_CHANGED,
                 EventType.DASHBOARD_FIGHT_RESULT_SET,
-                EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED
+                EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED,
+                EventType.DASHBOARD_STAGE_RESULT_SET
         )
     }
 
@@ -40,6 +46,21 @@ class DashboardEventProcessor(private val competitionStateCrudRepository: Compet
 
     override fun applyEvent(event: EventDTO): List<EventDTO> {
         return when (event.type) {
+            EventType.DASHBOARD_STAGE_RESULT_SET -> {
+                val payload = mapper.getPayloadAs(event, StageResultSetPayload::class.java)
+                if (payload != null && !payload.stageId.isNullOrBlank()) {
+                    val stage = stageDescriptorCrudRepository.getOne(payload.stageId)
+                    if (stage.stageResultDescriptor == null) {
+                        stage.stageResultDescriptor = StageResultDescriptor(IDGenerator.uid(), "${stage.name} result",
+                                payload.results?.mapNotNull { it.toEntity { id -> competitorCrudRepository.findByIdOrNull(id) } }?.toMutableList())
+                    } else {
+                        stage.stageResultDescriptor?.competitorResults = payload.results?.mapNotNull { it.toEntity { id -> competitorCrudRepository.findByIdOrNull(id) } }?.toMutableList()
+                    }
+                    listOf(event)
+                } else {
+                    throw EventApplyingException("stage ID is not provided.", event)
+                }
+            }
             EventType.DASHBOARD_FIGHT_ORDER_CHANGED -> {
                 val payload = mapper.getPayloadAs(event, DashboardFightOrderChangedPayload::class.java)
                 if (payload != null && !payload.changedFights.isNullOrEmpty()) {
@@ -48,8 +69,7 @@ class DashboardEventProcessor(private val competitionStateCrudRepository: Compet
                     }
                     listOf(event)
                 } else {
-                    log.error("Change fights are empty.")
-                    listOf(mapper.createErrorEvent(event, "Change fights are empty. $payload"))
+                    throw EventApplyingException("Change fights are empty. $payload", event)
                 }
             }
             EventType.DASHBOARD_FIGHT_RESULT_SET -> {
@@ -58,11 +78,10 @@ class DashboardEventProcessor(private val competitionStateCrudRepository: Compet
                     payload.scores?.forEach { compScore -> compScoreCrudRepository.updateCompScore(compScore.id, compScore.score.points, compScore.score.advantages, compScore.score.penalties) }
                     val fight = fightCrudRepository.getOne(payload.fightId!!)
                     fight.fightResult = payload.fightResult.toEntity()
-                    fight.stage = FightStage.FINISHED
+                    fight.status = FightStatus.FINISHED
                     listOf(event)
                 } else {
-                    log.error("Not enough information in the payload. $payload")
-                    listOf(mapper.createErrorEvent(event, "Not enough information in the payload. $payload"))
+                    throw EventApplyingException("Not enough information in the payload. $payload", event)
                 }
             }
             EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED -> {
@@ -71,8 +90,7 @@ class DashboardEventProcessor(private val competitionStateCrudRepository: Compet
                     setCompScores(payload.fightId!!, payload.compscores!!)
                     listOf(event)
                 } else {
-                    log.error("Not enough information in the payload. $payload")
-                    listOf(mapper.createErrorEvent(event, "Not enough information in the payload. $payload"))
+                    throw EventApplyingException("Not enough information in the payload. $payload", event)
                 }
 
             }

@@ -92,6 +92,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
     }
 
     private fun applyCategoryBracketsDroppedEvent(event: EventDTO): List<EventDTO> {
+        jdbcRepository.deleteFightStartTimesCategoryId(event.categoryId!!)
         categoryCrudRepository.getOne(event.categoryId!!).brackets?.stages?.clear()
         return listOf(event)
     }

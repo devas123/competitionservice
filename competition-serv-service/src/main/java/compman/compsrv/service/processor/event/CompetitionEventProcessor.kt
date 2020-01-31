@@ -11,7 +11,6 @@ import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.*
 import compman.compsrv.service.CompetitionCleaner
 import compman.compsrv.util.applyProperties
-import compman.compsrv.util.createErrorEvent
 import compman.compsrv.util.getPayloadAs
 import org.slf4j.LoggerFactory
 import org.springframework.data.repository.findByIdOrNull
@@ -63,7 +62,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
     private fun <T> getPayloadAs(payload: String?, clazz: Class<T>): T? = mapper.getPayloadAs(payload, clazz)
 
     override fun applyEvent(event: EventDTO): List<EventDTO> {
-        fun createErrorEvent(error: String) = mapper.createErrorEvent(event, error)
+        fun createError(error: String) = EventApplyingException(error, event)
         return try {
             val ns = when (event.type) {
                 EventType.INTERNAL_COMPETITION_INFO -> {
@@ -80,7 +79,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                             log.error("Error while executing operation.", e)
                             listOf(event)
                         }.getOrDefault(emptyList())
-                    } ?: listOf(createErrorEvent("Registration info is null."))
+                    } ?: throw createError("Registration info is null.")
                 }
                 EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED -> {
                     val payload = getPayloadAs(event.payload, RegistrationGroupCategoriesAssignedPayload::class.java)
@@ -91,10 +90,10 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                             registrationGroupCrudRepository.save(group)
                             listOf(event)
                         } else {
-                            listOf(createErrorEvent("Registration group not found."))
+                            throw createError("Registration group not found.")
                         }
                     } else {
-                        listOf(createErrorEvent("Payload is null."))
+                        throw createError("Payload is null.")
                     }
                 }
                 EventType.REGISTRATION_GROUP_ADDED -> {
@@ -122,7 +121,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                         listOf(event)
                     } else {
                         log.error("Didn't find period with id ${payload.periodId} or groups is empty")
-                        listOf(createErrorEvent("Didn't find period with id ${payload.periodId} or groups is empty"))
+                        throw createError("Didn't find period with id ${payload.periodId} or groups is empty")
                     }
                 }
                 EventType.REGISTRATION_GROUP_DELETED -> {
@@ -137,7 +136,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                         listOf(event)
                     }.orElseGet {
                         log.error("Didn't find period with id ${payload.periodId}")
-                        listOf(createErrorEvent("Didn't find period with id ${payload.periodId}"))
+                        throw createError("Didn't find period with id ${payload.periodId}")
                     }
                 }
                 EventType.DASHBOARD_DELETED -> {
@@ -147,7 +146,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                         competitionStateCrudRepository.save(competitionState)
                         listOf(event)
                     } else {
-                        listOf(createErrorEvent("Cannot load competition state for competition ${event.competitionId}"))
+                        throw createError("Cannot load competition state for competition ${event.competitionId}")
                     }
 
                 }
@@ -160,10 +159,10 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                             competitionStateCrudRepository.save(competitionState)
                             listOf(event)
                         } else {
-                            listOf(createErrorEvent("Cannot load competition state for competition ${event.competitionId}"))
+                            throw createError("Cannot load competition state for competition ${event.competitionId}")
                         }
                     } else {
-                        listOf(createErrorEvent("Cannot load dashboard state from event $event"))
+                        throw createError("Cannot load dashboard state from event $event")
                     }
                 }
                 EventType.REGISTRATION_PERIOD_ADDED -> {
@@ -191,12 +190,12 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                     val payload = getPayloadAs(event.payload, CompetitionCreatedPayload::class.java)
                     payload?.properties?.let { props ->
                         val state = CompetitionState(props.id, props.toEntity())
+                        competitionStateCrudRepository.save(state)
                         state.properties?.registrationInfo?.let {
                             registrationInfoCrudRepository.save(it)
                         }
-                        competitionStateCrudRepository.save(state)
                         listOf(event)
-                    } ?: listOf(createErrorEvent("Properties are missing."))
+                    } ?: throw createError("Properties are missing.")
                 }
                 EventType.DUMMY -> {
                     emptyList()
@@ -214,9 +213,9 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                             compState.schedule = it
                             competitionStateCrudRepository.save(compState)
                             listOf(event)
-                        } ?: listOf(createErrorEvent("Schedule not found."))
+                        } ?: throw createError("Schedule not found.")
                     } else {
-                        listOf(createErrorEvent("Schedule not provided."))
+                        throw createError("Schedule not provided.")
                     }
                 }
                 EventType.COMPETITION_PROPERTIES_UPDATED -> {
@@ -248,7 +247,7 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
             ns ?: emptyList()
         } catch (e: Exception) {
             log.error("Error while applying event.", e)
-            listOf(createErrorEvent(e.localizedMessage))
+            throw createError(e.localizedMessage)
         }
     }
 }

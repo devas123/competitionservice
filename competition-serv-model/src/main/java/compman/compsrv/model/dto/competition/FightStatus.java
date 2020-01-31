@@ -1,11 +1,11 @@
 package compman.compsrv.model.dto.competition;
 
-public enum FightStage {
+public enum FightStatus {
     PENDING,
     GET_READY,
     IN_PROGRESS,
     PAUSED,
     FINISHED,
-    UNCOMPLETE,
+    UNCOMPLETABLE,
     WALKOVER
 }

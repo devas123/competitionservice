@@ -1,10 +1,74 @@
--- create schema public;
---
--- alter schema public owner to postgres;
+drop table if exists bracket_descriptor cascade;
 
-create sequence hibernate_sequence;
+drop table if exists category_restriction cascade;
 
-alter sequence hibernate_sequence owner to postgres;
+drop table if exists competition_state cascade;
+
+drop table if exists dashboard_state cascade;
+
+drop table if exists dashboard_period cascade;
+
+drop table if exists event cascade;
+
+drop table if exists mat_description cascade;
+
+drop table if exists registration_info cascade;
+
+drop table if exists competition_properties cascade;
+
+drop table if exists competition_properties_staff_ids cascade;
+
+drop table if exists competitor cascade;
+
+drop table if exists competitor_result cascade;
+
+drop table if exists promo_code cascade;
+
+drop table if exists registration_period cascade;
+
+drop table if exists registration_group cascade;
+
+drop table if exists reg_group_reg_period cascade;
+
+drop table if exists registration_group_categories cascade;
+
+drop table if exists schedule cascade;
+
+drop table if exists period cascade;
+
+drop table if exists mat_schedule_container cascade;
+
+drop table if exists period_properties cascade;
+
+drop table if exists category_descriptor cascade;
+
+drop table if exists category_descriptor_restriction cascade;
+
+drop table if exists category_state cascade;
+
+drop table if exists competitor_categories cascade;
+
+drop table if exists schedule_entries cascade;
+
+drop table if exists stage_descriptor cascade;
+
+drop table if exists fight_description cascade;
+
+drop table if exists comp_score cascade;
+
+drop table if exists fight_start_times cascade;
+
+drop table if exists points_assignment_descriptor cascade;
+
+drop table if exists stage_input_descriptor cascade;
+
+drop table if exists competitor_selector cascade;
+
+drop table if exists competitor_selector_selector_value cascade;
+
+drop table if exists stage_result_descriptor cascade;
+
+drop table if exists stage_competitor_result cascade;
 
 create table bracket_descriptor
 (
@@ -13,8 +77,6 @@ create table bracket_descriptor
             primary key,
     competition_id varchar(255)
 );
-
-alter table bracket_descriptor owner to postgres;
 
 create table category_restriction
 (
@@ -28,8 +90,6 @@ create table category_restriction
     unit varchar(255)
 );
 
-alter table category_restriction owner to postgres;
-
 create table competition_state
 (
     id varchar(255) not null
@@ -40,16 +100,12 @@ create table competition_state
     status integer
 );
 
-alter table competition_state owner to postgres;
-
 create table dashboard_state
 (
     id varchar(255) not null
         constraint dashboard_state_pkey
             primary key
 );
-
-alter table dashboard_state owner to postgres;
 
 create table dashboard_period
 (
@@ -64,8 +120,6 @@ create table dashboard_period
             references dashboard_state
 );
 
-alter table dashboard_period owner to postgres;
-
 create table event
 (
     id varchar(255) not null
@@ -79,8 +133,6 @@ create table event
     type integer
 );
 
-alter table event owner to postgres;
-
 create table mat_description
 (
     id varchar(255) not null
@@ -93,8 +145,6 @@ create table mat_description
     mats_order integer
 );
 
-alter table mat_description owner to postgres;
-
 create table registration_info
 (
     id varchar(255) not null
@@ -102,8 +152,6 @@ create table registration_info
             primary key,
     registration_open boolean not null
 );
-
-alter table registration_info owner to postgres;
 
 create table competition_properties
 (
@@ -124,8 +172,6 @@ create table competition_properties
     time_zone varchar(255)
 );
 
-alter table competition_properties owner to postgres;
-
 create table competition_properties_staff_ids
 (
     competition_properties_id varchar(255) not null
@@ -133,8 +179,6 @@ create table competition_properties_staff_ids
             references competition_properties,
     staff_ids varchar(255)
 );
-
-alter table competition_properties_staff_ids owner to postgres;
 
 create table competitor
 (
@@ -155,8 +199,6 @@ create table competitor
     user_id varchar(255)
 );
 
-alter table competitor owner to postgres;
-
 create table competitor_result
 (
     id varchar(255) not null
@@ -171,8 +213,6 @@ create table competitor_result
             references competitor
 );
 
-alter table competitor_result owner to postgres;
-
 create table promo_code
 (
     id bigint not null
@@ -185,8 +225,6 @@ create table promo_code
     expire_at timestamp,
     start_at timestamp
 );
-
-alter table promo_code owner to postgres;
 
 create table registration_period
 (
@@ -201,8 +239,6 @@ create table registration_period
             references registration_info
 );
 
-alter table registration_period owner to postgres;
-
 create table registration_group
 (
     id varchar(255) not null
@@ -216,8 +252,6 @@ create table registration_group
             references registration_info
 );
 
-alter table registration_group owner to postgres;
-
 create table reg_group_reg_period
 (
     reg_group_id varchar(255) not null
@@ -230,8 +264,6 @@ create table reg_group_reg_period
         primary key (reg_group_id, reg_period_id)
 );
 
-alter table reg_group_reg_period owner to postgres;
-
 create table registration_group_categories
 (
     registration_group_id varchar(255) not null
@@ -240,8 +272,6 @@ create table registration_group_categories
     categories varchar(255)
 );
 
-alter table registration_group_categories owner to postgres;
-
 create table schedule
 (
     id varchar(255) not null
@@ -249,8 +279,6 @@ create table schedule
             primary key,
     properties_id varchar(255)
 );
-
-alter table schedule owner to postgres;
 
 create table period
 (
@@ -265,8 +293,6 @@ create table period
             references schedule
 );
 
-alter table period owner to postgres;
-
 create table mat_schedule_container
 (
     id varchar(255) not null
@@ -277,8 +303,6 @@ create table mat_schedule_container
         constraint fkheux8852yfm9g3iwegpqr8sbe
             references period
 );
-
-alter table mat_schedule_container owner to postgres;
 
 create table period_properties
 (
@@ -294,8 +318,6 @@ create table period_properties
         constraint fkotxnpcqbjgdxl6c6e0ndigdku
             references schedule
 );
-
-alter table period_properties owner to postgres;
 
 create table category_descriptor
 (
@@ -314,8 +336,6 @@ create table category_descriptor
             references period
 );
 
-alter table category_descriptor owner to postgres;
-
 create table category_descriptor_restriction
 (
     category_descriptor_id varchar(255) not null
@@ -327,8 +347,6 @@ create table category_descriptor_restriction
     constraint category_descriptor_restriction_pkey
         primary key (category_descriptor_id, category_restriction_id)
 );
-
-alter table category_descriptor_restriction owner to postgres;
 
 create table category_state
 (
@@ -343,8 +361,6 @@ create table category_state
             references competition_state
 );
 
-alter table category_state owner to postgres;
-
 create table competitor_categories
 (
     competitors_id varchar(255) not null
@@ -356,8 +372,6 @@ create table competitor_categories
     constraint competitor_categories_pkey
         primary key (competitors_id, categories_id)
 );
-
-alter table competitor_categories owner to postgres;
 
 create table schedule_entries
 (
@@ -374,8 +388,6 @@ create table schedule_entries
     constraint schedule_entries_pkey
         primary key (period_id, schedule_order)
 );
-
-alter table schedule_entries owner to postgres;
 
 create table stage_descriptor
 (
@@ -397,8 +409,6 @@ create table stage_descriptor
         constraint fk3gxuyn45r1t81qshw89xuicub
             references bracket_descriptor
 );
-
-alter table stage_descriptor owner to postgres;
 
 create table fight_description
 (
@@ -428,7 +438,7 @@ create table fight_description
     priority integer not null,
     round integer,
     round_type integer,
-    stage integer,
+    status integer,
     start_time timestamp,
     win_fight varchar(255),
     stage_id varchar(255)
@@ -436,8 +446,6 @@ create table fight_description
             references stage_descriptor,
     fight_order integer
 );
-
-alter table fight_description owner to postgres;
 
 create table comp_score
 (
@@ -456,8 +464,6 @@ create table comp_score
     comp_score_order integer
 );
 
-alter table comp_score owner to postgres;
-
 create table fight_start_times
 (
     mat_schedule_id varchar(255) not null
@@ -473,8 +479,6 @@ create table fight_start_times
         primary key (mat_schedule_id, fights_order)
 );
 
-alter table fight_start_times owner to postgres;
-
 create table points_assignment_descriptor
 (
     id varchar(255) not null
@@ -488,8 +492,6 @@ create table points_assignment_descriptor
             references stage_descriptor
 );
 
-alter table points_assignment_descriptor owner to postgres;
-
 create table stage_input_descriptor
 (
     id varchar(255) not null
@@ -498,8 +500,6 @@ create table stage_input_descriptor
     distribution_type integer,
     number_of_competitors integer not null
 );
-
-alter table stage_input_descriptor owner to postgres;
 
 create table competitor_selector
 (
@@ -515,8 +515,6 @@ create table competitor_selector
             references stage_input_descriptor
 );
 
-alter table competitor_selector owner to postgres;
-
 create table competitor_selector_selector_value
 (
     competitor_selector_id varchar(255) not null
@@ -525,8 +523,6 @@ create table competitor_selector_selector_value
     selector_value varchar(255)
 );
 
-alter table competitor_selector_selector_value owner to postgres;
-
 create table stage_result_descriptor
 (
     id varchar(255) not null
@@ -534,8 +530,6 @@ create table stage_result_descriptor
             primary key,
     name varchar(255)
 );
-
-alter table stage_result_descriptor owner to postgres;
 
 create table stage_competitor_result
 (
@@ -549,6 +543,3 @@ create table stage_competitor_result
     constraint stage_competitor_result_pkey
         primary key (competitor_result_competitor_id, competitor_place)
 );
-
-alter table stage_competitor_result owner to postgres;
-

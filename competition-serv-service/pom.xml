@@ -13,17 +13,16 @@
 
     <properties>
         <scalecube.version>2.4.10-RC9</scalecube.version>
-        <flyway-core.version>6.1.4</flyway-core.version>
-        <flyway-maven-plugin.version>6.1.4</flyway-maven-plugin.version>
         <!-- Properties are prefixed with flyway. -->
         <flyway.user>postgres</flyway.user>
         <flyway.password>admin</flyway.password>
         <flyway.url>jdbc:postgresql://localhost:5432/postgres?serverTimezone=UTC</flyway.url>
-<!--        <flyway.locations>/db/migration</flyway.locations>-->
+        <!--        <flyway.locations>/db/migration</flyway.locations>-->
 
         <!-- List are defined as comma-separated values -->
         <flyway.schemas>public</flyway.schemas>
         <flyway.defaultSchema>public</flyway.defaultSchema>
+        <jooq.version>3.12.3</jooq.version>
     </properties>
 
     <dependencyManagement>
@@ -64,7 +63,6 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
-            <version>${flyway-core.version}</version>
         </dependency>
         <dependency>
             <groupId>io.arrow-kt</groupId>
@@ -114,10 +112,9 @@
             <artifactId>interfaces</artifactId>
         </dependency>
         <!-- JPA Data (We are going to use Repositories, Entities, Hibernate, etc...) -->
-
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <artifactId>spring-boot-starter-jooq</artifactId>
         </dependency>
 
         <dependency>
@@ -311,7 +308,6 @@
             <plugin>
                 <groupId>org.flywaydb</groupId>
                 <artifactId>flyway-maven-plugin</artifactId>
-                <version>${flyway-maven-plugin.version}</version>
                 <configuration>
                     <encoding>UTF-8</encoding>
                 </configuration>
@@ -347,6 +343,67 @@
                         <goals>
                             <goal>repackage</goal>
                         </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.jooq</groupId>
+                <artifactId>jooq-codegen-maven</artifactId>
+
+                <executions>
+                    <execution>
+                        <id>generate-mysql</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <generator>
+                                <database>
+                                    <name>org.jooq.meta.extensions.ddl.DDLDatabase</name>
+                                    <inputSchema>public</inputSchema>
+                                    <properties>
+                                        <property>
+                                            <key>sort</key>
+                                            <value>flyway</value>
+                                        </property>
+                                        <property>
+                                            <key>scripts</key>
+                                            <value>${basedir}/src/main/resources/db/migration/*</value>
+                                        </property>
+                                    </properties>
+                                </database>
+                                <target>
+                                    <packageName>com.compmanager.compservice.jooq</packageName>
+                                    <directory>${project.build.directory}/generated-sources/jooq</directory>
+                                </target>
+                            </generator>                        </configuration>
+                    </execution>
+                </executions>
+
+                <dependencies>
+                    <dependency>
+                        <groupId>org.jooq</groupId>
+                        <artifactId>jooq-meta-extensions</artifactId>
+                        <version>${jooq.version}</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>add-source</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.build.directory}/generated-sources/jooq/</source>
+                            </sources>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

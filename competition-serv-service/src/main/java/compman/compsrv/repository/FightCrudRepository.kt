@@ -2,7 +2,7 @@ package compman.compsrv.repository
 
 
 import compman.compsrv.jpa.competition.FightDescription
-import compman.compsrv.model.dto.competition.FightStage
+import compman.compsrv.model.dto.competition.FightStatus
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
@@ -10,12 +10,18 @@ import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import java.time.Instant
+import java.util.*
 import java.util.stream.Stream
 import javax.transaction.Transactional
 
 @Repository
 @Transactional(Transactional.TxType.SUPPORTS)
 interface FightCrudRepository : JpaRepository<FightDescription, String> {
+    companion object {
+        val finishedStatuses = listOf(FightStatus.UNCOMPLETABLE, FightStatus.FINISHED, FightStatus.WALKOVER)
+        val unMovableFightStatuses = finishedStatuses + FightStatus.IN_PROGRESS
+        val notFinishedStatuses = listOf(FightStatus.PENDING, FightStatus.IN_PROGRESS, FightStatus.GET_READY, FightStatus.PAUSED)
+    }
     fun findDistinctByCompetitionIdAndCategoryId(competitionId: String, categoryId: String): List<FightDescription>?
     @Query("select f from FightDescription f join f.scores sc where f.competitionId = ?1 and sc.competitor.id = ?2")
     fun findByCompetitionIdAndScoresCompetitorId(competitionId: String, competitorId: String): List<FightDescription>?
@@ -37,13 +43,22 @@ interface FightCrudRepository : JpaRepository<FightDescription, String> {
     fun updateStartTimeAndMatAndNumberOnMatById(id: String, startTime: Instant, matId: String, numberOnMat: Int)
 
 
-    fun findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStageNotInOrderByNumberOnMat(matId: String, competitionId: String, numberOnMat: Int, stages: List<FightStage>): Stream<FightDescription>?
-    fun findDistinctByMatIdAndCompetitionIdAndNumberOnMatLessThanAndStageNotInOrderByNumberOnMatDesc(matId: String, competitionId: String, numberOnMat: Int, stages: List<FightStage>): Stream<FightDescription>?
-    fun findDistinctByMatIdAndCompetitionIdAndNumberOnMatBetweenAndStageNotInOrderByNumberOnMat(matId: String, competitionId: String, numberOnMatStart: Int, numberOnMatEnd: Int, stages: List<FightStage>): Stream<FightDescription>?
+    fun findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStatusNotInOrderByNumberOnMat(matId: String, competitionId: String, numberOnMat: Int, statuses: List<FightStatus>): Stream<FightDescription>?
+    fun findDistinctByMatIdAndCompetitionIdAndNumberOnMatLessThanAndStatusNotInOrderByNumberOnMatDesc(matId: String, competitionId: String, numberOnMat: Int, statuses: List<FightStatus>): Stream<FightDescription>?
+    fun findDistinctByMatIdAndCompetitionIdAndNumberOnMatBetweenAndStatusNotInOrderByNumberOnMat(matId: String, competitionId: String, numberOnMatStart: Int, numberOnMatEnd: Int, statuses: List<FightStatus>): Stream<FightDescription>?
 
-    fun findDistinctByCompetitionIdAndMatIdAndStageInAndScoresNotNullOrderByNumberOnMat(competitionId: String, matId: String, stages: List<FightStage>, pageable: Pageable): Page<FightDescription>?
+    fun findDistinctByCompetitionIdAndMatIdAndStatusInAndScoresNotNullOrderByNumberOnMat(competitionId: String, matId: String, statuses: List<FightStatus>, pageable: Pageable): Page<FightDescription>?
     fun deleteAllByCompetitionId(competitionId: String)
 
-    @Query("select * from fight_description f left join comp_score cs on f.id = cs.compscore_fight_description_id full join competitor c on cs.compscore_competitor_id = c.id  where f.stage_id = ?1", nativeQuery = true)
+    @Query("select distinct on (f.id) * from fight_description f left join comp_score cs on f.id = cs.compscore_fight_description_id full join competitor c on cs.compscore_competitor_id = c.id  where f.stage_id = ?1", nativeQuery = true)
     fun findAllByStageId(stageId: String): Stream<FightDescription>
+
+    @Query("select f.stage_id, f.win_fight, f.lose_fight from fight_description f where f.id = ?1", nativeQuery = true)
+    fun getFightBasicInfo(id : String): Optional<OnlyStageId>
+}
+
+interface OnlyStageId {
+    fun getStageId(): String?
+    fun getWinFight(): String?
+    fun getLoseFight(): String?
 }
