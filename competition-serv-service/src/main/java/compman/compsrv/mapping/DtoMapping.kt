@@ -1,13 +1,7 @@
 package compman.compsrv.mapping
 
+import com.compmanager.compservice.jooq.tables.pojos.Schedule
 import com.compmanager.model.payment.RegistrationStatus
-import compman.compsrv.jpa.Event
-import compman.compsrv.jpa.brackets.*
-import compman.compsrv.jpa.competition.*
-import compman.compsrv.jpa.dashboard.CompetitionDashboardState
-import compman.compsrv.jpa.dashboard.DashboardPeriod
-import compman.compsrv.jpa.dashboard.MatDescription
-import compman.compsrv.jpa.schedule.*
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
@@ -17,14 +11,6 @@ import compman.compsrv.service.ScheduleService
 import compman.compsrv.util.IDGenerator
 import java.time.Instant
 import java.util.*
-
-fun ScheduleProperties.toDTO(): SchedulePropertiesDTO = SchedulePropertiesDTO()
-        .setCompetitionId(id)
-        .setPeriodPropertiesList(periodPropertiesList?.mapNotNull { it?.toDTO() }?.toTypedArray() ?: emptyArray())
-
-fun SchedulePropertiesDTO.toEntity(findCompetitor: (id: String) -> Competitor?) =
-        ScheduleProperties(competitionId, periodPropertiesList?.mapNotNull { pp -> pp.toEntity(competitionId, findCompetitor) }
-                ?: emptyList())
 
 fun PeriodProperties.toDTO(): PeriodPropertiesDTO = PeriodPropertiesDTO()
         .setId(id)

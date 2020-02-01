@@ -1,76 +1,4 @@
-drop table if exists bracket_descriptor cascade;
-
-drop table if exists category_restriction cascade;
-
-drop table if exists competition_state cascade;
-
-drop table if exists dashboard_state cascade;
-
-drop table if exists dashboard_period cascade;
-
-drop table if exists event cascade;
-
-drop table if exists mat_description cascade;
-
-drop table if exists registration_info cascade;
-
-drop table if exists competition_properties cascade;
-
-drop table if exists competition_properties_staff_ids cascade;
-
-drop table if exists competitor cascade;
-
-drop table if exists competitor_result cascade;
-
-drop table if exists promo_code cascade;
-
-drop table if exists registration_period cascade;
-
-drop table if exists registration_group cascade;
-
-drop table if exists reg_group_reg_period cascade;
-
-drop table if exists registration_group_categories cascade;
-
-drop table if exists schedule cascade;
-
-drop table if exists period cascade;
-
-drop table if exists mat_schedule_container cascade;
-
-drop table if exists period_properties cascade;
-
-drop table if exists category_descriptor cascade;
-
-drop table if exists category_descriptor_restriction cascade;
-
-drop table if exists category_state cascade;
-
-drop table if exists competitor_categories cascade;
-
-drop table if exists schedule_entries cascade;
-
-drop table if exists stage_descriptor cascade;
-
-drop table if exists fight_description cascade;
-
-drop table if exists comp_score cascade;
-
-drop table if exists fight_start_times cascade;
-
-drop table if exists points_assignment_descriptor cascade;
-
-drop table if exists stage_input_descriptor cascade;
-
-drop table if exists competitor_selector cascade;
-
-drop table if exists competitor_selector_selector_value cascade;
-
-drop table if exists stage_result_descriptor cascade;
-
-drop table if exists stage_competitor_result cascade;
-
-create table bracket_descriptor
+create table compservice.bracket_descriptor
 (
     id varchar(255) not null
         constraint bracket_descriptor_pkey
@@ -78,7 +6,7 @@ create table bracket_descriptor
     competition_id varchar(255)
 );
 
-create table category_restriction
+create table compservice.category_restriction
 (
     id varchar(255) not null
         constraint category_restriction_pkey
@@ -90,7 +18,7 @@ create table category_restriction
     unit varchar(255)
 );
 
-create table competition_state
+create table compservice.competition_state
 (
     id varchar(255) not null
         constraint competition_state_pkey
@@ -100,14 +28,14 @@ create table competition_state
     status integer
 );
 
-create table dashboard_state
+create table compservice.dashboard_state
 (
     id varchar(255) not null
         constraint dashboard_state_pkey
             primary key
 );
 
-create table dashboard_period
+create table compservice.dashboard_period
 (
     id varchar(255) not null
         constraint dashboard_period_pkey
@@ -117,10 +45,10 @@ create table dashboard_period
     start_time timestamp,
     dashboard_id varchar(255)
         constraint fkc4sl34l4xcy8wicikc8p2ku0n
-            references dashboard_state
+            references compservice.dashboard_state
 );
 
-create table event
+create table compservice.event
 (
     id varchar(255) not null
         constraint event_pkey
@@ -133,7 +61,7 @@ create table event
     type integer
 );
 
-create table mat_description
+create table compservice.mat_description
 (
     id varchar(255) not null
         constraint mat_description_pkey
@@ -141,11 +69,11 @@ create table mat_description
     name varchar(255),
     dashboard_period_id varchar(255) not null
         constraint fk3rv512vhq8j2k4c40g3ly5792
-            references dashboard_period,
+            references compservice.dashboard_period,
     mats_order integer
 );
 
-create table registration_info
+create table compservice.registration_info
 (
     id varchar(255) not null
         constraint registration_info_pkey
@@ -153,13 +81,13 @@ create table registration_info
     registration_open boolean not null
 );
 
-create table competition_properties
+create table compservice.competition_properties
 (
     id varchar(255) not null
         constraint competition_properties_pkey
             primary key
         constraint fkkn1g93oujod8w0b40ojdj16cy
-            references registration_info,
+            references compservice.registration_info,
     brackets_published boolean not null,
     competition_name varchar(255),
     creation_timestamp bigint not null,
@@ -172,15 +100,15 @@ create table competition_properties
     time_zone varchar(255)
 );
 
-create table competition_properties_staff_ids
+create table compservice.competition_properties_staff_ids
 (
     competition_properties_id varchar(255) not null
         constraint fkryyutsan2yax6j6kts8xdqmwf
-            references competition_properties,
+            references compservice.competition_properties,
     staff_ids varchar(255)
 );
 
-create table competitor
+create table compservice.competitor
 (
     id varchar(255) not null
         constraint competitor_pkey
@@ -190,7 +118,7 @@ create table competitor
     birth_date timestamp,
     competition_id varchar(255)
         constraint competitor_competition_id_fkey
-            references competition_properties,
+            references compservice.competition_properties,
     email varchar(255),
     first_name varchar(255),
     last_name varchar(255),
@@ -199,7 +127,7 @@ create table competitor
     user_id varchar(255)
 );
 
-create table competitor_result
+create table compservice.competitor_result
 (
     id varchar(255) not null
         constraint competitor_result_pkey
@@ -210,10 +138,10 @@ create table competitor_result
     round integer,
     competitor_id varchar(255) not null
         constraint fk9axdhjm23nfsx1xuofkmq5cyo
-            references competitor
+            references compservice.competitor
 );
 
-create table promo_code
+create table compservice.promo_code
 (
     id bigint not null
         constraint promo_code_pkey
@@ -221,12 +149,12 @@ create table promo_code
     coefficient numeric(19,2),
     competition_id varchar(255)
         constraint fk93bww360lp5pakmmaciweqpb1
-            references competition_properties,
+            references compservice.competition_properties,
     expire_at timestamp,
     start_at timestamp
 );
 
-create table registration_period
+create table compservice.registration_period
 (
     id varchar(255) not null
         constraint registration_period_pkey
@@ -236,10 +164,10 @@ create table registration_period
     start_date timestamp,
     registration_info_id varchar(255) not null
         constraint fk45qkmmy3u7pp3chdinw2y5pxh
-            references registration_info
+            references compservice.registration_info
 );
 
-create table registration_group
+create table compservice.registration_group
 (
     id varchar(255) not null
         constraint registration_group_pkey
@@ -249,30 +177,30 @@ create table registration_group
     registration_fee numeric(19,2),
     registration_info_id varchar(255) not null
         constraint fk4e6y1qlhaqfsdk5no3e21uask
-            references registration_info
+            references compservice.registration_info
 );
 
-create table reg_group_reg_period
+create table compservice.reg_group_reg_period
 (
     reg_group_id varchar(255) not null
         constraint fkfhwupl1py85g0cyjikvp794hi
-            references registration_period,
+            references compservice.registration_period,
     reg_period_id varchar(255) not null
         constraint fkn4hr8mvec1fixuba1wmv1271r
-            references registration_group,
+            references compservice.registration_group,
     constraint reg_group_reg_period_pkey
         primary key (reg_group_id, reg_period_id)
 );
 
-create table registration_group_categories
+create table compservice.registration_group_categories
 (
     registration_group_id varchar(255) not null
         constraint fklcnvc1xtt6gfrwixoj0mvqchg
-            references registration_group,
+            references compservice.registration_group,
     categories varchar(255)
 );
 
-create table schedule
+create table compservice.schedule
 (
     id varchar(255) not null
         constraint schedule_pkey
@@ -280,7 +208,7 @@ create table schedule
     properties_id varchar(255)
 );
 
-create table period
+create table compservice.period
 (
     id varchar(255) not null
         constraint period_pkey
@@ -290,10 +218,10 @@ create table period
     start_time timestamp,
     sched_id varchar(255)
         constraint fkeai1ckn6fv7x90xkah9s48faa
-            references schedule
+            references compservice.schedule
 );
 
-create table mat_schedule_container
+create table compservice.mat_schedule_container
 (
     id varchar(255) not null
         constraint mat_schedule_container_pkey
@@ -301,10 +229,10 @@ create table mat_schedule_container
     total_fights integer not null,
     period_id varchar(255) not null
         constraint fkheux8852yfm9g3iwegpqr8sbe
-            references period
+            references compservice.period
 );
 
-create table period_properties
+create table compservice.period_properties
 (
     id varchar(255) not null
         constraint period_properties_pkey
@@ -316,10 +244,10 @@ create table period_properties
     time_between_fights integer not null,
     sched_id varchar(255)
         constraint fkotxnpcqbjgdxl6c6e0ndigdku
-            references schedule
+            references compservice.schedule
 );
 
-create table category_descriptor
+create table compservice.category_descriptor
 (
     id varchar(255) not null
         constraint category_descriptor_pkey
@@ -330,57 +258,57 @@ create table category_descriptor
     registration_open boolean not null,
     period_properties_id varchar(255)
         constraint fkmpbsg54mghn26gyse486xwwry
-            references period_properties,
+            references compservice.period_properties,
     period_id varchar(255)
         constraint fkkg7upfo8tok049xmxratl9umi
-            references period
+            references compservice.period
 );
 
-create table category_descriptor_restriction
+create table compservice.category_descriptor_restriction
 (
     category_descriptor_id varchar(255) not null
         constraint fkk8wjeh0jor53tmgwqf9ksnvh
-            references category_descriptor,
+            references compservice.category_descriptor,
     category_restriction_id varchar(255) not null
         constraint fkkrfbh806v4qi47vg3fatmcol0
-            references category_restriction,
+            references compservice.category_restriction,
     constraint category_descriptor_restriction_pkey
         primary key (category_descriptor_id, category_restriction_id)
 );
 
-create table category_state
+create table compservice.category_state
 (
     id varchar(255) not null
         constraint category_state_pkey
             primary key
         constraint fkpqj7wn900iwkf1rmoki48b49s
-            references category_descriptor,
+            references compservice.category_descriptor,
     status integer,
     competition_id varchar(255) not null
         constraint fk8th9hp2r52q396f1lxir9antu
-            references competition_state
+            references compservice.competition_state
 );
 
-create table competitor_categories
+create table compservice.competitor_categories
 (
     competitors_id varchar(255) not null
         constraint fk8mn514i4vj9gafgmqdss7vwks
-            references competitor,
+            references compservice.competitor,
     categories_id varchar(255) not null
         constraint fkmojk2a016rw6htwed62g1oypf
-            references category_descriptor,
+            references compservice.category_descriptor,
     constraint competitor_categories_pkey
         primary key (competitors_id, categories_id)
 );
 
-create table schedule_entries
+create table compservice.schedule_entries
 (
     period_id varchar(255) not null
         constraint fkafy2hinwcl6a1ugke2uctic0w
-            references period,
+            references compservice.period,
     category_id varchar(255)
         constraint schedule_entries_category_id_fkey
-            references category_descriptor,
+            references compservice.category_descriptor,
     fight_duration numeric(19,2),
     number_of_fights integer not null,
     start_time timestamp,
@@ -389,14 +317,14 @@ create table schedule_entries
         primary key (period_id, schedule_order)
 );
 
-create table stage_descriptor
+create table compservice.stage_descriptor
 (
     id varchar(255) not null
         constraint stage_descriptor_pkey
             primary key,
     category_id varchar(255)
         constraint stage_descriptor_category_id_fkey
-            references category_descriptor,
+            references compservice.category_descriptor,
     bracket_type integer,
     competition_id varchar(255),
     name varchar(255),
@@ -407,20 +335,20 @@ create table stage_descriptor
     has_third_place_fight boolean,
     brackets_id varchar(255)
         constraint fk3gxuyn45r1t81qshw89xuicub
-            references bracket_descriptor
+            references compservice.bracket_descriptor
 );
 
-create table fight_description
+create table compservice.fight_description
 (
     id varchar(255) not null
         constraint fight_description_pkey
             primary key,
     category_id varchar(255)
         constraint fight_description_category_id_fkey
-            references category_descriptor,
+            references compservice.category_descriptor,
     competition_id varchar(255)
         constraint fight_description_competition_id_fkey
-            references competition_properties,
+            references compservice.competition_properties,
     duration numeric(19,2),
     fight_name varchar(255),
     winner_id varchar(255),
@@ -443,11 +371,11 @@ create table fight_description
     win_fight varchar(255),
     stage_id varchar(255)
         constraint fk83j4njug11q161thma55h5b6a
-            references stage_descriptor,
+            references compservice.stage_descriptor,
     fight_order integer
 );
 
-create table comp_score
+create table compservice.comp_score
 (
     id varchar(255) not null
         constraint comp_score_pkey
@@ -457,21 +385,21 @@ create table comp_score
     points integer,
     compscore_competitor_id varchar(255) not null
         constraint fkiuy2929idw7lx296op7w8govx
-            references competitor,
+            references compservice.competitor,
     compscore_fight_description_id      varchar(255)
         constraint fk5jdsq3wdtfltdvjb7hmmqu497
-            references fight_description,
+            references compservice.fight_description,
     comp_score_order integer
 );
 
-create table fight_start_times
+create table compservice.fight_start_times
 (
     mat_schedule_id varchar(255) not null
         constraint fk3qwq4ltq5uauo58p5e8ko6pld
-            references mat_schedule_container,
+            references compservice.mat_schedule_container,
     fight_id varchar(255) not null
         constraint fki3ci3hkg4wfrh8s2xwiellgbv
-            references fight_description,
+            references compservice.fight_description,
     fight_number integer not null,
     start_time timestamp,
     fights_order integer not null,
@@ -479,7 +407,7 @@ create table fight_start_times
         primary key (mat_schedule_id, fights_order)
 );
 
-create table points_assignment_descriptor
+create table compservice.points_assignment_descriptor
 (
     id varchar(255) not null
         constraint points_assignment_descriptor_pkey
@@ -489,10 +417,10 @@ create table points_assignment_descriptor
     points numeric(19,2),
     stage_id varchar(255)
         constraint fkhj7y0idxgjgbg8b4el2qr8nc6
-            references stage_descriptor
+            references compservice.stage_descriptor
 );
 
-create table stage_input_descriptor
+create table compservice.stage_input_descriptor
 (
     id varchar(255) not null
         constraint stage_input_descriptor_pkey
@@ -501,7 +429,7 @@ create table stage_input_descriptor
     number_of_competitors integer not null
 );
 
-create table competitor_selector
+create table compservice.competitor_selector
 (
     id varchar(255) not null
         constraint competitor_selector_pkey
@@ -512,18 +440,18 @@ create table competitor_selector
     operator integer,
     stage_input_id varchar(255)
         constraint fkhn69xal0k08it5niovv40cr6l
-            references stage_input_descriptor
+            references compservice.stage_input_descriptor
 );
 
-create table competitor_selector_selector_value
+create table compservice.competitor_selector_selector_value
 (
     competitor_selector_id varchar(255) not null
         constraint fk1s0fmnd8kgdabvp3qml62yee2
-            references competitor_selector,
+            references compservice.competitor_selector,
     selector_value varchar(255)
 );
 
-create table stage_result_descriptor
+create table compservice.stage_result_descriptor
 (
     id varchar(255) not null
         constraint stage_result_descriptor_pkey
@@ -531,14 +459,14 @@ create table stage_result_descriptor
     name varchar(255)
 );
 
-create table stage_competitor_result
+create table compservice.stage_competitor_result
 (
     competitor_result_competitor_id varchar(255) not null
         constraint fkpt1krwh7361c55w1hl37edxrl
-            references stage_result_descriptor,
+            references compservice.stage_result_descriptor,
     stage_result_descriptor_id varchar(255) not null
         constraint fkjr2xymnplj9r4qkop785prbpm
-            references competitor_result,
+            references compservice.competitor_result,
     competitor_place integer not null,
     constraint stage_competitor_result_pkey
         primary key (competitor_result_competitor_id, competitor_place)

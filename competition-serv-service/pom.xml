@@ -20,13 +20,20 @@
         <!--        <flyway.locations>/db/migration</flyway.locations>-->
 
         <!-- List are defined as comma-separated values -->
-        <flyway.schemas>public</flyway.schemas>
-        <flyway.defaultSchema>public</flyway.defaultSchema>
-        <jooq.version>3.12.3</jooq.version>
+        <flyway.schemas>compserivce</flyway.schemas>
+        <jooq.version>3.12.4</jooq.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <h2.version>1.4.200</h2.version>
+        <jooq.output.dir>${project.build.directory}/generated-sources/jooq</jooq.output.dir>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.modelmapper</groupId>
+                <artifactId>modelmapper</artifactId>
+                <version>2.3.0</version>
+            </dependency>
             <dependency>
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
@@ -47,10 +54,35 @@
                 <artifactId>asm</artifactId>
                 <version>7.1</version>
             </dependency>
+            <dependency>
+                <groupId>org.jooq</groupId>
+                <artifactId>jooq</artifactId>
+                <version>${jooq.version}</version>
+                <scope>compile</scope>
+                <exclusions>
+                    <exclusion>
+                        <artifactId>javax.activation-api</artifactId>
+                        <groupId>javax.activation</groupId>
+                    </exclusion>
+                    <exclusion>
+                        <artifactId>jaxb-api</artifactId>
+                        <groupId>javax.xml.bind</groupId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>com.h2database</groupId>
+                <artifactId>h2</artifactId>
+                <version>${h2.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
     <dependencies>
+        <dependency>
+            <groupId>org.modelmapper</groupId>
+            <artifactId>modelmapper</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.hibernate</groupId>
             <artifactId>hibernate-jcache</artifactId>
@@ -115,6 +147,17 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jooq</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.jooq</groupId>
+                    <artifactId>jooq</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jooq</groupId>
+            <artifactId>jooq</artifactId>
         </dependency>
 
         <dependency>
@@ -294,6 +337,10 @@
             <artifactId>junit</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
@@ -349,19 +396,20 @@
             <plugin>
                 <groupId>org.jooq</groupId>
                 <artifactId>jooq-codegen-maven</artifactId>
-
+                <version>${jooq.version}</version>
                 <executions>
                     <execution>
-                        <id>generate-mysql</id>
+                        <id>java-generator</id>
                         <phase>generate-sources</phase>
                         <goals>
                             <goal>generate</goal>
                         </goals>
                         <configuration>
+                            <logging>TRACE</logging>
                             <generator>
                                 <database>
                                     <name>org.jooq.meta.extensions.ddl.DDLDatabase</name>
-                                    <inputSchema>public</inputSchema>
+                                    <inputSchema>COMPSERVICE</inputSchema>
                                     <properties>
                                         <property>
                                             <key>sort</key>
@@ -373,11 +421,19 @@
                                         </property>
                                     </properties>
                                 </database>
+                                <generate>
+                                    <deprecated>false</deprecated>
+                                    <springAnnotations>true</springAnnotations>
+                                    <instanceFields>true</instanceFields>
+                                    <pojos>true</pojos>
+                                    <daos>true</daos>
+                                </generate>
                                 <target>
                                     <packageName>com.compmanager.compservice.jooq</packageName>
-                                    <directory>${project.build.directory}/generated-sources/jooq</directory>
+                                    <directory>${jooq.output.dir}</directory>
                                 </target>
-                            </generator>                        </configuration>
+                            </generator>
+                        </configuration>
                     </execution>
                 </executions>
 
@@ -401,7 +457,7 @@
                         </goals>
                         <configuration>
                             <sources>
-                                <source>${project.build.directory}/generated-sources/jooq/</source>
+                                <source>${jooq.output.dir}</source>
                             </sources>
                         </configuration>
                     </execution>

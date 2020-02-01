@@ -39,24 +39,4 @@ class JdbcRepository(private val jdbcTemplate: JdbcTemplate) {
             }
         }
     }
-
-    fun getFightBasicInfo(id: String): Optional<OnlyStageId> {
-        val res = jdbcTemplate.query("select f.stage_id, f.win_fight, f.lose_fight from fight_description f where f.id = ?",
-                PreparedStatementSetter { ps -> ps.setString(1, id) },
-                ResultSetExtractor<Optional<OnlyStageId>> { resultSet: ResultSet ->
-                    if (resultSet.next()) {
-                        Optional.of(object : OnlyStageId {
-                            private val stageId: String = resultSet.getString(1)
-                            private val winFight: String? = resultSet.getString(2)
-                            private val loseFight: String? = resultSet.getString(3)
-                            override fun getStageId(): String? = stageId
-                            override fun getWinFight(): String? = winFight
-                            override fun getLoseFight(): String? = loseFight
-                        })
-                    } else {
-                        Optional.empty()
-                    }
-                })
-        return res ?: Optional.empty()
-    }
 }

@@ -1,16 +1,12 @@
 package compman.compsrv.util
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.jpa.competition.CompetitionProperties
-import compman.compsrv.jpa.competition.Competitor
-import compman.compsrv.jpa.schedule.Period
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.dto.competition.WeightDTO
+import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
+import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.ErrorEventPayload
-import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.Instant
 
 private fun parseDate(date: Any?, default: Instant?) = if (date != null && !date.toString().isBlank()) {
@@ -21,38 +17,24 @@ private fun parseDate(date: Any?, default: Instant?) = if (date != null && !date
 
 fun getId(name: String) = IDGenerator.hashString(name)
 
-fun compareWeightNames(w1: String, w2: String) = Comparator.comparingInt { w: String -> WeightDTO.WEIGHT_NAMES.indexOfFirst { it.toLowerCase() == w.trim().toLowerCase() } }.compare(w1, w2)
-
-
-fun CompetitionProperties?.applyProperties(props: Map<String, Any?>?) = this?.also {
+fun CompetitionPropertiesDTO.applyProperties(props: Map<String, Any?>?) = CompetitionPropertiesDTO().also {
     if (props != null) {
-        bracketsPublished = props["bracketsPublished"] as? Boolean ?: bracketsPublished
-        startDate = parseDate(props["startDate"], startDate)
-        endDate = parseDate(props["endDate"], endDate)
-        emailNotificationsEnabled = props["emailNotificationsEnabled"] as? Boolean ?: emailNotificationsEnabled
-        competitionName = props["competitionName"] as String? ?: competitionName
-        emailTemplate = props["emailTemplate"] as? String ?: emailTemplate
-        schedulePublished = props["schedulePublished"] as? Boolean ?: schedulePublished
-        timeZone = props["timeZone"]?.toString() ?: timeZone
+        bracketsPublished = props["bracketsPublished"] as? Boolean ?: this.bracketsPublished
+        startDate = parseDate(props["startDate"], this.startDate)
+        endDate = parseDate(props["endDate"], this.endDate)
+        emailNotificationsEnabled = props["emailNotificationsEnabled"] as? Boolean ?: this.emailNotificationsEnabled
+        competitionName = props["competitionName"] as String? ?: this.competitionName
+        emailTemplate = props["emailTemplate"] as? String ?: this.emailTemplate
+        schedulePublished = props["schedulePublished"] as? Boolean ?: this.schedulePublished
+        timeZone = props["timeZone"]?.toString() ?: this.timeZone
     }
 }
 
-fun compNotEmpty(comp: Competitor?): Boolean {
+fun compNotEmpty(comp: CompetitorDTO?): Boolean {
     if (comp == null) return false
     val firstName = comp.firstName
     val lastName = comp.lastName
     return firstName.trim().isNotEmpty() && lastName.trim().isNotEmpty()
-}
-
-fun getPeriodDuration(period: Period): BigDecimal? {
-    val startTime = period.startTime.toEpochMilli()
-    val endTime = period.fightsByMats?.map { it.currentTime }?.maxBy { it.toEpochMilli() }?.toEpochMilli()
-            ?: startTime
-    val durationMillis = endTime - startTime
-    if (durationMillis > 0) {
-        return BigDecimal.valueOf(durationMillis).divide(BigDecimal(1000 * 60 * 60), 2, RoundingMode.HALF_UP)
-    }
-    return null
 }
 
 fun ObjectMapper.createErrorEvent(command: CommandDTO, error: String?): EventDTO = EventDTO()

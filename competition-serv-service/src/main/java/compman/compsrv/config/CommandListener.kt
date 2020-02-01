@@ -1,5 +1,6 @@
 package compman.compsrv.config
 
+import com.compmanager.compservice.jooq.tables.daos.EventDao
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
@@ -8,7 +9,6 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
-import compman.compsrv.repository.EventRepository
 import compman.compsrv.service.CommandCache
 import org.apache.kafka.clients.consumer.Consumer
 import org.apache.kafka.clients.consumer.ConsumerRecord
@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit
 @Component
 class CommandListener(private val commandTransformer: CompetitionCommandTransformer,
                       private val template: KafkaTemplate<String, EventDTO>,
-                      private val eventRepository: EventRepository,
+                      private val eventRepository: EventDao,
                       private val clusterSession: ClusterSession,
                       private val commandCache: CommandCache) : AcknowledgingConsumerAwareMessageListener<String, CommandDTO> {
     companion object {
@@ -48,7 +48,7 @@ class CommandListener(private val commandTransformer: CompetitionCommandTransfor
                 }
             }
             val startSaving = System.currentTimeMillis()
-            eventRepository.saveAll(filteredEvents.map { it.toEntity() })
+            eventRepository.insert(filteredEvents.map { it.toEntity() })
             log.info("Events saved: took ${Duration.ofMillis(System.currentTimeMillis() - startSaving)}")
             log.info("Executing post-processing.")
             filteredEvents.asSequence().forEach {

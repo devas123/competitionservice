@@ -1,20 +1,20 @@
 package compman.compsrv.service.schedule
 
-import compman.compsrv.jpa.competition.FightDescription
 import compman.compsrv.model.dto.brackets.StageRoundType
+import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.service.ScheduleService
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 interface IBracketSimulator {
     fun isEmpty(): Boolean
-    fun getNextRound(): List<FightDescription>
+    fun getNextRound(): List<FightDescriptionDTO>
     val stageId: String
     val categoryId: String
 }
 
-class SingleEliminationSimulator(override val stageId: String, override val categoryId: String, fights: List<FightDescription>, threeCompetitorCategory: Boolean) : IBracketSimulator {
-    private val fightsByRounds: MutableList<List<FightDescription>>
+class SingleEliminationSimulator(override val stageId: String, override val categoryId: String, fights: List<FightDescriptionDTO>, threeCompetitorCategory: Boolean) : IBracketSimulator {
+    private val fightsByRounds: MutableList<List<FightDescriptionDTO>>
 
     init {
         fightsByRounds = if (fights.isNotEmpty()) {
@@ -24,7 +24,7 @@ class SingleEliminationSimulator(override val stageId: String, override val cate
                     .groupBy { it.round ?: 0 }
                     .toList()
                     .sortedBy { it.first }
-                    .fold(emptyList<List<FightDescription>>()) { acc, pair -> acc + listOf(pair.second) }
+                    .fold(emptyList<List<FightDescriptionDTO>>()) { acc, pair -> acc + listOf(pair.second) }
                     .toMutableList()
         } else {
             ArrayList()
@@ -33,7 +33,7 @@ class SingleEliminationSimulator(override val stageId: String, override val cate
 
     override fun isEmpty() = this.fightsByRounds.isEmpty()
 
-    override fun getNextRound(): List<FightDescription> {
+    override fun getNextRound(): List<FightDescriptionDTO> {
         return if (this.fightsByRounds.size > 0) {
             this.fightsByRounds.removeAt(0)
         } else {
@@ -42,8 +42,8 @@ class SingleEliminationSimulator(override val stageId: String, override val cate
     }
 }
 
-class DoubleEliminationSimulator(override val stageId: String, override val categoryId: String, fights: List<FightDescription>) : IBracketSimulator {
-    private var fightsByBracketTypeAndRounds: List<List<FightDescription>>
+class DoubleEliminationSimulator(override val stageId: String, override val categoryId: String, fights: List<FightDescriptionDTO>) : IBracketSimulator {
+    private var fightsByBracketTypeAndRounds: List<List<FightDescriptionDTO>>
 
     companion object {
         private val log: Logger = LoggerFactory.getLogger(DoubleEliminationSimulator::class.java)
@@ -74,7 +74,7 @@ class DoubleEliminationSimulator(override val stageId: String, override val cate
         return this.fightsByBracketTypeAndRounds.isEmpty()
     }
 
-    override fun getNextRound(): List<FightDescription> {
+    override fun getNextRound(): List<FightDescriptionDTO> {
         val result = this.fightsByBracketTypeAndRounds[0]
         this.fightsByBracketTypeAndRounds = this.fightsByBracketTypeAndRounds.drop(1)
         return result

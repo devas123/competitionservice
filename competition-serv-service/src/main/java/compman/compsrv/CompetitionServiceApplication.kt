@@ -7,15 +7,13 @@ import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.cache.annotation.EnableCaching
 import org.springframework.context.annotation.Bean
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories
 import org.springframework.transaction.annotation.EnableTransactionManagement
 import org.springframework.web.filter.CommonsRequestLoggingFilter
 
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = ["compman.compsrv", "com.compmanager.compservice.jooq"])
 @EnableConfigurationProperties(KafkaProperties::class, CommunicationProperties::class)
 @EnableTransactionManagement
-@EnableJpaRepositories(basePackages = ["compman.compsrv.repository"])
 @EnableCaching
 class CompetitionServiceApplication {
     companion object {

@@ -15,7 +15,7 @@ import java.time.Instant;
 @NoArgsConstructor
 public class FightDescriptionDTO {
     private String id;
-    private CategoryDescriptorDTO category;
+    private String categoryId;
     private String fightName;
     private String winFight;
     private String loseFight;

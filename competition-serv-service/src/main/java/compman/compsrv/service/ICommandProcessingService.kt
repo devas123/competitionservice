@@ -21,13 +21,10 @@ interface ICommandProcessingService<CommandType, EventType> {
             val res = (acc + apply(eventHolder, isBatch = true))
             val finishApply = System.currentTimeMillis()
             log.info("Batch apply finish, took ${Duration.ofMillis(finishApply - start)}. Starting flush")
-            flush()
             log.info("Flush finish, took ${Duration.ofMillis(System.currentTimeMillis() - finishApply)}.")
             res
         }
     }
-
-    fun flush()
 
     fun duplicateCheck(event: EventType): Boolean
 

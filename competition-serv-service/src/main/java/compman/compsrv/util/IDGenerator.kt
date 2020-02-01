@@ -39,4 +39,7 @@ object IDGenerator {
     fun fightId(competitionId: String, categoryId: String?, stageId: String, rount: Int, number: Int, roundType: StageRoundType?) = hashString("$competitionId-$categoryId-$rount-$number-$stageId-$roundType")
     fun stageId(competitionId: String, categoryId: String?, stageName: String?, stageOrder: Int) = hashString("$competitionId-$categoryId-$stageName-$stageOrder")
     fun compResultId(competitorId: String, stageId: String, competitionId: String): String = hashString(competitorId + stageId + competitionId)
+    fun createPeriodId(competitionId: String) = hashString("$competitionId-period-${UUID.randomUUID()}")
+    fun createMatId(periodId: String, matNumber: Int) = hashString("$periodId-mat-$matNumber")
+
 }

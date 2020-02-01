@@ -1,27 +1,27 @@
 package compman.compsrv.service
 
+import com.compmanager.compservice.jooq.tables.Event
+import com.compmanager.compservice.jooq.tables.daos.EventDao
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.repository.EventRepository
 import compman.compsrv.service.processor.command.ICommandProcessor
 import compman.compsrv.service.processor.event.IEventProcessor
 import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.createErrorEvent
+import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
-import javax.persistence.EntityManager
 
 @Component
 @Transactional(propagation = Propagation.REQUIRED)
 class CompetitionStateService(
-        private val eventRepository: EventRepository,
+        private val eventDao: EventDao,
+        private val dslContext: DSLContext,
         private val eventProcessors: List<IEventProcessor>,
         private val commandProcessors: List<ICommandProcessor>,
-        private val entityManager: EntityManager,
         private val mapper: ObjectMapper) : ICommandProcessingService<CommandDTO, EventDTO> {
 
     companion object {
@@ -54,7 +54,8 @@ class CompetitionStateService(
                     log.error("Competition id is empty, command $command")
                     listOf(createErrorEvent("Competition ID is empty."))
                 }
-                eventRepository.existsByCorrelationId(command.correlationId) -> {
+                dslContext.fetchExists(dslContext.select()
+                        .from(Event.EVENT).where(Event.EVENT.CORRELATION_ID.equal(command.correlationId))) -> {
                     log.error("Duplicate command.")
                     listOf(createErrorEvent("Duplicate command."))
                 }
@@ -68,8 +69,5 @@ class CompetitionStateService(
         }.getOrDefault(emptyList())
     }
 
-    override fun duplicateCheck(event: EventDTO): Boolean = event.id?.let { eventRepository.existsById(it) } == true
-    override fun flush() {
-        entityManager.flush()
-    }
+    override fun duplicateCheck(event: EventDTO): Boolean = event.id?.let { eventDao.existsById(it) } == true
 }
