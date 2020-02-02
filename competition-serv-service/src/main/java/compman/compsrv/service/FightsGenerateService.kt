@@ -3,18 +3,14 @@ package compman.compsrv.service
 import arrow.core.Tuple3
 import arrow.core.extensions.list.foldable.nonEmpty
 import arrow.core.extensions.list.zip.zipWith
+import com.compmanager.compservice.jooq.tables.daos.CategoryDescriptorDao
 import com.compmanager.model.payment.RegistrationStatus
 import com.google.common.math.DoubleMath
 import com.google.common.math.IntMath
 import com.google.common.math.LongMath
-import compman.compsrv.jpa.brackets.CompetitorResult
-import compman.compsrv.jpa.brackets.CompetitorSelector
-import compman.compsrv.jpa.brackets.StageInputDescriptor
-import compman.compsrv.jpa.competition.*
 import compman.compsrv.model.dto.brackets.*
-import compman.compsrv.model.dto.competition.FightStatus
-import compman.compsrv.model.exceptions.CategoryNotFoundException
-import compman.compsrv.repository.CategoryDescriptorCrudRepository
+import compman.compsrv.model.dto.competition.*
+import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.util.IDGenerator
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -24,8 +20,62 @@ import java.time.Instant
 import java.util.*
 import kotlin.math.max
 
+fun FightDescriptionDTO.copy(id: String = this.id,
+                             categoryId: String = this.categoryId,
+                             fightName: String? = this.fightName,
+                             winFight: String? = this.winFight,
+                             loseFight: String? = this.loseFight,
+                             scores: Array<CompScoreDTO>? = this.scores,
+                             parentId1: ParentFightReferenceDTO? = this.parentId1,
+                             parentId2: ParentFightReferenceDTO? = this.parentId2,
+                             duration: BigDecimal = this.duration,
+                             round: Int = this.round,
+                             roundType: StageRoundType = this.roundType,
+                             status: FightStatus = this.status,
+                             fightResult: FightResultDTO? = this.fightResult,
+                             mat: MatDescriptionDTO? = this.mat,
+                             numberOnMat: Int? = this.numberOnMat,
+                             priority: Int? = this.priority,
+                             competitionId: String = this.competitionId,
+                             period: String? = this.period,
+                             startTime: Instant? = this.startTime,
+                             numberInRound: Int? = this.numberInRound): FightDescriptionDTO = FightDescriptionDTO()
+        .setId(id)
+        .setFightName(fightName)
+        .setCategoryId(categoryId)
+        .setWinFight(winFight)
+        .setLoseFight(loseFight)
+        .setScores(scores)
+        .setParentId1(parentId1)
+        .setParentId2(parentId2)
+        .setDuration(duration)
+        .setCompetitionId(competitionId)
+        .setRound(round)
+        .setRoundType(roundType)
+        .setStatus(status)
+        .setStartTime(startTime)
+        .setFightResult(fightResult)
+        .setMat(mat)
+        .setNumberOnMat(numberOnMat)
+        .setNumberInRound(numberInRound)
+        .setPriority(priority)
+        .setPeriod(period)
+
+fun FightDescriptionDTO.pushCompetitor(competitor: CompetitorDTO): FightDescriptionDTO {
+    if (competitor.id == "fake") {
+        return this
+    }
+    val localScores = mutableListOf<CompScoreDTO>().apply { scores?.toList()?.let { this.addAll(it) } }
+    if (localScores.size < 2) {
+        localScores.add(CompScoreDTO().setId(IDGenerator.compScoreId(competitor.id)).setCompetitor(competitor).setScore(ScoreDTO()))
+    } else {
+        throw RuntimeException("Fight is already packed. Cannot add competitors")
+    }
+    return copy(scores = localScores.toTypedArray())
+}
+
 @Component
-class FightsGenerateService(private val categoryCrudRepository: CategoryDescriptorCrudRepository) {
+class FightsGenerateService(private val categoryCrudRepository: CategoryDescriptorDao) {
 
     companion object {
         const val SEMI_FINAL = "Semi-final"
@@ -60,28 +110,30 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                     .append(generateRandomString(validChars, random, 4)).toString()
         }
 
-        fun generateRandomCompetitorsForCategory(size: Int, academies: Int = 20, category: CategoryDescriptor, competitionId: String): List<Competitor> {
+        fun generateRandomCompetitorsForCategory(size: Int, academies: Int = 20,
+                                                 category: CategoryDescriptorDTO,
+                                                 competitionId: String): List<CompetitorDTO> {
             val random = Random()
-            val result = ArrayList<Competitor>()
+            val result = ArrayList<CompetitorDTO>()
             for (k in 1 until size + 1) {
                 val email = generateEmail(random)
-                result.add(Competitor(
-                        IDGenerator.hashString("$competitionId/${category.id}/$email"),
-                        email,
-                        null,
-                        names[random.nextInt(names.size)],
-                        surnames[random.nextInt(surnames.size)],
-                        Instant.now(),
-                        Academy(UUID.randomUUID().toString(), "Academy${random.nextInt(academies)}"),
-                        mutableSetOf(category),
-                        competitionId,
-                        RegistrationStatus.SUCCESS_CONFIRMED,
-                        null))
+                result.add(CompetitorDTO()
+                        .setId(IDGenerator.hashString("$competitionId/${category.id}/$email"))
+                        .setEmail(email)
+                        .setFirstName(names[random.nextInt(names.size)])
+                        .setLastName(surnames[random.nextInt(surnames.size)])
+                        .setBirthDate(Instant.now())
+                        .setRegistrationStatus(RegistrationStatus.SUCCESS_CONFIRMED.name)
+                        .setAcademy(AcademyDTO(UUID.randomUUID().toString(), "Academy${random.nextInt(academies)}"))
+                        .setCategories(arrayOf(category.id))
+                        .setCompetitionId(competitionId))
             }
             return result
         }
 
-        private fun checkIfFightCanProduceReference(fightId: String, referenceType: FightReferenceType, getFight: (id: String) -> FightDescription): Boolean {
+        private fun checkIfFightCanProduceReference(fightId: String,
+                                                    referenceType: FightReferenceType,
+                                                    getFight: (id: String) -> FightDescriptionDTO): Boolean {
             val fight = getFight(fightId)
             val parentFights = listOf(fight.parentId1?.referenceType to fight.parentId1?.fightId?.let { getFight(it) },
                     fight.parentId2?.referenceType to fight.parentId2?.fightId?.let { getFight(it) }).filter { it.first != null && it.second != null }
@@ -113,18 +165,22 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                 }
             }
         }
-        private fun canProduceReferenceToChild(it: Pair<FightReferenceType?, FightDescription?>, child: FightDescription, getFight: (id: String) -> FightDescription): Boolean {
-            val result = (it.second?.scores?.all { sc -> child.scores!!.none { compScore -> compScore.competitor.id == sc.competitor.id } } == true) && checkIfFightCanProduceReference(it.second?.id!!, it.first!!, getFight)
+
+        private fun canProduceReferenceToChild(it: Pair<FightReferenceType?, FightDescriptionDTO?>, child: FightDescriptionDTO, getFight: (id: String) -> FightDescriptionDTO): Boolean {
+            val result = (it.second?.scores?.all { sc -> child.scores!!.none { compScore -> compScore.competitor.id == sc.competitor.id } } == true)
+                    && checkIfFightCanProduceReference(it.second?.id!!, it.first!!, getFight)
             log.info("checking if fight ${it.second} \ncan produce reference ${it.first} to child \n$child \nResult: $result")
             return result
         }
 
-        fun checkIfFightCanBePacked(fightId: String, getFight: (id: String) -> FightDescription): Boolean {
+        fun checkIfFightCanBePacked(fightId: String, getFight: (id: String) -> FightDescriptionDTO): Boolean {
             val fight = getFight(fightId)
             return if (fight.scores!!.size >= 2) {
                 true
             } else {
-                listOfNotNull(fight.parentId1, fight.parentId2).map { it.referenceType to it.fightId?.let { id -> getFight(id) } }.filter { it.first != null && it.second != null }
+                listOfNotNull(fight.parentId1, fight.parentId2)
+                        .map { it.referenceType to it.fightId?.let { id -> getFight(id) } }
+                        .filter { it.first != null && it.second != null }
                         .filter { it.second!!.scores!!.none { sc -> fight.scores!!.any { fsc -> fsc.competitor.id == sc.competitor.id } } }
                         .filter { checkIfFightCanProduceReference(it.second?.id!!, it.first!!, getFight) }
                         .size + (fight.scores?.size ?: 0) >= 2
@@ -149,11 +205,11 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
     }
 
 
-    fun generateEmptyWinnerRoundsForCategory(competitionId: String, categoryId: String, stageId: String, compssize: Int): List<FightDescription> {
+    fun generateEmptyWinnerRoundsForCategory(competitionId: String, categoryId: String, stageId: String, compssize: Int): List<FightDescriptionDTO> {
         val numberOfRounds = LongMath.log2(compssize.toLong(), RoundingMode.CEILING)
         val duration = calculateDuration(categoryId)
         log.trace("NumberOfRounds: $numberOfRounds")
-        tailrec fun createWinnerFightNodes(result: List<FightDescription>, previousRoundFights: List<FightDescription>, currentRound: Int, totalRounds: Int): List<FightDescription> {
+        tailrec fun createWinnerFightNodes(result: List<FightDescriptionDTO>, previousRoundFights: List<FightDescriptionDTO>, currentRound: Int, totalRounds: Int): List<FightDescriptionDTO> {
             log.trace("Loop: result.size=${result.size}, previousFights.size=${previousRoundFights.size}, currentRound=$currentRound, totalRounds=$totalRounds")
             if (currentRound >= totalRounds) {
                 log.trace("currentRound >= totalRounds, Returning result")
@@ -180,7 +236,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                 //we need to assign parent ids to the newly generated fights
                 log.trace("This is not the first round.")
                 val connectedFights = createConnectedTripletsFrom(previousRoundFights, currentRoundFights) {
-                    Tuple3(it.a.copy(winFight = it.c.id), it.b.copy(winFight = it.c.id), it.c.copy(parentId1 = ParentFightReference(FightReferenceType.WINNER, it.a.id), parentId2 = ParentFightReference(FightReferenceType.WINNER, it.b.id)))
+                    Tuple3(it.a.copy(winFight = it.c.id), it.b.copy(winFight = it.c.id), it.c.copy(parentId1 = ParentFightReferenceDTO(FightReferenceType.WINNER, it.a.id), parentId2 = ParentFightReferenceDTO(FightReferenceType.WINNER, it.b.id)))
                 }
                 return if (currentRound == totalRounds - 1) {
                     log.trace("This is the final round.")
@@ -195,7 +251,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
         return createWinnerFightNodes(emptyList(), emptyList(), 0, numberOfRounds)
     }
 
-    fun mergeAll(pairs: List<Pair<FightDescription, FightDescription>>, fightsList: List<FightDescription>): List<Tuple3<FightDescription, FightDescription, FightDescription>> {
+    fun mergeAll(pairs: List<Pair<FightDescriptionDTO, FightDescriptionDTO>>, fightsList: List<FightDescriptionDTO>): List<Tuple3<FightDescriptionDTO, FightDescriptionDTO, FightDescriptionDTO>> {
         return pairs.zipWith(fightsList) { pair, fightDescription ->
             Tuple3(pair.first, pair.second, fightDescription)
         }
@@ -204,7 +260,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
     fun generateDoubleEliminationBracket(competitionId: String, categoryId: String, stageId: String, compssize: Int) =
             generateLoserBracketAndGrandFinalForWinnerBracket(competitionId, categoryId, stageId, generateEmptyWinnerRoundsForCategory(competitionId, categoryId, stageId, compssize), false)
 
-    fun generateLoserBracketAndGrandFinalForWinnerBracket(competitionId: String, categoryId: String, stageId: String, winnerFightsAndGrandFinal: List<FightDescription>, hasLoserGrandFinal: Boolean = false): List<FightDescription> {
+    fun generateLoserBracketAndGrandFinalForWinnerBracket(competitionId: String, categoryId: String, stageId: String, winnerFightsAndGrandFinal: List<FightDescriptionDTO>, hasLoserGrandFinal: Boolean = false): List<FightDescriptionDTO> {
         val duration = calculateDuration(categoryId)
         assert(winnerFightsAndGrandFinal.count { it.roundType == StageRoundType.GRAND_FINAL && it.round != null } == 1)
         assert(winnerFightsAndGrandFinal.filter { it.roundType != StageRoundType.GRAND_FINAL }.all { it.roundType == StageRoundType.WINNER_BRACKETS && it.round != null }) { "Winner brackets fights contain not winner-brackets round types." }
@@ -218,11 +274,11 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
         assert(DoubleMath.isMathematicalInteger(DoubleMath.log2(loserBracketsSize.toDouble()))) { "Loser brackets size should be a power of two, but it is $loserBracketsSize" }
 
 
-        tailrec fun createLoserFightNodes(result: List<FightDescription>,
-                                          previousLoserRoundFights: List<FightDescription>,
-                                          winnerFights: List<FightDescription>,
+        tailrec fun createLoserFightNodes(result: List<FightDescriptionDTO>,
+                                          previousLoserRoundFights: List<FightDescriptionDTO>,
+                                          winnerFights: List<FightDescriptionDTO>,
                                           currentLoserRound: Int,
-                                          currentWinnerRound: Int): List<FightDescription> {
+                                          currentWinnerRound: Int): List<FightDescriptionDTO> {
             log.info("Loop: result.size=${result.size}, previousLoserRoundFights.size=${previousLoserRoundFights.size}, currentLoserRound=$currentLoserRound, currentWinnerRound=$currentWinnerRound, totalWinnerRounds=$totalWinnerRounds, totalLoserRounds:$totalLoserRounds")
             if (totalWinnerRounds <= 0 || totalLoserRounds <= 0) {
                 return result
@@ -237,13 +293,13 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                 //this is the first loser brackets round
                 //we take the first round of the winner brackets and connect them via loserFights to the generated fights
                 createConnectedTripletsFrom(firstWinnerRoundFights, currentLoserRoundFights) {
-                    Tuple3(it.a.copy(loseFight = it.c.id), it.b.copy(loseFight = it.c.id), it.c.copy(parentId1 = ParentFightReference(FightReferenceType.LOSER, it.a.id), parentId2 = ParentFightReference(FightReferenceType.LOSER, it.b.id)))
+                    Tuple3(it.a.copy(loseFight = it.c.id), it.b.copy(loseFight = it.c.id), it.c.copy(parentId1 = ParentFightReferenceDTO(FightReferenceType.LOSER, it.a.id), parentId2 = ParentFightReferenceDTO(FightReferenceType.LOSER, it.b.id)))
                 }
             } else {
                 if (currentLoserRound % 2 == 0) {
                     //it means there will be no competitors falling from the upper bracket.
                     createConnectedTripletsFrom(previousLoserRoundFights, currentLoserRoundFights) {
-                        Tuple3(it.a.copy(winFight = it.c.id), it.b.copy(winFight = it.c.id), it.c.copy(parentId1 = ParentFightReference(FightReferenceType.WINNER, it.a.id), parentId2 = ParentFightReference(FightReferenceType.WINNER, it.b.id)))
+                        Tuple3(it.a.copy(winFight = it.c.id), it.b.copy(winFight = it.c.id), it.c.copy(parentId1 = ParentFightReferenceDTO(FightReferenceType.WINNER, it.a.id), parentId2 = ParentFightReferenceDTO(FightReferenceType.WINNER, it.b.id)))
                     }
                 } else {
                     //we need to merge the winners of fights from the previous loser rounds
@@ -252,7 +308,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                     assert(winnerRoundFights.size == previousLoserRoundFights.size)
                     val allFights = (winnerRoundFights + previousLoserRoundFights).sortedBy { it.numberInRound * 10 + it.roundType?.ordinal!! }
                     createConnectedTripletsFrom(allFights, currentLoserRoundFights) {
-                        Tuple3(it.a.copy(loseFight = it.c.id), it.b.copy(winFight = it.c.id), it.c.copy(parentId1 = ParentFightReference(FightReferenceType.LOSER, it.a.id), parentId2 = ParentFightReference(FightReferenceType.WINNER, it.b.id)))
+                        Tuple3(it.a.copy(loseFight = it.c.id), it.b.copy(winFight = it.c.id), it.c.copy(parentId1 = ParentFightReferenceDTO(FightReferenceType.LOSER, it.a.id), parentId2 = ParentFightReferenceDTO(FightReferenceType.WINNER, it.b.id)))
                     }
                 }
             }
@@ -260,7 +316,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                 assert(connectedFights.size == 1) { "Connected fights size is not 1 in the last round, but (${connectedFights.size})." }
                 val lastTuple = connectedFights[0]
                 val connectedGrandFinal =
-                        grandFinal.copy(parentId1 = ParentFightReference(FightReferenceType.WINNER, lastTuple.a.id), parentId2 = ParentFightReference(FightReferenceType.WINNER, lastTuple.c.id))
+                        grandFinal.copy(parentId1 = ParentFightReferenceDTO(FightReferenceType.WINNER, lastTuple.a.id), parentId2 = ParentFightReferenceDTO(FightReferenceType.WINNER, lastTuple.c.id))
                 result + lastTuple.a.copy(winFight = connectedGrandFinal.id) + lastTuple.b + lastTuple.c.copy(winFight = connectedGrandFinal.id) + connectedGrandFinal
             } else {
                 createLoserFightNodes(result + connectedFights.flatMap { listOf(it.a, it.b) },
@@ -273,7 +329,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
         return createLoserFightNodes(emptyList(), emptyList(), winnerFights, 0, 0)
     }
 
-    fun createConnectedTripletsFrom(previousRoundFights: List<FightDescription>, currentRoundFights: List<FightDescription>, connectFun: (tuple: Tuple3<FightDescription, FightDescription, FightDescription>) -> Tuple3<FightDescription, FightDescription, FightDescription>): List<Tuple3<FightDescription, FightDescription, FightDescription>> {
+    fun createConnectedTripletsFrom(previousRoundFights: List<FightDescriptionDTO>, currentRoundFights: List<FightDescriptionDTO>, connectFun: (tuple: Tuple3<FightDescriptionDTO, FightDescriptionDTO, FightDescriptionDTO>) -> Tuple3<FightDescriptionDTO, FightDescriptionDTO, FightDescriptionDTO>): List<Tuple3<FightDescriptionDTO, FightDescriptionDTO, FightDescriptionDTO>> {
         val firstWinnerRoundFightsOdd = previousRoundFights.filterIndexed { index, _ -> index % 2 == 0 }
         val firstWinnerRoundFightsEven = previousRoundFights.filterIndexed { index, _ -> index % 2 == 1 }
         val firstWinnerRoundFightsPairs = firstWinnerRoundFightsOdd.zip(firstWinnerRoundFightsEven)
@@ -281,7 +337,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
         return mergeAll(firstWinnerRoundFightsPairs, currentRoundFights).map(connectFun)
     }
 
-    fun filterPreliminaryFights(outputSize: Int, fights: List<FightDescription>, bracketType: BracketType): List<FightDescription> {
+    fun filterPreliminaryFights(outputSize: Int, fights: List<FightDescriptionDTO>, bracketType: BracketType): List<FightDescriptionDTO> {
         log.info("Filtering fights: $outputSize, fights size: ${fights.size}, brackets type: $bracketType")
         val result = when (bracketType) {
             BracketType.SINGLE_ELIMINATION -> {
@@ -305,7 +361,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
         return result
     }
 
-    fun generateThirdPlaceFightForOlympicSystem(competitionId: String, categoryId: String, stageId: String, winnerFights: List<FightDescription>): List<FightDescription> {
+    fun generateThirdPlaceFightForOlympicSystem(competitionId: String, categoryId: String, stageId: String, winnerFights: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
         if (winnerFights.isEmpty()) {
             return winnerFights
         }
@@ -317,7 +373,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
         val thirdPlaceFight = fightDescription(competitionId, categoryId, stageId, semiFinal + 1, StageRoundType.THIRD_PLACE_FIGHT, 0, semiFinalFights[0].duration
                 ?: calculateDuration(categoryId), THIRD_PLACE_FIGHT)
         val updatedFights = listOf(semiFinalFights[0].copy(loseFight = thirdPlaceFight.id), semiFinalFights[1].copy(loseFight = thirdPlaceFight.id),
-                thirdPlaceFight.copy(parentId1 = ParentFightReference(FightReferenceType.LOSER, semiFinalFights[0].id), parentId2 = ParentFightReference(FightReferenceType.LOSER, semiFinalFights[1].id)))
+                thirdPlaceFight.copy(parentId1 = ParentFightReferenceDTO(FightReferenceType.LOSER, semiFinalFights[0].id), parentId2 = ParentFightReferenceDTO(FightReferenceType.LOSER, semiFinalFights[1].id)))
         return winnerFights.map {
             when (it.id) {
                 updatedFights[0].id -> updatedFights[0]
@@ -330,24 +386,22 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
     private fun createFightId(competitionId: String, categoryId: String?, stageId: String, round: Int, number: Int, roundType: StageRoundType?) = IDGenerator.fightId(competitionId, categoryId, stageId, round, number, roundType)
 
 
-    private fun fightDescription(competitionId: String, categoryId: String, stageId: String, round: Int, roundType: StageRoundType, index: Int, duration: BigDecimal, fightName: String?): FightDescription {
-        return FightDescription(
-                fightId = createFightId(competitionId, categoryId, stageId, round, index, roundType),
-                categoryId = categoryId,
-                round = round,
-                numberInRound = index,
-                competitionId = competitionId)
-                .apply {
-                    this.duration = duration
-                    this.roundType = roundType
-                    this.fightName = fightName
-                }
+    private fun fightDescription(competitionId: String, categoryId: String, stageId: String, round: Int, roundType: StageRoundType, index: Int, duration: BigDecimal, fightName: String?): FightDescriptionDTO {
+        return FightDescriptionDTO()
+                .setId(createFightId(competitionId, categoryId, stageId, round, index, roundType))
+                .setCategoryId(categoryId)
+                .setRound(round)
+                .setNumberInRound(index)
+                .setCompetitionId(competitionId)
+                .setDuration(duration)
+                .setRoundType(roundType)
+                .setFightName(fightName)
     }
 
 
-    private fun calculateDuration(categoryId: String) = categoryCrudRepository.findById(categoryId).map { it.fightDuration }.orElseThrow { CategoryNotFoundException("Category not found for id: $categoryId") }
+    private fun calculateDuration(categoryId: String) = categoryCrudRepository.findById(categoryId)!!.fightDuration
 
-    fun distributeCompetitors(competitors: List<Competitor>, fights: List<FightDescription>, bracketType: BracketType, distributionType: DistributionType = DistributionType.RANDOM): List<FightDescription> {
+    fun distributeCompetitors(competitors: List<CompetitorDTO>, fights: List<FightDescriptionDTO>, bracketType: BracketType, distributionType: DistributionType = DistributionType.RANDOM): List<FightDescriptionDTO> {
         when (bracketType) {
             BracketType.SINGLE_ELIMINATION, BracketType.DOUBLE_ELIMINATION -> {
                 val firstRoundFights = fights.filter { it.round == 0 && it.roundType != StageRoundType.LOSER_BRACKETS }
@@ -373,16 +427,15 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                 }
             }
             else -> {
-                log.warn("TODO")
-                return fights
+                TODO()
             }
         }
     }
 
-    fun filterUncompletableFirstRoundFights(fights: List<FightDescription>): List<FightDescription> {
+    fun filterUncompletableFirstRoundFights(fights: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
         val firstRoundFights = fights.filter { it.id != null && !checkIfFightCanBePacked(it.id!!) { id -> fights.first { fight -> fight.id == id } } }
         return firstRoundFights.fold(fights) { acc, fightDescription ->
-            val updatedFight = fightDescription.copy(status = FightStatus.UNCOMPLETABLE, fightResult = FightResult(fightDescription.scores?.firstOrNull()?.competitor?.id, CompetitorResultType.WALKOVER, "BYE"))
+            val updatedFight = fightDescription.copy(status = FightStatus.UNCOMPLETABLE, fightResult = FightResultDTO(fightDescription.scores?.firstOrNull()?.competitor?.id, CompetitorResultType.WALKOVER, "BYE"))
             val winFightId = fightDescription.winFight
             val updates = if (!winFightId.isNullOrBlank()) {
                 //find win fight
@@ -402,9 +455,9 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
 
     fun buildStageResults(bracketType: BracketType,
                           stageStatus: StageStatus,
-                          fights: List<FightDescription>,
+                          fights: List<FightDescriptionDTO>,
                           stageId: String,
-                          competitionId: String): List<CompetitorResult> {
+                          competitionId: String): List<CompetitorResultDTO> {
         return when (stageStatus) {
             StageStatus.FINISHED -> {
                 when (bracketType) {
@@ -426,7 +479,12 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                             val result = when (f.fightResult?.resultType) {
                                 CompetitorResultType.WIN_DECISION, CompetitorResultType.WIN_POINTS, CompetitorResultType.WIN_SUBMISSION, CompetitorResultType.OPPONENT_DQ -> {
                                     f.scores?.find { it.competitor.id != f.fightResult?.winnerId!! }?.let { compScore ->
-                                        CompetitorResult(IDGenerator.compResultId(compScore.competitor.id!!, stageId, competitionId), compScore.competitor, 0, f.round, calculateLoserPlace(f.round!!), null, mutableSetOf())
+                                        CompetitorResultDTO()
+                                                .setId(IDGenerator.compResultId(compScore.competitor.id!!, stageId, competitionId))
+                                                .setCompetitorId(compScore.competitor.id)
+                                                .setPoints(0)
+                                                .setRound(f.round)
+                                                .setPlace(calculateLoserPlace(f.round!!))
                                     }
                                 }
                                 else -> null
@@ -435,10 +493,20 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                             result
                         } + grandFinal.scores!!.map {
                             val place = if (it.competitor.id == grandFinal.fightResult!!.winnerId) 1 else 2
-                            CompetitorResult(IDGenerator.compResultId(it.competitor.id!!, stageId, competitionId), it.competitor, 0, grandFinal.round, place, null, mutableSetOf())
+                            CompetitorResultDTO()
+                                    .setId(IDGenerator.compResultId(it.competitor.id!!, stageId, competitionId))
+                                    .setCompetitorId(it.competitor.id)
+                                    .setPoints(0)
+                                    .setRound(grandFinal.round)
+                                    .setPlace(place)
                         } + (thirdPlaceFight?.scores?.map {
                             val place = if (it.competitor.id == thirdPlaceFight.fightResult!!.winnerId) 3 else 4
-                            CompetitorResult(IDGenerator.compResultId(it.competitor.id!!, stageId, competitionId), it.competitor, 0, thirdPlaceFight.round, place, null, mutableSetOf())
+                            CompetitorResultDTO()
+                                    .setId(IDGenerator.compResultId(it.competitor.id!!, stageId, competitionId))
+                                    .setCompetitorId(it.competitor.id)
+                                    .setPoints(0)
+                                    .setRound(thirdPlaceFight.round)
+                                    .setPlace(place)
                         } ?: emptyList())
                     }
                     BracketType.DOUBLE_ELIMINATION -> {
@@ -452,10 +520,9 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
     }
 
 
-
-    fun applyStageInputDescriptorToResultsAndFights(descriptor: StageInputDescriptor,
-                                                    results: List<CompetitorResult>,
-                                                    fights: List<FightDescription>): List<Competitor> {
+    fun applyStageInputDescriptorToResultsAndFights(descriptor: StageInputDescriptorDTO,
+                                                    results: List<CompetitorResultDTO>,
+                                                    fights: List<FightDescriptionDTO>): List<String> {
         fun selectWinnerIdOfFight(fightId: String) = fights.first {
             it.id == fightId && it.fightResult!!.resultType != CompetitorResultType.BOTH_DQ
                     && it.fightResult!!.resultType != CompetitorResultType.DRAW
@@ -469,13 +536,13 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
             return fight.scores?.first { it.competitor.id != fight.fightResult!!.winnerId }?.competitor?.id
         }
 
-        fun findWinnersOrLosers(selector: CompetitorSelector, selectorFun: (fightId: String) -> String?, results: List<CompetitorResult>): List<CompetitorResult> {
+        fun findWinnersOrLosers(selector: CompetitorSelectorDTO, selectorFun: (fightId: String) -> String?, results: List<CompetitorResultDTO>): List<CompetitorResultDTO> {
             val selectorVal = selector.selectorValue!!
             val selectedFighterIds = selectorVal.mapNotNull { selectorFun.invoke(it) }
-            return results.filter { selectedFighterIds.contains(it.competitor?.id) }
+            return results.filter { selectedFighterIds.contains(it.competitorId) }
         }
 
-        fun filterResults(selector: CompetitorSelector, results: List<CompetitorResult>): List<CompetitorResult> {
+        fun filterResults(selector: CompetitorSelectorDTO, results: List<CompetitorResultDTO>): List<CompetitorResultDTO> {
             return when (selector.classifier!!) {
                 SelectorClassifier.FIRST_N_PLACES -> {
                     val selectorVal = selector.selectorValue?.first()!!.toInt()
@@ -497,6 +564,6 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                 }
             }
         }
-        return filterResults(descriptor.selectors!!.first(), results).mapNotNull { it.competitor }.take(descriptor.numberOfCompetitors)
+        return filterResults(descriptor.selectors!!.first(), results).mapNotNull { it.competitorId }.take(descriptor.numberOfCompetitors)
     }
 }
