@@ -1,8 +1,12 @@
 package compman.compsrv.service.processor.command
 
 import arrow.core.fix
+import com.compmanager.compservice.jooq.tables.CategoryDescriptor
+import com.compmanager.compservice.jooq.tables.daos.CategoryDescriptorDao
+import com.compmanager.compservice.jooq.tables.daos.CompetitionPropertiesDao
+import com.compmanager.compservice.jooq.tables.daos.CompetitorDao
+import com.compmanager.compservice.jooq.tables.daos.FightDescriptionDao
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.mapping.toDTO
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
@@ -10,31 +14,28 @@ import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.model.dto.brackets.StageType
 import compman.compsrv.model.dto.competition.CategoryStateDTO
-import compman.compsrv.model.dto.competition.CategoryStatus
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
-import compman.compsrv.repository.*
+import compman.compsrv.repository.JooqQueries
 import compman.compsrv.service.FightsGenerateService
 import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.Rules
 import compman.compsrv.util.createErrorEvent
 import compman.compsrv.util.createEvent
 import org.slf4j.LoggerFactory
-import org.springframework.data.domain.Pageable
-import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
 
 
 @Component
 class CategoryCommandProcessor constructor(private val fightsGenerateService: FightsGenerateService,
                                            private val mapper: ObjectMapper,
-                                           private val competitionPropertiesCrudRepository: CompetitionPropertiesCrudRepository,
-                                           private val categoryCrudRepository: CategoryStateCrudRepository,
-                                           private val competitorCrudRepository: CompetitorCrudRepository,
-                                           private val categoryDescriptorCrudRepository: CategoryDescriptorCrudRepository,
-                                           private val fightCrudRepository: FightCrudRepository) : ICommandProcessor {
+                                           private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
+                                           private val categoryCrudRepository: CategoryDescriptorDao,
+                                           private val competitorCrudRepository: CompetitorDao,
+                                           private val fightCrudRepository: FightDescriptionDao,
+                                           private val jooq: JooqQueries) : ICommandProcessor {
     private val commandsToHandlers: Map<CommandType, (command: CommandDTO) -> List<EventDTO>> = setOf(CommandType.ADD_COMPETITOR_COMMAND to ::doAddCompetitor,
             CommandType.REMOVE_COMPETITOR_COMMAND to ::doRemoveCompetitor,
             CommandType.ADD_CATEGORY_COMMAND to ::processAddCategoryCommandDTO,
@@ -61,7 +62,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
     }
 
     private fun doChangeCategoryRegistrationStatus(command: CommandDTO): List<EventDTO> {
-        return if (categoryDescriptorCrudRepository.existsById(command.categoryId)) {
+        return if (categoryCrudRepository.existsById(command.categoryId)) {
             listOf(createEvent(command, EventType.CATEGORY_REGISTRATION_STATUS_CHANGED, command.payload))
         } else {
             listOf(createErrorEvent(command, "No category with id ${command.categoryId}"))
@@ -85,11 +86,9 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         val newCategoryId = payload?.newCategoryId
         val oldCategoryId = payload?.oldCategoryId
         return if (!newCategoryId.isNullOrBlank() && !competitorId.isNullOrBlank() && competitorCrudRepository.existsById(competitorId) && categoryCrudRepository.existsById(newCategoryId)) {
-            val competitor = competitorCrudRepository.findByIdOrNull(competitorId)
+            val competitor = competitorCrudRepository.findById(competitorId)
             competitor?.let {
-                val categories = it.categories?.toSet() ?: emptySet()
-                val newCategories = categories.filter { categoryDescriptor -> categoryDescriptor.id != oldCategoryId } + categoryCrudRepository.getOne(newCategoryId)
-                listOf(createEvent(command, EventType.COMPETITOR_CATEGORY_CHANGED, CompetitorUpdatedPayload(it.toDTO().setCategories(newCategories.map { it1 -> it1.id }.toTypedArray()))))
+                listOf(createEvent(command, EventType.COMPETITOR_CATEGORY_CHANGED, payload))
             }
                     ?: listOf(createErrorEvent(command, "Such competitor does not exist"))
         } else {
@@ -122,11 +121,10 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
     private fun createEvent(command: CommandDTO, eventType: EventType, payload: Any?) = mapper.createEvent(command, eventType, payload)
 
     private fun doGenerateBrackets(command: CommandDTO): List<EventDTO> {
-        val competitors = competitorCrudRepository.findByCompetitionIdAndCategoriesContaining(command.competitionId, setOf(command.categoryId), Pageable.unpaged()).content.toList()
+        val competitors = jooq.competitorsQuery(command.competitionId).and(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.eq(command.categoryId)).fetch { rec -> jooq.mapCompetitorWithoutCategories(rec) }
         val payload = mapper.convertValue(command.payload, GenerateBracketsPayload::class.java)
-        return if (competitors.isNotEmpty()
+        return if (!competitors.isNullOrEmpty()
                 && !payload?.stageDescriptors.isNullOrEmpty()) {
-            val category = categoryDescriptorCrudRepository.findByIdOrNull(command.categoryId)?.toDTO()
             val stages = payload.stageDescriptors.sortedBy { it.stageOrder }
             val updatedStages = stages.mapIndexed { ind, stage ->
                 val outputSize = when(stage.stageType) {
@@ -175,7 +173,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                         .setNumberOfFights(twoFighterFights.size) to twoFighterFights
             }
             val fightAddedEvents = updatedStages.flatMap {  pair -> pair.second.chunked(30).map { createEvent(command, EventType.FIGHTS_ADDED_TO_STAGE,
-                    FightsAddedToStagePayload(it.map { f -> f.toDTO({category}, {null})}.toTypedArray(), pair.first.id)) } }
+                    FightsAddedToStagePayload(it.toTypedArray(), pair.first.id)) } }
             listOf(createEvent(command, EventType.BRACKETS_GENERATED, BracketsGeneratedPayload(updatedStages.mapNotNull { it.first }.toTypedArray()))) + fightAddedEvents
 
         } else {
@@ -196,7 +194,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
     private fun doRemoveCompetitor(command: CommandDTO): List<EventDTO> {
         val competitorId = mapper.convertValue(command.payload, RemoveCompetitorPayload::class.java)?.competitorId
         return if (!competitorId.isNullOrBlank()) {
-            if (fightCrudRepository.findByCompetitionIdAndScoresCompetitorId(command.competitionId, competitorId).isNullOrEmpty()) {
+            if (jooq.fightsCount(command.competitionId, competitorId) <= 0) {
                 listOf(createEvent(command, EventType.COMPETITOR_REMOVED, CompetitorRemovedPayload(competitorId)))
             } else {
                 listOf(createErrorEvent(command, "There are already fights generated for the competitor. Please remove the fights first."))
@@ -216,7 +214,8 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                     ?: IDGenerator.hashString("${command.competitionId}/${IDGenerator.categoryId(c)}")
             if (!categoryCrudRepository.existsById(categoryId) && competitionPropertiesCrudRepository.existsById(command.competitionId)) {
                 if (restrictionsValid.all {restriction -> restriction.isValid  }) {
-                    val state = CategoryStateDTO(categoryId, command.competitionId, c.setId(categoryId), CategoryStatus.INITIALIZED, null, 0, 0, emptyArray())
+                    val state = CategoryStateDTO().setId(categoryId).setCompetitionId(command.competitionId).setCategory(c.setId(categoryId)).setFightsNumber(0).setCompetitors(emptyArray())
+                            .setNumberOfCompetitors(0)
                     listOf(createEvent(command, EventType.CATEGORY_ADDED, CategoryAddedPayload(state)).setCategoryId(categoryId))
                 } else {
                     listOf(createErrorEvent(command, restrictionsValid.fold(StringBuilder()) { acc, r -> acc.append(r.fold({it.toList().joinToString(",")}, {""})) }.toString()))
@@ -230,7 +229,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
     }
 
     private fun doDeleteCategoryState(command: CommandDTO): List<EventDTO> {
-        return if (competitorCrudRepository.countByCompetitionIdAndCategoriesContaining(command.competitionId, setOf(command.categoryId)) == 0L) {
+        return if (jooq.competitorsCount(command.competitionId, command.categoryId) == 0) {
             listOf(createEvent(command, EventType.CATEGORY_DELETED, command.payload))
         } else {
             listOf(createErrorEvent(command, "There are already competitors registered to this category. Please move them to another category first."))
@@ -241,10 +240,10 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         val payload = mapper.convertValue(command.payload, CreateFakeCompetitorsPayload::class.java)
         val numberOfCompetitors = payload?.numberOfCompetitors ?: 50
         val numberOfAcademies = payload?.numberOfAcademies ?: 30
-        val categoryState = categoryCrudRepository.getOne(command.categoryId!!)
-        val fakeCompetitors = FightsGenerateService.generateRandomCompetitorsForCategory(numberOfCompetitors, numberOfAcademies, categoryState.category!!, command.competitionId!!)
+        val categoryState = jooq.fetchCategoryStateByCompetitionIdAndCategoryId(command.competitionId, command.categoryId!!).block()
+        val fakeCompetitors = FightsGenerateService.generateRandomCompetitorsForCategory(numberOfCompetitors, numberOfAcademies, categoryState?.category!!, command.competitionId!!)
         return fakeCompetitors.map {
-            createEvent(command, EventType.COMPETITOR_ADDED, CompetitorAddedPayload(it.toDTO()))
+            createEvent(command, EventType.COMPETITOR_ADDED, CompetitorAddedPayload(it))
         }
     }
 

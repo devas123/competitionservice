@@ -2,8 +2,6 @@ package compman.compsrv.repository
 
 import com.compmanager.compservice.jooq.tables.*
 import com.compmanager.model.payment.RegistrationStatus
-import compman.compsrv.mapping.toDTO
-import compman.compsrv.model.dto.brackets.BracketDescriptorDTO
 import compman.compsrv.model.dto.brackets.CompetitorResultType
 import compman.compsrv.model.dto.brackets.FightReferenceType
 import compman.compsrv.model.dto.brackets.ParentFightReferenceDTO
@@ -80,6 +78,10 @@ class JooqQueries(private val create: DSLContext) {
             .on(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.equal(CompetitorCategories.COMPETITOR_CATEGORIES.CATEGORIES_ID)))
             .where(Competitor.COMPETITOR.COMPETITION_ID.equal(competitionId))
 
+    fun fightsCount(competitionId: String, fighterId: String) =
+            create.fetchCount(FightDescription.FIGHT_DESCRIPTION.join(CompScore.COMP_SCORE).on(FightDescription.FIGHT_DESCRIPTION.ID.eq(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID)),
+                    CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.eq(fighterId).and(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId)))
+
     fun competitorsCount(competitionId: String, categoryId: String?) = if (categoryId.isNullOrBlank()) {
         create.fetchCount(Competitor.COMPETITOR, Competitor.COMPETITOR.COMPETITION_ID.eq(competitionId))
     } else {
@@ -115,9 +117,6 @@ class JooqQueries(private val create: DSLContext) {
             .flatMap {
                 Mono.justOrEmpty(CategoryStateDTO()
                         .setId(cat.id)
-                        .setBrackets(BracketDescriptorDTO()
-                                .setId(cat.id)
-                                .setCompetitionId(competitionId))
                         .setFightsNumber(fightsCountByCategoryId(competitionId, cat.id))
                         .setCompetitors(it?.toTypedArray())
                         .setCategory(cat))
