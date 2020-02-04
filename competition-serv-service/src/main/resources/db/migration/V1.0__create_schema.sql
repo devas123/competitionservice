@@ -1,11 +1,3 @@
-create table compservice.bracket_descriptor
-(
-    id varchar(255) not null
-        constraint bracket_descriptor_pkey
-            primary key,
-    competition_id varchar(255)
-);
-
 create table compservice.category_restriction
 (
     id varchar(255) not null
@@ -18,6 +10,23 @@ create table compservice.category_restriction
     unit varchar(255)
 );
 
+create table compservice.competition_properties
+(
+    id varchar(255) not null
+        constraint competition_properties_pkey
+            primary key,
+    brackets_published boolean not null,
+    competition_name varchar(255),
+    creation_timestamp bigint not null,
+    creator_id varchar(255),
+    email_notifications_enabled boolean,
+    email_template varchar(255),
+    end_date timestamp,
+    schedule_published boolean not null,
+    start_date timestamp,
+    time_zone varchar(255)
+);
+
 create table compservice.competition_state
 (
     id varchar(255) not null
@@ -28,24 +37,18 @@ create table compservice.competition_state
     status integer
 );
 
-create table compservice.dashboard_state
-(
-    id varchar(255) not null
-        constraint dashboard_state_pkey
-            primary key
-);
-
 create table compservice.dashboard_period
 (
     id varchar(255) not null
         constraint dashboard_period_pkey
             primary key,
+    competition_id varchar(255) not null
+        constraint dashboard_competition_id_fkey
+            references compservice.competition_properties on delete cascade,
     is_active boolean not null,
     name varchar(255),
     start_time timestamp,
     dashboard_id varchar(255)
-        constraint fkc4sl34l4xcy8wicikc8p2ku0n
-            references compservice.dashboard_state on delete cascade
 );
 
 create table compservice.event
@@ -71,23 +74,6 @@ create table compservice.mat_description
         constraint fk3rv512vhq8j2k4c40g3ly5792
             references compservice.dashboard_period on update cascade,
     mats_order integer
-);
-
-create table compservice.competition_properties
-(
-    id varchar(255) not null
-        constraint competition_properties_pkey
-            primary key,
-    brackets_published boolean not null,
-    competition_name varchar(255),
-    creation_timestamp bigint not null,
-    creator_id varchar(255),
-    email_notifications_enabled boolean,
-    email_template varchar(255),
-    end_date timestamp,
-    schedule_published boolean not null,
-    start_date timestamp,
-    time_zone varchar(255)
 );
 
 create table compservice.registration_info
@@ -220,7 +206,9 @@ create table compservice.mat_schedule_container
 (
     id varchar(255) not null
         constraint mat_schedule_container_pkey
-            primary key,
+            primary key
+        constraint mat_schedule_container_mat_description_fkey
+            references compservice.mat_description on delete cascade,
     total_fights integer not null,
     period_id varchar(255) not null
         constraint fkheux8852yfm9g3iwegpqr8sbe
@@ -242,24 +230,11 @@ create table compservice.period_properties
             references compservice.schedule on delete cascade
 );
 
-create table compservice.category_state
-(
-    id varchar(255) not null
-        constraint category_state_pkey
-            primary key,
-    status integer,
-    competition_id varchar(255) not null
-        constraint fk8th9hp2r52q396f1lxir9antu
-            references compservice.competition_state on delete cascade
-);
-
 create table compservice.category_descriptor
 (
     id varchar(255) not null
         constraint category_descriptor_pkey
-            primary key
-        constraint fkpqj7wn900iwkf1rmoki48b49s
-            references compservice.category_state on delete cascade,
+            primary key,
     competition_id varchar(255),
     fight_duration numeric(19,2),
     name varchar(255),
@@ -327,10 +302,7 @@ create table compservice.stage_descriptor
     stage_status integer,
     stage_type integer,
     wait_for_previous boolean,
-    has_third_place_fight boolean,
-    brackets_id varchar(255)
-        constraint fk3gxuyn45r1t81qshw89xuicub
-            references compservice.bracket_descriptor on delete cascade
+    has_third_place_fight boolean
 );
 
 create table compservice.fight_description

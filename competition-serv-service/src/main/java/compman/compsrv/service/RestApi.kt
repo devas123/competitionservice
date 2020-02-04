@@ -88,12 +88,8 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     @RequestMapping("/store/comprops", method = [RequestMethod.GET])
     fun getCompetitionProperties(@RequestParam("competitionId") competitionId: String?): CompetitionPropertiesDTO? {
         log.info("looking for the competition properties for competition $competitionId")
-        return stateQueryService.getCompetitionProperties(competitionId)
+        return competitionId?.let { stateQueryService.getCompetitionProperties(it) }
     }
-
-    @RequestMapping("/store/competitionstate", method = [RequestMethod.GET])
-    fun getCompetitionState(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionState(competitionId)
-
     @RequestMapping("/store/infotemplate", method = [RequestMethod.GET])
     fun getCompetitionInfo(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionInfoTemplate(competitionId)
 

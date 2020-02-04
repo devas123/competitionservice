@@ -15,7 +15,6 @@ public class CategoryStateDTO {
     private String id;
     private String competitionId;
     private CategoryDescriptorDTO category;
-    private CategoryStatus status;
     private BracketDescriptorDTO brackets;
     private Integer fightsNumber;
     private Integer numberOfCompetitors;

@@ -19,7 +19,7 @@ public class CompetitionPropertiesDTO {
     private Boolean emailNotificationsEnabled;
     private String competitionName;
     private String emailTemplate;
-    private List<PromoCodeDTO> promoCodes;
+    private PromoCodeDTO[] promoCodes;
     private Instant startDate;
     private Boolean schedulePublished;
     private Boolean bracketsPublished;

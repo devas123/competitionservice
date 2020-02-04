@@ -2,11 +2,14 @@ package compman.compsrv.util
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
-import compman.compsrv.model.dto.competition.CompetitorDTO
+import compman.compsrv.model.dto.brackets.ParentFightReferenceDTO
+import compman.compsrv.model.dto.brackets.StageRoundType
+import compman.compsrv.model.dto.competition.*
+import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.ErrorEventPayload
+import java.math.BigDecimal
 import java.time.Instant
 
 private fun parseDate(date: Any?, default: Instant?) = if (date != null && !date.toString().isBlank()) {
@@ -80,6 +83,61 @@ fun <T> ObjectMapper.getPayloadAs(command: CommandDTO , clazz: Class<T>): T? {
         convertValue(it, clazz)
     }
 }
+
+fun FightDescriptionDTO.copy(id: String = this.id,
+                             categoryId: String = this.categoryId,
+                             fightName: String? = this.fightName,
+                             winFight: String? = this.winFight,
+                             loseFight: String? = this.loseFight,
+                             scores: Array<CompScoreDTO>? = this.scores,
+                             parentId1: ParentFightReferenceDTO? = this.parentId1,
+                             parentId2: ParentFightReferenceDTO? = this.parentId2,
+                             duration: BigDecimal = this.duration,
+                             round: Int = this.round,
+                             roundType: StageRoundType = this.roundType,
+                             status: FightStatus = this.status,
+                             fightResult: FightResultDTO? = this.fightResult,
+                             mat: MatDescriptionDTO? = this.mat,
+                             numberOnMat: Int? = this.numberOnMat,
+                             priority: Int? = this.priority,
+                             competitionId: String = this.competitionId,
+                             period: String? = this.period,
+                             startTime: Instant? = this.startTime,
+                             numberInRound: Int? = this.numberInRound): FightDescriptionDTO = FightDescriptionDTO()
+        .setId(id)
+        .setFightName(fightName)
+        .setCategoryId(categoryId)
+        .setWinFight(winFight)
+        .setLoseFight(loseFight)
+        .setScores(scores)
+        .setParentId1(parentId1)
+        .setParentId2(parentId2)
+        .setDuration(duration)
+        .setCompetitionId(competitionId)
+        .setRound(round)
+        .setRoundType(roundType)
+        .setStatus(status)
+        .setStartTime(startTime)
+        .setFightResult(fightResult)
+        .setMat(mat)
+        .setNumberOnMat(numberOnMat)
+        .setNumberInRound(numberInRound)
+        .setPriority(priority)
+        .setPeriod(period)
+
+fun FightDescriptionDTO.pushCompetitor(competitor: CompetitorDTO): FightDescriptionDTO {
+    if (competitor.id == "fake") {
+        return this
+    }
+    val localScores = mutableListOf<CompScoreDTO>().apply { scores?.toList()?.let { this.addAll(it) } }
+    if (localScores.size < 2) {
+        localScores.add(CompScoreDTO().setId(IDGenerator.compScoreId(competitor.id)).setCompetitor(competitor).setScore(ScoreDTO()))
+    } else {
+        throw RuntimeException("Fight is already packed. Cannot add competitors")
+    }
+    return copy(scores = localScores.toTypedArray())
+}
+
 
 
 

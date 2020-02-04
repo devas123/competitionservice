@@ -216,7 +216,6 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                                 .setStartTime(periodStartTime)
                                 .setName(p.name)
                                 .setNumberOfMats(p.numberOfMats)
-                                .setCategories(p.categories)
                     }
                 }?.toTypedArray())
                 .setScheduleProperties(properties)
