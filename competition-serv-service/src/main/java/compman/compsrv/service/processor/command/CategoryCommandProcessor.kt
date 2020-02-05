@@ -84,7 +84,6 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         val payload = mapper.convertValue(command.payload, ChangeCompetitorCategoryPayload::class.java)
         val competitorId = payload?.fighterId
         val newCategoryId = payload?.newCategoryId
-        val oldCategoryId = payload?.oldCategoryId
         return if (!newCategoryId.isNullOrBlank() && !competitorId.isNullOrBlank() && competitorCrudRepository.existsById(competitorId) && categoryCrudRepository.existsById(newCategoryId)) {
             val competitor = competitorCrudRepository.findById(competitorId)
             competitor?.let {

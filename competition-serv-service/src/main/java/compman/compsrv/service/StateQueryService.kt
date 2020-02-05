@@ -319,7 +319,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
     fun getStageFights(competitionId: String, stageId: String): Array<FightDescriptionDTO>? {
         log.info("Getting competitors for stage $stageId")
         return localOrRemote(competitionId, {
-           jooq.fightsByStageId(competitionId, stageId).collectList().block()?.toTypedArray()
+           jooq.fetchFightsByStageId(competitionId, stageId).collectList().block()?.toTypedArray()
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/stagefights?competitionId=$competitionId&stageId=$stageId", Array<FightDescriptionDTO>::class.java)
         })

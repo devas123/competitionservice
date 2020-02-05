@@ -10,7 +10,6 @@ import com.google.common.math.IntMath
 import com.google.common.math.LongMath
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
-import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.copy
 import compman.compsrv.util.pushCompetitor
@@ -346,6 +345,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                 .setCompetitionId(competitionId)
                 .setDuration(duration)
                 .setRoundType(roundType)
+                .setStageId(stageId)
                 .setFightName(fightName)
     }
 

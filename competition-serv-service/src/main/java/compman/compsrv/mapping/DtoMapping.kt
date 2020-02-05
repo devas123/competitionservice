@@ -124,8 +124,6 @@ fun Competitor.toDTO(categories: Array<String>): CompetitorDTO = CompetitorDTO()
         .setRegistrationStatus(registrationStatus?.let { RegistrationStatus.values()[it].name })
         .setUserId(userId)
 
-private fun emptyBracketsDescriptor(id: String, competitionId: String) = BracketDescriptorDTO().setId(id).setCompetitionId(competitionId).setStages(emptyArray())
-
 fun CategoryDescriptor.toDTO(competitors: Array<String>, restrictions: Array<CategoryRestrictionDTO>): CategoryDescriptorDTO = CategoryDescriptorDTO()
         .setId(id)
         .setFightDuration(fightDuration)

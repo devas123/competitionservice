@@ -35,5 +35,6 @@ public class FightDescriptionDTO {
     private String competitionId;
     private String period;
     private Instant startTime;
+    private String stageId;
     private Integer numberInRound;
 }

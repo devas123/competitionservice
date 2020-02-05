@@ -1,6 +1,7 @@
 package compman.compsrv.repository
 
 import com.compmanager.compservice.jooq.tables.*
+import com.compmanager.compservice.jooq.tables.records.FightDescriptionRecord
 import com.compmanager.model.payment.RegistrationStatus
 import compman.compsrv.model.dto.brackets.CompetitorResultType
 import compman.compsrv.model.dto.brackets.FightReferenceType
@@ -68,8 +69,15 @@ class JooqQueries(private val create: DSLContext) {
             .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT, FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND)
             .limit(limit)
 
-    fun fightsByStageId(competitionId: String, stageId: String): Flux<FightDescriptionDTO> = fightsMapping(Flux.from(fightsQuery(competitionId)
+    fun fetchFightsByStageId(competitionId: String, stageId: String): Flux<FightDescriptionDTO> = fightsMapping(Flux.from(fightsQuery(competitionId)
             .and(FightDescription.FIGHT_DESCRIPTION.STAGE_ID.eq(stageId))))
+
+    fun findFightByCompetitionIdAndId(competitionId: String, fightId: String): Mono<FightDescriptionDTO> = fightsMapping(Flux.from(fightsQuery(competitionId)
+            .and(FightDescription.FIGHT_DESCRIPTION.ID.eq(fightId)))).last()
+
+    fun getCategoryIdsForCompetition(competitionId: String): Flux<String> =
+            Flux.from(create.select(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID).from(CategoryDescriptor.CATEGORY_DESCRIPTOR).where(CategoryDescriptor.CATEGORY_DESCRIPTOR.COMPETITION_ID.eq(competitionId)))
+                    .map { it.into(String::class.java) }
 
     fun competitorsQuery(competitionId: String): SelectConditionStep<Record> = create.selectFrom(Competitor.COMPETITOR
             .join(CompetitorCategories.COMPETITOR_CATEGORIES, JoinType.JOIN)
@@ -107,6 +115,28 @@ class JooqQueries(private val create: DSLContext) {
         val cat = getCategory(competitionId, categoryId)
         return getCategoryStateForCategoryDescriptor(competitionId, cat)
     }
+
+    fun fetchDefaulRegistrationGroupByCompetitionIdAndIdNeq(registrationInfoId: String, groupId: String): Mono<com.compmanager.compservice.jooq.tables.pojos.RegistrationGroup> =
+            Mono.from(create.selectFrom(RegistrationGroup.REGISTRATION_GROUP).where(RegistrationGroup.REGISTRATION_GROUP.REGISTRATION_INFO_ID.eq(registrationInfoId))
+                    .and(RegistrationGroup.REGISTRATION_GROUP.DEFAULT_GROUP.isTrue)
+                    .and(RegistrationGroup.REGISTRATION_GROUP.ID.ne(groupId))).map {
+                com.compmanager.compservice.jooq.tables.pojos.RegistrationGroup().apply {
+                    this.id = it.id
+                    this.defaultGroup = it.defaultGroup
+                    this.displayName = it.displayName
+                    this.registrationFee = it.registrationFee
+                    this.registrationInfoId = it.registrationInfoId
+                }
+            }
+
+    fun fetchRegistrationGroupIdsByPeriodIdAndRegistrationInfoId(registrationInfoId: String, periodId: String): Flux<String> =
+            Flux.from(create.select(RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_GROUP_ID).from(
+                    RegistrationPeriod.REGISTRATION_PERIOD.join(RegGroupRegPeriod.REG_GROUP_REG_PERIOD).on(RegistrationPeriod.REGISTRATION_PERIOD.ID.eq(RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_PERIOD_ID))
+            ).where(RegistrationPeriod.REGISTRATION_PERIOD.ID.eq(periodId)).and(RegistrationPeriod.REGISTRATION_PERIOD.REGISTRATION_INFO_ID.eq(registrationInfoId))).map { it.into(String::class.java) }
+
+    fun fetchDistinctMatIdsForSchedule(competitionId: String): Flux<String> = Flux.from(
+            create.selectDistinct(FightDescription.FIGHT_DESCRIPTION.MAT_ID).from(FightDescription.FIGHT_DESCRIPTION).where(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId))
+    ).map { it.into(String::class.java) }
 
     private fun getCategoryStateForCategoryDescriptor(competitionId: String, cat: CategoryDescriptorDTO): Mono<CategoryStateDTO> = Flux.from(competitorsQuery(competitionId)
             .and(CompetitorCategories.COMPETITOR_CATEGORIES.CATEGORIES_ID.eq(cat.id))).map {
@@ -171,7 +201,8 @@ class JooqQueries(private val create: DSLContext) {
                                 .setId(rec[DashboardPeriod.DASHBOARD_PERIOD.ID])
                                 .setIsActive(rec[DashboardPeriod.DASHBOARD_PERIOD.IS_ACTIVE])
                                 .setName(rec[DashboardPeriod.DASHBOARD_PERIOD.NAME])
-                                .setStartTime(rec[DashboardPeriod.DASHBOARD_PERIOD.START_TIME]?.toInstant()).mats = mat?.let { arrayOf(it) } ?: emptyArray()
+                                .setStartTime(rec[DashboardPeriod.DASHBOARD_PERIOD.START_TIME]?.toInstant()).mats = mat?.let { arrayOf(it) }
+                                ?: emptyArray()
                     }, BinaryOperator { t, u -> t.setMats(t.mats + u.mats) }))
                 }
     }
@@ -211,6 +242,7 @@ class JooqQueries(private val create: DSLContext) {
                             .setFightId(it[FightDescription.FIGHT_DESCRIPTION.PARENT_2_FIGHT_ID])
                             .setReferenceType(FightReferenceType.values()[it[FightDescription.FIGHT_DESCRIPTION.PARENT_2_REFERENCE_TYPE]]))
                     .setNumberInRound(it[FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND])
+                    .setStageId(it[FightDescription.FIGHT_DESCRIPTION.STAGE_ID])
                     .setNumberOnMat(it[FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT]).setScores(compScore)
 
 
@@ -256,4 +288,50 @@ class JooqQueries(private val create: DSLContext) {
             .flatMap { fl ->
                 fl.collect(fightCollector())
             }.filter { f -> f.scores?.size == 2 && (f.scores?.all { compNotEmpty(it.competitor) } == true) }
+
+    fun findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStatusNotInOrderByNumberOnMat(matId: String, competitionId: String, minNumberOnMat: Int,
+                                                                                                          fightStatuses: List<FightStatus>): Flux<com.compmanager.compservice.jooq.tables.pojos.FightDescription> {
+        return Flux.from(fightDescriptionByMatIdCompetitionIdQuery(matId, competitionId)
+                .and(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.greaterOrEqual(minNumberOnMat))
+                .and(FightDescription.FIGHT_DESCRIPTION.STATUS.`in`(fightStatuses.map { it.ordinal }))
+                .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.asc()))
+                .distinct { it.id }
+                .map { fightDescription(it) }
+    }
+
+    private fun fightDescriptionByMatIdCompetitionIdQuery(matId: String, competitionId: String): SelectConditionStep<FightDescriptionRecord> {
+        return create.selectFrom(FightDescription.FIGHT_DESCRIPTION)
+                .where(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId))
+                .and(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId))
+    }
+
+    private fun fightDescription(it: FightDescriptionRecord) =
+            com.compmanager.compservice.jooq.tables.pojos.FightDescription().apply {
+                this.id = it.id
+                this.matId = it.matId
+                this.competitionId = it.competitionId
+                this.numberOnMat = it.numberOnMat
+                this.categoryId = it.categoryId
+                this.startTime = it.startTime
+            }
+
+    fun findDistinctByMatIdAndCompetitionIdAndNumberOnMatLessThanAndStatusNotInOrderByNumberOnMatDesc(matId: String, competitionId: String, minNumberOnMat: Int,
+                                                                                                      fightStatuses: List<FightStatus>): Flux<com.compmanager.compservice.jooq.tables.pojos.FightDescription> {
+        return Flux.from(fightDescriptionByMatIdCompetitionIdQuery(matId, competitionId)
+                .and(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.lessThan(minNumberOnMat))
+                .and(FightDescription.FIGHT_DESCRIPTION.STATUS.notIn(fightStatuses.map { it.ordinal }))
+                .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.desc()))
+                .distinct { it.id }
+                .map { fightDescription(it) }
+    }
+
+    fun findDistinctByMatIdAndCompetitionIdAndNumberOnMatBetweenAndStatusNotInOrderByNumberOnMat(matId: String, competitionId: String, start: Int, end: Int, fightStatuses: List<FightStatus>): Flux<com.compmanager.compservice.jooq.tables.pojos.FightDescription> {
+        return Flux.from(fightDescriptionByMatIdCompetitionIdQuery(matId, competitionId)
+                .and(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.between(start, end))
+                .and(FightDescription.FIGHT_DESCRIPTION.STATUS.notIn(fightStatuses.map { it.ordinal }))
+                .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.asc()))
+                .distinct { it.id }
+                .map { fightDescription(it) }
+    }
+
 }
