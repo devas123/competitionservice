@@ -1,10 +1,14 @@
 package compman.compsrv.service.processor.event
 
+import com.compmanager.compservice.jooq.tables.daos.*
+import com.compmanager.compservice.jooq.tables.pojos.Competitor
+import com.compmanager.compservice.jooq.tables.pojos.StageDescriptor
+import com.compmanager.model.payment.RegistrationStatus
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.jpa.competition.FightDescription
-import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.commands.payload.CategoryRegistrationStatusChangePayload
+import compman.compsrv.model.commands.payload.ChangeCompetitorCategoryPayload
 import compman.compsrv.model.commands.payload.JsonPatch
+import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
@@ -12,22 +16,34 @@ import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.*
 import compman.compsrv.util.getPayloadAs
 import org.slf4j.LoggerFactory
-import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
+import java.sql.Timestamp
 import kotlin.math.min
 
 
+fun CompetitorDTO.toCompetitor() =
+        Competitor().also { cmp ->
+            cmp.id = this.id
+            cmp.academyId = this.academy?.id
+            cmp.academyName = this.academy?.name
+            cmp.birthDate = this.birthDate?.let { Timestamp.from(it) }
+            cmp.email = this.email
+            cmp.firstName = this.firstName
+            cmp.lastName = this.lastName
+            cmp.competitionId = this.competitionId
+            cmp.promo = this.promo
+            cmp.registrationStatus = this.registrationStatus?.let { RegistrationStatus.valueOf(it).ordinal }
+            cmp.userId = this.userId
+        }
+
 @Component
 class CategoryEventProcessor(private val mapper: ObjectMapper,
-                             private val competitionStateCrudRepository: CompetitionStateCrudRepository,
-                             private val categoryCrudRepository: CategoryStateCrudRepository,
-                             private val categoryDescriptorCrudRepository: CategoryDescriptorCrudRepository,
-                             private val categoryRestrictionCrudRepository: CategoryRestrictionCrudRepository,
-                             private val competitorCrudRepository: CompetitorCrudRepository,
+                             private val competitionStateCrudRepository: CompetitionStateDao,
+                             private val categoryDescriptorCrudRepository: CategoryDescriptorDao,
+                             private val competitorCrudRepository: CompetitorDao,
                              private val jdbcRepository: JdbcRepository,
-                             private val fightCrudRepository: FightCrudRepository,
-                             private val stageDescriptorCrudRepository: StageDescriptorCrudRepository,
-                             private val bracketsDescriptorCrudRepository: BracketsDescriptorCrudRepository) : IEventProcessor {
+                             private val jooqQueries: JooqQueries,
+                             private val stageDescriptorCrudRepository: StageDescriptorDao) : IEventProcessor {
     override fun affectedEvents(): Set<EventType> {
         return setOf(
                 EventType.COMPETITOR_ADDED,
@@ -45,11 +61,12 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
     }
 
     override fun applyEvent(event: EventDTO): List<EventDTO> {
-        return when (event.type) {
+        when (event.type) {
             EventType.CATEGORY_REGISTRATION_STATUS_CHANGED -> applyCategoryRegistrationStatusChanged(event)
             EventType.COMPETITOR_ADDED -> applyCompetitorAddedEvent(event)
             EventType.COMPETITOR_REMOVED -> applyCompetitorRemovedEvent(event)
-            EventType.COMPETITOR_UPDATED, EventType.COMPETITOR_CATEGORY_CHANGED -> applyCompetitorUpdatedEvent(event)
+            EventType.COMPETITOR_UPDATED -> applyCompetitorUpdatedEvent(event)
+            EventType.COMPETITOR_CATEGORY_CHANGED -> applyCompetitorCategoryChangedEvent(event)
             EventType.FIGHTS_EDITOR_CHANGE_APPLIED -> applyCompetitorMovedEvent(event)
             EventType.BRACKETS_GENERATED -> applyBracketsGeneratedEvent(event)
             EventType.FIGHTS_ADDED_TO_STAGE -> applyFightsAddedToStage(event)
@@ -57,43 +74,34 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
             EventType.CATEGORY_DELETED -> applyCategoryStateDeletedEvent(event)
             EventType.CATEGORY_BRACKETS_DROPPED -> applyCategoryBracketsDroppedEvent(event)
             EventType.CATEGORY_ADDED -> applyCategoryAddedEvent(event)
-            EventType.DUMMY -> listOf(event)
             else -> {
                 log.warn("Unknown event type: ${event.type}")
-                emptyList()
             }
         }
+        return listOf(event)
     }
-
-    private val findStageFights = { st: String?->
-        st?.let {
-            fightCrudRepository.findAllByStageId(it).collect({ mutableListOf() }, { list: MutableList<FightDescription>?, fight: FightDescription ->
-                list?.add(fight)
-            }, { t, u -> t.addAll(u) })
-        }
-    }
-
 
     private fun applyFightsAddedToStage(event: EventDTO): List<EventDTO> {
         val payload = getPayloadAs(event.payload, FightsAddedToStagePayload::class.java)
         val stageId = payload?.stageId
         val fights = payload?.fights
-        return if (!stageId.isNullOrBlank() && fights != null) {
-            val categoryIds = fights.map { it.category?.id }.distinct()
-            val categories = categoryDescriptorCrudRepository.findAllById(categoryIds)
-            stageDescriptorCrudRepository.findByIdOrNull(stageId)?.let { stage ->
-                stage.fights?.addAll(fights.map { fight -> fight.toEntity { catId -> categories.firstOrNull { it.id == catId } }})
-                listOf(event)
-            } ?: throw EventApplyingException("Could not find stage with id $stageId", event)
+        return if (!stageId.isNullOrBlank() && fights != null && stageDescriptorCrudRepository.existsById(stageId)) {
+            jooqQueries.saveFights(fights.toList())
+            listOf(event)
         } else {
-            throw EventApplyingException("Stage ID is null or fights are null", event)
+            throw EventApplyingException("Stage ID is null or fights are null or could not find stage with id $stageId", event)
         }
 
     }
 
     private fun applyCategoryBracketsDroppedEvent(event: EventDTO): List<EventDTO> {
-        jdbcRepository.deleteFightStartTimesCategoryId(event.categoryId!!)
-        categoryCrudRepository.getOne(event.categoryId!!).brackets?.stages?.clear()
+        jooqQueries.dropStages(event.categoryId)
+        return listOf(event)
+    }
+
+    private fun applyCompetitorCategoryChangedEvent(event: EventDTO): List<EventDTO> {
+        val payload = getPayloadAs(event.payload, ChangeCompetitorCategoryPayload::class.java)!!
+        jooqQueries.changeCompetitorCategories(payload.fighterId, listOf(payload.oldCategoryId), listOf(payload.newCategoryId))
         return listOf(event)
     }
 
@@ -101,7 +109,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
         val payload = getPayloadAs(event.payload, CompetitorUpdatedPayload::class.java)
         val competitor = payload?.fighter
         return if (competitor != null) {
-            competitorCrudRepository.save(competitor.toEntity { categoryDescriptorCrudRepository.findByIdOrNull(it) })
+            competitorCrudRepository.update(competitor.toCompetitor())
             listOf(event)
         } else {
             throw EventApplyingException("Competitor is null or such competitor does not exist.", event)
@@ -112,10 +120,11 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
     private fun applyCompetitorAddedEvent(event: EventDTO): List<EventDTO> {
         val payload = getPayloadAs(event.payload, CompetitorAddedPayload::class.java)
         val competitor = payload?.fighter
-        return if (competitor != null && !competitor.id.isNullOrBlank()) {
-            val comp = competitor.toEntity { categoryDescriptorCrudRepository.findByIdOrNull(it) }
-            log.info("Adding competitor: ${comp.id} to competition ${event.competitionId} and category ${comp.categories?.map { it.id }}")
-            competitorCrudRepository.save(comp)
+        return if (competitor != null && !competitor.id.isNullOrBlank() && !competitor.categories.isNullOrEmpty()) {
+            val comp = competitor.toCompetitor()
+            log.info("Adding competitor: ${comp.id} to competition ${event.competitionId} and category ${competitor.categories}")
+            competitorCrudRepository.insert(comp)
+            jooqQueries.changeCompetitorCategories(competitor.id, emptyList(), competitor.categories.toList())
             listOf(event)
         } else {
             throw EventApplyingException("No competitor in the event payload: $event", event)
@@ -126,8 +135,9 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
         val payload = getPayloadAs(event.payload, CategoryRegistrationStatusChangePayload::class.java)
         val newStatus = payload?.isNewStatus
         return if (newStatus != null) {
-            val category = categoryDescriptorCrudRepository.getOne(event.categoryId)
+            val category = categoryDescriptorCrudRepository.findById(event.categoryId)
             category.registrationOpen = newStatus
+            categoryDescriptorCrudRepository.update(category)
             listOf(event)
         } else {
             throw EventApplyingException("No competitor in the event payload: $event", event)
@@ -138,7 +148,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
     private fun applyCompetitorRemovedEvent(event: EventDTO): List<EventDTO> {
         val competitorId = getPayloadAs(event.payload, CompetitorRemovedPayload::class.java)?.fighterId
         return if (competitorId != null) {
-            categoryCrudRepository.getOne(event.categoryId).category?.competitors?.removeIf { it.id == competitorId }
+            competitorCrudRepository.deleteById(competitorId)
             listOf(event)
         } else {
             throw EventApplyingException("Competitor id is null.", event)
@@ -159,13 +169,11 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
         when (jsonPatch?.op) {
             "replace" -> {
                 val path = jsonPatch.path
-                val fight = fightCrudRepository.getOne(fightIds[jsonPatch.path[0].toInt()])
+                val cs = jsonPatch.value
+                val fightId = fightIds[jsonPatch.path[0].toInt()]
                 if (path[1] == "scores") {
-                    val index = min(path[2].toInt(), fight.scores?.size ?: 0)
-                    if (fight.scores == null) {
-                        fight.scores = mutableListOf()
-                    }
-                    fight.scores?.set(index, jsonPatch.value.toEntity { categoryDescriptorCrudRepository.findByIdOrNull(it) })
+                    val index = min(path[2].toInt(), jooqQueries.getCompScoreSize(fightId))
+                    jooqQueries.replaceFightScore(fightId, cs, index)
                 } else {
                     log.warn("We only update scores.")
                 }
@@ -193,33 +201,34 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
         val stages = payload?.stages
         val categoryId = event.categoryId
         return if (stages != null && !categoryId.isNullOrBlank()) {
-            val catState = categoryCrudRepository.getOne(categoryId)
-            catState.brackets?.stages?.clear()
-            catState.brackets?.stages!!.addAll(stages.mapNotNull { stage ->
-                stage.toEntity({ id -> competitorCrudRepository.findByIdOrNull(id) }, findStageFights)
+            stageDescriptorCrudRepository.insert(stages.mapIndexedNotNull { index, stage ->
+                StageDescriptor().apply {
+                    this.id = stage.id
+                    this.bracketType = stage.bracketType?.ordinal
+                    this.categoryId = stage.categoryId
+                    this.competitionId = stage.competitionId
+                    this.hasThirdPlaceFight = stage.hasThirdPlaceFight
+                    this.name = stage.name
+                    this.stageOrder = index
+                    this.stageType = stage.stageType?.ordinal
+                    this.waitForPrevious = stage.waitForPrevious
+                }
             })
+            jooqQueries.savePointsAssignments(stages.flatMap { it.pointsAssignments.toList() })
+            jooqQueries.saveInputDescriptors(stages.mapNotNull { it.inputDescriptor })
+            jooqQueries.saveResultDescriptors(stages.mapNotNull { it.stageResultDescriptor })
             listOf(event)
         } else {
             throw EventApplyingException("Fights are null or empty or category ID is empty.", event)
         }
     }
 
-    private fun applyCategoryAddedEvent(event: EventDTO): List<EventDTO> {
+    private fun applyCategoryAddedEvent(event: EventDTO) {
         val c = getPayloadAs(event.payload, CategoryAddedPayload::class.java)?.categoryState
-        val competitionState = competitionStateCrudRepository.findByIdOrNull(event.competitionId)
-        return if (c != null && event.categoryId != null && competitionState != null && c.category != null
+        if (c != null && event.categoryId != null && competitionStateCrudRepository.existsById(event.competitionId) && c.category != null
                 && !c.category.restrictions.isNullOrEmpty()) {
             log.info("Adding category: ${event.categoryId} to competition ${event.competitionId}")
-            val newState = c.toEntity(competitionState, { competitorCrudRepository.findByIdOrNull(it) }, findStageFights)
-            newState.category?.let {
-                val restrictions = it.restrictions?.map { res -> categoryRestrictionCrudRepository.save(res) }
-                val brackets = bracketsDescriptorCrudRepository.save(newState.brackets!!)
-                it.restrictions = restrictions?.toMutableSet()
-                newState.category = categoryDescriptorCrudRepository.save(it)
-                newState.brackets = brackets
-                competitionState.categories.add(newState)
-                listOf(event)
-            } ?: emptyList()
+            jooqQueries.saveCategoryDescriptor(c.category, event.competitionId)
         } else {
             throw EventApplyingException("event did not contain category state.", event)
         }
@@ -227,7 +236,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
 
     private fun applyCategoryStateDeletedEvent(event: EventDTO): List<EventDTO> {
         return if (!event.categoryId.isNullOrBlank()) {
-            categoryCrudRepository.deleteById(event.categoryId)
+            categoryDescriptorCrudRepository.deleteById(event.categoryId)
             listOf(event)
         } else {
             throw EventApplyingException("Category ID is null.", event)

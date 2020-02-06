@@ -1,11 +1,9 @@
 package compman.compsrv.repository
 
 import com.compmanager.compservice.jooq.tables.*
-import com.compmanager.compservice.jooq.tables.records.FightDescriptionRecord
+import com.compmanager.compservice.jooq.tables.records.*
 import com.compmanager.model.payment.RegistrationStatus
-import compman.compsrv.model.dto.brackets.CompetitorResultType
-import compman.compsrv.model.dto.brackets.FightReferenceType
-import compman.compsrv.model.dto.brackets.ParentFightReferenceDTO
+import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.DashboardPeriodDTO
@@ -14,6 +12,7 @@ import org.jooq.*
 import org.springframework.stereotype.Repository
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import java.sql.Timestamp
 import java.util.function.BiConsumer
 import java.util.function.BinaryOperator
 import java.util.function.Supplier
@@ -21,7 +20,6 @@ import java.util.stream.Collector
 
 @Repository
 class JooqQueries(private val create: DSLContext) {
-
     fun categoryQuery(competitionId: String): SelectConditionStep<Record> = create.selectFrom(CategoryDescriptor.CATEGORY_DESCRIPTOR
             .join(CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION)
             .on(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.eq(CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.CATEGORY_DESCRIPTOR_ID))
@@ -334,4 +332,137 @@ class JooqQueries(private val create: DSLContext) {
                 .map { fightDescription(it) }
     }
 
+    fun saveFights(fights: List<FightDescriptionDTO>) {
+        val records = fights.flatMap { fight ->
+            listOf(
+                    FightDescriptionRecord().apply {
+                        this.id = fight.id
+                        this.fightName = fight.fightName
+                        this.round = fight.round
+                        this.roundType = fight.roundType?.ordinal
+                        this.winFight = fight.winFight
+                        this.loseFight = fight.loseFight
+                        this.categoryId = fight.categoryId
+                        this.competitionId = fight.competitionId
+                        this.parent_1FightId = fight.parentId1?.fightId
+                        this.parent_1ReferenceType = fight.parentId1?.referenceType?.ordinal
+                        this.parent_2FightId = fight.parentId2?.fightId
+                        this.parent_2ReferenceType = fight.parentId2?.referenceType?.ordinal
+                        this.duration = fight.duration
+                        this.status = fight.status?.ordinal
+                        this.winnerId = fight.fightResult?.winnerId
+                        this.reason = fight.fightResult?.reason
+                        this.resultType = fight.fightResult?.resultType?.ordinal
+                        this.matId = fight.mat?.id
+                        this.numberInRound = fight.numberInRound
+                        this.numberOnMat = fight.numberOnMat
+                        this.priority = fight.priority
+                        this.startTime = fight.startTime?.let { Timestamp.from(it) }
+                        this.stageId = fight.stageId
+                        this.period = fight.period
+                    }
+            ) +
+                    (fight.scores?.mapIndexed { index, cs ->
+                        CompScoreRecord().apply {
+                            this.advantages = cs.score?.advantages
+                            this.points = cs.score?.points
+                            this.penalties = cs.score?.penalties
+                            this.compscoreFightDescriptionId = fight.id
+                            this.compScoreOrder = index
+                            this.compscoreCompetitorId = cs.competitor?.id!!
+                        }
+                    } ?: emptyList())
+        }
+        create.batchStore(records).execute()
+    }
+
+    fun dropStages(categoryId: String) {
+        create.deleteFrom(StageDescriptor.STAGE_DESCRIPTOR).where(StageDescriptor.STAGE_DESCRIPTOR.CATEGORY_ID.eq(categoryId)).execute()
+    }
+
+    fun changeCompetitorCategories(fighterId: String, oldCategories: List<String>, newCategories: List<String>) {
+        if (oldCategories.isNotEmpty()) {
+            create.deleteFrom(CompetitorCategories.COMPETITOR_CATEGORIES)
+                    .where(CompetitorCategories.COMPETITOR_CATEGORIES.CATEGORIES_ID.`in`(oldCategories)
+                            .and(CompetitorCategories.COMPETITOR_CATEGORIES.COMPETITORS_ID.eq(fighterId)))
+        }
+        val batch = newCategories.map { newCategoryId ->
+            create.insertInto(CompetitorCategories.COMPETITOR_CATEGORIES,
+                    CompetitorCategories.COMPETITOR_CATEGORIES.COMPETITORS_ID,
+                    CompetitorCategories.COMPETITOR_CATEGORIES.CATEGORIES_ID)
+                    .values(fighterId, newCategoryId)
+        }
+        create.batch(batch).execute()
+    }
+
+    fun savePointsAssignments(assignments: List<PointsAssignmentDescriptorDTO>) {
+        create.batchInsert(assignments.map {
+            PointsAssignmentDescriptorRecord().apply {
+                this.id = it.id
+                this.classifier = it.classifier?.ordinal
+                this.points = it.points
+                this.additionalPoints = it.additionalPoints
+            }
+        }).execute()
+    }
+
+    fun saveInputDescriptors(inputDescriptors: List<StageInputDescriptorDTO>) {
+        val batch = inputDescriptors.flatMap {
+            listOf(create.insertInto(StageInputDescriptor.STAGE_INPUT_DESCRIPTOR,
+                    StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.ID, StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.DISTRIBUTION_TYPE,
+                    StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.NUMBER_OF_COMPETITORS)
+                    .values(it.id, it.distributionType?.ordinal, it.numberOfCompetitors).onDuplicateKeyIgnore()) +
+                    it.selectors.flatMap { sel ->
+                        listOf(create.insertInto(CompetitorSelector.COMPETITOR_SELECTOR, CompetitorSelector.COMPETITOR_SELECTOR.ID, CompetitorSelector.COMPETITOR_SELECTOR.APPLY_TO_STAGE_ID,
+                                CompetitorSelector.COMPETITOR_SELECTOR.CLASSIFIER, CompetitorSelector.COMPETITOR_SELECTOR.LOGICAL_OPERATOR,
+                                CompetitorSelector.COMPETITOR_SELECTOR.OPERATOR, CompetitorSelector.COMPETITOR_SELECTOR.STAGE_INPUT_ID)
+                                .values(sel.id, sel.applyToStageId, sel.classifier?.ordinal, sel.logicalOperator?.ordinal, sel.operator?.ordinal, it.id).onDuplicateKeyIgnore()) +
+                                (sel.selectorValue?.map { sv ->
+                                    create.insertInto(CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE,
+                                            CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE.SELECTOR_VALUE,
+                                            CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE.COMPETITOR_SELECTOR_ID)
+                                            .values(sv, sel.id)
+                                } ?: emptyList())
+                    }
+        }
+        create.batch(batch).execute()
+    }
+
+    fun saveResultDescriptors(resultDescriptors: List<StageResultDescriptorDTO>) {
+        val batch = resultDescriptors.flatMap {
+            it.competitorResults.map { cr ->
+                create.insertInto(CompetitorStageResult.COMPETITOR_STAGE_RESULT,
+                        CompetitorStageResult.COMPETITOR_STAGE_RESULT.GROUP_ID, CompetitorStageResult.COMPETITOR_STAGE_RESULT.PLACE,
+                        CompetitorStageResult.COMPETITOR_STAGE_RESULT.POINTS, CompetitorStageResult.COMPETITOR_STAGE_RESULT.ROUND,
+                        CompetitorStageResult.COMPETITOR_STAGE_RESULT.COMPETITOR_ID, CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID)
+                        .values(cr.groupId, cr.place, cr.points, cr.round, cr.competitorId, cr.stageId).onDuplicateKeyIgnore()
+            }
+        }
+        create.batch(batch).execute()
+    }
+
+    fun saveCategoryDescriptor(c: CategoryDescriptorDTO, competitionId: String) {
+        val rec = CategoryDescriptorRecord(c.id, competitionId, c.fightDuration, c.name, c.registrationOpen, null, null)
+        val batch = listOf(create.insertInto(CategoryDescriptor.CATEGORY_DESCRIPTOR,
+                rec.field1(), rec.field2(), rec.field3(), rec.field4(), rec.field5())
+                .values(rec.value1(), rec.value2(), rec.value3(), rec.value4(), rec.value5())) +
+                c.restrictions.map {
+                    val restRow = CategoryRestrictionRecord(it.id, it.maxValue, it.minValue, it.name, it.type?.ordinal, it.unit)
+                    create.insertInto(CategoryRestriction.CATEGORY_RESTRICTION,  restRow.field1(), restRow.field2(),
+                            restRow.field3(), restRow.field4(), restRow.field5(), restRow.field6())
+                            .values(restRow.value1(), restRow.value2(), restRow.value3(), restRow.value4(),
+                                    restRow.value5(), restRow.value6())
+                }
+        create.batch(batch).execute()
+    }
+
+    fun replaceFightScore(fightId: String, value: CompScoreDTO, index: Int) {
+        create.batch(
+                create.deleteFrom(CompScore.COMP_SCORE).where(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.eq(fightId)).and(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.eq(value.competitor.id)),
+                create.insertInto(CompScore.COMP_SCORE, CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID, CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID, CompScore.COMP_SCORE.POINTS, CompScore.COMP_SCORE.PENALTIES,
+                        CompScore.COMP_SCORE.ADVANTAGES, CompScore.COMP_SCORE.COMP_SCORE_ORDER).values(value.competitor.id, fightId, value.score.points, value.score.penalties, value.score.advantages, index)
+        ).execute()
+    }
+
+    fun getCompScoreSize(fightId: String): Int = create.fetchCount(CompScore.COMP_SCORE, CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.eq(fightId))
 }
