@@ -14,7 +14,7 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.*
-import compman.compsrv.util.getPayloadAs
+import compman.compsrv.util.getPayloadFromString
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.sql.Timestamp
@@ -245,5 +245,5 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
 
     private val log = LoggerFactory.getLogger(CategoryEventProcessor::class.java)
 
-    private fun <T> getPayloadAs(payload: String?, clazz: Class<T>): T? = mapper.getPayloadAs(payload, clazz)
+    private fun <T> getPayloadAs(payload: String?, clazz: Class<T>): T? = mapper.getPayloadFromString(payload, clazz)
 }

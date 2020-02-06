@@ -72,7 +72,7 @@ fun <T> ObjectMapper.getPayloadAs(event: EventDTO , clazz: Class<T>): T? {
     }
 }
 
-fun <T> ObjectMapper.getPayloadAs(payload: String? , clazz: Class<T>): T? {
+fun <T> ObjectMapper.getPayloadFromString(payload: String?, clazz: Class<T>): T? {
     return payload?.let {
         readValue(it, clazz)
     }
@@ -131,7 +131,7 @@ fun FightDescriptionDTO.pushCompetitor(competitor: CompetitorDTO): FightDescript
     }
     val localScores = mutableListOf<CompScoreDTO>().apply { scores?.toList()?.let { this.addAll(it) } }
     if (localScores.size < 2) {
-        localScores.add(CompScoreDTO().setId(IDGenerator.compScoreId(competitor.id)).setCompetitor(competitor).setScore(ScoreDTO()))
+        localScores.add(CompScoreDTO().setCompetitor(competitor).setScore(ScoreDTO()).setOrder(localScores.size))
     } else {
         throw RuntimeException("Fight is already packed. Cannot add competitors")
     }

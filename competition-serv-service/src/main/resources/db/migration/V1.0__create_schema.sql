@@ -310,7 +310,9 @@ create table compservice.fight_description
     parent_1_reference_type integer,
     parent_2_fight_id       varchar(255),
     parent_2_reference_type integer,
-    period                  varchar(255),
+    period                  varchar(255)
+        constraint fight_description_schedule_period
+            references compservice.schedule_period,
     priority                integer      not null,
     round                   integer,
     round_type              integer,

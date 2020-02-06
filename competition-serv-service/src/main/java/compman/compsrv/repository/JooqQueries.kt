@@ -335,46 +335,73 @@ class JooqQueries(private val create: DSLContext) {
     fun saveFights(fights: List<FightDescriptionDTO>) {
         val records = fights.flatMap { fight ->
             listOf(
-                    FightDescriptionRecord().apply {
-                        this.id = fight.id
-                        this.fightName = fight.fightName
-                        this.round = fight.round
-                        this.roundType = fight.roundType?.ordinal
-                        this.winFight = fight.winFight
-                        this.loseFight = fight.loseFight
-                        this.categoryId = fight.categoryId
-                        this.competitionId = fight.competitionId
-                        this.parent_1FightId = fight.parentId1?.fightId
-                        this.parent_1ReferenceType = fight.parentId1?.referenceType?.ordinal
-                        this.parent_2FightId = fight.parentId2?.fightId
-                        this.parent_2ReferenceType = fight.parentId2?.referenceType?.ordinal
-                        this.duration = fight.duration
-                        this.status = fight.status?.ordinal
-                        this.winnerId = fight.fightResult?.winnerId
-                        this.reason = fight.fightResult?.reason
-                        this.resultType = fight.fightResult?.resultType?.ordinal
-                        this.matId = fight.mat?.id
-                        this.numberInRound = fight.numberInRound
-                        this.numberOnMat = fight.numberOnMat
-                        this.priority = fight.priority
-                        this.startTime = fight.startTime?.let { Timestamp.from(it) }
-                        this.stageId = fight.stageId
-                        this.period = fight.period
-                    }
+                    fightDescriptionRecord(fight)
             ) +
-                    (fight.scores?.mapIndexed { index, cs ->
-                        CompScoreRecord().apply {
-                            this.advantages = cs.score?.advantages
-                            this.points = cs.score?.points
-                            this.penalties = cs.score?.penalties
-                            this.compscoreFightDescriptionId = fight.id
-                            this.compScoreOrder = index
-                            this.compscoreCompetitorId = cs.competitor?.id!!
-                        }
+                    (fight.scores?.map { cs ->
+                        compscoreRecord(cs, fight.id)
                     } ?: emptyList())
         }
         create.batchStore(records).execute()
     }
+
+    fun updateFightResult(fightId: String, compScores: List<CompScoreDTO>, fightResult: FightResultDTO, fightStatus: FightStatus) {
+        create.batch(
+                compScores.map { cs ->
+                    create.update(CompScore.COMP_SCORE)
+                            .set(CompScore.COMP_SCORE.PENALTIES, cs.score.penalties)
+                            .set(CompScore.COMP_SCORE.ADVANTAGES, cs.score.advantages)
+                            .set(CompScore.COMP_SCORE.POINTS, cs.score.points)
+                            .where(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.eq(fightId))
+                            .and(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.eq(cs.competitor.id))
+                } +
+                        create.update(FightDescription.FIGHT_DESCRIPTION)
+                                .set(FightDescription.FIGHT_DESCRIPTION.WINNER_ID, fightResult.winnerId)
+                                .set(FightDescription.FIGHT_DESCRIPTION.REASON, fightResult.reason)
+                                .set(FightDescription.FIGHT_DESCRIPTION.RESULT_TYPE, fightResult.resultType?.ordinal)
+                                .set(FightDescription.FIGHT_DESCRIPTION.STATUS, fightStatus?.ordinal)
+                                .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fightId))
+
+        ).execute()
+    }
+
+    private fun fightDescriptionRecord(fight: FightDescriptionDTO) =
+            FightDescriptionRecord().apply {
+                this.id = fight.id
+                this.fightName = fight.fightName
+                this.round = fight.round
+                this.roundType = fight.roundType?.ordinal
+                this.winFight = fight.winFight
+                this.loseFight = fight.loseFight
+                this.categoryId = fight.categoryId
+                this.competitionId = fight.competitionId
+                this.parent_1FightId = fight.parentId1?.fightId
+                this.parent_1ReferenceType = fight.parentId1?.referenceType?.ordinal
+                this.parent_2FightId = fight.parentId2?.fightId
+                this.parent_2ReferenceType = fight.parentId2?.referenceType?.ordinal
+                this.duration = fight.duration
+                this.status = fight.status?.ordinal
+                this.winnerId = fight.fightResult?.winnerId
+                this.reason = fight.fightResult?.reason
+                this.resultType = fight.fightResult?.resultType?.ordinal
+                this.matId = fight.mat?.id
+                this.numberInRound = fight.numberInRound
+                this.numberOnMat = fight.numberOnMat
+                this.priority = fight.priority
+                this.startTime = fight.startTime?.let { Timestamp.from(it) }
+                this.stageId = fight.stageId
+                this.period = fight.period
+            }
+
+    private fun compscoreRecord(cs: CompScoreDTO, fightId: String) =
+            CompScoreRecord().apply {
+        this.advantages = cs.score?.advantages
+        this.points = cs.score?.points
+        this.penalties = cs.score?.penalties
+        this.compscoreFightDescriptionId = fightId
+        this.compScoreOrder = cs.order
+        this.compscoreCompetitorId = cs.competitor?.id!!
+    }
+
 
     fun dropStages(categoryId: String) {
         create.deleteFrom(StageDescriptor.STAGE_DESCRIPTOR).where(StageDescriptor.STAGE_DESCRIPTOR.CATEGORY_ID.eq(categoryId)).execute()
@@ -428,15 +455,22 @@ class JooqQueries(private val create: DSLContext) {
         create.batch(batch).execute()
     }
 
+    private fun saveCompetitorResultQuery(cr: CompetitorResultDTO): InsertReturningStep<CompetitorStageResultRecord> =
+            create.insertInto(CompetitorStageResult.COMPETITOR_STAGE_RESULT,
+                    CompetitorStageResult.COMPETITOR_STAGE_RESULT.GROUP_ID, CompetitorStageResult.COMPETITOR_STAGE_RESULT.PLACE,
+                    CompetitorStageResult.COMPETITOR_STAGE_RESULT.POINTS, CompetitorStageResult.COMPETITOR_STAGE_RESULT.ROUND,
+                    CompetitorStageResult.COMPETITOR_STAGE_RESULT.COMPETITOR_ID, CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID)
+                    .values(cr.groupId, cr.place, cr.points, cr.round, cr.competitorId, cr.stageId).onDuplicateKeyIgnore()
+
+    fun saveCompetitorResults(crs: Iterable<CompetitorResultDTO>) {
+        create.batch(crs.map { cr -> saveCompetitorResultQuery(cr) }).execute()
+    }
+
+
     fun saveResultDescriptors(resultDescriptors: List<StageResultDescriptorDTO>) {
         val batch = resultDescriptors.flatMap {
             it.competitorResults.map { cr ->
-                create.insertInto(CompetitorStageResult.COMPETITOR_STAGE_RESULT,
-                        CompetitorStageResult.COMPETITOR_STAGE_RESULT.GROUP_ID, CompetitorStageResult.COMPETITOR_STAGE_RESULT.PLACE,
-                        CompetitorStageResult.COMPETITOR_STAGE_RESULT.POINTS, CompetitorStageResult.COMPETITOR_STAGE_RESULT.ROUND,
-                        CompetitorStageResult.COMPETITOR_STAGE_RESULT.COMPETITOR_ID, CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID)
-                        .values(cr.groupId, cr.place, cr.points, cr.round, cr.competitorId, cr.stageId).onDuplicateKeyIgnore()
-            }
+                saveCompetitorResultQuery(cr)            }
         }
         create.batch(batch).execute()
     }

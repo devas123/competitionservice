@@ -1,5 +1,6 @@
 package compman.compsrv.repository
 
+import arrow.core.Tuple4
 import compman.compsrv.model.dto.schedule.FightStartTimePairDTO
 import org.springframework.jdbc.core.BatchPreparedStatementSetter
 import org.springframework.jdbc.core.JdbcTemplate
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Component
 import java.sql.PreparedStatement
 import java.sql.ResultSet
 import java.sql.Timestamp
+import java.time.Instant
 import java.util.*
 
 @Component
@@ -25,18 +27,22 @@ class JdbcRepository(private val jdbcTemplate: JdbcTemplate) {
                     ps.setString(5, it.fightId)
                 }
             }
-
             override fun getBatchSize(): Int = newFights.size
-
         })
-
     }
 
-    fun deleteFightStartTimesCategoryId(categoryId: String?) {
-        if (!categoryId.isNullOrBlank()) {
-            jdbcTemplate.update("DELETE from fight_start_times fs using fight_description fd where fs.fight_id = fd.id and fd.category_id = ?") { ps ->
-                ps.setString(1, categoryId)
+    fun batchUpdateStartTimeAndMatAndNumberOnMatById(updates: List<Tuple4<String, Instant, String, Int>>) {
+        jdbcTemplate.batchUpdate("UPDATE fight_description f SET start_time = ?, mat_id = ?, number_on_mat = ? WHERE f.id = ?", object : BatchPreparedStatementSetter {
+            override fun setValues(ps: PreparedStatement, i: Int) {
+                if (i < updates.size) {
+                    val it = updates[i]
+                    ps.setTimestamp(1, Timestamp.from(it.b))
+                    ps.setString(2, it.c)
+                    ps.setInt(3, it.d)
+                    ps.setString(5, it.a)
+                }
             }
-        }
+            override fun getBatchSize(): Int = updates.size
+        })
     }
 }
