@@ -20,6 +20,29 @@ private fun parseDate(date: Any?, default: Instant?) = if (date != null && !date
 
 fun getId(name: String) = IDGenerator.hashString(name)
 
+fun CompetitorDTO.copy(id: String? = this.id,
+                       email: String? = this.email,
+                       userId: String? = this.userId,
+                       firstName: String? = this.firstName,
+                       lastName: String? = this.lastName,
+                       birthDate: Instant? = this.birthDate,
+                       academy: AcademyDTO? = this.academy,
+                       categories: Array<String>? = this.categories,
+                       competitionId: String? = this.competitionId,
+                       registrationStatus: String? = this.registrationStatus,
+                       promo: String? = this.promo) = CompetitorDTO()
+        .setId(id)
+        .setEmail(email)
+        .setUserId(userId)
+        .setFirstName(firstName)
+        .setLastName(lastName)
+        .setBirthDate(birthDate)
+        .setAcademy(academy)
+        .setCategories(categories)
+        .setCompetitionId(competitionId)
+        .setRegistrationStatus(registrationStatus)
+        .setPromo(promo)
+
 fun CompetitionPropertiesDTO.applyProperties(props: Map<String, Any?>?) = CompetitionPropertiesDTO().also {
     if (props != null) {
         bracketsPublished = props["bracketsPublished"] as? Boolean ?: this.bracketsPublished

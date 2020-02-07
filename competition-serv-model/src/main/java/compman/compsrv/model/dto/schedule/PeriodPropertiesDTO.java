@@ -20,5 +20,5 @@ public class PeriodPropertiesDTO {
     private Integer numberOfMats;
     private Integer timeBetweenFights;
     private BigDecimal riskPercent;
-    private CategoryDescriptorDTO[] categories;
+    private String[] categories;
 }

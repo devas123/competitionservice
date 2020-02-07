@@ -4,28 +4,13 @@ import com.compman.starter.properties.KafkaProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import compman.compsrv.config.ClusterConfiguration;
 import compman.compsrv.config.ClusterConfigurationProperties;
-import compman.compsrv.jpa.competition.CompetitionProperties;
-import compman.compsrv.jpa.competition.CompetitionState;
 import compman.compsrv.json.ObjectMapperFactory;
 import compman.compsrv.kafka.EmbeddedSingleNodeKafkaCluster;
-import compman.compsrv.kafka.serde.CommandSerializer;
-import compman.compsrv.kafka.topics.CompetitionServiceTopics;
-import compman.compsrv.model.commands.CommandDTO;
-import compman.compsrv.model.commands.CommandType;
-import compman.compsrv.model.dto.competition.CategoryDescriptorDTO;
-import compman.compsrv.service.processor.event.CategoryEventProcessor;
 import compman.compsrv.service.RestApi;
 import compman.compsrv.service.ScheduleService;
-import junit.framework.TestCase;
+import compman.compsrv.service.processor.event.CategoryEventProcessor;
 import kafka.server.KafkaConfig;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.KafkaAdminClient;
-import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.streams.StreamsConfig;
 import org.junit.*;
@@ -42,7 +27,6 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -56,14 +40,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
-
-import static java.lang.Thread.sleep;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import java.util.Properties;
 
 @RunWith(SpringRunner.class)
 @WebMvcTest(value = RestApi.class)
@@ -108,7 +85,7 @@ public final class ZookeeperSessionTest {
     private static Properties createBrokerProperties() {
         Properties props = new Properties();
         props.setProperty("transaction.state.log.replication.factor", "1");
-        try(final DatagramSocket socket = new DatagramSocket()){
+        try (final DatagramSocket socket = new DatagramSocket()) {
             socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
             String ip = socket.getLocalAddress().getHostAddress();
             props.setProperty(KafkaConfig.AdvertisedListenersProp(), "EXTERNAL://" + ip + ":61384,INTERNAL://localhost:61383");
@@ -180,112 +157,6 @@ public final class ZookeeperSessionTest {
                 .getProperties()
                 .setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         return kafkaProps;
-    }
-
-    @Ignore
-    @Test
-    public final void testZookeeperSession() throws Exception {
-        int port1 = randomFreeLocalPort();
-       KafkaProperties kafkaProps = createKafkaProps(port1);
-
-        CuratorFramework curatorFramework = CuratorFrameworkFactory.builder()
-                .connectString(CLUSTER.zookeeperConnect())
-                .sessionTimeoutMs(10000)
-                .retryPolicy(new ExponentialBackoffRetry(1000, 10))
-                .build();
-        curatorFramework.start();
-        curatorFramework.blockUntilConnected(5, TimeUnit.SECONDS);
-
-        Properties adminProps = new Properties();
-        adminProps.setProperty(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, CLUSTER.bootstrapServers());
-
-        AdminClient adminClient = KafkaAdminClient.create(adminProps);
-
-        Set<String> topics = adminClient.listTopics().names().get();
-
-        while (topics == null || !topics.contains(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME)) {
-            log.info("Waiting for global competition commands topics to be created. Current topics are: " + topics);
-            topics = adminClient.listTopics().names().get();
-            sleep(1000);
-        }
-
-        KafkaProducer<String, CommandDTO> producer = new KafkaProducer<>(kafkaProps.getProducer().getProperties(), new StringSerializer(), new CommandSerializer());
-        String id1 = UUID.randomUUID().toString();
-        String id2 = UUID.randomUUID().toString();
-        CompetitionState pr1 = new CompetitionState(id1, new CompetitionProperties(id1, COMPETITION1, ""));
-        CompetitionState pr2 = new CompetitionState(id2, new CompetitionProperties(id2, COMPETITION2, ""));
-        producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, COMPETITION1, new CommandDTO()
-                .setId(id1)
-                .setCompetitionId(COMPETITION1)
-                .setType(CommandType.CREATE_COMPETITION_COMMAND)
-                .setPayload(mapper.convertValue(pr1, LinkedHashMap.class))));
-        producer.send(new ProducerRecord<>(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, COMPETITION2, new CommandDTO()
-                .setId(id1)
-                .setCompetitionId(COMPETITION2)
-                .setType(CommandType.CREATE_COMPETITION_COMMAND)
-                .setPayload(mapper.convertValue(pr2, LinkedHashMap.class))));
-
-        producer.flush();
-
-        sleep(1000);
-
-        topics = adminClient.listTopics().names().get();
-
-        String comp2commandsTopic = CompetitionServiceTopics.CATEGORY_COMMANDS_TOPIC_NAME;
-
-        while (topics == null || !topics.contains(comp2commandsTopic)) {
-            log.info("Waiting for competition topics to be created. Current topics are: " + topics);
-            topics = adminClient.listTopics().names().get();
-            sleep(1000);
-        }
-        log.info("Topics created: " + topics);
-
-        CategoryDescriptorDTO[] categories = {};
-//        for (int i = 0; i < 30; i++) {
-//            int ind = 0;
-//            if (categories.length == 0) {
-//                ind = i;
-//            } else {
-//                ind = i % categories.length;
-//            }
-//            CategoryDescriptor cat = categories[i % (categories.length == 0 ? 1 : categories.length)];
-//            producer.send(new ProducerRecord<>(comp2commandsTopic, COMPETITION2, new Command(COMPETITION2, CommandType.ADD_CATEGORY_COMMAND, cat.getId(), mapper.writeValueAsBytes(cat))));
-//            sleep(10);
-//        }
-
-        producer.flush();
-
-        sleep(5000);
-
-        byte[] categoriesResult = mvc.perform(get("/cluster/store/categories")
-                .param("competitionId", COMPETITION2)
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsByteArray();
-
-        log.info("Categories: " + new String(categoriesResult, StandardCharsets.UTF_8));
-
-        Arrays.stream(categories).forEach(cat ->
-        {
-            byte[] result = new byte[0];
-            try {
-                result = mvc.perform(get("/cluster/store/categorystate")
-                        .param("competitionId", COMPETITION2)
-                        .param("categoryId", cat.getId())
-                        .contentType(MediaType.APPLICATION_JSON))
-                        .andExpect(status().isOk())
-                        .andReturn().getResponse().getContentAsByteArray();
-            } catch (Exception e) {
-                log.error("Exception: ", e);
-            }
-
-            log.info(new String(result, StandardCharsets.UTF_8));
-            TestCase.assertNotNull(result);
-        });
-
-        producer.close(Duration.ofSeconds(1));
-        adminClient.close(Duration.ofSeconds(1));
-        sleep(1000);
     }
 
     public static void main(String[] args) throws Exception {

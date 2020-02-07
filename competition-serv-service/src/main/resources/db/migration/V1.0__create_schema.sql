@@ -27,17 +27,10 @@ create table compservice.competition_properties
     end_date                    timestamp,
     schedule_published          boolean      not null,
     start_date                  timestamp,
-    time_zone                   varchar(255)
-);
-
-create table compservice.competition_state
-(
-    id                        varchar(255) not null
-        constraint competition_state_pkey
-            primary key,
+    time_zone                   varchar(255),
+    status                      integer,
     competition_image         oid,
-    competition_info_template oid,
-    status                    integer
+    competition_info_template oid
 );
 
 create table compservice.dashboard_period
@@ -50,8 +43,7 @@ create table compservice.dashboard_period
             references compservice.competition_properties on delete cascade,
     is_active      boolean      not null,
     name           varchar(255),
-    start_time     timestamp,
-    dashboard_id   varchar(255)
+    start_time     timestamp
 );
 
 create table compservice.event
@@ -100,6 +92,19 @@ create table compservice.competition_properties_staff_ids
 
 );
 
+create table compservice.promo_code
+(
+    id             varchar(255) not null
+        constraint promo_code_pkey
+            primary key,
+    coefficient    numeric(19, 2),
+    competition_id varchar(255)
+        constraint fk93bww360lp5pakmmaciweqpb1
+            references compservice.competition_properties on delete cascade,
+    expire_at      timestamp,
+    start_at       timestamp
+);
+
 create table compservice.competitor
 (
     id                  varchar(255) not null
@@ -114,22 +119,11 @@ create table compservice.competitor
     email               varchar(255),
     first_name          varchar(255),
     last_name           varchar(255),
-    promo               varchar(255),
+    promo               varchar(255)
+        constraint competitor_promo_code_fkey
+            references compservice.promo_code,
     registration_status integer,
     user_id             varchar(255)
-);
-
-create table compservice.promo_code
-(
-    id             bigint not null
-        constraint promo_code_pkey
-            primary key,
-    coefficient    numeric(19, 2),
-    competition_id varchar(255)
-        constraint fk93bww360lp5pakmmaciweqpb1
-            references compservice.competition_properties on delete cascade,
-    expire_at      timestamp,
-    start_at       timestamp
 );
 
 create table compservice.registration_period
@@ -187,9 +181,7 @@ create table compservice.mat_schedule_container
 (
     id           varchar(255) not null
         constraint mat_schedule_container_pkey
-            primary key
-        constraint mat_schedule_container_mat_description_fkey
-            references compservice.mat_description on delete cascade,
+            primary key,
     total_fights integer      not null,
     period_id    varchar(255) not null
         constraint fkheux8852yfm9g3iwegpqr8sbe
@@ -256,7 +248,7 @@ create table compservice.schedule_entries
 (
     period_id        varchar(255) not null
         constraint fkafy2hinwcl6a1ugke2uctic0w
-            references compservice.schedule_period,
+            references compservice.schedule_period on delete cascade,
     category_id      varchar(255)  not null
         constraint schedule_entries_category_id_fkey
             references compservice.category_descriptor on delete cascade,

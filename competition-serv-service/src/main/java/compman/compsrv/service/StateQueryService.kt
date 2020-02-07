@@ -12,6 +12,7 @@ import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.dto.schedule.SchedulePropertiesDTO
 import compman.compsrv.repository.JooqQueries
+import compman.compsrv.util.copy
 import io.scalecube.net.Address
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
@@ -30,18 +31,16 @@ import kotlin.math.max
 @Component
 class StateQueryService(private val clusterSession: ClusterSession,
                         restTemplateBuilder: RestTemplateBuilder,
-                        private val competitionStateCrudRepository: CompetitionStateDao,
+                        private val periodDao: SchedulePeriodDao,
                         private val jooq: JooqQueries,
                         private val registrationInfoDao: RegistrationInfoDao,
                         private val fightStartTimesDao: FightStartTimesDao,
                         private val staffDao: CompetitionPropertiesStaffIdsDao,
                         private val promoCodeDao: PromoCodeDao,
-                        private val periodDao: PeriodDao,
-                        private val periodPropertiesDao: PeriodPropertiesDao,
                         private val matScheduleContainerDao: MatScheduleContainerDao,
                         private val scheduleEntriesDao: ScheduleEntriesDao,
+                        private val periodPropertiesDao: SchedulePeriodPropertiesDao,
                         private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
-                        private val scheduleCrudRepository: ScheduleDao,
                         private val matDescriptionCrudRepository: MatDescriptionDao,
                         private val competitorCrudRepository: CompetitorDao) {
 
@@ -92,7 +91,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
                 .groupBy { it.id }
                 .map { e ->
                     e.value.reduce { acc, competitorDTO ->
-                        acc?.toBuilder()?.categories(acc.categories + competitorDTO.categories)?.build()
+                        acc?.copy(categories = (acc.categories + competitorDTO.categories))
                                 ?: competitorDTO
                     }
                 }
@@ -139,7 +138,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getCompetitionInfoTemplate(competitionId: String?): ByteArray? {
         return localOrRemote(competitionId,
-                { competitionStateCrudRepository.findById(competitionId)?.competitionInfoTemplate },
+                { competitionPropertiesCrudRepository.findById(competitionId)?.competitionInfoTemplate },
                 { _, restTemplate, url ->
                     restTemplate.getForObject("$url/api/v1/store/infotemplate?competitionId=$competitionId", ByteArray::class.java)
                 }
@@ -156,8 +155,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
                             .fetch()
 
                     competitionPropertiesCrudRepository.findById(competitionId)
-                            ?.toDTO(competitionStateCrudRepository.findById(competitionId)?.status!!,
-                                    staffDao.fetchByCompetitionPropertiesId(competitionId)?.map { it.staffId }?.toTypedArray(),
+                            ?.toDTO(staffDao.fetchByCompetitionPropertiesId(competitionId)?.map { it.staffId }?.toTypedArray(),
                                     promoCodeDao.fetchByCompetitionId(competitionId)?.map { it.toDTO() }?.toTypedArray())
                             { regInfoId ->
                                 registrationInfoDao.findById(regInfoId)?.let {
@@ -248,24 +246,21 @@ class StateQueryService(private val clusterSession: ClusterSession,
     fun getSchedule(competitionId: String?): ScheduleDTO? {
         return localOrRemote(competitionId,
                 {
-                    val schedule = scheduleCrudRepository.findById(competitionId!!)
-                    schedule?.let { schedule1 ->
-                        ScheduleDTO()
-                                .setId(schedule.id)
-                                .setPeriods(periodDao.fetchBySchedId(schedule1.id).map { p ->
-                                    p.toDTO(scheduleEntriesDao.fetchByPeriodId(p.id)?.map { it.toDTO() }?.toTypedArray()!!,
-                                            matScheduleContainerDao.fetchByPeriodId(p.id).map { mat ->
-                                                mat.toDTO(fightStartTimesDao.fetchByMatScheduleId(mat.id).map {
-                                                    it.toDTO(mat.id)
-                                                }.toTypedArray())
+                    ScheduleDTO()
+                            .setId(competitionId)
+                            .setPeriods(periodDao.fetchByCompetitionId(competitionId).map { p ->
+                                p.toDTO(scheduleEntriesDao.fetchByPeriodId(p.id)?.map { it.toDTO() }?.toTypedArray()!!,
+                                        matScheduleContainerDao.fetchByPeriodId(p.id).map { mat ->
+                                            mat.toDTO(fightStartTimesDao.fetchByMatScheduleId(mat.id).map {
+                                                it.toDTO(mat.id)
                                             }.toTypedArray())
-                                }.toTypedArray())
-                                .setScheduleProperties(SchedulePropertiesDTO()
-                                        .setCompetitionId(competitionId)
-                                        .setPeriodPropertiesList(periodPropertiesDao.fetchBySchedId(schedule.id).map {
-                                            it.toDTO(emptyArray())
-                                        }.toTypedArray()))
-                    }
+                                        }.toTypedArray())
+                            }.toTypedArray())
+                            .setScheduleProperties(SchedulePropertiesDTO()
+                                    .setCompetitionId(competitionId)
+                                    .setPeriodPropertiesList(periodPropertiesDao.fetchByCompetitionId(competitionId).map {
+                                        it.toDTO(jooq.getCategoryIdsForSchedulePeriodProperties(competitionId!!, it.id).collectList().block()?.toTypedArray())
+                                    }.toTypedArray()))
                 },
                 { _, restTemplate, urlPrefix ->
                     restTemplate.getForObject("$urlPrefix/api/v1/store/schedule?competitionId=$competitionId", ScheduleDTO::class.java)

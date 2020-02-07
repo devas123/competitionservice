@@ -170,31 +170,32 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
         }
     }
 
-    fun generateSchedule(properties: SchedulePropertiesDTO, stages: List<Pair<StageDescriptorDTO, List<FightDescriptionDTO>>>, timeZone: String): ScheduleDTO {
+    fun generateSchedule(properties: SchedulePropertiesDTO, stages: List<Pair<StageDescriptorDTO, List<FightDescriptionDTO>>>, timeZone: String,
+                         categoryCompetitorNumbers: Map<String, Int>): ScheduleDTO {
         if (!properties.periodPropertiesList.isNullOrEmpty()) {
             if (stages.flatMap { it.second }.isEmpty()) {
                 throw ServiceException("No fights generated.")
             }
-            return doGenerateSchedule(stages, properties, timeZone)
+            return doGenerateSchedule(stages, properties, timeZone, categoryCompetitorNumbers)
         } else {
             throw ServiceException("Periods are not specified!")
         }
     }
 
-    private fun doGenerateSchedule(stages: List<Pair<StageDescriptorDTO, List<FightDescriptionDTO>>>, properties: SchedulePropertiesDTO, timeZone: String): ScheduleDTO {
+    private fun doGenerateSchedule(stages: List<Pair<StageDescriptorDTO, List<FightDescriptionDTO>>>, properties: SchedulePropertiesDTO, timeZone: String, categoryCompetitorNumbers: Map<String, Int>): ScheduleDTO {
         return ScheduleDTO()
                 .setId(properties.competitionId)
                         .setPeriods(properties.periodPropertiesList?.mapNotNull { periodPropertiesDTO ->
                             periodPropertiesDTO?.let { p ->
                         val id = IDGenerator.createPeriodId(properties.competitionId)
                         val periodStartTime = p.startTime
-                        val brackets = p.categories.filter { !it.competitors.isNullOrEmpty() }
+                        val brackets = p.categories.filter { (categoryCompetitorNumbers[it] ?: 0) > 0 }
                                 .flatMap { cat ->
-                                    stages.filter { st -> st.first.categoryId == cat.id }
+                                    stages.filter { st -> st.first.categoryId == cat }
                                             .map { Tuple3(cat, it.first, it.second) }  }
                                 .map { tuple3 ->
                                     bracketSimulatorFactory.createSimulator(tuple3.b.id!!, tuple3.b.categoryId, tuple3.c,
-                                      tuple3.b.bracketType, tuple3.a.competitors?.size ?: 0)
+                                      tuple3.b.bracketType, categoryCompetitorNumbers[tuple3.a] ?: 0)
                                 }
                         val composer = ScheduleComposer(periodStartTime, p.numberOfMats, brackets, BigDecimal(p.timeBetweenFights), p.riskPercent, id, timeZone)
                         val fightsByMats = composer.simulate()

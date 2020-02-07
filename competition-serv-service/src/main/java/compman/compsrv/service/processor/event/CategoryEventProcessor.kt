@@ -38,7 +38,7 @@ fun CompetitorDTO.toCompetitor() =
 
 @Component
 class CategoryEventProcessor(private val mapper: ObjectMapper,
-                             private val competitionStateCrudRepository: CompetitionStateDao,
+                             private val competitionPropertiesDao: CompetitionPropertiesDao,
                              private val categoryDescriptorCrudRepository: CategoryDescriptorDao,
                              private val competitorCrudRepository: CompetitorDao,
                              private val jdbcRepository: JdbcRepository,
@@ -225,7 +225,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
 
     private fun applyCategoryAddedEvent(event: EventDTO) {
         val c = getPayloadAs(event.payload, CategoryAddedPayload::class.java)?.categoryState
-        if (c != null && event.categoryId != null && competitionStateCrudRepository.existsById(event.competitionId) && c.category != null
+        if (c != null && event.categoryId != null && competitionPropertiesDao.existsById(event.competitionId) && c.category != null
                 && !c.category.restrictions.isNullOrEmpty()) {
             log.info("Adding category: ${event.categoryId} to competition ${event.competitionId}")
             jooqQueries.saveCategoryDescriptor(c.category, event.competitionId)

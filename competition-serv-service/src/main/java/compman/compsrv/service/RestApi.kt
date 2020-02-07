@@ -45,9 +45,8 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
 
     @RequestMapping("/store/categorystate", method = [RequestMethod.GET])
     fun getCategoryState(@RequestParam("competitionId") competitionId: String, @RequestParam("categoryId") categoryId: String): Any? {
-        val state = stateQueryService.getCategoryState(
+        return stateQueryService.getCategoryState(
                 competitionId, categoryId)
-        return state?.setBrackets(state.brackets?.setStages(state.brackets.stages))
     }
 
     @RequestMapping("/store/mats", method = [RequestMethod.GET])

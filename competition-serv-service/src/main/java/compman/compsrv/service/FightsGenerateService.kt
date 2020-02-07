@@ -431,7 +431,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                                 CompetitorResultType.WIN_DECISION, CompetitorResultType.WIN_POINTS, CompetitorResultType.WIN_SUBMISSION, CompetitorResultType.OPPONENT_DQ -> {
                                     f.scores?.find { it.competitor.id != f.fightResult?.winnerId!! }?.let { compScore ->
                                         CompetitorResultDTO()
-                                                .setId(IDGenerator.compResultId(compScore.competitor.id!!, stageId, competitionId))
+                                                .setStageId(stageId)
                                                 .setCompetitorId(compScore.competitor.id)
                                                 .setPoints(0)
                                                 .setRound(f.round)
@@ -445,7 +445,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                         } + grandFinal.scores!!.map {
                             val place = if (it.competitor.id == grandFinal.fightResult!!.winnerId) 1 else 2
                             CompetitorResultDTO()
-                                    .setId(IDGenerator.compResultId(it.competitor.id!!, stageId, competitionId))
+                                    .setStageId(stageId)
                                     .setCompetitorId(it.competitor.id)
                                     .setPoints(0)
                                     .setRound(grandFinal.round)
@@ -453,7 +453,7 @@ class FightsGenerateService(private val categoryCrudRepository: CategoryDescript
                         } + (thirdPlaceFight?.scores?.map {
                             val place = if (it.competitor.id == thirdPlaceFight.fightResult!!.winnerId) 3 else 4
                             CompetitorResultDTO()
-                                    .setId(IDGenerator.compResultId(it.competitor.id!!, stageId, competitionId))
+                                    .setStageId(stageId)
                                     .setCompetitorId(it.competitor.id)
                                     .setPoints(0)
                                     .setRound(thirdPlaceFight.round)

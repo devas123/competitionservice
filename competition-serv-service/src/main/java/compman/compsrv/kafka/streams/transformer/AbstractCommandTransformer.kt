@@ -1,7 +1,6 @@
 package compman.compsrv.kafka.streams.transformer
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.jpa.competition.CompetitionState
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.events.EventDTO
@@ -22,7 +21,6 @@ abstract class AbstractCommandTransformer(
     private val log = LoggerFactory.getLogger(this.javaClass)
 
     abstract fun initState(id: String, correlationId: String?)
-    abstract fun getState(id: String): Optional<CompetitionState>
 
     @Transactional(propagation = Propagation.REQUIRED)
     open fun transform(record: ConsumerRecord<String, CommandDTO>): List<EventDTO> {

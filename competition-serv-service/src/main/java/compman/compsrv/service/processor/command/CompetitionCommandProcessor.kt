@@ -38,8 +38,7 @@ import java.util.*
 @Component
 class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val clusterSession: ClusterSession,
-                                  private val competitionStateCrudRepository: CompetitionStateDao,
-                                  private val periodDao: PeriodDao,
+                                  private val periodDao: SchedulePeriodDao,
                                   private val categoryCrudRepository: CategoryDescriptorDao,
                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
                                   private val stageDescriptorCrudRepository: StageDescriptorDao,
@@ -135,7 +134,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 CommandType.CREATE_DASHBOARD_COMMAND -> {
                     val dashboardPeriods = dashboardPeriodDao.fetchByDashboardId(command.competitionId)
                     if (dashboardPeriods.isNullOrEmpty()) {
-                        val periods = periodDao.fetchBySchedId(command.competitionId)
+                        val periods = periodDao.fetchByCompetitionId(command.competitionId)
                         if (!periods.isNullOrEmpty()) {
                             val dashbPeriods = periods.map { period ->
                                 val scheduleMatIds = jooqQueries.fetchDistinctMatIdsForSchedule(command.competitionId).collectList().block()
@@ -250,7 +249,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                             if (newProperties.timeZone.isNullOrBlank() || newProperties.timeZone == "null") {
                                 newProperties.timeZone = ZoneId.systemDefault().id
                             }
-                            if (!competitionStateCrudRepository.existsById(command.competitionId)) {
+                            if (!competitionPropertiesCrudRepository.existsById(command.competitionId)) {
                                 listOf(createEvent(EventType.COMPETITION_CREATED, CompetitionCreatedPayload(newProperties.setId(command.competitionId))))
                             } else {
                                 listOf(createErrorEvent("Competition with name '${newProperties.competitionName}' already exists."))
@@ -291,17 +290,18 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                     val compProps = competitionPropertiesCrudRepository.findById(command.competitionId)
                     val categories = scheduleProperties.periodPropertiesList?.flatMap {
                         it.categories?.toList() ?: emptyList()
-                    }
+                    }?.distinct()
                     val missingCategories = categories?.fold(emptyList<String>(), { acc, cat ->
-                        if (categoryCrudRepository.existsById(cat.id)) {
+                        if (categoryCrudRepository.existsById(cat)) {
                             acc
                         } else {
-                            acc + cat.id
+                            acc + cat
                         }
                     })
                     if (compProps != null && !compProps.schedulePublished) {
                         if (missingCategories.isNullOrEmpty()) {
-                            val schedule = scheduleService.generateSchedule(scheduleProperties, getAllBrackets(scheduleProperties.competitionId), compProps.timeZone)
+                            val competitorNumbersByCategoryIds = jooqQueries.getCompetitorNumbersByCategoryIds(command.competitionId)
+                            val schedule = scheduleService.generateSchedule(scheduleProperties, getAllBrackets(scheduleProperties.competitionId), compProps.timeZone, competitorNumbersByCategoryIds)
                             val newFights = schedule.periods?.flatMap { period ->
                                 period.fightsByMats?.flatMap { it.fights.map { f -> f.setPeriodId(period.id) } }
                                         ?: emptyList()

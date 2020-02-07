@@ -8,7 +8,7 @@ import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.*
 import compman.compsrv.util.IDGenerator
 
-fun PeriodProperties.toDTO(categories: Array<CategoryDescriptorDTO>): PeriodPropertiesDTO = PeriodPropertiesDTO()
+fun SchedulePeriodProperties.toDTO(categories: Array<String>?): PeriodPropertiesDTO = PeriodPropertiesDTO()
         .setId(id)
         .setName(name)
         .setStartTime(startTime?.toInstant())
@@ -24,7 +24,7 @@ fun ScheduleEntries.toDTO(): ScheduleEntryDTO = ScheduleEntryDTO()
         .setNumberOfFights(numberOfFights)
         .setFightDuration(fightDuration)
 
-fun Period.toDTO(scheduleEntries: Array<ScheduleEntryDTO>, fightsByMats: Array<MatScheduleContainerDTO>): PeriodDTO = PeriodDTO()
+fun SchedulePeriod.toDTO(scheduleEntries: Array<ScheduleEntryDTO>, fightsByMats: Array<MatScheduleContainerDTO>): PeriodDTO = PeriodDTO()
         .setId(id)
         .setName(name)
         .setSchedule(scheduleEntries)
@@ -82,9 +82,9 @@ fun CompScore.toDTO(getCompetitor: (id: String) -> CompetitorDTO): CompScoreDTO 
         .setPoints(points)
         .setAdvantages(advantages)
         .setPenalties(penalties))
-        .setCompetitor(getCompetitor(compscoreCompetitorId)).setId(id)
+        .setCompetitor(getCompetitor(compscoreCompetitorId))
 
-fun CompetitionProperties.toDTO(status: Int, staffIds: Array<String>?, promoCodes: Array<PromoCodeDTO>?, getRegistrationInfo: (id: String) -> RegistrationInfoDTO?): CompetitionPropertiesDTO =
+fun CompetitionProperties.toDTO(staffIds: Array<String>?, promoCodes: Array<PromoCodeDTO>?, getRegistrationInfo: (id: String) -> RegistrationInfoDTO?): CompetitionPropertiesDTO =
         CompetitionPropertiesDTO()
                 .setId(id)
                 .setBracketsPublished(bracketsPublished)
@@ -136,11 +136,8 @@ fun StageInputDescriptor.toDTO(selectors: Array<CompetitorSelectorDTO>): StageIn
         .setDistributionType(DistributionType.values()[distributionType])
         .setNumberOfCompetitors(numberOfCompetitors).setSelectors(selectors)
 
-fun StageResultDescriptor.toDTO(competitorResults: Array<CompetitorResultDTO>): StageResultDescriptorDTO =
-        StageResultDescriptorDTO().setId(id).setName(name).setCompetitorResults(competitorResults)
-
-fun CompetitorResult.toDTO(): CompetitorResultDTO = CompetitorResultDTO()
-        .setId(id)
+fun CompetitorStageResult.toDTO(): CompetitorResultDTO = CompetitorResultDTO()
+        .setStageId(stageId)
         .setPoints(points)
         .setGroupId(groupId)
         .setPlace(place)

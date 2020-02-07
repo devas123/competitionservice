@@ -1,33 +1,28 @@
 package compman.compsrv.service.processor.event
 
+import com.compmanager.compservice.jooq.tables.daos.*
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.jpa.competition.CompetitionState
-import compman.compsrv.mapping.toEntity
+import compman.compsrv.mapping.toDTO
+import compman.compsrv.model.dto.competition.CompetitionStateDTO
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.model.exceptions.EventApplyingException
-import compman.compsrv.repository.*
+import compman.compsrv.repository.JooqQueries
 import compman.compsrv.service.CompetitionCleaner
 import compman.compsrv.util.applyProperties
-import compman.compsrv.util.getPayloadAs
+import compman.compsrv.util.getPayloadFromString
 import org.slf4j.LoggerFactory
-import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
 
 @Component
-class CompetitionEventProcessor(private val competitionStateCrudRepository: CompetitionStateCrudRepository,
-                                private val scheduleCrudRepository: ScheduleCrudRepository,
-                                private val competitorCrudRepository: CompetitorCrudRepository,
-                                private val stageDescriptorCrudRepository: StageDescriptorCrudRepository,
-                                private val compScoreCrudRepository: CompScoreCrudRepository,
-                                private val bracketsRepository: BracketsDescriptorCrudRepository,
-                                private val categoryStateCrudRepository: CategoryStateCrudRepository,
-                                private val fightCrudRepository: FightCrudRepository,
-                                private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
-                                private val registrationPeriodCrudRepository: RegistrationPeriodCrudRepository,
-                                private val registrationInfoCrudRepository: RegistrationInfoCrudRepository,
+class CompetitionEventProcessor(private val competitionPropertiesDao: CompetitionPropertiesDao,
+                                private val registrationGroupCrudRepository: RegistrationGroupDao,
+                                private val registrationPeriodCrudRepository: RegistrationPeriodDao,
+                                private val regGroupRegPeriodDao: RegGroupRegPeriodDao,
+                                private val registrationInfoCrudRepository: RegistrationInfoDao,
+                                private val jooqQueries: JooqQueries,
                                 private val competitionCleaner: CompetitionCleaner,
                                 private val mapper: ObjectMapper) : IEventProcessor {
     override fun affectedEvents(): Set<EventType> {
@@ -59,66 +54,35 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
         private val log = LoggerFactory.getLogger(CompetitionEventProcessor::class.java)
     }
 
-    private fun <T> getPayloadAs(payload: String?, clazz: Class<T>): T? = mapper.getPayloadAs(payload, clazz)
+    private fun <T> getPayloadAs(payload: String?, clazz: Class<T>): T? = mapper.getPayloadFromString(payload, clazz)
 
     override fun applyEvent(event: EventDTO): List<EventDTO> {
         fun createError(error: String) = EventApplyingException(error, event)
-        return try {
-            val ns = when (event.type) {
-                EventType.INTERNAL_COMPETITION_INFO -> {
-                    listOf(event)
-                }
-                EventType.REGISTRATION_INFO_UPDATED -> {
+        try {
+            when (event.type) {
+               EventType.REGISTRATION_INFO_UPDATED -> {
                     val payload = getPayloadAs(event.payload, RegistrationInfoUpdatedPayload::class.java)
                     payload?.registrationInfo?.let {
                         kotlin.runCatching {
-                            val regInfo = it.toEntity()
-                            registrationInfoCrudRepository.save(regInfo)
-                            listOf(event)
+                            jooqQueries.updateRegistrationInfo(it)
                         }.recover { e ->
                             log.error("Error while executing operation.", e)
-                            listOf(event)
-                        }.getOrDefault(emptyList())
-                    } ?: throw createError("Registration info is null.")
+                        }
+                    }
                 }
                 EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED -> {
                     val payload = getPayloadAs(event.payload, RegistrationGroupCategoriesAssignedPayload::class.java)
                     if (payload != null) {
-                        val group = registrationGroupCrudRepository.findByIdOrNull(payload.groupId)
-                        if (group != null) {
-                            group.categories = payload.categories.toMutableSet()
-                            registrationGroupCrudRepository.save(group)
-                            listOf(event)
-                        } else {
-                            throw createError("Registration group not found.")
-                        }
+                        jooqQueries.updateRegistrationGroupCategories(payload.groupId!!, payload.categories?.toList()!!)
                     } else {
                         throw createError("Payload is null.")
                     }
                 }
                 EventType.REGISTRATION_GROUP_ADDED -> {
                     val payload = getPayloadAs(event.payload, RegistrationGroupAddedPayload::class.java)!!
-                    val regPeriod = registrationPeriodCrudRepository.findByIdOrNull(payload.periodId)
+                    val regPeriod = registrationPeriodCrudRepository.findById(payload.periodId)
                     if (regPeriod != null && !payload.groups.isNullOrEmpty()) {
-                        payload.groups.forEach { gr ->
-                            val group =
-                                    registrationGroupCrudRepository.findByIdOrNull(gr.id)
-                                            ?: gr.toEntity { registrationInfoCrudRepository.findById(event.competitionId).orElseThrow { EventApplyingException("registration info with id ${event.competitionId} not found", event) } }
-                            if (group.registrationPeriods != null) {
-                                group.registrationPeriods?.add(regPeriod)
-                            } else {
-                                group.registrationPeriods = mutableSetOf(regPeriod)
-                            }
-
-                            if (regPeriod.registrationGroups != null) {
-                                regPeriod.registrationGroups!!.add(group)
-                            } else {
-                                regPeriod.registrationGroups = mutableSetOf(group)
-                            }
-                            registrationGroupCrudRepository.save(group)
-                            registrationPeriodCrudRepository.save(regPeriod)
-                        }
-                        listOf(event)
+                        jooqQueries.addRegistrationGroupsToPeriod(payload.periodId, payload.groups.toList())
                     } else {
                         log.error("Didn't find period with id ${payload.periodId} or groups is empty")
                         throw createError("Didn't find period with id ${payload.periodId} or groups is empty")
@@ -126,25 +90,20 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                 }
                 EventType.REGISTRATION_GROUP_DELETED -> {
                     val payload = getPayloadAs(event.payload, RegistrationGroupDeletedPayload::class.java)!!
-                    val period = registrationPeriodCrudRepository.findById(payload.periodId)
-                    period.map {
-                        it.registrationGroups?.removeIf { gr -> gr.id == payload.groupId }
-                        registrationPeriodCrudRepository.save(it)
-                        if (registrationGroupCrudRepository.findByIdOrNull(payload.groupId)?.registrationPeriods.isNullOrEmpty()) {
+                    if (registrationPeriodCrudRepository.existsById(payload.periodId)) {
+                        if (regGroupRegPeriodDao.fetchByRegGroupId(payload.groupId).size > 1) {
+                            jooqQueries.deleteRegGroupRegPeriodById(payload.groupId, payload.periodId)
+                        } else {
                             registrationGroupCrudRepository.deleteById(payload.groupId)
                         }
-                        listOf(event)
-                    }.orElseGet {
+                    } else {
                         log.error("Didn't find period with id ${payload.periodId}")
                         throw createError("Didn't find period with id ${payload.periodId}")
                     }
                 }
                 EventType.DASHBOARD_DELETED -> {
-                    val competitionState = competitionStateCrudRepository.findByIdOrNull(event.competitionId)
-                    if (competitionState != null) {
-                        competitionState.dashboardState = null
-                        competitionStateCrudRepository.save(competitionState)
-                        listOf(event)
+                    if (competitionPropertiesDao.existsById(event.competitionId)) {
+                        jooqQueries.deleteDashboardPeriodsByCompetitionId(event.competitionId)
                     } else {
                         throw createError("Cannot load competition state for competition ${event.competitionId}")
                     }
@@ -153,11 +112,10 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                 EventType.DASHBOARD_CREATED -> {
                     val payload = getPayloadAs(event.payload, DashboardCreatedPayload::class.java)
                     if (payload?.dashboardState != null) {
-                        val competitionState = competitionStateCrudRepository.findByIdOrNull(event.competitionId)
-                        if (competitionState != null) {
-                            competitionState.dashboardState = payload.dashboardState.toEntity()
-                            competitionStateCrudRepository.save(competitionState)
-                            listOf(event)
+                        if (competitionPropertiesDao.existsById(event.competitionId)) {
+                            payload.dashboardState.periods?.toList()?.let {
+                                jooqQueries.saveDashboardPeriods(event.competitionId, it)
+                            }
                         } else {
                             throw createError("Cannot load competition state for competition ${event.competitionId}")
                         }
@@ -167,87 +125,57 @@ class CompetitionEventProcessor(private val competitionStateCrudRepository: Comp
                 }
                 EventType.REGISTRATION_PERIOD_ADDED -> {
                     val payload = getPayloadAs(event.payload, RegistrationPeriodAddedPayload::class.java)!!
-                    val info = registrationInfoCrudRepository.findByIdOrNull(event.competitionId)
-                    if (info != null) {
-                        val period = payload.period.toEntity({ id -> registrationGroupCrudRepository.findById(id).orElseThrow { EventApplyingException("Cannot get registration group with id $id", event) } },
-                                { id -> registrationInfoCrudRepository.findById(id).orElseThrow { EventApplyingException("Cannot get registration info with id $id", event) } })
-                        period.registrationInfo = info
-                        info.registrationPeriods.add(period)
-                        registrationInfoCrudRepository.save(info)
+                    if (registrationInfoCrudRepository.existsById(event.competitionId)) {
+                        jooqQueries.saveRegistrationPeriod(payload.period)
                     }
-                    listOf(event)
                 }
                 EventType.REGISTRATION_PERIOD_DELETED -> {
                     val payload = getPayloadAs(event.payload, String::class.java)
                     registrationPeriodCrudRepository.deleteById(payload!!)
-                    listOf(event)
                 }
                 EventType.COMPETITION_DELETED -> {
                     competitionCleaner.deleteCompetition(event.competitionId)
-                    listOf(event)
                 }
                 EventType.COMPETITION_CREATED -> {
                     val payload = getPayloadAs(event.payload, CompetitionCreatedPayload::class.java)
                     payload?.properties?.let { props ->
-                        val state = CompetitionState(props.id, props.toEntity())
-                        competitionStateCrudRepository.save(state)
-                        state.properties?.registrationInfo?.let {
-                            registrationInfoCrudRepository.save(it)
-                        }
-                        listOf(event)
+                        val state = CompetitionStateDTO().setId(props.id).setProperties(props)
+                        jooqQueries.saveCompetitionState(state)
                     } ?: throw createError("Properties are missing.")
                 }
-                EventType.DUMMY -> {
-                    emptyList()
-                }
                 EventType.SCHEDULE_DROPPED -> {
-                    competitionStateCrudRepository.getOne(event.competitionId).schedule?.periods?.clear()
-                    listOf(event)
+                    jooqQueries.deleteScheudlePeriodsByCompetitionId(event.competitionId)
                 }
                 EventType.SCHEDULE_GENERATED -> {
                     val scheduleGeneratedPayload = getPayloadAs(event.payload, ScheduleGeneratedPayload::class.java)
                     if (scheduleGeneratedPayload?.schedule != null) {
-                        val schedule = scheduleGeneratedPayload.schedule?.toEntity({ fightId -> fightCrudRepository.getOne(fightId) }, { competitorId -> competitorCrudRepository.findByIdOrNull(competitorId) })
-                        val compState = competitionStateCrudRepository.getOne(event.competitionId)
-                        schedule?.let {
-                            compState.schedule = it
-                            competitionStateCrudRepository.save(compState)
-                            listOf(event)
-                        } ?: throw createError("Schedule not found.")
+                        val schedule = scheduleGeneratedPayload.schedule
+                        jooqQueries.saveSchedule(schedule)
                     } else {
                         throw createError("Schedule not provided.")
                     }
                 }
                 EventType.COMPETITION_PROPERTIES_UPDATED -> {
                     val payload = getPayloadAs(event.payload, CompetitionPropertiesUpdatedPayload::class.java)
-                    val comp = competitionStateCrudRepository.getOne(event.competitionId)
-                    comp.properties = comp.properties.applyProperties(payload?.properties)
-                    competitionStateCrudRepository.save(comp)
-                    listOf(event)
+                    val comp = competitionPropertiesDao.findById(event.competitionId)?.toDTO(emptyArray(), emptyArray()) {null}
+                    comp?.applyProperties(payload?.properties)?.let {
+                        jooqQueries.updateCompetitionProperties(it)
+                    }
                 }
                 in listOf(EventType.COMPETITION_STARTED, EventType.COMPETITION_STOPPED, EventType.COMPETITION_PUBLISHED, EventType.COMPETITION_UNPUBLISHED) -> {
                     val status = getPayloadAs(event.payload, CompetitionStatus::class.java)
                     if (status != null) {
-                        competitionStateCrudRepository.findById(event.competitionId).map {
-                            competitionStateCrudRepository.save(it.withStatus(status))
-                            listOf(event)
-                        }.orElse(emptyList())
-                    } else {
-                        emptyList()
+                        jooqQueries.updateCompetitionStatus(event.competitionId, status)
                     }
                 }
-                EventType.ERROR_EVENT -> {
-                    listOf(event)
-                }
                 else -> {
-                    log.warn("Skipping unknown event: $event")
-                    emptyList()
+                    log.info("No handler for event: $event")
                 }
             }
-            ns ?: emptyList()
         } catch (e: Exception) {
             log.error("Error while applying event.", e)
             throw createError(e.localizedMessage)
         }
+        return listOf(event)
     }
 }

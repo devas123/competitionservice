@@ -10,7 +10,6 @@ import java.io.Serializable;
 @AllArgsConstructor
 @NoArgsConstructor
 public class RegistrationGroupDeletedPayload implements Serializable {
-
     private String periodId;
     private String groupId;
 }
