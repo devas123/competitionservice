@@ -107,14 +107,14 @@ class CategoryGeneratorService {
 
         val fheavy = weightRestriction(WeightDTO.HEAVY, "300")
 
-        fun createCategory(fightDuration: Long, vararg restrictions: CategoryRestrictionDTO): CategoryDescriptorDTO =
+        fun createCategory(fightDuration: Long, vararg restrictions: CategoryRestrictionDTO, registrationOpen: Boolean = true): CategoryDescriptorDTO =
                 CategoryDescriptorDTO()
                         .setRestrictions(restrictions)
                         .setFightDuration(BigDecimal.valueOf(fightDuration))
+                        .setRegistrationOpen(registrationOpen)
                         .apply {
                             id = IDGenerator.categoryId(this)
                         }
-
     }
 
     fun createDefaultBjjCategories(competitionId: String): List<CategoryDescriptorDTO> {

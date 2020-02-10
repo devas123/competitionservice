@@ -4,11 +4,12 @@ import com.compmanager.compservice.jooq.tables.daos.CompetitionPropertiesDao
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
-import compman.compsrv.service.CompetitionStateService
+import compman.compsrv.model.events.EventDTO
+import compman.compsrv.service.ICommandProcessingService
 import compman.compsrv.service.resolver.CompetitionStateResolver
 import org.slf4j.LoggerFactory
 
-open class CompetitionCommandTransformer(competitionStateService: CompetitionStateService,
+open class CompetitionCommandTransformer(competitionStateService: ICommandProcessingService<CommandDTO, EventDTO>,
                                          private val competitionStateRepository: CompetitionPropertiesDao,
                                          private val competitionStateResolver: CompetitionStateResolver,
                                          mapper: ObjectMapper)

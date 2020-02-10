@@ -213,8 +213,10 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                     ?: IDGenerator.hashString("${command.competitionId}/${IDGenerator.categoryId(c)}")
             if (!categoryCrudRepository.existsById(categoryId) && competitionPropertiesCrudRepository.existsById(command.competitionId)) {
                 if (restrictionsValid.all {restriction -> restriction.isValid  }) {
-                    val state = CategoryStateDTO().setId(categoryId).setCompetitionId(command.competitionId).setCategory(c.setId(categoryId)).setFightsNumber(0).setCompetitors(emptyArray())
+                    val registrationOpen = c.registrationOpen ?: true
+                    val state = CategoryStateDTO().setId(categoryId).setCompetitionId(command.competitionId).setCategory(c.setId(categoryId).setRegistrationOpen(registrationOpen)).setFightsNumber(0).setCompetitors(emptyArray())
                             .setNumberOfCompetitors(0)
+
                     listOf(createEvent(command, EventType.CATEGORY_ADDED, CategoryAddedPayload(state)).setCategoryId(categoryId))
                 } else {
                     listOf(createErrorEvent(command, restrictionsValid.fold(StringBuilder()) { acc, r -> acc.append(r.fold({it.toList().joinToString(",")}, {""})) }.toString()))

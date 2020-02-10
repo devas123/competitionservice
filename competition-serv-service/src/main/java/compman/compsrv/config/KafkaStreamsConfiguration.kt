@@ -9,7 +9,7 @@ import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.service.CompetitionStateService
+import compman.compsrv.service.ICommandProcessingService
 import compman.compsrv.service.resolver.CompetitionStateResolver
 import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -150,7 +150,7 @@ class KafkaStreamsConfiguration {
 
 
     @Bean
-    fun commandTransformer(competitionStateService: CompetitionStateService,
+    fun commandTransformer(competitionStateService: ICommandProcessingService<CommandDTO, EventDTO>,
                            objectMapper: ObjectMapper,
                            competitionStateRepository: CompetitionPropertiesDao,
                            competitionStateResolver: CompetitionStateResolver) = CompetitionCommandTransformer(competitionStateService,

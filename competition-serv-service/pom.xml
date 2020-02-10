@@ -20,7 +20,7 @@
         <!--        <flyway.locations>/db/migration</flyway.locations>-->
 
         <!-- List are defined as comma-separated values -->
-        <flyway.schemas>compserivce</flyway.schemas>
+        <flyway.schemas>compservice</flyway.schemas>
         <jooq.version>3.12.4</jooq.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <h2.version>1.4.200</h2.version>

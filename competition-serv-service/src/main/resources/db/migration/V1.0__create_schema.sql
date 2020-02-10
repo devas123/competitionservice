@@ -1,5 +1,60 @@
-CREATE SCHEMA compservice;
+CREATE SCHEMA IF NOT EXISTS compservice;
 
+drop table if exists compservice.competition_properties cascade;
+
+drop table if exists compservice.category_restriction cascade;
+
+drop table if exists compservice.dashboard_period cascade;
+
+drop table if exists compservice.event cascade;
+
+drop table if exists compservice.mat_description cascade;
+
+drop table if exists compservice.registration_info cascade;
+
+drop table if exists compservice.competition_properties_staff_ids cascade;
+
+drop table if exists compservice.promo_code cascade;
+
+drop table if exists compservice.competitor cascade;
+
+drop table if exists compservice.registration_period cascade;
+
+drop table if exists compservice.registration_group cascade;
+
+drop table if exists compservice.reg_group_reg_period cascade;
+
+drop table if exists compservice.schedule_period cascade;
+
+drop table if exists compservice.mat_schedule_container cascade;
+
+drop table if exists compservice.schedule_period_properties cascade;
+
+drop table if exists compservice.category_descriptor_restriction cascade;
+
+drop table if exists compservice.competitor_categories cascade;
+
+drop table if exists compservice.schedule_entries cascade;
+
+drop table if exists compservice.stage_descriptor cascade;
+
+drop table if exists compservice.fight_description cascade;
+
+drop table if exists compservice.comp_score cascade;
+
+drop table if exists compservice.fight_start_times cascade;
+
+drop table if exists compservice.points_assignment_descriptor cascade;
+
+drop table if exists compservice.stage_input_descriptor cascade;
+
+drop table if exists compservice.registration_group_categories cascade;
+
+drop table if exists compservice.competitor_selector cascade;
+
+drop table if exists compservice.competitor_selector_selector_value cascade;
+
+drop table if exists compservice.competitor_stage_result cascade;
 
 create table compservice.category_restriction
 (
@@ -19,16 +74,16 @@ create table compservice.competition_properties
         constraint competition_properties_pkey
             primary key,
     brackets_published          boolean      not null,
-    competition_name            varchar(255),
+    competition_name            varchar(255) not null,
     creation_timestamp          bigint       not null,
-    creator_id                  varchar(255),
+    creator_id                  varchar(255) not null,
     email_notifications_enabled boolean,
     email_template              varchar(255),
-    end_date                    timestamp,
+    end_date                    timestamp not null,
     schedule_published          boolean      not null,
-    start_date                  timestamp,
-    time_zone                   varchar(255),
-    status                      integer,
+    start_date                  timestamp not null,
+    time_zone                   varchar(255) not null,
+    status                      integer not null,
     competition_image         oid,
     competition_info_template oid
 );
@@ -167,7 +222,7 @@ create table compservice.reg_group_reg_period
 create table compservice.schedule_period
 (
     id             varchar(255) not null
-        constraint period_pkey
+        constraint schedule_period_pkey
             primary key,
     name           varchar(255),
     number_of_mats integer      not null,
@@ -191,7 +246,7 @@ create table compservice.mat_schedule_container
 create table compservice.schedule_period_properties
 (
     id                  varchar(255) not null
-        constraint period_properties_pkey
+        constraint schedule_period_properties_pkey
             primary key,
     name                varchar(255),
     number_of_mats      integer      not null,

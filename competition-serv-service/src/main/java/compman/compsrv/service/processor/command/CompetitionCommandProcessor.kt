@@ -246,6 +246,12 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                             if (newProperties.endDate == null) {
                                 newProperties.endDate = Instant.now()
                             }
+                            if (newProperties.creationTimestamp == null) {
+                                newProperties.creationTimestamp = System.currentTimeMillis()
+                            }
+                            if (newProperties.status == null) {
+                                newProperties.status = CompetitionStatus.CREATED
+                            }
                             if (newProperties.timeZone.isNullOrBlank() || newProperties.timeZone == "null") {
                                 newProperties.timeZone = ZoneId.systemDefault().id
                             }

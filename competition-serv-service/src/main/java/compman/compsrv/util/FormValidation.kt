@@ -3,9 +3,11 @@ package compman.compsrv.util
 import arrow.Kind
 import arrow.core.*
 import arrow.core.extensions.either.applicativeError.applicativeError
+import arrow.core.extensions.either.applicativeError.raiseError
 import arrow.core.extensions.nonemptylist.semigroup.semigroup
 import arrow.core.extensions.validated.applicativeError.applicativeError
 import arrow.typeclasses.ApplicativeError
+import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
 import compman.compsrv.model.dto.competition.CategoryRestrictionDTO
 import compman.compsrv.model.dto.competition.CategoryRestrictionType
 
@@ -33,6 +35,7 @@ sealed class Rules<F>(A: ApplicativeError<F, Nel<ValidationError>>) : Applicativ
 
     private fun CategoryRestrictionDTO.validateMinValue(): Kind<F, CategoryRestrictionDTO> =
             isNumericOrNull(minValue, type).map { this }
+
 
     private fun CategoryRestrictionDTO.nameMaxLength(maxLength: Int): Kind<F, CategoryRestrictionDTO> =
             if (name != null && name.length <= maxLength) just(this)

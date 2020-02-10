@@ -639,7 +639,8 @@ class JooqQueries(private val create: DSLContext) {
                                     CompetitionProperties.COMPETITION_PROPERTIES.EMAIL_TEMPLATE,
                                     CompetitionProperties.COMPETITION_PROPERTIES.CREATOR_ID,
                                     CompetitionProperties.COMPETITION_PROPERTIES.TIME_ZONE,
-                                    CompetitionProperties.COMPETITION_PROPERTIES.STATUS
+                                    CompetitionProperties.COMPETITION_PROPERTIES.STATUS,
+                                    CompetitionProperties.COMPETITION_PROPERTIES.CREATION_TIMESTAMP
                             )
                                     .values(state.properties?.id,
                                             state.properties?.competitionName,
@@ -651,15 +652,16 @@ class JooqQueries(private val create: DSLContext) {
                                             state.properties?.emailTemplate,
                                             state.properties?.creatorId,
                                             state.properties?.timeZone,
-                                            state.properties?.status?.ordinal)
+                                            state.properties?.status?.ordinal,
+                                            state.properties?.creationTimestamp)
                     ) +
-                            state.properties.staffIds.map {
+                            (state.properties.staffIds?.map {
                                 create.insertInto(CompetitionPropertiesStaffIds.COMPETITION_PROPERTIES_STAFF_IDS,
                                         CompetitionPropertiesStaffIds.COMPETITION_PROPERTIES_STAFF_IDS.COMPETITION_PROPERTIES_ID,
                                         CompetitionPropertiesStaffIds.COMPETITION_PROPERTIES_STAFF_IDS.STAFF_ID)
                                         .values(state.properties.id, it)
-                            } +
-                            state.properties.promoCodes.map { promo ->
+                            } ?: emptyList()) +
+                            (state.properties.promoCodes?.map { promo ->
                                 create.insertInto(PromoCode.PROMO_CODE,
                                         PromoCode.PROMO_CODE.ID,
                                         PromoCode.PROMO_CODE.COEFFICIENT,
@@ -667,7 +669,7 @@ class JooqQueries(private val create: DSLContext) {
                                         PromoCode.PROMO_CODE.EXPIRE_AT,
                                         PromoCode.PROMO_CODE.START_AT)
                                         .values(promo.id, promo.coefficient, promo.competitionId, promo.expireAt?.toTimestamp(), promo.startAt?.toTimestamp())
-                            }
+                            } ?: emptyList())
             ).execute()
         }
     }

@@ -47,6 +47,7 @@ spring:
       transaction-id-prefix: tx-
   flyway:
     enabled: true
+    schemas: compservice
 
 server:
   servlet.context-path: /competitions
