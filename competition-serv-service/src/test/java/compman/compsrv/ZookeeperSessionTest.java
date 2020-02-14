@@ -42,6 +42,7 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.Properties;
 
+@Ignore
 @RunWith(SpringRunner.class)
 @WebMvcTest(value = RestApi.class)
 @ActiveProfiles("mongo-embed")
@@ -50,7 +51,6 @@ import java.util.Properties;
 public final class ZookeeperSessionTest {
 
     private static ObjectMapper mapper = ObjectMapperFactory.INSTANCE.createObjectMapper();
-
 
     public static class RandomPortInitailizer
             implements ApplicationContextInitializer<ConfigurableApplicationContext> {
