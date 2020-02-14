@@ -3,10 +3,11 @@ package compman.compsrv.service.resolver
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.kafka.serde.EventDeserializer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
+import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.service.CompetitionCleaner
-import compman.compsrv.service.CompetitionStateService
+import compman.compsrv.service.ICommandProcessingService
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.consumer.KafkaConsumer
@@ -24,7 +25,7 @@ import java.util.*
 
 @Component
 class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
-                               private val competitionStateService: CompetitionStateService,
+                               private val competitionStateService: ICommandProcessingService<CommandDTO, EventDTO>,
                                private val clusterSesion: ClusterSession,
                                private val competitionCleaner: CompetitionCleaner) {
 
@@ -59,16 +60,20 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                     var records: List<ConsumerRecord<String, EventDTO>>?
                     var competitionCreated = false
                     do {
-                        val result = cons.poll(Duration.of(10, ChronoUnit.SECONDS))
+                        val result = cons.poll(Duration.of(200, ChronoUnit.MILLIS))
                         records = result?.records(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME)?.toList()
                                 ?: emptyList()
                         if (!competitionCreated) {
-                            val createdEvent = records.filter { it.key() == competitionId }.find { it.value()?.type == EventType.COMPETITION_CREATED }
+                            val recSequence = records.asSequence()
+                                    .filter { it.key() == competitionId }
+                            val createdEvent = recSequence
+                                    .find { it.value()?.type == EventType.COMPETITION_CREATED }
                             if (createdEvent != null) {
                                 log.info("Yay! Found the 'COMPETITION_CREATED' event for $competitionId !")
                                 competitionCreated = true
                                 competitionStateService.apply(createdEvent.value())
-                                val events = records.filter { it.key() == competitionId && it.value()?.type != EventType.COMPETITION_CREATED }.map { it.value() }.toList()
+                                log.info("Finished applying 'COMPETITION_CREATED' event for $competitionId")
+                                val events = recSequence.filter { it.value()?.type != EventType.COMPETITION_CREATED }.map { it.value() }.toList()
                                 log.debug("Applying batch events: ${events.joinToString("\n")}")
                                 competitionStateService.batchApply(events)
                             } else {
@@ -80,6 +85,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                             log.info("Applying batch events: ${events.joinToString("\n")}")
                             competitionStateService.batchApply(events)
                         }
+                        cons.commitSync()
                     } while (!records.isNullOrEmpty())
                     if (competitionCreated) {
                         log.info("We have initialized the state from the first event to the last for $competitionId")

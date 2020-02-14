@@ -10,10 +10,10 @@ import lombok.experimental.Accessors;
 @NoArgsConstructor
 @Accessors(chain = true)
 public class CompetitorResultDTO {
-    private String id;
     private String competitorId;
     private Integer points;
     private Integer round;
     private Integer place;
+    private String stageId;
     private String groupId;
 }

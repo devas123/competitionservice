@@ -1,5 +1,6 @@
 package compman.compsrv.config
 
+import com.compmanager.compservice.jooq.tables.daos.CompetitionPropertiesDao
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.kafka.serde.CommandDeserializer
 import compman.compsrv.kafka.serde.CommandSerializer
@@ -8,8 +9,7 @@ import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.repository.CompetitionStateRepository
-import compman.compsrv.service.CompetitionStateService
+import compman.compsrv.service.ICommandProcessingService
 import compman.compsrv.service.resolver.CompetitionStateResolver
 import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -21,7 +21,7 @@ import org.springframework.boot.autoconfigure.kafka.ConcurrentKafkaListenerConta
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.Primary
+import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory
 import org.springframework.kafka.core.*
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer
@@ -29,7 +29,6 @@ import org.springframework.kafka.listener.ContainerProperties
 import org.springframework.kafka.listener.DefaultAfterRollbackProcessor
 import org.springframework.kafka.transaction.ChainedKafkaTransactionManager
 import org.springframework.kafka.transaction.KafkaTransactionManager
-import org.springframework.orm.jpa.JpaTransactionManager
 import org.springframework.util.backoff.FixedBackOff
 import java.util.*
 
@@ -115,7 +114,7 @@ class KafkaStreamsConfiguration {
 
     @Bean
     fun chainedTm(ktm: KafkaTransactionManager<String, EventDTO>,
-                  dstm: JpaTransactionManager): ChainedKafkaTransactionManager<Any, Any> {
+                  dstm: DataSourceTransactionManager): ChainedKafkaTransactionManager<Any, Any> {
         return ChainedKafkaTransactionManager(dstm, ktm)
     }
 
@@ -151,9 +150,9 @@ class KafkaStreamsConfiguration {
 
 
     @Bean
-    fun commandTransformer(competitionStateService: CompetitionStateService,
+    fun commandTransformer(competitionStateService: ICommandProcessingService<CommandDTO, EventDTO>,
                            objectMapper: ObjectMapper,
-                           competitionStateRepository: CompetitionStateRepository,
+                           competitionStateRepository: CompetitionPropertiesDao,
                            competitionStateResolver: CompetitionStateResolver) = CompetitionCommandTransformer(competitionStateService,
             competitionStateRepository,
             competitionStateResolver,

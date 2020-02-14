@@ -1,22 +1,19 @@
 package compman.compsrv.service
 
-import compman.compsrv.jpa.competition.Competitor
-import compman.compsrv.jpa.competition.FightDescription
-import compman.compsrv.jpa.competition.FightResult
-import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.dto.brackets.CompetitorResultType
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.brackets.StageStatus
-import compman.compsrv.repository.CategoryDescriptorCrudRepository
+import compman.compsrv.model.dto.competition.CompetitorDTO
+import compman.compsrv.model.dto.competition.FightDescriptionDTO
+import compman.compsrv.model.dto.competition.FightResultDTO
+import compman.compsrv.util.copy
+import compman.compsrv.util.pushCompetitor
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.ArgumentMatchers
-import org.mockito.Mockito
-import org.mockito.Mockito.mock
 import org.mockito.junit.MockitoJUnitRunner
 import org.slf4j.LoggerFactory
-import java.util.*
+import java.math.BigDecimal
 import kotlin.random.Random
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -25,20 +22,19 @@ import kotlin.test.assertTrue
 
 @RunWith(MockitoJUnitRunner::class)
 class FightsGenerateServiceTest {
-    private val crudRepo = mock(CategoryDescriptorCrudRepository::class.java)!!
-    private val fightsGenerateService = FightsGenerateService(crudRepo)
+    private val fightsGenerateService = FightsGenerateService()
 
+    private val duration = BigDecimal.valueOf(8)
     companion object {
         const val competitionId = "UG9wZW5nYWdlbiBPcGVu"
         const val categoryId = "UG9wZW5nYWdlbiBPcGVu-UG9wZW5nYWdlbiBPcGVu"
         const val stageId = "asoifjqwoijqwoijqpwtoj2j12-j1fpasoj"
-        val category = CategoryGeneratorService.createCategory(8, CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.brown).toEntity(competitionId) { null }
+        val category = CategoryGeneratorService.createCategory(8, CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.brown)
         private val log = LoggerFactory.getLogger(FightsGenerateServiceTest::class.java)
     }
 
-    private fun generateEmptyWinnerFights(compsSize: Int): List<FightDescription> {
-        Mockito.`when`(crudRepo.findById(ArgumentMatchers.anyString())).thenReturn(Optional.of(category))
-        val fights = fightsGenerateService.generateEmptyWinnerRoundsForCategory(competitionId, categoryId, stageId, compsSize)
+    private fun generateEmptyWinnerFights(compsSize: Int): List<FightDescriptionDTO> {
+        val fights = fightsGenerateService.generateEmptyWinnerRoundsForCategory(competitionId, categoryId, stageId, compsSize, duration)
         assertNotNull(fights)
         return fights
     }
@@ -73,7 +69,7 @@ class FightsGenerateServiceTest {
         assertTrue { fights.filter { it.round != 0 }.none { it.parentId1 == null || it.parentId2 == null } }
         assertTrue { fights.filter { it.round == 3 }.none { it.winFight != null } }
         assertTrue { fights.filter { it.round != 3 }.none { it.winFight == null } }
-        val doubleEliminationBracketFights = fightsGenerateService.generateLoserBracketAndGrandFinalForWinnerBracket(competitionId, categoryId, stageId, fights, true)
+        val doubleEliminationBracketFights = fightsGenerateService.generateLoserBracketAndGrandFinalForWinnerBracket(competitionId, categoryId, stageId, fights, duration, true)
         log.info("${doubleEliminationBracketFights.size}")
         log.info(doubleEliminationBracketFights.joinToString("\n"))
         assertEquals(30, doubleEliminationBracketFights.size)
@@ -120,7 +116,7 @@ class FightsGenerateServiceTest {
         val fights = generateEmptyWinnerFights(14)
         val competitors = FightsGenerateService.generateRandomCompetitorsForCategory(14, 20, category, competitionId)
         val fightsWithCompetitors = fightsGenerateService.distributeCompetitors(competitors, fights, BracketType.SINGLE_ELIMINATION)
-        fun generateFightResult(fight: FightDescription): Pair<FightDescription, Competitor?> {
+        fun generateFightResult(fight: FightDescriptionDTO): Pair<FightDescriptionDTO, CompetitorDTO?> {
             val scores = fight.scores?.toList()
              val competitor = when (scores?.size) {
                 2 -> {
@@ -133,10 +129,10 @@ class FightsGenerateServiceTest {
                    null
                 }
             }
-            return fight.copy(fightResult = competitor?.let { FightResult(competitor.id, CompetitorResultType.values()[Random.nextInt(3)], "bla bla bla") }) to competitor
+            return fight.copy(fightResult = competitor?.let { FightResultDTO(it.id, CompetitorResultType.values()[Random.nextInt(3)], "bla bla bla") }) to competitor
         }
-        fun processBracketsRound(roundFights: List<FightDescription>): List<Pair<FightDescription, Competitor?>> = roundFights.map { generateFightResult(it) }
-        fun fillNextRound(previousRoundResult: List<Pair<FightDescription, Competitor?>>, nextRoundFights: List<FightDescription>): List<FightDescription> {
+        fun processBracketsRound(roundFights: List<FightDescriptionDTO>): List<Pair<FightDescriptionDTO, CompetitorDTO?>> = roundFights.map { generateFightResult(it) }
+        fun fillNextRound(previousRoundResult: List<Pair<FightDescriptionDTO, CompetitorDTO?>>, nextRoundFights: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
             return previousRoundResult.fold(nextRoundFights) { acc, pf ->
                 val updatedFight = pf.second?.let { acc.first { f -> f.id == pf.first.winFight }.pushCompetitor(it) }
                         ?: acc.first { f -> f.id == pf.first.winFight }
@@ -144,7 +140,7 @@ class FightsGenerateServiceTest {
             }
         }
 
-        val filledFights = fightsWithCompetitors.groupBy { it.round!! }.toList().sortedBy { it.first }.fold(emptyList<Pair<FightDescription, Competitor?>>() to emptyList<FightDescription>()) { acc, pair ->
+        val filledFights = fightsWithCompetitors.groupBy { it.round!! }.toList().sortedBy { it.first }.fold(emptyList<Pair<FightDescriptionDTO, CompetitorDTO?>>() to emptyList<FightDescriptionDTO>()) { acc, pair ->
             val processedFights = if (acc.first.isEmpty() && pair.first == 0) {
                 //this is first round
                 processBracketsRound(pair.second)

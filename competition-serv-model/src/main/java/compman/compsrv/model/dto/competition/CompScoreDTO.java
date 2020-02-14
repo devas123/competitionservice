@@ -6,7 +6,7 @@ import lombok.experimental.Accessors;
 @Data
 @Accessors(chain = true)
 public class CompScoreDTO {
-    private String id;
     private CompetitorDTO competitor;
     private ScoreDTO score;
+    private Integer order;
 }

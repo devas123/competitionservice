@@ -13,21 +13,39 @@
 
     <properties>
         <scalecube.version>2.4.10-RC9</scalecube.version>
-        <flyway-core.version>6.1.4</flyway-core.version>
-        <flyway-maven-plugin.version>6.1.4</flyway-maven-plugin.version>
         <!-- Properties are prefixed with flyway. -->
         <flyway.user>postgres</flyway.user>
         <flyway.password>admin</flyway.password>
         <flyway.url>jdbc:postgresql://localhost:5432/postgres?serverTimezone=UTC</flyway.url>
-<!--        <flyway.locations>/db/migration</flyway.locations>-->
+        <!--        <flyway.locations>/db/migration</flyway.locations>-->
 
         <!-- List are defined as comma-separated values -->
-        <flyway.schemas>public</flyway.schemas>
-        <flyway.defaultSchema>public</flyway.defaultSchema>
+        <flyway.schemas>compservice</flyway.schemas>
+        <jooq.version>3.12.4</jooq.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <h2.version>1.4.200</h2.version>
+        <jooq.output.dir>${project.build.directory}/generated-sources/jooq</jooq.output.dir>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers</artifactId>
+                <version>1.12.5</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>1.12.5</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.modelmapper</groupId>
+                <artifactId>modelmapper</artifactId>
+                <version>2.3.0</version>
+            </dependency>
             <dependency>
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
@@ -48,10 +66,30 @@
                 <artifactId>asm</artifactId>
                 <version>7.1</version>
             </dependency>
+            <dependency>
+                <groupId>org.jooq</groupId>
+                <artifactId>jooq</artifactId>
+                <version>${jooq.version}</version>
+                <scope>compile</scope>
+                <exclusions>
+                    <exclusion>
+                        <artifactId>javax.activation-api</artifactId>
+                        <groupId>javax.activation</groupId>
+                    </exclusion>
+                    <exclusion>
+                        <artifactId>jaxb-api</artifactId>
+                        <groupId>javax.xml.bind</groupId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
     <dependencies>
+        <dependency>
+            <groupId>org.modelmapper</groupId>
+            <artifactId>modelmapper</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.hibernate</groupId>
             <artifactId>hibernate-jcache</artifactId>
@@ -64,7 +102,6 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
-            <version>${flyway-core.version}</version>
         </dependency>
         <dependency>
             <groupId>io.arrow-kt</groupId>
@@ -114,10 +151,25 @@
             <artifactId>interfaces</artifactId>
         </dependency>
         <!-- JPA Data (We are going to use Repositories, Entities, Hibernate, etc...) -->
-
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <artifactId>spring-boot-starter-jooq</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.jooq</groupId>
+                    <artifactId>jooq</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-commons</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jooq</groupId>
+            <artifactId>jooq</artifactId>
         </dependency>
 
         <dependency>
@@ -256,6 +308,16 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka-streams</artifactId>
             <version>${kafka.version}</version>
@@ -311,10 +373,66 @@
             <plugin>
                 <groupId>org.flywaydb</groupId>
                 <artifactId>flyway-maven-plugin</artifactId>
-                <version>${flyway-maven-plugin.version}</version>
                 <configuration>
                     <encoding>UTF-8</encoding>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.jooq</groupId>
+                <artifactId>jooq-codegen-maven</artifactId>
+                <version>${jooq.version}</version>
+                <executions>
+                    <execution>
+                        <id>java-generator</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <logging>TRACE</logging>
+                            <generator>
+                                <database>
+                                    <name>org.jooq.meta.extensions.ddl.DDLDatabase</name>
+                                    <inputSchema>COMPSERVICE</inputSchema>
+                                    <properties>
+                                        <property>
+                                            <key>sort</key>
+                                            <value>flyway</value>
+                                        </property>
+                                        <property>
+                                            <key>scripts</key>
+                                            <value>${basedir}/src/main/resources/db/migration/*</value>
+                                        </property>
+                                    </properties>
+                                </database>
+                                <generate>
+                                    <deprecated>false</deprecated>
+                                    <springAnnotations>true</springAnnotations>
+                                    <instanceFields>true</instanceFields>
+                                    <pojos>true</pojos>
+                                    <daos>true</daos>
+                                </generate>
+                                <target>
+                                    <packageName>com.compmanager.compservice.jooq</packageName>
+                                    <directory>${jooq.output.dir}</directory>
+                                </target>
+                            </generator>
+                        </configuration>
+                    </execution>
+                </executions>
+
+                <dependencies>
+                    <dependency>
+                        <groupId>com.h2database</groupId>
+                        <artifactId>h2</artifactId>
+                        <version>${h2.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.jooq</groupId>
+                        <artifactId>jooq-meta-extensions</artifactId>
+                        <version>${jooq.version}</version>
+                    </dependency>
+                </dependencies>
             </plugin>
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>

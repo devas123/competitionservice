@@ -3,6 +3,7 @@ package compman.compsrv.service
 import compman.compsrv.cluster.ClusterMember
 import compman.compsrv.model.CommonResponse
 import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
@@ -45,9 +46,8 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
 
     @RequestMapping("/store/categorystate", method = [RequestMethod.GET])
     fun getCategoryState(@RequestParam("competitionId") competitionId: String, @RequestParam("categoryId") categoryId: String): Any? {
-        val state = stateQueryService.getCategoryState(
+        return stateQueryService.getCategoryState(
                 competitionId, categoryId)
-        return state?.setBrackets(state.brackets?.setStages(state.brackets.stages))
     }
 
     @RequestMapping("/store/mats", method = [RequestMethod.GET])
@@ -63,6 +63,11 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     @RequestMapping("/store/stagefights", method = [RequestMethod.GET])
     fun getStageFights(@RequestParam("competitionId") competitionId: String, @RequestParam("stageId") stageId: String): List<FightDescriptionDTO> {
         return stateQueryService.getStageFights(competitionId, stageId)?.toList() ?: emptyList()
+    }
+
+    @RequestMapping("/store/stages", method = [RequestMethod.GET])
+    fun getCategoryStages(@RequestParam("competitionId") competitionId: String, @RequestParam("categoryId") categoryId: String): Array<StageDescriptorDTO> {
+        return stateQueryService.getStages(competitionId, categoryId) ?: emptyArray()
     }
 
     @RequestMapping("/store/competitors", method = [RequestMethod.GET])
@@ -88,12 +93,8 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     @RequestMapping("/store/comprops", method = [RequestMethod.GET])
     fun getCompetitionProperties(@RequestParam("competitionId") competitionId: String?): CompetitionPropertiesDTO? {
         log.info("looking for the competition properties for competition $competitionId")
-        return stateQueryService.getCompetitionProperties(competitionId)
+        return competitionId?.let { stateQueryService.getCompetitionProperties(it) }
     }
-
-    @RequestMapping("/store/competitionstate", method = [RequestMethod.GET])
-    fun getCompetitionState(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionState(competitionId)
-
     @RequestMapping("/store/infotemplate", method = [RequestMethod.GET])
     fun getCompetitionInfo(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionInfoTemplate(competitionId)
 

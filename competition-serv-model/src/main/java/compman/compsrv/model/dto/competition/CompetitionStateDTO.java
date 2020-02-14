@@ -9,10 +9,9 @@ import lombok.experimental.Accessors;
 @NoArgsConstructor
 @Accessors(chain = true)
 public class CompetitionStateDTO {
-    private String competitionId;
+    private String id;
     private CategoryStateDTO[] categories;
     private CompetitionPropertiesDTO properties;
     private ScheduleDTO schedule;
     private CompetitionDashboardStateDTO dashboardState;
-    private CompetitionStatus status;
 }

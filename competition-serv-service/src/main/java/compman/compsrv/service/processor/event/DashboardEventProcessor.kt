@@ -1,68 +1,66 @@
 package compman.compsrv.service.processor.event
 
+import arrow.core.Tuple4
+import com.compmanager.compservice.jooq.tables.daos.CompScoreDao
+import com.compmanager.compservice.jooq.tables.pojos.CompScore
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.mapping.toEntity
 import compman.compsrv.model.commands.payload.SetFightResultPayload
 import compman.compsrv.model.dto.competition.CompScoreDTO
-import compman.compsrv.model.dto.competition.FightStage
+import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.DashboardFightOrderChangedPayload
 import compman.compsrv.model.events.payload.FightCompetitorsAssignedPayload
-import compman.compsrv.repository.*
-import compman.compsrv.util.createErrorEvent
+import compman.compsrv.model.events.payload.StageResultSetPayload
+import compman.compsrv.model.exceptions.EventApplyingException
+import compman.compsrv.repository.JdbcRepository
+import compman.compsrv.repository.JooqQueries
 import compman.compsrv.util.getPayloadAs
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 @Component
-class DashboardEventProcessor(private val competitionStateCrudRepository: CompetitionStateCrudRepository,
-                              private val scheduleCrudRepository: ScheduleCrudRepository,
-                              private val competitorCrudRepository: CompetitorCrudRepository,
-                              private val stageDescriptorCrudRepository: StageDescriptorCrudRepository,
-                              private val compScoreCrudRepository: CompScoreCrudRepository,
-                              private val categoryDescriptorCrudRepository: CategoryDescriptorCrudRepository,
-                              private val fightCrudRepository: FightCrudRepository,
-                              private val registrationGroupCrudRepository: RegistrationGroupCrudRepository,
-                              private val registrationPeriodCrudRepository: RegistrationPeriodCrudRepository,
-                              private val registrationInfoCrudRepository: RegistrationInfoCrudRepository,
+class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
+                              private val jooqQueries: JooqQueries,
+                              private val jdbcRepository: JdbcRepository,
                               private val mapper: ObjectMapper) : IEventProcessor {
     override fun affectedEvents(): Set<EventType> {
         return setOf(EventType.DASHBOARD_FIGHT_ORDER_CHANGED,
                 EventType.DASHBOARD_FIGHT_RESULT_SET,
-                EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED
+                EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED,
+                EventType.DASHBOARD_STAGE_RESULT_SET
         )
-    }
-
-    companion object {
-        private val log = LoggerFactory.getLogger(DashboardEventProcessor::class.java)
     }
 
     override fun applyEvent(event: EventDTO): List<EventDTO> {
         return when (event.type) {
+            EventType.DASHBOARD_STAGE_RESULT_SET -> {
+                val payload = mapper.getPayloadAs(event, StageResultSetPayload::class.java)
+                if (payload != null && !payload.stageId.isNullOrBlank() && !payload.results.isNullOrEmpty()) {
+                    jooqQueries.saveCompetitorResults(payload.results.toList())
+                    listOf(event)
+                } else {
+                    throw EventApplyingException("stage ID is not provided.", event)
+                }
+            }
             EventType.DASHBOARD_FIGHT_ORDER_CHANGED -> {
                 val payload = mapper.getPayloadAs(event, DashboardFightOrderChangedPayload::class.java)
                 if (payload != null && !payload.changedFights.isNullOrEmpty()) {
-                    payload.changedFights.forEach { cf ->
-                        fightCrudRepository.updateStartTimeAndMatAndNumberOnMatById(cf.fightId, cf.newStartTime, cf.newMatId, cf.newOrderOnMat)
-                    }
+                    jdbcRepository.batchUpdateStartTimeAndMatAndNumberOnMatById(payload.changedFights.map { cf ->
+                        Tuple4(cf.fightId, cf.newStartTime, cf.newMatId, cf.newOrderOnMat)
+                    })
                     listOf(event)
                 } else {
-                    log.error("Change fights are empty.")
-                    listOf(mapper.createErrorEvent(event, "Change fights are empty. $payload"))
+                    throw EventApplyingException("Change fights are empty. $payload", event)
                 }
             }
             EventType.DASHBOARD_FIGHT_RESULT_SET -> {
                 val payload = mapper.getPayloadAs(event, SetFightResultPayload::class.java)
                 if (payload != null && !payload.fightId.isNullOrBlank() && payload.fightResult != null && !payload.scores.isNullOrEmpty()) {
-                    payload.scores?.forEach { compScore -> compScoreCrudRepository.updateCompScore(compScore.id, compScore.score.points, compScore.score.advantages, compScore.score.penalties) }
-                    val fight = fightCrudRepository.getOne(payload.fightId!!)
-                    fight.fightResult = payload.fightResult.toEntity()
-                    fight.stage = FightStage.FINISHED
+                    jooqQueries.updateFightResult(payload.fightId!!, payload.scores.toList(), payload.fightResult, FightStatus.FINISHED)
                     listOf(event)
                 } else {
-                    log.error("Not enough information in the payload. $payload")
-                    listOf(mapper.createErrorEvent(event, "Not enough information in the payload. $payload"))
+                    throw EventApplyingException("Not enough information in the payload. $payload", event)
                 }
             }
             EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED -> {
@@ -71,8 +69,7 @@ class DashboardEventProcessor(private val competitionStateCrudRepository: Compet
                     setCompScores(payload.fightId!!, payload.compscores!!)
                     listOf(event)
                 } else {
-                    log.error("Not enough information in the payload. $payload")
-                    listOf(mapper.createErrorEvent(event, "Not enough information in the payload. $payload"))
+                    throw EventApplyingException("Not enough information in the payload. $payload", event)
                 }
 
             }
@@ -81,35 +78,17 @@ class DashboardEventProcessor(private val competitionStateCrudRepository: Compet
     }
 
     private fun setCompScores(fightId: String, compScores: Array<CompScoreDTO>) {
-        val fight = fightCrudRepository.getOne(fightId)
-        if (fight.scores == null) {
-            fight.scores = mutableListOf()
-        }
-        fun saveCompScore(compScore: CompScoreDTO, index: Int, fightId: String) {
-            compScoreCrudRepository.insertCompScore(compScore.id, compScore.score.advantages, compScore.score.penalties, compScore.score.points, compScore.competitor.id, fightId, index)
-        }
-
-        val existingScores = fight.scores!!
+        val existingScores = compScoreCrudRepository.fetchByCompscoreFightDescriptionId(fightId)
         if (existingScores.size < 2) {
-            val scores = compScores.filter { cs -> existingScores.none { it.competitor.id == cs.competitor.id } }
+            val scores = compScores.filter { cs -> existingScores.none { it.compscoreCompetitorId == cs.competitor.id } }
             if (!compScores.isNullOrEmpty()) {
-                when {
-                    fight.scores!!.isEmpty() -> {
-                        scores.forEachIndexed { index, compScore ->
-                            saveCompScore(compScore, index, fightId)
-                        }
-                    }
-                    fight.scores!![0] == null -> {
-                        saveCompScore(scores.first(), 0, fightId)
-                    }
-                    else -> {
-                        saveCompScore(scores.first(), 1, fightId)
-                    }
-                }
+                compScoreCrudRepository.insert(
+                        scores.map { compScore ->
+                            CompScore(compScore.score.advantages, compScore.score.penalties, compScore.score.points, compScore.competitor.id, fightId, compScore.order)
+                        })
             }
-            fightCrudRepository.save(fight)
         } else {
-            throw IllegalStateException("Trying to set competitor to fight that is already packed. $fight")
+            throw IllegalStateException("Trying to set competitor to fight that is already packed. $existingScores")
         }
     }
 }

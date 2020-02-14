@@ -1,7 +1,5 @@
 package compman.compsrv.model.dto.competition;
 
-import compman.compsrv.model.dto.brackets.BracketDescriptorDTO;
-import compman.compsrv.model.dto.brackets.StageDescriptorDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -15,9 +13,6 @@ public class CategoryStateDTO {
     private String id;
     private String competitionId;
     private CategoryDescriptorDTO category;
-    private CategoryStatus status;
-    private BracketDescriptorDTO brackets;
     private Integer fightsNumber;
     private Integer numberOfCompetitors;
-    private CompetitorDTO[] competitors;
 }

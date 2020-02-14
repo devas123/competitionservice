@@ -7,14 +7,11 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.model.events.EventType
-import compman.compsrv.model.events.payload.ErrorEventPayload
 import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.createErrorEvent
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.springframework.context.annotation.Lazy
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
 import java.time.Duration
@@ -72,11 +69,10 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
             return kotlin.runCatching {
                 stateQueryService.localOrRemote(competitionId,
                         {
-                            val future = CompletableFuture<Array<EventDTO>>()
-                            commandCache.executeCommand(correlationId, future) {
+                            commandCache.executeCommand(correlationId, CompletableFuture()) {
                                 sendCommandAsync(command, competitionId, correlationId)
                             }
-                            val result = commandCache.waitForResult(future, Duration.ofSeconds(30))
+                            val result = commandCache.waitForResult(correlationId, Duration.ofSeconds(30))
                             result
                         },
                         { _, restTemplate, prefix ->
