@@ -279,7 +279,7 @@ create table compservice.category_descriptor_restriction
 (
     category_descriptor_id  varchar(255) not null
         constraint fkk8wjeh0jor53tmgwqf9ksnvh
-            references compservice.category_descriptor,
+            references compservice.category_descriptor on delete cascade,
     category_restriction_id varchar(255) not null
         constraint fkkrfbh806v4qi47vg3fatmcol0
             references compservice.category_restriction on delete cascade,

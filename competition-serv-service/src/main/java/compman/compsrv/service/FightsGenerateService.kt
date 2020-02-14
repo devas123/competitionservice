@@ -124,15 +124,21 @@ class FightsGenerateService {
 
         fun checkIfFightCanBePacked(fightId: String, getFight: (id: String) -> FightDescriptionDTO): Boolean {
             val fight = getFight(fightId)
-            return if (fight.scores!!.size >= 2) {
-                true
-            } else {
-                listOfNotNull(fight.parentId1, fight.parentId2)
-                        .map { it.referenceType to it.fightId?.let { id -> getFight(id) } }
-                        .filter { it.first != null && it.second != null }
-                        .filter { it.second!!.scores!!.none { sc -> fight.scores!!.any { fsc -> fsc.competitor.id == sc.competitor.id } } }
-                        .filter { checkIfFightCanProduceReference(it.second?.id!!, it.first!!, getFight) }
-                        .size + (fight.scores?.size ?: 0) >= 2
+            return when {
+                fight.scores.isNullOrEmpty() -> {
+                    false
+                }
+                fight.scores!!.size >= 2 -> {
+                    true
+                }
+                else -> {
+                    listOfNotNull(fight.parentId1, fight.parentId2)
+                            .map { it.referenceType to it.fightId?.let { id -> getFight(id) } }
+                            .filter { it.first != null && it.second != null }
+                            .filter { it.second!!.scores!!.none { sc -> fight.scores!!.any { fsc -> fsc.competitor.id == sc.competitor.id } } }
+                            .filter { checkIfFightCanProduceReference(it.second?.id!!, it.first!!, getFight) }
+                            .size + (fight.scores?.size ?: 0) >= 2
+                }
             }
         }
     }

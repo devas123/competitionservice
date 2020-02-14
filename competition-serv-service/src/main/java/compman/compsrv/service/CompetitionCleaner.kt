@@ -35,6 +35,8 @@ class CompetitionCleaner(
                 create.query("DELETE from ${CompScore.COMP_SCORE.render()} using ${Competitor.COMPETITOR.render()} where ${CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.render()} = ${Competitor.COMPETITOR.ID.render()} and ${Competitor.COMPETITOR.COMPETITION_ID.render()} = {0}", compIdField),
                 create.delete(Competitor.COMPETITOR)
                         .where(Competitor.COMPETITOR.COMPETITION_ID.equal(competitionId)),
+                create.delete(CategoryDescriptor.CATEGORY_DESCRIPTOR)
+                        .where(CategoryDescriptor.CATEGORY_DESCRIPTOR.COMPETITION_ID.equal(competitionId)),
                 create.delete(Event.EVENT)
                         .where(Event.EVENT.COMPETITION_ID.eq(competitionId))
         ).execute()
