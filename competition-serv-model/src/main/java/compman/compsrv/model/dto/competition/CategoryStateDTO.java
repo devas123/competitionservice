@@ -15,5 +15,4 @@ public class CategoryStateDTO {
     private CategoryDescriptorDTO category;
     private Integer fightsNumber;
     private Integer numberOfCompetitors;
-    private CompetitorDTO[] competitors;
 }

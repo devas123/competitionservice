@@ -33,6 +33,8 @@ sealed class Rules<F>(A: ApplicativeError<F, Nel<ValidationError>>) : Applicativ
     private fun CategoryRestrictionDTO.validateMaxValue(): Kind<F, CategoryRestrictionDTO> =
             isNumericOrNull(maxValue, type).map { this }
 
+
+
     private fun CategoryRestrictionDTO.validateMinValue(): Kind<F, CategoryRestrictionDTO> =
             isNumericOrNull(minValue, type).map { this }
 

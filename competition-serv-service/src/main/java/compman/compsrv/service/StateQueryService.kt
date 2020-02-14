@@ -7,6 +7,7 @@ import com.compmanager.compservice.jooq.tables.daos.*
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.mapping.toDTO
 import compman.compsrv.model.PageResponse
+import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
@@ -154,7 +155,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
                             .fetchSize(200)
                             .fetch()
 
-                    competitionPropertiesCrudRepository.findById(competitionId)
+                    val result = competitionPropertiesCrudRepository.findById(competitionId)
                             ?.toDTO(staffDao.fetchByCompetitionPropertiesId(competitionId)?.map { it.staffId }?.toTypedArray(),
                                     promoCodeDao.fetchByCompetitionId(competitionId)?.map { it.toDTO() }?.toTypedArray())
                             { regInfoId ->
@@ -201,6 +202,8 @@ class StateQueryService(private val clusterSession: ClusterSession,
                                             )
                                 }
                             }
+                    log.info("Found competition properties: $result")
+                    result
                 },
                 { address, restTemplate, urlPrefix ->
                     val url = "$urlPrefix/api/v1/store/comprops?competitionId=$competitionId"
@@ -217,7 +220,6 @@ class StateQueryService(private val clusterSession: ClusterSession,
         competitionId?.let { id ->
             var retries = 3
             do {
-                log.info("Looking for processing member for competition.")
                 val instanceAddress = clusterSession.findProcessingMember(competitionId)
                 log.info("Competition $id is processed by $instanceAddress")
                 instanceAddress?.let {
@@ -317,6 +319,17 @@ class StateQueryService(private val clusterSession: ClusterSession,
            jooq.fetchFightsByStageId(competitionId, stageId).collectList().block()?.toTypedArray()
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/stagefights?competitionId=$competitionId&stageId=$stageId", Array<FightDescriptionDTO>::class.java)
+        })
+
+    }
+
+    @Transactional
+    fun getStages(competitionId: String, categoryId: String): Array<StageDescriptorDTO>? {
+        log.info("Getting stages for $categoryId")
+        return localOrRemote(competitionId, {
+           jooq.fetchStagesForCategory(competitionId, categoryId).collectList().block()?.toTypedArray()
+        }, { _, restTemplate, urlPrefix ->
+            restTemplate.getForObject("$urlPrefix/api/v1/store/stages?competitionId=$competitionId&categoryId=$categoryId", Array<StageDescriptorDTO>::class.java)
         })
 
     }

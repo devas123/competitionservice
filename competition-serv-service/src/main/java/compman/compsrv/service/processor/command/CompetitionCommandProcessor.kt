@@ -132,7 +132,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                     listOf(createEvent(EventType.DASHBOARD_DELETED, command.competitionId))
                 }
                 CommandType.CREATE_DASHBOARD_COMMAND -> {
-                    val dashboardPeriods = dashboardPeriodDao.fetchByDashboardId(command.competitionId)
+                    val dashboardPeriods = dashboardPeriodDao.fetchByCompetitionId(command.competitionId)
                     if (dashboardPeriods.isNullOrEmpty()) {
                         val periods = periodDao.fetchByCompetitionId(command.competitionId)
                         if (!periods.isNullOrEmpty()) {

@@ -25,7 +25,6 @@ import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.boot.autoconfigure.web.ServerProperties
 import org.springframework.kafka.core.KafkaTemplate
 import java.time.Duration
-import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListSet
@@ -201,13 +200,13 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
         }
     } ?: run {
         log.info("Did not find processing instance for $competitionId, sending command to find the instance.")
-        val correlationId = UUID.randomUUID().toString()
-        val future = CompletableFuture<Array<EventDTO>>()
-        commandCache.executeCommand(correlationId, future) {
+        commandCache.executeCommand(competitionId, CompletableFuture()) {
             kafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId,
-                    CommandProducer.createSendProcessingInfoCommand(competitionId, correlationId)))
+                    CommandProducer.createSendProcessingInfoCommand(competitionId, competitionId)))
         }
-        kotlin.runCatching { commandCache.waitForResult(future, Duration.ofSeconds(30)) }.recover { e ->
+        kotlin.runCatching {
+            commandCache.waitForResult(competitionId, Duration.ofSeconds(30))
+        }.recover { e ->
             log.error("Error while executing competition info command", e)
             null
         }.map { arrayOfEventDTOs ->

@@ -11,6 +11,7 @@ import compman.compsrv.model.events.payload.*
 import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.JooqQueries
 import compman.compsrv.service.CompetitionCleaner
+import compman.compsrv.service.processor.command.CompetitionCommandProcessor
 import compman.compsrv.util.applyProperties
 import compman.compsrv.util.getPayloadFromString
 import org.slf4j.LoggerFactory
@@ -139,6 +140,7 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
                 EventType.COMPETITION_CREATED -> {
                     val payload = getPayloadAs(event.payload, CompetitionCreatedPayload::class.java)
                     payload?.properties?.let { props ->
+                        log.info("Creating competition: $props")
                         val state = CompetitionStateDTO().setId(props.id).setProperties(props)
                         jooqQueries.saveCompetitionState(state)
                     } ?: throw createError("Properties are missing.")

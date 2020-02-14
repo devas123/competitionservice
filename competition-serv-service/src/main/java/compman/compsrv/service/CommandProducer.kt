@@ -69,11 +69,10 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
             return kotlin.runCatching {
                 stateQueryService.localOrRemote(competitionId,
                         {
-                            val future = CompletableFuture<Array<EventDTO>>()
-                            commandCache.executeCommand(correlationId, future) {
+                            commandCache.executeCommand(correlationId, CompletableFuture()) {
                                 sendCommandAsync(command, competitionId, correlationId)
                             }
-                            val result = commandCache.waitForResult(future, Duration.ofSeconds(30))
+                            val result = commandCache.waitForResult(correlationId, Duration.ofSeconds(30))
                             result
                         },
                         { _, restTemplate, prefix ->

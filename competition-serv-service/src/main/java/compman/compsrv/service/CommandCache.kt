@@ -16,10 +16,11 @@ class CommandCache {
     private val log = LoggerFactory.getLogger(CommandCache::class.java)
 
     fun executeCommand(correlationId: String, future: CompletableFuture<Array<EventDTO>>, block: () -> Any): CompletableFuture<Array<EventDTO>>? {
-        log.info("Execute command $correlationId")
-        commands.put(correlationId, future)
-        block()
-        return future
+        return commands.get(correlationId) {
+            log.info("Execute command $correlationId")
+            block()
+            future
+        }
     }
 
     fun commandCallback(correlationId: String, events: Array<EventDTO>) {
@@ -27,8 +28,7 @@ class CommandCache {
         commands.getIfPresent(correlationId)?.complete(events) ?: log.trace("No callback handler for correlation id $correlationId")
     }
 
-    fun waitForResult(future: CompletableFuture<Array<EventDTO>>?, timeout: Duration): Array<EventDTO> {
-        log.info("WaitForResult")
-        return future?.get(timeout.toMillis(), TimeUnit.MILLISECONDS) ?: emptyArray()
+    fun waitForResult(correlationId: String, timeout: Duration): Array<EventDTO> {
+        return commands.getIfPresent(correlationId)?.get(timeout.toMillis(), TimeUnit.MILLISECONDS) ?: emptyArray()
     }
 }

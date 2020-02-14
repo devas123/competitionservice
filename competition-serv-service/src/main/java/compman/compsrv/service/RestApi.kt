@@ -3,6 +3,7 @@ package compman.compsrv.service
 import compman.compsrv.cluster.ClusterMember
 import compman.compsrv.model.CommonResponse
 import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
@@ -62,6 +63,11 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     @RequestMapping("/store/stagefights", method = [RequestMethod.GET])
     fun getStageFights(@RequestParam("competitionId") competitionId: String, @RequestParam("stageId") stageId: String): List<FightDescriptionDTO> {
         return stateQueryService.getStageFights(competitionId, stageId)?.toList() ?: emptyList()
+    }
+
+    @RequestMapping("/store/stages", method = [RequestMethod.GET])
+    fun getCategoryStages(@RequestParam("competitionId") competitionId: String, @RequestParam("categoryId") categoryId: String): Array<StageDescriptorDTO> {
+        return stateQueryService.getStages(competitionId, categoryId) ?: emptyArray()
     }
 
     @RequestMapping("/store/competitors", method = [RequestMethod.GET])

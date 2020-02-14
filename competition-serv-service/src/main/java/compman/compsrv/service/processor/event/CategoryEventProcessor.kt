@@ -2,7 +2,6 @@ package compman.compsrv.service.processor.event
 
 import com.compmanager.compservice.jooq.tables.daos.*
 import com.compmanager.compservice.jooq.tables.pojos.Competitor
-import com.compmanager.compservice.jooq.tables.pojos.StageDescriptor
 import com.compmanager.model.payment.RegistrationStatus
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.model.commands.payload.CategoryRegistrationStatusChangePayload
@@ -201,19 +200,8 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
         val stages = payload?.stages
         val categoryId = event.categoryId
         return if (stages != null && !categoryId.isNullOrBlank()) {
-            stageDescriptorCrudRepository.insert(stages.mapIndexedNotNull { index, stage ->
-                StageDescriptor().apply {
-                    this.id = stage.id
-                    this.bracketType = stage.bracketType?.ordinal
-                    this.categoryId = stage.categoryId
-                    this.competitionId = stage.competitionId
-                    this.hasThirdPlaceFight = stage.hasThirdPlaceFight
-                    this.name = stage.name
-                    this.stageOrder = index
-                    this.stageType = stage.stageType?.ordinal
-                    this.waitForPrevious = stage.waitForPrevious
-                }
-            })
+            jooqQueries.saveStages(stages.mapIndexedNotNull { index, stage ->
+                stage.setStageOrder(index) })
             jooqQueries.savePointsAssignments(stages.flatMap { it.pointsAssignments.toList() })
             jooqQueries.saveInputDescriptors(stages.mapNotNull { it.inputDescriptor })
             jooqQueries.saveResultDescriptors(stages.mapNotNull { it.stageResultDescriptor })

@@ -1,6 +1,5 @@
 package compman.compsrv.config
 
-import com.compmanager.compservice.jooq.tables.daos.EventDao
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics

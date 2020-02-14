@@ -1,6 +1,5 @@
 package compman.compsrv.service
 
-import com.compmanager.compservice.jooq.tables.daos.CategoryDescriptorDao
 import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.dto.brackets.CompetitorResultType
 import compman.compsrv.model.dto.brackets.StageRoundType
@@ -12,9 +11,9 @@ import compman.compsrv.util.copy
 import compman.compsrv.util.pushCompetitor
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.mock
 import org.mockito.junit.MockitoJUnitRunner
 import org.slf4j.LoggerFactory
+import java.math.BigDecimal
 import kotlin.random.Random
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -23,9 +22,9 @@ import kotlin.test.assertTrue
 
 @RunWith(MockitoJUnitRunner::class)
 class FightsGenerateServiceTest {
-    private val crudRepo = mock(CategoryDescriptorDao::class.java)!!
-    private val fightsGenerateService = FightsGenerateService(crudRepo)
+    private val fightsGenerateService = FightsGenerateService()
 
+    private val duration = BigDecimal.valueOf(8)
     companion object {
         const val competitionId = "UG9wZW5nYWdlbiBPcGVu"
         const val categoryId = "UG9wZW5nYWdlbiBPcGVu-UG9wZW5nYWdlbiBPcGVu"
@@ -35,7 +34,7 @@ class FightsGenerateServiceTest {
     }
 
     private fun generateEmptyWinnerFights(compsSize: Int): List<FightDescriptionDTO> {
-        val fights = fightsGenerateService.generateEmptyWinnerRoundsForCategory(competitionId, categoryId, stageId, compsSize)
+        val fights = fightsGenerateService.generateEmptyWinnerRoundsForCategory(competitionId, categoryId, stageId, compsSize, duration)
         assertNotNull(fights)
         return fights
     }
@@ -70,7 +69,7 @@ class FightsGenerateServiceTest {
         assertTrue { fights.filter { it.round != 0 }.none { it.parentId1 == null || it.parentId2 == null } }
         assertTrue { fights.filter { it.round == 3 }.none { it.winFight != null } }
         assertTrue { fights.filter { it.round != 3 }.none { it.winFight == null } }
-        val doubleEliminationBracketFights = fightsGenerateService.generateLoserBracketAndGrandFinalForWinnerBracket(competitionId, categoryId, stageId, fights, true)
+        val doubleEliminationBracketFights = fightsGenerateService.generateLoserBracketAndGrandFinalForWinnerBracket(competitionId, categoryId, stageId, fights, duration, true)
         log.info("${doubleEliminationBracketFights.size}")
         log.info(doubleEliminationBracketFights.joinToString("\n"))
         assertEquals(30, doubleEliminationBracketFights.size)

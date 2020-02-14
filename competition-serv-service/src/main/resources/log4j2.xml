@@ -14,6 +14,13 @@
         <logger name="org.springframework.web.filter.CommonsRequestLoggingFilter" level="WARN"/>
         <logger name="io.scalecube" level="INFO"/>
         <logger name="reactor.netty" level="INFO"/>
+        <logger name="org.jooq.tools.LoggerListener" level="info">
+            <AppenderRef ref="Console"/>
+        </logger>
+        <!-- Other jOOQ related debug log output -->
+        <logger name="org.jooq" level="info">
+            <AppenderRef ref="Console"/>
+        </logger>
         <Root level="INFO">
             <AppenderRef ref="Console"/>
         </Root>

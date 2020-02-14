@@ -13,6 +13,7 @@ import compman.compsrv.model.commands.payload.*
 import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.model.dto.brackets.StageType
+import compman.compsrv.model.dto.competition.CategoryRestrictionDTO
 import compman.compsrv.model.dto.competition.CategoryStateDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
@@ -55,9 +56,9 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
 
     override fun executeCommand(command: CommandDTO): List<EventDTO> {
         val events = commandsToHandlers[command.type]?.invoke(command) ?: run {
-                log.warn("Unknown command type: ${command.type}")
-                listOf(createErrorEvent(command, "Unknown command type: ${command.type}"))
-            }
+            log.warn("Unknown command type: ${command.type}")
+            listOf(createErrorEvent(command, "Unknown command type: ${command.type}"))
+        }
         return events.mapIndexed { _, eventDTO -> eventDTO.setId(IDGenerator.uid()) }
     }
 
@@ -124,9 +125,10 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         val payload = mapper.convertValue(command.payload, GenerateBracketsPayload::class.java)
         return if (!competitors.isNullOrEmpty()
                 && !payload?.stageDescriptors.isNullOrEmpty()) {
+            val duration = categoryCrudRepository.findById(command.categoryId).fightDuration!!
             val stages = payload.stageDescriptors.sortedBy { it.stageOrder }
             val updatedStages = stages.mapIndexed { ind, stage ->
-                val outputSize = when(stage.stageType) {
+                val outputSize = when (stage.stageType) {
                     StageType.PRELIMINARY -> stages[ind + 1].inputDescriptor.numberOfCompetitors!!
                     else -> 0
                 }
@@ -135,12 +137,13 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                 val fights = when (stage.bracketType) {
                     BracketType.SINGLE_ELIMINATION -> {
                         if (stage?.hasThirdPlaceFight == true) {
-                            fightsGenerateService.generateThirdPlaceFightForOlympicSystem(command.competitionId, command.categoryId, stageId, fightsGenerateService.generateEmptyWinnerRoundsForCategory(command.categoryId, command.competitionId, stageId, size))
+                            fightsGenerateService.generateThirdPlaceFightForOlympicSystem(command.competitionId, command.categoryId, stageId,
+                                    fightsGenerateService.generateEmptyWinnerRoundsForCategory(command.categoryId, command.competitionId, stageId, size, duration))
                         } else {
-                            fightsGenerateService.generateEmptyWinnerRoundsForCategory(command.competitionId, command.categoryId, stageId, size)
+                            fightsGenerateService.generateEmptyWinnerRoundsForCategory(command.competitionId, command.categoryId, stageId, size, duration)
                         }
                     }
-                    BracketType.DOUBLE_ELIMINATION -> fightsGenerateService.generateDoubleEliminationBracket(command.competitionId, command.categoryId, stageId, size)
+                    BracketType.DOUBLE_ELIMINATION -> fightsGenerateService.generateDoubleEliminationBracket(command.competitionId, command.categoryId, stageId, size, duration)
                     else -> TODO()
                 }
 
@@ -168,11 +171,15 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                         .setName(stage.name ?: "Default brackets")
                         .setStageStatus(StageStatus.WAITING_FOR_APPROVAL)
                         .setInputDescriptor(stage.inputDescriptor?.setId(stageId))
-                        .setPointsAssignments(stage.pointsAssignments?.mapIndexed { index, it -> it.setId("$stageId-pointAssignment-$index")}?.toTypedArray())
+                        .setPointsAssignments(stage.pointsAssignments?.mapIndexed { index, it -> it.setId("$stageId-pointAssignment-$index") }?.toTypedArray())
                         .setNumberOfFights(twoFighterFights.size) to twoFighterFights
             }
-            val fightAddedEvents = updatedStages.flatMap {  pair -> pair.second.chunked(30).map { createEvent(command, EventType.FIGHTS_ADDED_TO_STAGE,
-                    FightsAddedToStagePayload(it.toTypedArray(), pair.first.id)) } }
+            val fightAddedEvents = updatedStages.flatMap { pair ->
+                pair.second.chunked(30).map {
+                    createEvent(command, EventType.FIGHTS_ADDED_TO_STAGE,
+                            FightsAddedToStagePayload(it.toTypedArray(), pair.first.id))
+                }
+            }
             listOf(createEvent(command, EventType.BRACKETS_GENERATED, BracketsGeneratedPayload(updatedStages.mapNotNull { it.first }.toTypedArray()))) + fightAddedEvents
 
         } else {
@@ -203,6 +210,8 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         }
     }
 
+    private fun CategoryRestrictionDTO.withId(): CategoryRestrictionDTO = this.setId(IDGenerator.restrictionId(this))
+
     private fun processAddCategoryCommandDTO(command: CommandDTO): List<EventDTO> {
         val c = mapper.convertValue(command.payload, AddCategoryPayload::class.java)?.category
         return if (c != null && !c.restrictions.isNullOrEmpty()) {
@@ -212,14 +221,16 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
             val categoryId = command.categoryId
                     ?: IDGenerator.hashString("${command.competitionId}/${IDGenerator.categoryId(c)}")
             if (!categoryCrudRepository.existsById(categoryId) && competitionPropertiesCrudRepository.existsById(command.competitionId)) {
-                if (restrictionsValid.all {restriction -> restriction.isValid  }) {
+                if (restrictionsValid.all { restriction -> restriction.isValid }) {
                     val registrationOpen = c.registrationOpen ?: true
-                    val state = CategoryStateDTO().setId(categoryId).setCompetitionId(command.competitionId).setCategory(c.setId(categoryId).setRegistrationOpen(registrationOpen)).setFightsNumber(0).setCompetitors(emptyArray())
+                    val state = CategoryStateDTO().setId(categoryId).setCompetitionId(command.competitionId).setCategory(c
+                            .setRestrictions(c.restrictions.map { it.withId() }.toTypedArray())
+                            .setId(categoryId).setRegistrationOpen(registrationOpen)).setFightsNumber(0)
                             .setNumberOfCompetitors(0)
 
                     listOf(createEvent(command, EventType.CATEGORY_ADDED, CategoryAddedPayload(state)).setCategoryId(categoryId))
                 } else {
-                    listOf(createErrorEvent(command, restrictionsValid.fold(StringBuilder()) { acc, r -> acc.append(r.fold({it.toList().joinToString(",")}, {""})) }.toString()))
+                    listOf(createErrorEvent(command, restrictionsValid.fold(StringBuilder()) { acc, r -> acc.append(r.fold({ it.toList().joinToString(",") }, { "" })) }.toString()))
                 }
             } else {
                 listOf(createErrorEvent(command, "Category with ID $categoryId already exists."))

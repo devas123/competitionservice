@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 
 @Component
-@Transactional(propagation = Propagation.REQUIRED)
 class CompetitionStateService(
         private val eventDao: EventDao,
         private val dslContext: DSLContext,
@@ -28,6 +27,7 @@ class CompetitionStateService(
         private val log = LoggerFactory.getLogger(CompetitionStateService::class.java)
     }
 
+    @Transactional(propagation = Propagation.REQUIRED)
     override fun apply(event: EventDTO, isBatch: Boolean): List<EventDTO> {
         log.info("Applying event: $event, batch: $isBatch")
         fun createErrorEvent(error: String) = mapper.createErrorEvent(event, error)
@@ -45,6 +45,7 @@ class CompetitionStateService(
         }
     }
 
+    @Transactional(propagation = Propagation.REQUIRED)
     override fun process(command: CommandDTO): List<EventDTO> {
 
         fun createErrorEvent(error: String) = mapper.createErrorEvent(command, error)
