@@ -9,7 +9,7 @@ import compman.compsrv.model.dto.brackets.StageType;
 import compman.compsrv.model.dto.competition.*;
 import compman.compsrv.repository.JooqQueries;
 import compman.compsrv.service.CategoryGeneratorService;
-import compman.compsrv.service.FightsGenerateService;
+import compman.compsrv.service.fight.BracketsGenerateService;
 import org.jooq.DSLContext;
 import org.jooq.conf.RenderNameStyle;
 import org.jooq.conf.Settings;
@@ -40,7 +40,7 @@ public class JooqTests {
         LogManager.getLogManager().getLogger("").setLevel(Level.OFF);
     }
 
-    private final FightsGenerateService fightsGenerateService = new FightsGenerateService();
+    private final BracketsGenerateService bracketsGenerateService = new BracketsGenerateService();
     private final String competitionId = "testCompetitionId";
 
     @Rule
@@ -93,7 +93,7 @@ public class JooqTests {
                     .setId(competitionId)
                     .setProperties(competitionPropertiesDTO));
             jooqQueries.saveCategoryDescriptor(category, competitionId);
-            List<FightDescriptionDTO> fights = fightsGenerateService.generateDoubleEliminationBracket(competitionId, categoryId, stageId, 50, duration);
+            List<FightDescriptionDTO> fights = bracketsGenerateService.generateDoubleEliminationBracket(competitionId, categoryId, stageId, 50, duration);
             ArrayList<StageDescriptorDTO> stages = new ArrayList<>();
             stages.add(new StageDescriptorDTO()
                     .setId(stageId)

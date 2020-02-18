@@ -10,7 +10,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
-import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.model.dto.brackets.StageType
 import compman.compsrv.model.dto.competition.CategoryRestrictionDTO
@@ -20,7 +19,9 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.repository.JooqQueries
-import compman.compsrv.service.FightsGenerateService
+import compman.compsrv.service.fight.BracketsGenerateService
+import compman.compsrv.service.fight.FightServiceFactory
+import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.Rules
 import compman.compsrv.util.createErrorEvent
@@ -30,7 +31,7 @@ import org.springframework.stereotype.Component
 
 
 @Component
-class CategoryCommandProcessor constructor(private val fightsGenerateService: FightsGenerateService,
+class CategoryCommandProcessor constructor(private val fightsGenerateService: FightServiceFactory,
                                            private val mapper: ObjectMapper,
                                            private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
                                            private val categoryCrudRepository: CategoryDescriptorDao,
@@ -134,36 +135,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                 }
                 val stageId = IDGenerator.stageId(command.competitionId, command.categoryId, stage.name, stage.stageOrder)
                 val size = if (stage.stageOrder == 0) competitors.size else stage.inputDescriptor.numberOfCompetitors!!
-                val fights = when (stage.bracketType) {
-                    BracketType.SINGLE_ELIMINATION -> {
-                        if (stage?.hasThirdPlaceFight == true) {
-                            fightsGenerateService.generateThirdPlaceFightForOlympicSystem(command.competitionId, command.categoryId, stageId,
-                                    fightsGenerateService.generateEmptyWinnerRoundsForCategory(command.categoryId, command.competitionId, stageId, size, duration))
-                        } else {
-                            fightsGenerateService.generateEmptyWinnerRoundsForCategory(command.competitionId, command.categoryId, stageId, size, duration)
-                        }
-                    }
-                    BracketType.DOUBLE_ELIMINATION -> fightsGenerateService.generateDoubleEliminationBracket(command.competitionId, command.categoryId, stageId, size, duration)
-                    else -> TODO()
-                }
-
-                val assignedFights = when (stage.stageOrder) {
-                    0 -> {
-                        fightsGenerateService.distributeCompetitors(competitors, fights, stage.bracketType)
-                    }
-                    else -> {
-                        fights
-                    }
-                }
-
-                val processedFights = if (stage.stageType == StageType.PRELIMINARY) {
-                    fightsGenerateService.filterPreliminaryFights(outputSize, assignedFights, stage.bracketType)
-                } else {
-                    assignedFights
-                }
-
-                val twoFighterFights = fightsGenerateService.filterUncompletableFirstRoundFights(processedFights)
-
+                val twoFighterFights = fightsGenerateService.generateStageFights(command.competitionId, command.categoryId, stage.setId(stageId), size, duration, competitors, outputSize)
                 stage
                         .setCategoryId(command.categoryId)
                         .setId(stageId)
@@ -253,7 +225,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         val numberOfCompetitors = payload?.numberOfCompetitors ?: 50
         val numberOfAcademies = payload?.numberOfAcademies ?: 30
         val categoryState = jooq.fetchCategoryStateByCompetitionIdAndCategoryId(command.competitionId, command.categoryId!!).block()
-        val fakeCompetitors = FightsGenerateService.generateRandomCompetitorsForCategory(numberOfCompetitors, numberOfAcademies, categoryState?.category!!, command.competitionId!!)
+        val fakeCompetitors = FightsService.generateRandomCompetitorsForCategory(numberOfCompetitors, numberOfAcademies, categoryState?.category!!, command.competitionId!!)
         return fakeCompetitors.map {
             createEvent(command, EventType.COMPETITOR_ADDED, CompetitorAddedPayload(it))
         }

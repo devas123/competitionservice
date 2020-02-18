@@ -23,5 +23,6 @@ public class StageDescriptorDTO {
     private Integer stageOrder;
     private Boolean waitForPrevious;
     private Boolean hasThirdPlaceFight;
+    private GroupDescriptorDTO[] groupDescriptors;
     private Integer numberOfFights;
 }

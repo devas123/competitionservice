@@ -7,6 +7,8 @@ import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.competition.FightResultDTO
+import compman.compsrv.service.fight.BracketsGenerateService
+import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.copy
 import compman.compsrv.util.pushCompetitor
 import org.junit.Test
@@ -21,17 +23,10 @@ import kotlin.test.assertTrue
 
 
 @RunWith(MockitoJUnitRunner::class)
-class FightsGenerateServiceTest {
-    private val fightsGenerateService = FightsGenerateService()
+class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
+    private val fightsGenerateService = BracketsGenerateService()
 
-    private val duration = BigDecimal.valueOf(8)
-    companion object {
-        const val competitionId = "UG9wZW5nYWdlbiBPcGVu"
-        const val categoryId = "UG9wZW5nYWdlbiBPcGVu-UG9wZW5nYWdlbiBPcGVu"
-        const val stageId = "asoifjqwoijqwoijqpwtoj2j12-j1fpasoj"
-        val category = CategoryGeneratorService.createCategory(8, CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.brown)
-        private val log = LoggerFactory.getLogger(FightsGenerateServiceTest::class.java)
-    }
+    private val log = LoggerFactory.getLogger(BracketsGenerateServiceTest::class.java)
 
     private fun generateEmptyWinnerFights(compsSize: Int): List<FightDescriptionDTO> {
         val fights = fightsGenerateService.generateEmptyWinnerRoundsForCategory(competitionId, categoryId, stageId, compsSize, duration)
@@ -107,14 +102,14 @@ class FightsGenerateServiceTest {
     @Test
     fun testDistributeCompetitors() {
         val fights = generateEmptyWinnerFights(14)
-        val competitors = FightsGenerateService.generateRandomCompetitorsForCategory(14, 20, category, competitionId)
+        val competitors = FightsService.generateRandomCompetitorsForCategory(14, 20, category, competitionId)
         val fightsWithCompetitors = fightsGenerateService.distributeCompetitors(competitors, fights, BracketType.SINGLE_ELIMINATION)
     }
 
     @Test
     fun testProcessBrackets() {
         val fights = generateEmptyWinnerFights(14)
-        val competitors = FightsGenerateService.generateRandomCompetitorsForCategory(14, 20, category, competitionId)
+        val competitors = FightsService.generateRandomCompetitorsForCategory(14, 20, category, competitionId)
         val fightsWithCompetitors = fightsGenerateService.distributeCompetitors(competitors, fights, BracketType.SINGLE_ELIMINATION)
         fun generateFightResult(fight: FightDescriptionDTO): Pair<FightDescriptionDTO, CompetitorDTO?> {
             val scores = fight.scores?.toList()
@@ -149,7 +144,7 @@ class FightsGenerateServiceTest {
             }
             processedFights to (acc.second + processedFights.map {it.first})
         }.second
-        val results = fightsGenerateService.buildStageResults(BracketType.SINGLE_ELIMINATION, StageStatus.FINISHED, filledFights, "asasdasd", competitionId)
+        val results = fightsGenerateService.buildStageResults(BracketType.SINGLE_ELIMINATION, StageStatus.FINISHED, filledFights, "asasdasd", competitionId, emptyList())
         assertEquals(14, results.size)
         assertEquals(6, results.filter { it.round == 0 }.size)
         assertEquals(4, results.filter { it.round == 1 }.size)

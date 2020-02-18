@@ -13,6 +13,8 @@ import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.dto.schedule.SchedulePropertiesDTO
 import compman.compsrv.repository.JooqQueries
+import compman.compsrv.service.fight.BracketsGenerateService
+import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.copy
 import io.scalecube.net.Address
 import org.slf4j.LoggerFactory
@@ -287,7 +289,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
             val mats = matDescriptionCrudRepository.fetchByDashboardPeriodId(periodId)
            mats?.map { mat ->
                 val matDescrDto = mat.toDTO()
-                val topFiveFights = jooq.topMatFights(5, competitionId, mat.id, FightsGenerateService.notFinishedStatuses)
+                val topFiveFights = jooq.topMatFights(5, competitionId, mat.id, FightsService.notFinishedStatuses)
                         .collectList().block() ?: emptyList()
                 MatStateDTO()
                         .setMatDescription(matDescrDto)
@@ -304,7 +306,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
     fun getMatFights(competitionId: String, matId: String, maxResults: Int): List<FightDescriptionDTO>? {
         log.info("Getting competitors for competition $competitionId and mat $matId")
         return localOrRemote(competitionId, {
-            jooq.topMatFights(15, competitionId, matId, FightsGenerateService.notFinishedStatuses)
+            jooq.topMatFights(15, competitionId, matId, FightsService.notFinishedStatuses)
                     .collectList().block()
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/matfights?competitionId=$competitionId&matId=$matId&maxResults=$maxResults", Array<FightDescriptionDTO>::class.java)?.toList()
