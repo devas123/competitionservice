@@ -1,22 +1,17 @@
 package compman.compsrv.service
 
 import compman.compsrv.model.dto.brackets.BracketType
-import compman.compsrv.model.dto.brackets.CompetitorResultType
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
-import compman.compsrv.model.dto.competition.FightResultDTO
 import compman.compsrv.service.fight.BracketsGenerateService
 import compman.compsrv.service.fight.FightsService
-import compman.compsrv.util.copy
 import compman.compsrv.util.pushCompetitor
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.junit.MockitoJUnitRunner
 import org.slf4j.LoggerFactory
-import java.math.BigDecimal
-import kotlin.random.Random
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -111,21 +106,6 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
         val fights = generateEmptyWinnerFights(14)
         val competitors = FightsService.generateRandomCompetitorsForCategory(14, 20, category, competitionId)
         val fightsWithCompetitors = fightsGenerateService.distributeCompetitors(competitors, fights, BracketType.SINGLE_ELIMINATION)
-        fun generateFightResult(fight: FightDescriptionDTO): Pair<FightDescriptionDTO, CompetitorDTO?> {
-            val scores = fight.scores?.toList()
-             val competitor = when (scores?.size) {
-                2 -> {
-                    scores[Random.nextInt(2)].competitor
-                }
-                1 -> {
-                    scores.first().competitor
-                }
-                else -> {
-                   null
-                }
-            }
-            return fight.copy(fightResult = competitor?.let { FightResultDTO(it.id, CompetitorResultType.values()[Random.nextInt(3)], "bla bla bla") }) to competitor
-        }
         fun processBracketsRound(roundFights: List<FightDescriptionDTO>): List<Pair<FightDescriptionDTO, CompetitorDTO?>> = roundFights.map { generateFightResult(it) }
         fun fillNextRound(previousRoundResult: List<Pair<FightDescriptionDTO, CompetitorDTO?>>, nextRoundFights: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
             return previousRoundResult.fold(nextRoundFights) { acc, pf ->

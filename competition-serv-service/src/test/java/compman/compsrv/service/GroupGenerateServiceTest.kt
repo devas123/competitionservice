@@ -1,14 +1,15 @@
 package compman.compsrv.service
 
-import compman.compsrv.model.dto.brackets.GroupDescriptorDTO
-import compman.compsrv.model.dto.brackets.StageDescriptorDTO
+import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.service.fight.GroupStageGenerateService
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.junit.MockitoJUnitRunner
+import java.math.BigDecimal
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -16,13 +17,13 @@ import kotlin.test.assertTrue
 @RunWith(MockitoJUnitRunner::class)
 class GroupGenerateServiceTest : AbstractGenerateServiceTest() {
     private val fightsGenerateService = GroupStageGenerateService()
-
-
-    fun generateGroupFights(competitorsSize: Int): List<FightDescriptionDTO> {
+    
+    private fun generateGroupFights(competitorsSize: Int): Pair<StageDescriptorDTO, List<FightDescriptionDTO>> {
         val groupId = "$stageId-group0"
         val stage = StageDescriptorDTO()
                 .setId(stageId)
                 .setStageOrder(0)
+                .setBracketType(BracketType.GROUP)
                 .setGroupDescriptors(arrayOf(
                         GroupDescriptorDTO()
                                 .setSize(competitorsSize)
@@ -36,12 +37,31 @@ class GroupGenerateServiceTest : AbstractGenerateServiceTest() {
         assertTrue(fights.all { it.scores.size == 2 }) //all fights are packed
         assertTrue(fights.all { it.groupId == groupId }) //all fights have a group id
         assertTrue(competitors.all { comp -> fights.filter { f -> f.scores.any { it.competitor.id == comp.id} }.size == competitorsSize - 1 }) //each fighter fights with all the other fighters
-        return fights
+        return stage to fights
     }
 
     @Test
-    fun testGenerateEmptyWinnerFights() {
+    fun testGenerateGroupFights() {
         generateGroupFights(14)
+    }
+
+    @Test
+    fun testGenerateResults() {
+        val compsSize = 5
+        val sf = generateGroupFights(compsSize)
+        val fightsWithResult = sf.second.map { generateFightResult(it).first }
+        val results = fightsGenerateService.buildStageResults(sf.first.bracketType, StageStatus.FINISHED, fightsWithResult, sf.first.id, competitionId, listOf(PointsAssignmentDescriptorDTO()
+                .setClassifier(CompetitorResultType.WIN_SUBMISSION).setPoints(BigDecimal.valueOf(3)),
+                PointsAssignmentDescriptorDTO()
+                        .setClassifier(CompetitorResultType.WIN_POINTS).setPoints(BigDecimal.valueOf(2)),
+                PointsAssignmentDescriptorDTO()
+                        .setClassifier(CompetitorResultType.WIN_DECISION).setPoints(BigDecimal.valueOf(1))))
+        assertNotNull(results)
+        assertEquals(compsSize, results.size, "${results.map{"${it.competitorId}-${it.place}"}}")
+        assertTrue(results.all { it.place != null && it.place >= 0 })
+        assertTrue(results.all { it.points != null && it.points >= 0 })
+        assertFalse(results.all { it.points == 0 })
+        assertEquals(results.size, results.distinctBy { it.place }.size)
     }
 
 }
