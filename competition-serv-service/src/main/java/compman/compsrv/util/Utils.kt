@@ -127,6 +127,7 @@ fun FightDescriptionDTO.copy(id: String = this.id,
                              period: String? = this.period,
                              startTime: Instant? = this.startTime,
                              numberInRound: Int? = this.numberInRound,
+                             groupId: String? = this.groupId,
                              stageId: String? = this.stageId): FightDescriptionDTO = FightDescriptionDTO()
         .setId(id)
         .setFightName(fightName)
@@ -149,6 +150,7 @@ fun FightDescriptionDTO.copy(id: String = this.id,
         .setPriority(priority)
         .setPeriod(period)
         .setStageId(stageId)
+        .setGroupId(groupId)
 
 fun FightDescriptionDTO.pushCompetitor(competitor: CompetitorDTO): FightDescriptionDTO {
     if (competitor.id == "fake") {

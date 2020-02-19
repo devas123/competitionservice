@@ -4,8 +4,10 @@ import arrow.core.Option
 import arrow.core.getOrElse
 import arrow.core.orElse
 import com.compmanager.compservice.jooq.tables.daos.FightDescriptionDao
+import com.compmanager.compservice.jooq.tables.daos.PointsAssignmentDescriptorDao
 import com.compmanager.compservice.jooq.tables.daos.StageDescriptorDao
 import com.fasterxml.jackson.databind.ObjectMapper
+import compman.compsrv.mapping.toDTO
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.DashboardFightOrderChangePayload
@@ -22,7 +24,9 @@ import compman.compsrv.model.events.payload.DashboardFightOrderChangedPayload
 import compman.compsrv.model.events.payload.FightCompetitorsAssignedPayload
 import compman.compsrv.model.events.payload.StageResultSetPayload
 import compman.compsrv.repository.*
-import compman.compsrv.service.FightsGenerateService
+import compman.compsrv.service.fight.BracketsGenerateService
+import compman.compsrv.service.fight.FightServiceFactory
+import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.*
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -36,8 +40,9 @@ import kotlin.math.sign
 @Component
 class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptionDao,
                                 private val jooqQueries: JooqQueries,
-                                private val fightsGenerateService: FightsGenerateService,
+                                private val fightsGenerateService: FightServiceFactory,
                                 private val stageDescriptorCrudRepository: StageDescriptorDao,
+                                private val pointsAssignmentDescriptorDao: PointsAssignmentDescriptorDao,
                                 private val mapper: ObjectMapper) : ICommandProcessor {
     override fun affectedCommands(): Set<CommandType> {
         return setOf(CommandType.DASHBOARD_FIGHT_ORDER_CHANGE_COMMAND,
@@ -67,7 +72,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                                 log.info("Moving fight $fight to the new mat: ${payload.newMatId}.")
                                 //all the fights after current on the current mat -> number - 1
                                 val fightsToMoveOnCurrentMat = jooqQueries.findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStatusNotInOrderByNumberOnMat(payload.currentMatId,
-                                        command.competitionId, fight.numberOnMat!! + 1, FightsGenerateService.unMovableFightStatuses)
+                                        command.competitionId, fight.numberOnMat!! + 1, FightsService.unMovableFightStatuses)
                                         .collectList().block()
                                 val fightOrderChangesCurrentMat = fightsToMoveOnCurrentMat?.map {
                                     DashboardFightOrderChange().setFightId(it.id).setNewMatId(it.matId).setNewOrderOnMat(it.numberOnMat!! - 1)
@@ -77,7 +82,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                                 //fights on the new mat:
                                 //all the fights after current -> number + 1
                                 val fightsToMoveOnTheNewMat = jooqQueries.findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStatusNotInOrderByNumberOnMat(payload.newMatId,
-                                        command.competitionId, newOrderOnMat, FightsGenerateService.unMovableFightStatuses).collectList().block()
+                                        command.competitionId, newOrderOnMat, FightsService.unMovableFightStatuses).collectList().block()
 
                                 val fightOrderChangesNewMat = fightsToMoveOnTheNewMat?.map {
                                     DashboardFightOrderChange().setFightId(it.id).setNewMatId(it.matId).setNewOrderOnMat(it.numberOnMat!! + 1)
@@ -86,7 +91,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                                 val newStartTimeOfTheCurrentFight = Option.fromNullable(fightOrderChangesNewMat).flatMap { Option.fromNullable(it.firstOrNull()) }.map { f -> f.newStartTime!! }
                                         .orElse {
                                             Option.fromNullable(jooqQueries.findDistinctByMatIdAndCompetitionIdAndNumberOnMatLessThanAndStatusNotInOrderByNumberOnMatDesc(payload.newMatId,
-                                                    command.competitionId, newOrderOnMat, FightsGenerateService.unMovableFightStatuses).collectList().block()?.toList()).map { it.firstOrNull() }
+                                                    command.competitionId, newOrderOnMat, FightsService.unMovableFightStatuses).collectList().block()?.toList()).map { it.firstOrNull() }
                                                     .map { f -> f?.startTime?.toInstant()!! }
                                         }
                                         .fold({ fight.startTime?.toInstant()!! }, { it })
@@ -101,7 +106,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                                     val start = min(fight.numberOnMat!!, newOrderOnMat) + (1 - sign) / 2
                                     val end = max(fight.numberOnMat!!, newOrderOnMat) - (1 + sign) / 2
                                     val fightsToMoveOnCurrentMat = jooqQueries.findDistinctByMatIdAndCompetitionIdAndNumberOnMatBetweenAndStatusNotInOrderByNumberOnMat(payload.newMatId,
-                                            command.competitionId, start, end, FightsGenerateService.unMovableFightStatuses).collectList().block()
+                                            command.competitionId, start, end, FightsService.unMovableFightStatuses).collectList().block()
                                     val fightOrderChangesCurrentMat = fightsToMoveOnCurrentMat?.map {
                                         val newStartTime = if (sign > 0) {
                                             it.startTime?.toInstant()!!.plus(Duration.ofMinutes(fight.duration!!.toLong()))
@@ -204,8 +209,13 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                             fd
                         }
                     }
-                    val stageResults = fightsGenerateService.buildStageResults(BracketType.values()[stage.bracketType], StageStatus.FINISHED, fightsWithResult ?: emptyList(), stage.id!!, stage.competitionId)
-                    listOf(mapper.createEvent(command, EventType.DASHBOARD_STAGE_RESULT_SET, StageResultSetPayload().setStageId(stage.id).setResults(stageResults.toTypedArray())))
+                    val pointAssignmentDescriptors = pointsAssignmentDescriptorDao.fetchByStageId(fight.stageId)?.map { it.toDTO() } ?: emptyList()
+                    val stageResults = fightsGenerateService.buildStageResults(BracketType.values()[stage.bracketType], StageStatus.FINISHED,
+                            fightsWithResult ?: emptyList(), stage.id!!, stage.competitionId, pointAssignmentDescriptors)
+                    listOf(mapper.createEvent(command, EventType.DASHBOARD_STAGE_RESULT_SET,
+                            StageResultSetPayload()
+                                    .setStageId(stage.id)
+                                    .setResults(stageResults.toTypedArray())))
                 } else {
                     emptyList()
                 }
@@ -218,5 +228,5 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
             .all { it.status == FightStatus.FINISHED || it.status == FightStatus.WALKOVER || it.status == FightStatus.UNCOMPLETABLE || additionalFinishedFightIds.contains(it.id) }.block() }
             ?: false
 
-    fun checkIfFightCanBePacked(fightId: String, competitionId: String) = FightsGenerateService.checkIfFightCanBePacked(fightId) { jooqQueries.findFightByCompetitionIdAndId(competitionId, it).block()!! }
+    fun checkIfFightCanBePacked(fightId: String, competitionId: String) = FightsService.checkIfFightCanBePacked(fightId) { jooqQueries.findFightByCompetitionIdAndId(competitionId, it).block()!! }
 }

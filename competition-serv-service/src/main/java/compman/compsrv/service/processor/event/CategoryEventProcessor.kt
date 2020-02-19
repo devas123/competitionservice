@@ -205,6 +205,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
             jooqQueries.savePointsAssignments(stages.flatMap { it.pointsAssignments?.toList() ?: emptyList() })
             jooqQueries.saveInputDescriptors(stages.mapNotNull { it.inputDescriptor })
             jooqQueries.saveResultDescriptors(stages.mapNotNull { it.stageResultDescriptor })
+            jooqQueries.saveGroupDescriptors(stages.map { it.id to (it.groupDescriptors?.toList() ?: emptyList()) })
             listOf(event)
         } else {
             throw EventApplyingException("Fights are null or empty or category ID is empty.", event)

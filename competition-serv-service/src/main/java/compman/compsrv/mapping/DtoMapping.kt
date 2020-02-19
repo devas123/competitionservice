@@ -150,6 +150,7 @@ fun CompetitorSelector.toDTO(selectorValue: Array<String>) = CompetitorSelectorD
 fun StageDescriptor.toDTO(inputDescriptor: StageInputDescriptorDTO,
                           pointsAssignments: Array<PointsAssignmentDescriptorDTO>,
                           stageResultDescriptor: StageResultDescriptorDTO,
+                          groupDescriptors: Array<GroupDescriptorDTO>,
                           numberOfFights: Int): StageDescriptorDTO = StageDescriptorDTO()
         .setId(id)
         .setBracketType(BracketType.values()[bracketType])
@@ -165,6 +166,11 @@ fun StageDescriptor.toDTO(inputDescriptor: StageInputDescriptorDTO,
         .setHasThirdPlaceFight(hasThirdPlaceFight)
         .setCategoryId(categoryId)
         .setNumberOfFights(numberOfFights)
+        .setGroupDescriptors(groupDescriptors)
 
 
-fun PointsAssignmentDescriptor.toDTO() = PointsAssignmentDescriptorDTO(id, CompetitorResultType.values()[classifier], points, additionalPoints)
+
+fun PointsAssignmentDescriptor.toDTO() = PointsAssignmentDescriptorDTO(id,
+        CompetitorResultType.values()[classifier],
+        points,
+        additionalPoints)

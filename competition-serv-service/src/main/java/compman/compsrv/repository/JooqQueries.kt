@@ -1,7 +1,7 @@
 package compman.compsrv.repository
 
 import arrow.core.Tuple2
-import arrow.core.Tuple4
+import arrow.core.Tuple5
 import com.compmanager.compservice.jooq.tables.*
 import com.compmanager.compservice.jooq.tables.records.*
 import com.compmanager.model.payment.RegistrationStatus
@@ -14,7 +14,6 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.util.compNotEmpty
 import org.jooq.*
 import org.jooq.impl.DSL
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Repository
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
@@ -27,11 +26,6 @@ import java.util.stream.Collector
 
 @Repository
 class JooqQueries(private val create: DSLContext) {
-
-    companion object {
-        private val log = LoggerFactory.getLogger(JooqQueries::class.java)
-    }
-
     fun Instant.toTimestamp(): Timestamp = Timestamp.from(this)
 
     fun getCompetitorNumbersByCategoryIds(competitionId: String): Map<String, Int> = create.select(CompetitorCategories.COMPETITOR_CATEGORIES.CATEGORIES_ID, DSL.count())
@@ -156,10 +150,10 @@ class JooqQueries(private val create: DSLContext) {
                     .and(RegistrationGroup.REGISTRATION_GROUP.DEFAULT_GROUP.isTrue)
                     .and(RegistrationGroup.REGISTRATION_GROUP.ID.ne(groupId))).map {
                 com.compmanager.compservice.jooq.tables.pojos.RegistrationGroup().apply {
-                    this.id = it.id
-                    this.defaultGroup = it.defaultGroup
-                    this.displayName = it.displayName
-                    this.registrationFee = it.registrationFee
+                    id = it.id
+                    defaultGroup = it.defaultGroup
+                    displayName = it.displayName
+                    registrationFee = it.registrationFee
                     this.registrationInfoId = it.registrationInfoId
                 }
             }
@@ -277,6 +271,7 @@ class JooqQueries(private val create: DSLContext) {
                             .setReferenceType(u[FightDescription.FIGHT_DESCRIPTION.PARENT_2_REFERENCE_TYPE]?.let { FightReferenceType.values()[it] }))
                     .setNumberInRound(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND])
                     .setStageId(u[FightDescription.FIGHT_DESCRIPTION.STAGE_ID])
+                    .setGroupId(u[FightDescription.FIGHT_DESCRIPTION.GROUP_ID])
                     .setRound(u[FightDescription.FIGHT_DESCRIPTION.ROUND])
                     .setNumberOnMat(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT]).setScores(compScore)
 
@@ -355,12 +350,12 @@ class JooqQueries(private val create: DSLContext) {
 
     private fun fightDescription(it: FightDescriptionRecord) =
             com.compmanager.compservice.jooq.tables.pojos.FightDescription().apply {
-                this.id = it.id
-                this.matId = it.matId
-                this.competitionId = it.competitionId
-                this.numberOnMat = it.numberOnMat
-                this.categoryId = it.categoryId
-                this.startTime = it.startTime
+                id = it.id
+                matId = it.matId
+                competitionId = it.competitionId
+                numberOnMat = it.numberOnMat
+                categoryId = it.categoryId
+                startTime = it.startTime
             }
 
     fun findDistinctByMatIdAndCompetitionIdAndNumberOnMatLessThanAndStatusNotInOrderByNumberOnMatDesc(matId: String, competitionId: String, minNumberOnMat: Int,
@@ -421,40 +416,41 @@ class JooqQueries(private val create: DSLContext) {
 
     private fun fightDescriptionRecord(fight: FightDescriptionDTO) =
             FightDescriptionRecord().apply {
-                this.id = fight.id
-                this.fightName = fight.fightName
-                this.round = fight.round
-                this.roundType = fight.roundType?.ordinal
-                this.winFight = fight.winFight
-                this.loseFight = fight.loseFight
-                this.categoryId = fight.categoryId
-                this.competitionId = fight.competitionId
-                this.parent_1FightId = fight.parentId1?.fightId
-                this.parent_1ReferenceType = fight.parentId1?.referenceType?.ordinal
-                this.parent_2FightId = fight.parentId2?.fightId
-                this.parent_2ReferenceType = fight.parentId2?.referenceType?.ordinal
-                this.duration = fight.duration
-                this.status = fight.status?.ordinal
-                this.winnerId = fight.fightResult?.winnerId
-                this.reason = fight.fightResult?.reason
-                this.resultType = fight.fightResult?.resultType?.ordinal
-                this.matId = fight.mat?.id
-                this.numberInRound = fight.numberInRound
-                this.numberOnMat = fight.numberOnMat
-                this.priority = fight.priority
-                this.startTime = fight.startTime?.toTimestamp()
-                this.stageId = fight.stageId
-                this.period = fight.period
+                id = fight.id
+                fightName = fight.fightName
+                round = fight.round
+                roundType = fight.roundType?.ordinal
+                winFight = fight.winFight
+                loseFight = fight.loseFight
+                categoryId = fight.categoryId
+                competitionId = fight.competitionId
+                parent_1FightId = fight.parentId1?.fightId
+                parent_1ReferenceType = fight.parentId1?.referenceType?.ordinal
+                parent_2FightId = fight.parentId2?.fightId
+                parent_2ReferenceType = fight.parentId2?.referenceType?.ordinal
+                duration = fight.duration
+                status = fight.status?.ordinal
+                winnerId = fight.fightResult?.winnerId
+                reason = fight.fightResult?.reason
+                resultType = fight.fightResult?.resultType?.ordinal
+                matId = fight.mat?.id
+                numberInRound = fight.numberInRound
+                numberOnMat = fight.numberOnMat
+                priority = fight.priority
+                startTime = fight.startTime?.toTimestamp()
+                stageId = fight.stageId
+                period = fight.period
+                groupId = fight.groupId
             }
 
     private fun compscoreRecord(cs: CompScoreDTO, fightId: String) =
             CompScoreRecord().apply {
-                this.advantages = cs.score?.advantages
-                this.points = cs.score?.points
-                this.penalties = cs.score?.penalties
-                this.compscoreFightDescriptionId = fightId
-                this.compScoreOrder = cs.order
-                this.compscoreCompetitorId = cs.competitor?.id!!
+                advantages = cs.score?.advantages
+                points = cs.score?.points
+                penalties = cs.score?.penalties
+                compscoreFightDescriptionId = fightId
+                compScoreOrder = cs.order
+                compscoreCompetitorId = cs.competitor?.id!!
             }
 
 
@@ -466,6 +462,8 @@ class JooqQueries(private val create: DSLContext) {
             create.selectFrom(StageDescriptor.STAGE_DESCRIPTOR
                     .join(PointsAssignmentDescriptor.POINTS_ASSIGNMENT_DESCRIPTOR, JoinType.LEFT_OUTER_JOIN)
                     .on(PointsAssignmentDescriptor.POINTS_ASSIGNMENT_DESCRIPTOR.STAGE_ID.eq(StageDescriptor.STAGE_DESCRIPTOR.ID))
+                    .join(GroupDescriptor.GROUP_DESCRIPTOR, JoinType.LEFT_OUTER_JOIN)
+                    .on(GroupDescriptor.GROUP_DESCRIPTOR.STAGE_ID.eq(StageDescriptor.STAGE_DESCRIPTOR.ID))
                     .join(CompetitorStageResult.COMPETITOR_STAGE_RESULT, JoinType.LEFT_OUTER_JOIN)
                     .on(CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID.eq(StageDescriptor.STAGE_DESCRIPTOR.ID))
                     .join(StageInputDescriptor.STAGE_INPUT_DESCRIPTOR, JoinType.LEFT_OUTER_JOIN)
@@ -479,10 +477,11 @@ class JooqQueries(private val create: DSLContext) {
     ).groupBy { it[StageDescriptor.STAGE_DESCRIPTOR.ID] }
             .flatMap { records ->
                 records.collect({
-                    Tuple4(StageDescriptorDTO(),
+                    Tuple5(StageDescriptorDTO(),
                             mutableListOf(PointsAssignmentDescriptorDTO()),
                             Tuple2(StageResultDescriptorDTO(), mutableListOf<CompetitorResultDTO>()),
-                            Tuple2(StageInputDescriptorDTO(), mutableListOf<Tuple2<CompetitorSelectorDTO, MutableSet<String>>>()))
+                            Tuple2(StageInputDescriptorDTO(), mutableListOf<Tuple2<CompetitorSelectorDTO, MutableSet<String>>>()),
+                            mutableListOf<GroupDescriptorDTO>())
                 }, { t, u ->
                     t.a.id = u[StageDescriptor.STAGE_DESCRIPTOR.ID]
                     t.a.bracketType = BracketType.values()[u[StageDescriptor.STAGE_DESCRIPTOR.BRACKET_TYPE]]
@@ -503,6 +502,14 @@ class JooqQueries(private val create: DSLContext) {
                                 .setAdditionalPoints(u[PointsAssignmentDescriptor.POINTS_ASSIGNMENT_DESCRIPTOR.ADDITIONAL_POINTS])
                                 .setClassifier(u[PointsAssignmentDescriptor.POINTS_ASSIGNMENT_DESCRIPTOR.CLASSIFIER]?.let { CompetitorResultType.values()[it] }))
                     }
+                    if (!u[GroupDescriptor.GROUP_DESCRIPTOR.ID].isNullOrBlank()
+                            && t.b.none { it.id == u[GroupDescriptor.GROUP_DESCRIPTOR.ID] }) {
+                        t.e.add(GroupDescriptorDTO()
+                                .setId(u[GroupDescriptor.GROUP_DESCRIPTOR.ID])
+                                .setName(u[GroupDescriptor.GROUP_DESCRIPTOR.NAME])
+                                .setSize(u[GroupDescriptor.GROUP_DESCRIPTOR.SIZE]))
+                    }
+
                     t.c.a.id = u[StageDescriptor.STAGE_DESCRIPTOR.ID]
                     t.c.a.name = u[StageDescriptor.STAGE_DESCRIPTOR.NAME] + "-Results"
                     if (t.c.b.none {
@@ -537,6 +544,7 @@ class JooqQueries(private val create: DSLContext) {
             }.map { tuple ->
                 tuple.a
                         .setPointsAssignments(tuple.b.toTypedArray())
+                        .setGroupDescriptors(tuple.e.toTypedArray())
                         .setStageResultDescriptor(tuple.c.a.setCompetitorResults(tuple.c.b.toTypedArray()))
                         .setInputDescriptor(tuple.d.a
                                 .setSelectors(tuple.d.b.map { db -> db.a.setSelectorValue(db.b.toTypedArray()) }.toTypedArray()))
@@ -561,28 +569,40 @@ class JooqQueries(private val create: DSLContext) {
     fun savePointsAssignments(assignments: List<PointsAssignmentDescriptorDTO>) {
         create.batchInsert(assignments.map {
             PointsAssignmentDescriptorRecord().apply {
-                this.id = it.id
-                this.classifier = it.classifier?.ordinal
-                this.points = it.points
-                this.additionalPoints = it.additionalPoints
+                id = it.id
+                classifier = it.classifier?.ordinal
+                points = it.points
+                additionalPoints = it.additionalPoints
             }
         }).execute()
     }
 
-    fun saveStages(stages: List<StageDescriptorDTO>) = create.batchInsert(stages.map { stage ->
+    fun saveStages(stages: List<StageDescriptorDTO>): IntArray = create.batchInsert(stages.map { stage ->
         StageDescriptorRecord().apply {
-            this.id = stage.id
-            this.bracketType = stage.bracketType?.ordinal
-            this.categoryId = stage.categoryId
-            this.competitionId = stage.competitionId
-            this.hasThirdPlaceFight = stage.hasThirdPlaceFight
-            this.name = stage.name
-            this.stageOrder = stage.stageOrder
-            this.stageType = stage.stageType?.ordinal
-            this.waitForPrevious = stage.waitForPrevious
-            this.stageStatus = stage.stageStatus?.ordinal
+            id = stage.id
+            bracketType = stage.bracketType?.ordinal
+            categoryId = stage.categoryId
+            competitionId = stage.competitionId
+            hasThirdPlaceFight = stage.hasThirdPlaceFight
+            name = stage.name
+            stageOrder = stage.stageOrder
+            stageType = stage.stageType?.ordinal
+            waitForPrevious = stage.waitForPrevious
+            stageStatus = stage.stageStatus?.ordinal
         }
     }).execute()
+
+    fun saveGroupDescriptors(stageIdToGroups: List<Pair<String, List<GroupDescriptorDTO>>>): IntArray =
+            create.batchInsert(stageIdToGroups.flatMap { groups ->
+                groups.second.map { group ->
+                    GroupDescriptorRecord().apply {
+                        id = group.id
+                        name = group.name
+                        size = group.size
+                        this.stageId = groups.first
+                    }
+                }
+            }).execute()
 
 
     fun saveInputDescriptors(inputDescriptors: List<StageInputDescriptorDTO>) {
