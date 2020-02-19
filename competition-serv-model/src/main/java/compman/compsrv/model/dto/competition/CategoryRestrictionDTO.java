@@ -13,6 +13,8 @@ public class CategoryRestrictionDTO {
     private String id;
     private CategoryRestrictionType type;
     private String name;
+    private String value;
+    private String alias;
     private String minValue;
     private String maxValue;
     private String unit;

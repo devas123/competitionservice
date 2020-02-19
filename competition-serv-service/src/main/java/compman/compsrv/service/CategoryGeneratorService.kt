@@ -9,33 +9,33 @@ import java.util.*
 @Component
 class CategoryGeneratorService {
     companion object {
-        val bjj: CategoryRestrictionDTO = CategoryRestrictionDTO().setId(UUID.randomUUID().toString()).setType(CategoryRestrictionType.SPORTS).setName("BJJ")
-        private fun weightRestriction(name: String, maxValue: String, minValue: String = "0"): CategoryRestrictionDTO = CategoryRestrictionDTO()
-                .setId(IDGenerator.hashString("$name/$minValue/$maxValue"))
-                .setType(CategoryRestrictionType.WEIGHT)
-                .setName(name)
+        val bjj: CategoryRestrictionDTO = CategoryRestrictionDTO().setId(UUID.randomUUID().toString()).setType(CategoryRestrictionType.Value).setName("Sport").setValue("BJJ")
+        private fun weightRestriction(maxValue: String, minValue: String = "0", alias: String = ""): CategoryRestrictionDTO = CategoryRestrictionDTO()
+                .setId(IDGenerator.hashString("Weight/$minValue/$maxValue"))
+                .setType(CategoryRestrictionType.Range)
+                .setName("Weight")
                 .setMaxValue(maxValue)
                 .setMinValue(minValue)
+                .setAlias(alias)
                 .setUnit("kg")
 
-        private fun ageRestriction(name: String, minValue: String, maxValue: String = minValue): CategoryRestrictionDTO = CategoryRestrictionDTO()
-                .setId(IDGenerator.hashString("$name/$minValue/$maxValue"))
-                .setType(CategoryRestrictionType.AGE)
-                .setName(name)
+        private fun ageRestriction(alias: String = "", minValue: String, maxValue: String = minValue): CategoryRestrictionDTO = CategoryRestrictionDTO()
+                .setId(IDGenerator.hashString("Age/$minValue/$maxValue"))
+                .setType(CategoryRestrictionType.Range)
+                .setName("Age")
                 .setMaxValue(maxValue)
                 .setMinValue(minValue)
+                .setAlias(alias)
                 .setUnit("y.o.")
 
-        private fun beltRestriction(name: String): CategoryRestrictionDTO = CategoryRestrictionDTO()
-                .setId(IDGenerator.hashString(name))
-                .setType(CategoryRestrictionType.SKILL)
-                .setName(name)
+        private fun beltRestriction(value: String): CategoryRestrictionDTO = CategoryRestrictionDTO().setId(IDGenerator.hashString(value)).setType(CategoryRestrictionType.Value)
+                .setValue(value)
+                .setName("Belt")
 
 
-        private fun genderRestriction(name: String): CategoryRestrictionDTO = CategoryRestrictionDTO()
-                .setId(IDGenerator.hashString(name))
-                .setType(CategoryRestrictionType.GENDER)
-                .setName(name)
+        private fun genderRestriction(value: String): CategoryRestrictionDTO = CategoryRestrictionDTO().setId(IDGenerator.hashString(value)).setType(CategoryRestrictionType.Value)
+                .setValue(value)
+                .setName("Gender")
 
         val male = genderRestriction("MALE")
         val female = genderRestriction("FEMALE")
@@ -119,7 +119,7 @@ class CategoryGeneratorService {
 
     fun createDefaultBjjCategories(competitionId: String): List<CategoryDescriptorDTO> {
 
-        fun createMaleAdultBeltWeights(duration: Long, belt: CategoryRestrictionDTO) = listOf(
+   /*     fun createMaleAdultBeltWeights(duration: Long, belt: CategoryRestrictionDTO) = listOf(
                 createCategory(duration, bjj, adult, male, admrooster, belt),
                 createCategory(duration, bjj, adult, male, admlightFeather, belt),
                 createCategory(duration, bjj, adult, male, admfeather, belt),
@@ -130,6 +130,7 @@ class CategoryGeneratorService {
                 createCategory(duration, bjj, adult, male, admsuperHeavy, belt),
                 createCategory(duration, bjj, adult, male, multraHeavy, belt)
         )
+
         fun createFemaleAdultBeltWeights(duration: Long, belt: CategoryRestrictionDTO) = listOf(
                 createCategory(duration, bjj, adult, female, admlightFeather, belt),
                 createCategory(duration, bjj, adult, female, admfeather, belt),
@@ -140,8 +141,8 @@ class CategoryGeneratorService {
         )
 
         val maleAdult = createMaleAdultBeltWeights(5, white) + createMaleAdultBeltWeights(6, blue) + createMaleAdultBeltWeights(7, purple) + createMaleAdultBeltWeights(8, brown) + createMaleAdultBeltWeights(10, black)
-        val femaleAdult = createFemaleAdultBeltWeights(5, white) + createFemaleAdultBeltWeights(6, blue) + createFemaleAdultBeltWeights(7, purple) + createFemaleAdultBeltWeights(8, brown) + createFemaleAdultBeltWeights(10, black)
+        val femaleAdult = createFemaleAdultBeltWeights(5, white) + createFemaleAdultBeltWeights(6, blue) + createFemaleAdultBeltWeights(7, purple) + createFemaleAdultBeltWeights(8, brown) + createFemaleAdultBeltWeights(10, black)*/
 
-        return maleAdult + femaleAdult
+        return Collections.emptyList()
     }
 }
