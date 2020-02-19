@@ -65,6 +65,8 @@ create table compservice.category_restriction
     min_value varchar(255),
     name      varchar(255),
     type      integer,
+    value     varchar(255),
+    alias     varchar(255),
     unit      varchar(255)
 );
 

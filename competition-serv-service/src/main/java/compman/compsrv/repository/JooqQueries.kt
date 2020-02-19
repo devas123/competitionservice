@@ -653,7 +653,7 @@ class JooqQueries(private val create: DSLContext) {
                 rec.field1(), rec.field2(), rec.field3(), rec.field4(), rec.field5())
                 .values(rec.value1(), rec.value2(), rec.value3(), rec.value4(), rec.value5())) +
                 c.restrictions.map {
-                    val restRow = CategoryRestrictionRecord(it.id, it.maxValue, it.minValue, it.name, it.type?.ordinal, it.unit)
+                    val restRow = CategoryRestrictionRecord(it.id, it.maxValue, it.minValue, it.name, it.type?.ordinal, it.value, it.alias, it.unit)
                     create.insertInto(CategoryRestriction.CATEGORY_RESTRICTION, restRow.field1(), restRow.field2(),
                             restRow.field3(), restRow.field4(), restRow.field5(), restRow.field6())
                             .values(restRow.value1(), restRow.value2(), restRow.value3(), restRow.value4(),
