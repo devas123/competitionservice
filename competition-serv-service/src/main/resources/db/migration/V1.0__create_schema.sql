@@ -44,7 +44,7 @@ drop table if exists compservice.comp_score cascade;
 
 drop table if exists compservice.fight_start_times cascade;
 
-drop table if exists compservice.points_assignment_descriptor cascade;
+drop table if exists compservice.fight_result_option cascade;
 
 drop table if exists compservice.stage_input_descriptor cascade;
 
@@ -319,20 +319,31 @@ create table compservice.schedule_entries
 
 create table compservice.stage_descriptor
 (
-    id                    varchar(255) not null
+    id                      varchar(255) not null
         constraint stage_descriptor_pkey
             primary key,
-    category_id           varchar(255)
+    category_id             varchar(255)
         constraint stage_descriptor_category_id_fkey
             references compservice.category_descriptor on delete cascade,
-    bracket_type          integer,
-    competition_id        varchar(255),
-    name                  varchar(255),
-    stage_order           integer,
-    stage_status          integer,
-    stage_type            integer,
-    wait_for_previous     boolean,
-    has_third_place_fight boolean
+    bracket_type            integer,
+    competition_id          varchar(255),
+    name                    varchar(255),
+    stage_order             integer,
+    stage_status            integer,
+    stage_type              integer,
+    wait_for_previous       boolean,
+    has_third_place_fight   boolean,
+    force_manual_assignment boolean
+);
+
+create table compservice.additional_group_sorting_descriptor
+(
+    stage_id             varchar(255) not null
+        constraint additional_group_sorting_descriptor_stage_id_fkey references compservice.stage_descriptor on delete cascade,
+    group_sort_direction integer,
+    group_sort_specifier integer      not null,
+    constraint additional_group_sorting_descriptor_pkey
+        primary key (stage_id, group_sort_specifier)
 );
 
 create table compservice.group_descriptor
@@ -344,7 +355,24 @@ create table compservice.group_descriptor
         constraint group_descriptor_stage_descriptor_id_fkey
             references compservice.stage_descriptor on delete cascade,
     name     varchar(255),
-    size     integer not null
+    size     integer      not null
+);
+
+create table compservice.fight_result_option
+(
+    id                       varchar(255)   not null
+        constraint fight_result_option_pkey
+            primary key,
+    winner_additional_points numeric(19, 2),
+    loser_additional_points  numeric(19, 2),
+    description              varchar(255),
+    short_name               varchar(255)   not null,
+    draw                     boolean,
+    winner_points            numeric(19, 2) not null,
+    loser_points             numeric(19, 2) not null,
+    stage_id                 varchar(255)
+        constraint fkhj7y0idxgjgbg8b4el2qr8nc6
+            references compservice.stage_descriptor on delete cascade
 );
 
 create table compservice.fight_description
@@ -362,7 +390,8 @@ create table compservice.fight_description
     fight_name              varchar(255),
     winner_id               varchar(255),
     reason                  varchar(255),
-    result_type             integer,
+    result_type             varchar(255)
+        constraint fight_description_fight_output_fkey references compservice.fight_result_option,
     lose_fight              varchar(255),
     mat_id                  varchar(255),
     number_in_round         integer      not null,
@@ -420,19 +449,6 @@ create table compservice.fight_start_times
         primary key (mat_schedule_id, fights_order)
 );
 
-create table compservice.points_assignment_descriptor
-(
-    id                varchar(255) not null
-        constraint points_assignment_descriptor_pkey
-            primary key,
-    additional_points numeric(19, 2),
-    classifier        integer not null,
-    points            numeric(19, 2) not null,
-    stage_id          varchar(255)
-        constraint fkhj7y0idxgjgbg8b4el2qr8nc6
-            references compservice.stage_descriptor on delete cascade
-);
-
 create table compservice.stage_input_descriptor
 (
     id                    varchar(255) not null
@@ -483,8 +499,10 @@ create table compservice.competitor_selector_selector_value
 create table compservice.competitor_stage_result
 (
     group_id      varchar(255),
-    place         integer,
-    points        integer,
+    conflicting   boolean,
+    place         integer      not null,
+    points        numeric(19, 2),
+    round_type    integer,
     round         integer,
     stage_id      varchar(255) not null
         constraint competitor_stage_result

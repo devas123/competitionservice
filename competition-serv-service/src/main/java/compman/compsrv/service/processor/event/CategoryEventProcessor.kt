@@ -202,9 +202,8 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
         return if (stages != null && !categoryId.isNullOrBlank()) {
             jooqQueries.saveStages(stages.mapIndexedNotNull { index, stage ->
                 stage.setStageOrder(index) })
-            jooqQueries.savePointsAssignments(stages.flatMap { it.pointsAssignments?.toList() ?: emptyList() })
             jooqQueries.saveInputDescriptors(stages.mapNotNull { it.inputDescriptor })
-            jooqQueries.saveResultDescriptors(stages.mapNotNull { it.stageResultDescriptor })
+            jooqQueries.saveResultDescriptors(stages.mapNotNull { it.id to it.stageResultDescriptor })
             jooqQueries.saveGroupDescriptors(stages.map { it.id to (it.groupDescriptors?.toList() ?: emptyList()) })
             listOf(event)
         } else {

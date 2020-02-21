@@ -12,5 +12,8 @@ import lombok.experimental.Accessors;
 public class StageResultDescriptorDTO {
     private String id;
     private String name;
-    private CompetitorResultDTO[] competitorResults;
+    private boolean forceManualAssignment;
+    private FightResultOptionDTO[] fightResultOptions;
+    private CompetitorStageResultDTO[] competitorResults;
+    private AdditionalGroupSortingDescriptorDTO[] additionalGroupSortingDescriptors;
 }

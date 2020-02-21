@@ -146,50 +146,48 @@ abstract class FightsService {
     }
 
     fun applyStageInputDescriptorToResultsAndFights(descriptor: StageInputDescriptorDTO,
-                                                    results: List<CompetitorResultDTO>,
+                                                    stageResults: List<CompetitorStageResultDTO>,
                                                     fights: List<FightDescriptionDTO>): List<String> {
         fun selectWinnerIdOfFight(fightId: String) = fights.first {
-            it.id == fightId && it.fightResult!!.resultType != CompetitorResultType.BOTH_DQ
-                    && it.fightResult!!.resultType != CompetitorResultType.DRAW
+            it.id == fightId
         }.fightResult?.winnerId
 
         fun selectLoserIdOfFight(fightId: String): String? {
             val fight = fights.first {
-                it.id == fightId && it.fightResult!!.resultType != CompetitorResultType.BOTH_DQ
-                        && it.fightResult!!.resultType != CompetitorResultType.DRAW
+                it.id == fightId
             }
             return fight.scores?.first { it.competitor.id != fight.fightResult!!.winnerId }?.competitor?.id
         }
 
-        fun findWinnersOrLosers(selector: CompetitorSelectorDTO, selectorFun: (fightId: String) -> String?, results: List<CompetitorResultDTO>): List<CompetitorResultDTO> {
+        fun findWinnersOrLosers(selector: CompetitorSelectorDTO, selectorFun: (fightId: String) -> String?, stageResults: List<CompetitorStageResultDTO>): List<CompetitorStageResultDTO> {
             val selectorVal = selector.selectorValue!!
             val selectedFighterIds = selectorVal.mapNotNull { selectorFun.invoke(it) }
-            return results.filter { selectedFighterIds.contains(it.competitorId) }
+            return stageResults.filter { selectedFighterIds.contains(it.competitorId) }
         }
 
-        fun filterResults(selector: CompetitorSelectorDTO, results: List<CompetitorResultDTO>): List<CompetitorResultDTO> {
+        fun filterResults(selector: CompetitorSelectorDTO, stageResults: List<CompetitorStageResultDTO>): List<CompetitorStageResultDTO> {
             return when (selector.classifier!!) {
                 SelectorClassifier.FIRST_N_PLACES -> {
                     val selectorVal = selector.selectorValue?.first()!!.toInt()
-                    results.sortedBy { it.place!! }.take(selectorVal)
+                    stageResults.sortedBy { it.place!! }.take(selectorVal)
                 }
                 SelectorClassifier.LAST_N_PLACES -> {
                     val selectorVal = selector.selectorValue?.first()!!.toInt()
-                    results.sortedBy { it.place!! }.takeLast(selectorVal)
+                    stageResults.sortedBy { it.place!! }.takeLast(selectorVal)
                 }
                 SelectorClassifier.WINNER_OF_FIGHT -> {
-                    findWinnersOrLosers(selector, ::selectWinnerIdOfFight, results)
+                    findWinnersOrLosers(selector, ::selectWinnerIdOfFight, stageResults)
                 }
                 SelectorClassifier.LOSER_OF_FIGHT -> {
-                    findWinnersOrLosers(selector, ::selectLoserIdOfFight, results)
+                    findWinnersOrLosers(selector, ::selectLoserIdOfFight, stageResults)
                 }
                 SelectorClassifier.PASSED_TO_ROUND -> {
                     val selectorVal = selector.selectorValue?.first()!!.toInt()
-                    results.filter { it.round!! >= selectorVal }
+                    stageResults.filter { it.round!! >= selectorVal }
                 }
             }
         }
-        return filterResults(descriptor.selectors!!.first(), results).mapNotNull { it.competitorId }.take(descriptor.numberOfCompetitors)
+        return filterResults(descriptor.selectors!!.first(), stageResults).mapNotNull { it.competitorId }.take(descriptor.numberOfCompetitors)
     }
 
     abstract fun supportedBracketTypes(): List<BracketType>
@@ -203,5 +201,5 @@ abstract class FightsService {
                                    fights: List<FightDescriptionDTO>,
                                    stageId: String,
                                    competitionId: String,
-                                   pointsAssignmentDescriptors: List<PointsAssignmentDescriptorDTO>): List<CompetitorResultDTO>
+                                   pointsAssignmentDescriptors: List<FightResultOptionDTO>): List<CompetitorStageResultDTO>
 }

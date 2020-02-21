@@ -2,6 +2,7 @@ package compman.compsrv.repository
 
 import arrow.core.Tuple2
 import arrow.core.Tuple5
+import arrow.core.Tuple6
 import com.compmanager.compservice.jooq.tables.*
 import com.compmanager.compservice.jooq.tables.records.*
 import com.compmanager.model.payment.RegistrationStatus
@@ -255,7 +256,8 @@ class JooqQueries(private val create: DSLContext) {
                     .setDuration(u[FightDescription.FIGHT_DESCRIPTION.DURATION])
                     .setFightName(u[FightDescription.FIGHT_DESCRIPTION.FIGHT_NAME])
                     .setFightResult(FightResultDTO()
-                            .setResultType(u[FightDescription.FIGHT_DESCRIPTION.RESULT_TYPE]?.let { rt -> CompetitorResultType.values()[rt] })
+                            .setResultTypeId(u[FightDescription.FIGHT_DESCRIPTION.RESULT_TYPE])
+//                            .setResultType(u[FightDescription.FIGHT_DESCRIPTION.RESULT_TYPE]?.let { rt -> FightResultOption.values[rt] })
                             .setWinnerId(u[FightDescription.FIGHT_DESCRIPTION.WINNER_ID])
                             .setReason(u[FightDescription.FIGHT_DESCRIPTION.REASON]))
                     .setWinFight(u[FightDescription.FIGHT_DESCRIPTION.WIN_FIGHT])
@@ -407,7 +409,7 @@ class JooqQueries(private val create: DSLContext) {
                         create.update(FightDescription.FIGHT_DESCRIPTION)
                                 .set(FightDescription.FIGHT_DESCRIPTION.WINNER_ID, fightResult.winnerId)
                                 .set(FightDescription.FIGHT_DESCRIPTION.REASON, fightResult.reason)
-                                .set(FightDescription.FIGHT_DESCRIPTION.RESULT_TYPE, fightResult.resultType?.ordinal)
+                                .set(FightDescription.FIGHT_DESCRIPTION.RESULT_TYPE, fightResult.resultTypeId)
                                 .set(FightDescription.FIGHT_DESCRIPTION.STATUS, fightStatus.ordinal)
                                 .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fightId))
 
@@ -432,7 +434,7 @@ class JooqQueries(private val create: DSLContext) {
                 status = fight.status?.ordinal
                 winnerId = fight.fightResult?.winnerId
                 reason = fight.fightResult?.reason
-                resultType = fight.fightResult?.resultType?.ordinal
+                resultType = fight.fightResult?.resultTypeId
                 matId = fight.mat?.id
                 numberInRound = fight.numberInRound
                 numberOnMat = fight.numberOnMat
@@ -460,8 +462,8 @@ class JooqQueries(private val create: DSLContext) {
 
     fun fetchStagesForCategory(competitionId: String, categoryId: String): Flux<StageDescriptorDTO> = Flux.from(
             create.selectFrom(StageDescriptor.STAGE_DESCRIPTOR
-                    .join(PointsAssignmentDescriptor.POINTS_ASSIGNMENT_DESCRIPTOR, JoinType.LEFT_OUTER_JOIN)
-                    .on(PointsAssignmentDescriptor.POINTS_ASSIGNMENT_DESCRIPTOR.STAGE_ID.eq(StageDescriptor.STAGE_DESCRIPTOR.ID))
+                    .join(FightResultOption.FIGHT_RESULT_OPTION, JoinType.LEFT_OUTER_JOIN)
+                    .on(FightResultOption.FIGHT_RESULT_OPTION.STAGE_ID.eq(StageDescriptor.STAGE_DESCRIPTOR.ID))
                     .join(GroupDescriptor.GROUP_DESCRIPTOR, JoinType.LEFT_OUTER_JOIN)
                     .on(GroupDescriptor.GROUP_DESCRIPTOR.STAGE_ID.eq(StageDescriptor.STAGE_DESCRIPTOR.ID))
                     .join(CompetitorStageResult.COMPETITOR_STAGE_RESULT, JoinType.LEFT_OUTER_JOIN)
@@ -470,6 +472,8 @@ class JooqQueries(private val create: DSLContext) {
                     .on(StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.ID.eq(StageDescriptor.STAGE_DESCRIPTOR.ID))
                     .join(CompetitorSelector.COMPETITOR_SELECTOR, JoinType.LEFT_OUTER_JOIN)
                     .on(CompetitorSelector.COMPETITOR_SELECTOR.STAGE_INPUT_ID.eq(StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.ID))
+                    .join(AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR, JoinType.LEFT_OUTER_JOIN)
+                    .on(StageDescriptor.STAGE_DESCRIPTOR.ID.eq(AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.STAGE_ID))
                     .join(CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE, JoinType.LEFT_OUTER_JOIN)
                     .on(CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE.COMPETITOR_SELECTOR_ID.eq(CompetitorSelector.COMPETITOR_SELECTOR.ID)))
                     .where(StageDescriptor.STAGE_DESCRIPTOR.COMPETITION_ID.eq(competitionId))
@@ -477,11 +481,12 @@ class JooqQueries(private val create: DSLContext) {
     ).groupBy { it[StageDescriptor.STAGE_DESCRIPTOR.ID] }
             .flatMap { records ->
                 records.collect({
-                    Tuple5(StageDescriptorDTO(),
-                            mutableListOf(PointsAssignmentDescriptorDTO()),
-                            Tuple2(StageResultDescriptorDTO(), mutableListOf<CompetitorResultDTO>()),
+                    Tuple6(StageDescriptorDTO(),
+                            mutableListOf<FightResultOptionDTO>(),
+                            Tuple2(StageResultDescriptorDTO(), mutableListOf<CompetitorStageResultDTO>()),
                             Tuple2(StageInputDescriptorDTO(), mutableListOf<Tuple2<CompetitorSelectorDTO, MutableSet<String>>>()),
-                            mutableListOf<GroupDescriptorDTO>())
+                            mutableListOf<GroupDescriptorDTO>(),
+                            mutableListOf<AdditionalGroupSortingDescriptorDTO>())
                 }, { t, u ->
                     t.a.id = u[StageDescriptor.STAGE_DESCRIPTOR.ID]
                     t.a.bracketType = BracketType.values()[u[StageDescriptor.STAGE_DESCRIPTOR.BRACKET_TYPE]]
@@ -494,16 +499,20 @@ class JooqQueries(private val create: DSLContext) {
                     t.a.stageStatus = u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_STATUS]?.let { StageStatus.values()[it] }
                     t.a.waitForPrevious = u[StageDescriptor.STAGE_DESCRIPTOR.WAIT_FOR_PREVIOUS]
 
-                    if (!u[PointsAssignmentDescriptor.POINTS_ASSIGNMENT_DESCRIPTOR.ID].isNullOrBlank()
-                            && t.b.none { it.id == u[PointsAssignmentDescriptor.POINTS_ASSIGNMENT_DESCRIPTOR.ID] }) {
-                        t.b.add(PointsAssignmentDescriptorDTO()
-                                .setId(u[PointsAssignmentDescriptor.POINTS_ASSIGNMENT_DESCRIPTOR.ID])
-                                .setPoints(u[PointsAssignmentDescriptor.POINTS_ASSIGNMENT_DESCRIPTOR.POINTS])
-                                .setAdditionalPoints(u[PointsAssignmentDescriptor.POINTS_ASSIGNMENT_DESCRIPTOR.ADDITIONAL_POINTS])
-                                .setClassifier(u[PointsAssignmentDescriptor.POINTS_ASSIGNMENT_DESCRIPTOR.CLASSIFIER]?.let { CompetitorResultType.values()[it] }))
+                    if (!u[FightResultOption.FIGHT_RESULT_OPTION.ID].isNullOrBlank()
+                            && t.b.none { it.id == u[FightResultOption.FIGHT_RESULT_OPTION.ID] }) {
+                        t.b.add(FightResultOptionDTO()
+                                .setId(u[FightResultOption.FIGHT_RESULT_OPTION.ID])
+                                .setWinnerPoints(u[FightResultOption.FIGHT_RESULT_OPTION.WINNER_POINTS])
+                                .setWinnerAdditionalPoints(u[FightResultOption.FIGHT_RESULT_OPTION.WINNER_ADDITIONAL_POINTS])
+                                .setLoserPoints(u[FightResultOption.FIGHT_RESULT_OPTION.LOSER_POINTS])
+                                .setLoserAdditionalPoints(u[FightResultOption.FIGHT_RESULT_OPTION.LOSER_ADDITIONAL_POINTS])
+                                .setShortName(u[FightResultOption.FIGHT_RESULT_OPTION.SHORT_NAME])
+                                .setDraw(u[FightResultOption.FIGHT_RESULT_OPTION.DRAW])
+                                .setDescription(u[FightResultOption.FIGHT_RESULT_OPTION.DESCRIPTION]))
                     }
                     if (!u[GroupDescriptor.GROUP_DESCRIPTOR.ID].isNullOrBlank()
-                            && t.b.none { it.id == u[GroupDescriptor.GROUP_DESCRIPTOR.ID] }) {
+                            && t.e.none { it.id == u[GroupDescriptor.GROUP_DESCRIPTOR.ID] }) {
                         t.e.add(GroupDescriptorDTO()
                                 .setId(u[GroupDescriptor.GROUP_DESCRIPTOR.ID])
                                 .setName(u[GroupDescriptor.GROUP_DESCRIPTOR.NAME])
@@ -517,7 +526,7 @@ class JooqQueries(private val create: DSLContext) {
                                         && it.stageId == u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID]
                             }
                             && !u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID].isNullOrBlank()) {
-                        t.c.b.add(CompetitorResultDTO()
+                        t.c.b.add(CompetitorStageResultDTO()
                                 .setStageId(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID])
                                 .setCompetitorId(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.COMPETITOR_ID])
                                 .setPlace(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.PLACE])
@@ -525,6 +534,21 @@ class JooqQueries(private val create: DSLContext) {
                                 .setRound(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.ROUND])
                                 .setPoints(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.POINTS]))
                     }
+
+                    if (!u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.STAGE_ID].isNullOrBlank()
+                            && u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_SPECIFIER] != null &&
+                            t.f.none {
+                                it.groupSortSpecifier?.ordinal == u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_SPECIFIER]
+                            }) {
+                        t.f.add(AdditionalGroupSortingDescriptorDTO()
+                                .setGroupSortDirection(u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_DIRECTION]?.let {
+                                    GroupSortDirection.values()[it]
+                                })
+                                .setGroupSortSpecifier(u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_SPECIFIER]?.let {
+                                    GroupSortSpecifier.values()[it]
+                                }))
+                    }
+
                     t.d.a.id = u[StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.ID]
                     t.d.a.numberOfCompetitors = u[StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.NUMBER_OF_COMPETITORS]
                     t.d.a.distributionType = u[StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.DISTRIBUTION_TYPE]?.let { DistributionType.values()[it] }
@@ -543,9 +567,11 @@ class JooqQueries(private val create: DSLContext) {
                 })
             }.map { tuple ->
                 tuple.a
-                        .setPointsAssignments(tuple.b.toTypedArray())
                         .setGroupDescriptors(tuple.e.toTypedArray())
-                        .setStageResultDescriptor(tuple.c.a.setCompetitorResults(tuple.c.b.toTypedArray()))
+                        .setStageResultDescriptor(tuple.c.a
+                                .setFightResultOptions(tuple.b.toTypedArray())
+                                .setCompetitorResults(tuple.c.b.toTypedArray())
+                                .setAdditionalGroupSortingDescriptors(tuple.f.toTypedArray()))
                         .setInputDescriptor(tuple.d.a
                                 .setSelectors(tuple.d.b.map { db -> db.a.setSelectorValue(db.b.toTypedArray()) }.toTypedArray()))
                         .setNumberOfFights(fightsCountByStageId(tuple.a.competitionId, tuple.a.id))
@@ -564,17 +590,6 @@ class JooqQueries(private val create: DSLContext) {
                     .values(fighterId, newCategoryId)
         }
         create.batch(batch).execute()
-    }
-
-    fun savePointsAssignments(assignments: List<PointsAssignmentDescriptorDTO>) {
-        create.batchInsert(assignments.map {
-            PointsAssignmentDescriptorRecord().apply {
-                id = it.id
-                classifier = it.classifier?.ordinal
-                points = it.points
-                additionalPoints = it.additionalPoints
-            }
-        }).execute()
     }
 
     fun saveStages(stages: List<StageDescriptorDTO>): IntArray = create.batchInsert(stages.map { stage ->
@@ -627,22 +642,46 @@ class JooqQueries(private val create: DSLContext) {
         create.batch(batch).execute()
     }
 
-    private fun saveCompetitorResultQuery(cr: CompetitorResultDTO): InsertReturningStep<CompetitorStageResultRecord> =
+    private fun saveCompetitorResultQuery(cr: CompetitorStageResultDTO): InsertReturningStep<CompetitorStageResultRecord> =
             create.insertInto(CompetitorStageResult.COMPETITOR_STAGE_RESULT,
                     CompetitorStageResult.COMPETITOR_STAGE_RESULT.GROUP_ID, CompetitorStageResult.COMPETITOR_STAGE_RESULT.PLACE,
                     CompetitorStageResult.COMPETITOR_STAGE_RESULT.POINTS, CompetitorStageResult.COMPETITOR_STAGE_RESULT.ROUND,
-                    CompetitorStageResult.COMPETITOR_STAGE_RESULT.COMPETITOR_ID, CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID)
-                    .values(cr.groupId, cr.place, cr.points, cr.round, cr.competitorId, cr.stageId).onDuplicateKeyIgnore()
+                    CompetitorStageResult.COMPETITOR_STAGE_RESULT.COMPETITOR_ID, CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID,
+                    CompetitorStageResult.COMPETITOR_STAGE_RESULT.CONFLICTING, CompetitorStageResult.COMPETITOR_STAGE_RESULT.ROUND_TYPE)
+                    .values(cr.groupId, cr.place, cr.points, cr.round, cr.competitorId, cr.stageId, cr.conflicting, cr.roundType?.ordinal)
+                    .onDuplicateKeyIgnore()
 
-    fun saveCompetitorResults(crs: Iterable<CompetitorResultDTO>) {
+    private fun saveFightResultOptionQuery(stageId: String, fro: FightResultOptionDTO): InsertReturningStep<FightResultOptionRecord> =
+            create.insertInto(FightResultOption.FIGHT_RESULT_OPTION,
+                    FightResultOption.FIGHT_RESULT_OPTION.ID, FightResultOption.FIGHT_RESULT_OPTION.STAGE_ID,
+                    FightResultOption.FIGHT_RESULT_OPTION.WINNER_POINTS, FightResultOption.FIGHT_RESULT_OPTION.WINNER_ADDITIONAL_POINTS,
+                    FightResultOption.FIGHT_RESULT_OPTION.LOSER_POINTS, FightResultOption.FIGHT_RESULT_OPTION.LOSER_ADDITIONAL_POINTS,
+                    FightResultOption.FIGHT_RESULT_OPTION.DRAW, FightResultOption.FIGHT_RESULT_OPTION.DESCRIPTION,
+                    FightResultOption.FIGHT_RESULT_OPTION.SHORT_NAME)
+                    .values(fro.id, stageId, fro.winnerPoints, fro.winnerAdditionalPoints, fro.loserPoints,
+                            fro.loserAdditionalPoints, fro.isDraw, fro.description, fro.shortName).onDuplicateKeyIgnore()
+
+    private fun saveAdditionalGroupSortingDescriptorQuery(stageId: String, agsd: AdditionalGroupSortingDescriptorDTO) =
+            AdditionalGroupSortingDescriptorRecord(stageId, agsd.groupSortDirection?.ordinal, agsd.groupSortSpecifier?.ordinal).let {
+                create.insertInto(AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR,
+                        *it.fields()).values(it.value1(), it.value2(), it.value3())
+            }
+
+
+    fun saveCompetitorResults(crs: Iterable<CompetitorStageResultDTO>) {
         create.batch(crs.map { cr -> saveCompetitorResultQuery(cr) }).execute()
     }
 
-    fun saveResultDescriptors(resultDescriptors: List<StageResultDescriptorDTO>) {
-        val batch = resultDescriptors.flatMap {
-            it.competitorResults.map { cr ->
+    fun saveResultDescriptors(resultDescriptors: List<Pair<String, StageResultDescriptorDTO>>) {
+        val batch = resultDescriptors.flatMap { pair ->
+            (pair.second.competitorResults?.map { cr ->
                 saveCompetitorResultQuery(cr)
-            }
+            } ?: emptyList()) + (pair.second.fightResultOptions?.map {
+                saveFightResultOptionQuery(pair.first, it)
+            } ?: emptyList()) +
+                    (pair.second.additionalGroupSortingDescriptors?.map {
+                        saveAdditionalGroupSortingDescriptorQuery(pair.first, it)
+                    } ?: emptyList())
         }
         create.batch(batch).execute()
     }

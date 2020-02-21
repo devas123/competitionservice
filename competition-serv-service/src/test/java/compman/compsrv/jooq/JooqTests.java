@@ -29,6 +29,7 @@ import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.stream.Collectors;
+
 @Ignore
 @RunWith(MockitoJUnitRunner.class)
 public class JooqTests {
@@ -91,6 +92,14 @@ public class JooqTests {
             jooqQueries.saveCategoryDescriptor(category, competitionId);
             List<FightDescriptionDTO> fights = bracketsGenerateService.generateDoubleEliminationBracket(competitionId, categoryId, stageId, 50, duration);
             ArrayList<StageDescriptorDTO> stages = new ArrayList<>();
+            final AdditionalGroupSortingDescriptorDTO[] additionalGroupSortingDescriptorDTOS =new AdditionalGroupSortingDescriptorDTO[]{
+                    new AdditionalGroupSortingDescriptorDTO()
+                            .setGroupSortDirection(GroupSortDirection.ASC)
+                            .setGroupSortSpecifier(GroupSortSpecifier.POINTS_DIFFERENCE),
+                    new AdditionalGroupSortingDescriptorDTO()
+                            .setGroupSortDirection(GroupSortDirection.DESC)
+                            .setGroupSortSpecifier(GroupSortSpecifier.DIRECT_FIGHT_RESULT)
+            };
             stages.add(new StageDescriptorDTO()
                     .setId(stageId)
                     .setName("Name")
@@ -102,6 +111,9 @@ public class JooqTests {
                     .setNumberOfFights(fights.size())
                     .setStageOrder(0)
                     .setStageStatus(StageStatus.APPROVED)
+                    .setStageResultDescriptor(new StageResultDescriptorDTO()
+                    .setId(stageId)
+                    .setAdditionalGroupSortingDescriptors(additionalGroupSortingDescriptorDTOS))
                     .setGroupDescriptors(new GroupDescriptorDTO[]{
                             new GroupDescriptorDTO()
                                     .setId(stageId + "-group-" + UUID.randomUUID().toString())
@@ -115,6 +127,7 @@ public class JooqTests {
             jooqQueries.saveStages(stages);
             jooqQueries.saveGroupDescriptors(stages.stream().map(s -> new Pair<>(s.getId(), Arrays.asList(s.getGroupDescriptors())))
                     .collect(Collectors.toList()));
+            jooqQueries.saveResultDescriptors(stages.stream().map(s -> new Pair<>(s.getId(), s.getStageResultDescriptor())).collect(Collectors.toList()));
             jooqQueries.saveFights(fights);
 
             List<FightDescriptionRecord> rawFights = jooqQueries.getDsl()
@@ -130,6 +143,13 @@ public class JooqTests {
             Assert.assertNotNull(loadedFights);
             Assert.assertEquals(fights.size(), loadedFights.size());
             loadedStages.forEach(st -> {
+                Assert.assertNotNull(st.getStageResultDescriptor());
+                Assert.assertNotNull(st.getStageResultDescriptor().getAdditionalGroupSortingDescriptors());
+                Assert.assertEquals(additionalGroupSortingDescriptorDTOS.length, st.getStageResultDescriptor().getAdditionalGroupSortingDescriptors().length);
+                for (AdditionalGroupSortingDescriptorDTO additionalGroupSortingDescriptor : st.getStageResultDescriptor().getAdditionalGroupSortingDescriptors()) {
+                    Assert.assertTrue(Arrays.stream(additionalGroupSortingDescriptorDTOS).anyMatch(g -> g.getGroupSortDirection() == additionalGroupSortingDescriptor.getGroupSortDirection()
+                            && g.getGroupSortSpecifier() == additionalGroupSortingDescriptor.getGroupSortSpecifier()));
+                }
                 Assert.assertNotNull(st.getGroupDescriptors());
                 Assert.assertEquals(2, st.getGroupDescriptors().length);
                 Arrays.stream(st.getGroupDescriptors()).forEach(gr -> {

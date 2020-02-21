@@ -4,7 +4,7 @@ import arrow.core.Option
 import arrow.core.getOrElse
 import arrow.core.orElse
 import com.compmanager.compservice.jooq.tables.daos.FightDescriptionDao
-import com.compmanager.compservice.jooq.tables.daos.PointsAssignmentDescriptorDao
+import com.compmanager.compservice.jooq.tables.daos.FightResultOptionDao
 import com.compmanager.compservice.jooq.tables.daos.StageDescriptorDao
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.mapping.toDTO
@@ -24,10 +24,12 @@ import compman.compsrv.model.events.payload.DashboardFightOrderChangedPayload
 import compman.compsrv.model.events.payload.FightCompetitorsAssignedPayload
 import compman.compsrv.model.events.payload.StageResultSetPayload
 import compman.compsrv.repository.*
-import compman.compsrv.service.fight.BracketsGenerateService
 import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.service.fight.FightsService
-import compman.compsrv.util.*
+import compman.compsrv.util.copy
+import compman.compsrv.util.createErrorEvent
+import compman.compsrv.util.createEvent
+import compman.compsrv.util.getPayloadAs
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
@@ -41,8 +43,8 @@ import kotlin.math.sign
 class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptionDao,
                                 private val jooqQueries: JooqQueries,
                                 private val fightsGenerateService: FightServiceFactory,
+                                private val pointsAssignmentDescriptorDao: FightResultOptionDao,
                                 private val stageDescriptorCrudRepository: StageDescriptorDao,
-                                private val pointsAssignmentDescriptorDao: PointsAssignmentDescriptorDao,
                                 private val mapper: ObjectMapper) : ICommandProcessor {
     override fun affectedCommands(): Set<CommandType> {
         return setOf(CommandType.DASHBOARD_FIGHT_ORDER_CHANGE_COMMAND,
@@ -209,9 +211,9 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                             fd
                         }
                     }
-                    val pointAssignmentDescriptors = pointsAssignmentDescriptorDao.fetchByStageId(fight.stageId)?.map { it.toDTO() } ?: emptyList()
+                    val fightResultOptions = pointsAssignmentDescriptorDao.fetchByStageId(fight.stageId)?.map { it.toDTO() } ?: emptyList()
                     val stageResults = fightsGenerateService.buildStageResults(BracketType.values()[stage.bracketType], StageStatus.FINISHED,
-                            fightsWithResult ?: emptyList(), stage.id!!, stage.competitionId, pointAssignmentDescriptors)
+                            fightsWithResult ?: emptyList(), stage.id!!, stage.competitionId, fightResultOptions)
                     listOf(mapper.createEvent(command, EventType.DASHBOARD_STAGE_RESULT_SET,
                             StageResultSetPayload()
                                     .setStageId(stage.id)

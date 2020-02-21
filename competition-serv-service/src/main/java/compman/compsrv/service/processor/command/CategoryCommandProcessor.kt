@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
+import compman.compsrv.model.dto.brackets.StageResultDescriptorDTO
 import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.model.dto.brackets.StageType
 import compman.compsrv.model.dto.competition.CategoryRestrictionDTO
@@ -19,7 +20,6 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.repository.JooqQueries
-import compman.compsrv.service.fight.BracketsGenerateService
 import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.IDGenerator
@@ -28,6 +28,7 @@ import compman.compsrv.util.createErrorEvent
 import compman.compsrv.util.createEvent
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import java.util.*
 
 
 @Component
@@ -143,7 +144,9 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                         .setName(stage.name ?: "Default brackets")
                         .setStageStatus(StageStatus.WAITING_FOR_APPROVAL)
                         .setInputDescriptor(stage.inputDescriptor?.setId(stageId))
-                        .setPointsAssignments(stage.pointsAssignments?.mapIndexed { index, it -> it.setId("$stageId-pointAssignment-$index") }?.toTypedArray())
+                        .setStageResultDescriptor(StageResultDescriptorDTO()
+                                .setId(stageId)
+                                .setFightResultOptions(stage?.stageResultDescriptor?.fightResultOptions?.map { it.setId(IDGenerator.hashString("$stageId-${UUID.randomUUID()}")) }?.toTypedArray()))
                         .setNumberOfFights(twoFighterFights.size) to twoFighterFights
             }
             val fightAddedEvents = updatedStages.flatMap { pair ->

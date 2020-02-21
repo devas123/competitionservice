@@ -20,7 +20,7 @@ class FightServiceFactory(private val fightServices: List<FightsService>) {
         return fightServices.first { it.supportedBracketTypes().contains(bracketType) }.distributeCompetitors(competitors, fights, bracketType, distributionType)
     }
 
-    fun buildStageResults(bracketType: BracketType, stageStatus: StageStatus, fights: List<FightDescriptionDTO>, stageId: String, competitionId: String, pointsAssignmentDescriptors: List<PointsAssignmentDescriptorDTO>): List<CompetitorResultDTO> {
+    fun buildStageResults(bracketType: BracketType, stageStatus: StageStatus, fights: List<FightDescriptionDTO>, stageId: String, competitionId: String, pointsAssignmentDescriptors: List<FightResultOptionDTO>): List<CompetitorStageResultDTO> {
        return fightServices.first { it.supportedBracketTypes().contains(bracketType) }.buildStageResults(bracketType, stageStatus, fights, stageId, competitionId, pointsAssignmentDescriptors)
     }
 }

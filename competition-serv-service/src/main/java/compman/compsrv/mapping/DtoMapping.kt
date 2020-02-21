@@ -136,7 +136,7 @@ fun StageInputDescriptor.toDTO(selectors: Array<CompetitorSelectorDTO>): StageIn
         .setDistributionType(DistributionType.values()[distributionType])
         .setNumberOfCompetitors(numberOfCompetitors).setSelectors(selectors)
 
-fun CompetitorStageResult.toDTO(): CompetitorResultDTO = CompetitorResultDTO()
+fun CompetitorStageResult.toDTO(): CompetitorStageResultDTO = CompetitorStageResultDTO()
         .setStageId(stageId)
         .setPoints(points)
         .setGroupId(groupId)
@@ -147,30 +147,15 @@ fun CompetitorStageResult.toDTO(): CompetitorResultDTO = CompetitorResultDTO()
 fun CompetitorSelector.toDTO(selectorValue: Array<String>) = CompetitorSelectorDTO(id, applyToStageId, LogicalOperator.values()[logicalOperator],
         SelectorClassifier.values()[classifier], OperatorType.values()[operator], selectorValue)
 
-fun StageDescriptor.toDTO(inputDescriptor: StageInputDescriptorDTO,
-                          pointsAssignments: Array<PointsAssignmentDescriptorDTO>,
-                          stageResultDescriptor: StageResultDescriptorDTO,
-                          groupDescriptors: Array<GroupDescriptorDTO>,
-                          numberOfFights: Int): StageDescriptorDTO = StageDescriptorDTO()
+
+
+
+fun FightResultOption.toDTO(): FightResultOptionDTO = FightResultOptionDTO()
         .setId(id)
-        .setBracketType(BracketType.values()[bracketType])
-        .setCompetitionId(competitionId)
-        .setInputDescriptor(inputDescriptor)
-        .setName(name)
-        .setStageOrder(stageOrder)
-        .setPointsAssignments(pointsAssignments)
-        .setStageResultDescriptor(stageResultDescriptor)
-        .setStageStatus(StageStatus.values()[stageStatus])
-        .setWaitForPrevious(waitForPrevious)
-        .setStageType(StageType.values()[stageType])
-        .setHasThirdPlaceFight(hasThirdPlaceFight)
-        .setCategoryId(categoryId)
-        .setNumberOfFights(numberOfFights)
-        .setGroupDescriptors(groupDescriptors)
-
-
-
-fun PointsAssignmentDescriptor.toDTO() = PointsAssignmentDescriptorDTO(id,
-        CompetitorResultType.values()[classifier],
-        points,
-        additionalPoints)
+        .setDescription(description)
+        .setShortName(shortName)
+        .setDraw(draw)
+        .setWinnerAdditionalPoints(winnerAdditionalPoints)
+        .setLoserAdditionalPoints(loserAdditionalPoints)
+        .setWinnerPoints(winnerPoints)
+        .setLoserPoints(loserPoints)

@@ -17,7 +17,6 @@ public class StageDescriptorDTO {
     private BracketType bracketType;
     private StageType stageType;
     private StageStatus stageStatus;
-    private PointsAssignmentDescriptorDTO[] pointsAssignments;
     private StageResultDescriptorDTO stageResultDescriptor;
     private StageInputDescriptorDTO inputDescriptor;
     private Integer stageOrder;

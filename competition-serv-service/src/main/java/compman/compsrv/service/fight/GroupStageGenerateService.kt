@@ -59,37 +59,41 @@ class GroupStageGenerateService : FightsService() {
     override fun buildStageResults(bracketType: BracketType, stageStatus: StageStatus,
                                    fights: List<FightDescriptionDTO>, stageId: String,
                                    competitionId: String,
-                                   pointsAssignmentDescriptors: List<PointsAssignmentDescriptorDTO>): List<CompetitorResultDTO> {
+                                   pointsAssignmentDescriptors: List<FightResultOptionDTO>): List<CompetitorStageResultDTO> {
         return when (stageStatus) {
             StageStatus.FINISHED -> {
                 val competitorPointsMap = mutableMapOf<String, Tuple3<BigDecimal, BigDecimal, String>>()
 
                 fights.forEach { fight ->
-                    val pointsDescriptor = pointsAssignmentDescriptors.find { p -> p.classifier == fight.fightResult.resultType }
-                    when(pointsDescriptor?.classifier) {
-                        CompetitorResultType.DRAW, CompetitorResultType.BOTH_DQ -> {
-                            val loser = fight.scores.firstOrNull { sc -> sc.competitor?.id != fight.fightResult.winnerId }
-                            loser?.competitor?.id?.let {
-                                competitorPointsMap.compute(it) { _, u ->
-                                    val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
-                                    Tuple3(basis.a + (pointsDescriptor.points
-                                            ?: BigDecimal.ZERO), basis.b + (pointsDescriptor.additionalPoints
-                                            ?: BigDecimal.ZERO), basis.c)
+                    val pointsDescriptor = pointsAssignmentDescriptors.find { p -> p.id == fight.fightResult.resultTypeId }
+                    when (pointsDescriptor?.isDraw) {
+                        true -> {
+                            fight.scores.forEach { sc ->
+                                sc.competitor?.id?.let {
+                                    competitorPointsMap.compute(it) { _, u ->
+                                        val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
+                                        Tuple3(basis.a + (pointsDescriptor.winnerPoints
+                                                ?: BigDecimal.ZERO), basis.b + (pointsDescriptor.winnerAdditionalPoints
+                                                ?: BigDecimal.ZERO), basis.c)
+                                    }
                                 }
-                            }
-                            competitorPointsMap.compute(fight.fightResult.winnerId) { _, u ->
-                                val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
-                                Tuple3(basis.a + (pointsDescriptor.points
-                                        ?: BigDecimal.ZERO), basis.b + (pointsDescriptor.additionalPoints
-                                        ?: BigDecimal.ZERO), basis.c)
                             }
                         }
                         else -> {
                             competitorPointsMap.compute(fight.fightResult.winnerId) { _, u ->
                                 val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
-                                Tuple3(basis.a + (pointsDescriptor?.points
-                                        ?: BigDecimal.ZERO), basis.b + (pointsDescriptor?.additionalPoints
+                                Tuple3(basis.a + (pointsDescriptor?.winnerPoints
+                                        ?: BigDecimal.ZERO), basis.b + (pointsDescriptor?.winnerAdditionalPoints
                                         ?: BigDecimal.ZERO), basis.c)
+                            }
+
+                            fight.scores.find { it.competitor?.id != fight.fightResult.winnerId }?.competitor?.id?.let {
+                                competitorPointsMap.compute(it) { _, u ->
+                                    val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
+                                    Tuple3(basis.a + (pointsDescriptor?.winnerPoints
+                                            ?: BigDecimal.ZERO), basis.b + (pointsDescriptor?.winnerAdditionalPoints
+                                            ?: BigDecimal.ZERO), basis.c)
+                                }
                             }
                         }
                     }
@@ -97,11 +101,11 @@ class GroupStageGenerateService : FightsService() {
                 competitorPointsMap.toList()
                         .sortedByDescending { pair -> pair.second.a + pair.second.b.divide(BigDecimal.valueOf(100000)) }
                         .mapIndexed { i, e ->
-                            CompetitorResultDTO()
+                            CompetitorStageResultDTO()
                                     .setRound(0)
                                     .setGroupId(e.second.c)
                                     .setCompetitorId(e.first)
-                                    .setPoints(e.second.a.toInt())
+                                    .setPoints(e.second.a)
                                     .setPlace(i)
                                     .setStageId(stageId)
                         }
