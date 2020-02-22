@@ -11,7 +11,6 @@ import compman.compsrv.model.events.payload.*
 import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.JooqQueries
 import compman.compsrv.service.CompetitionCleaner
-import compman.compsrv.service.processor.command.CompetitionCommandProcessor
 import compman.compsrv.util.applyProperties
 import compman.compsrv.util.getPayloadFromString
 import org.slf4j.LoggerFactory
@@ -43,8 +42,6 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
                 EventType.COMPETITION_STOPPED,
                 EventType.COMPETITION_PUBLISHED,
                 EventType.COMPETITION_UNPUBLISHED,
-                EventType.DASHBOARD_CREATED,
-                EventType.DASHBOARD_DELETED,
                 EventType.ERROR_EVENT,
                 EventType.REGISTRATION_INFO_UPDATED,
                 EventType.INTERNAL_COMPETITION_INFO
@@ -100,28 +97,6 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
                     } else {
                         log.error("Didn't find period with id ${payload.periodId}")
                         throw createError("Didn't find period with id ${payload.periodId}")
-                    }
-                }
-                EventType.DASHBOARD_DELETED -> {
-                    if (competitionPropertiesDao.existsById(event.competitionId)) {
-                        jooqQueries.deleteDashboardPeriodsByCompetitionId(event.competitionId)
-                    } else {
-                        throw createError("Cannot load competition state for competition ${event.competitionId}")
-                    }
-
-                }
-                EventType.DASHBOARD_CREATED -> {
-                    val payload = getPayloadAs(event.payload, DashboardCreatedPayload::class.java)
-                    if (payload?.dashboardState != null) {
-                        if (competitionPropertiesDao.existsById(event.competitionId)) {
-                            payload.dashboardState.periods?.toList()?.let {
-                                jooqQueries.saveDashboardPeriods(event.competitionId, it)
-                            }
-                        } else {
-                            throw createError("Cannot load competition state for competition ${event.competitionId}")
-                        }
-                    } else {
-                        throw createError("Cannot load dashboard state from event $event")
                     }
                 }
                 EventType.REGISTRATION_PERIOD_ADDED -> {

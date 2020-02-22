@@ -12,37 +12,28 @@ fun SchedulePeriodProperties.toDTO(categories: Array<String>?): PeriodProperties
         .setId(id)
         .setName(name)
         .setStartTime(startTime?.toInstant())
-        .setNumberOfMats(numberOfMats)
         .setTimeBetweenFights(timeBetweenFights)
         .setRiskPercent(riskPercent)
         .setCategories(categories)
 
 
-fun ScheduleEntries.toDTO(): ScheduleEntryDTO = ScheduleEntryDTO()
+fun ScheduleEntry.toDTO(): ScheduleEntryDTO = ScheduleEntryDTO()
         .setCategoryId(categoryId)
+        .setFightId(fightId)
+        .setMatId(matId)
+        .setOrder(scheduleOrder)
+        .setEndTime(endTime?.toInstant())
+        .setEntryType(entryType?.let { ScheduleEntryType.values()[it] })
         .setStartTime(startTime?.toInstant())
         .setNumberOfFights(numberOfFights)
         .setFightDuration(fightDuration)
 
-fun SchedulePeriod.toDTO(scheduleEntries: Array<ScheduleEntryDTO>, fightsByMats: Array<MatScheduleContainerDTO>): PeriodDTO = PeriodDTO()
+fun SchedulePeriod.toDTO(scheduleEntries: Array<ScheduleEntryDTO>, mats: Array<MatDescriptionDTO>): PeriodDTO = PeriodDTO()
         .setId(id)
         .setName(name)
         .setSchedule(scheduleEntries)
         .setStartTime(startTime?.toInstant())
-        .setNumberOfMats(numberOfMats)
-        .setFightsByMats(fightsByMats)
-
-
-fun MatScheduleContainer.toDTO(fights: Array<FightStartTimePairDTO>): MatScheduleContainerDTO = MatScheduleContainerDTO()
-        .setTotalFights(totalFights)
-        .setId(id)
-        .setFights(fights)
-
-fun FightStartTimes.toDTO(matId: String?): FightStartTimePairDTO = FightStartTimePairDTO()
-        .setFightId(fightId)
-        .setFightNumber(fightNumber)
-        .setStartTime(startTime?.toInstant())
-        .setMatId(matId)
+        .setMats(mats)
 
 
 fun CategoryRestriction.toDTO(): CategoryRestrictionDTO = CategoryRestrictionDTO().setMaxValue(maxValue).setMinValue(minValue).setName(name).setType(CategoryRestrictionType.values()[type])
@@ -102,14 +93,7 @@ fun CompetitionProperties.toDTO(staffIds: Array<String>?, promoCodes: Array<Prom
                 .setCreationTimestamp(creationTimestamp)
                 .setStatus(CompetitionStatus.values()[status])
 
-fun DashboardPeriod.toDTO(mats: Array<MatDescriptionDTO>): DashboardPeriodDTO = DashboardPeriodDTO()
-        .setId(id)
-        .setName(name)
-        .setMats(mats)
-        .setStartTime(startTime?.toInstant())
-        .setIsActive(isActive)
-
-fun MatDescription.toDTO(): MatDescriptionDTO = MatDescriptionDTO().setId(id).setName(name).setDashboardPeriodId(dashboardPeriodId)
+fun MatDescription.toDTO(): MatDescriptionDTO = MatDescriptionDTO().setId(id).setName(name).setPeriodId(periodId).setMatOrder(matOrder)
 
 fun Competitor.toDTO(categories: Array<String>): CompetitorDTO = CompetitorDTO()
         .setId(id)

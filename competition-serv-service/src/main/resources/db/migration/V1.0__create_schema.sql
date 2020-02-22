@@ -4,8 +4,6 @@ drop table if exists compservice.competition_properties cascade;
 
 drop table if exists compservice.category_restriction cascade;
 
-drop table if exists compservice.dashboard_period cascade;
-
 drop table if exists compservice.event cascade;
 
 drop table if exists compservice.mat_description cascade;
@@ -26,15 +24,13 @@ drop table if exists compservice.reg_group_reg_period cascade;
 
 drop table if exists compservice.schedule_period cascade;
 
-drop table if exists compservice.mat_schedule_container cascade;
-
 drop table if exists compservice.schedule_period_properties cascade;
 
 drop table if exists compservice.category_descriptor_restriction cascade;
 
 drop table if exists compservice.competitor_categories cascade;
 
-drop table if exists compservice.schedule_entries cascade;
+drop table if exists compservice.schedule_entry cascade;
 
 drop table if exists compservice.stage_descriptor cascade;
 
@@ -90,18 +86,6 @@ create table compservice.competition_properties
     competition_info_template   oid
 );
 
-create table compservice.dashboard_period
-(
-    id             varchar(255) not null
-        constraint dashboard_period_pkey
-            primary key,
-    competition_id varchar(255) not null
-        constraint dashboard_competition_id_fkey
-            references compservice.competition_properties on delete cascade,
-    is_active      boolean      not null,
-    name           varchar(255),
-    start_time     timestamp
-);
 
 create table compservice.event
 (
@@ -116,17 +100,6 @@ create table compservice.event
     type           integer
 );
 
-create table compservice.mat_description
-(
-    id                  varchar(255) not null
-        constraint mat_description_pkey
-            primary key,
-    name                varchar(255),
-    dashboard_period_id varchar(255) not null
-        constraint fk3rv512vhq8j2k4c40g3ly5792
-            references compservice.dashboard_period on update cascade,
-    mats_order          integer
-);
 
 create table compservice.registration_info
 (
@@ -221,29 +194,6 @@ create table compservice.reg_group_reg_period
         primary key (reg_group_id, reg_period_id)
 );
 
-create table compservice.schedule_period
-(
-    id             varchar(255) not null
-        constraint schedule_period_pkey
-            primary key,
-    name           varchar(255),
-    number_of_mats integer      not null,
-    start_time     timestamp,
-    competition_id varchar(255)
-        constraint fkeai1ckn6fv7x90xkah9s48faa
-            references compservice.competition_properties on delete cascade
-);
-
-create table compservice.mat_schedule_container
-(
-    id           varchar(255) not null
-        constraint mat_schedule_container_pkey
-            primary key,
-    total_fights integer      not null,
-    period_id    varchar(255) not null
-        constraint fkheux8852yfm9g3iwegpqr8sbe
-            references compservice.schedule_period on delete cascade
-);
 
 create table compservice.schedule_period_properties
 (
@@ -251,13 +201,39 @@ create table compservice.schedule_period_properties
         constraint schedule_period_properties_pkey
             primary key,
     name                varchar(255),
-    number_of_mats      integer      not null,
     risk_percent        numeric(19, 2),
     start_time          timestamp,
     time_between_fights integer      not null,
     competition_id      varchar(255)
         constraint fkotxnpcqbjgdxl6c6e0ndigdku
             references compservice.competition_properties on delete cascade
+);
+
+create table compservice.schedule_period
+(
+    id             varchar(255) not null
+        constraint schedule_period_pkey
+            primary key
+        constraint schedule_period_pkey_period_properties_fkey
+            references compservice.schedule_period_properties,
+    name           varchar(255),
+    is_active      boolean,
+    start_time     timestamp,
+    competition_id varchar(255)
+        constraint fkeai1ckn6fv7x90xkah9s48faa
+            references compservice.competition_properties on delete cascade
+);
+
+create table compservice.mat_description
+(
+    id         varchar(255) not null
+        constraint mat_description_pkey
+            primary key,
+    name       varchar(255),
+    mat_order integer,
+    period_id  varchar(255) not null
+        constraint fkheux8852yfm9g3iwegpqr8sbe
+            references compservice.schedule_period on delete cascade
 );
 
 create table compservice.category_descriptor
@@ -299,22 +275,6 @@ create table compservice.competitor_categories
             references compservice.category_descriptor on delete cascade,
     constraint competitor_categories_pkey
         primary key (competitors_id, categories_id)
-);
-
-create table compservice.schedule_entries
-(
-    period_id        varchar(255) not null
-        constraint fkafy2hinwcl6a1ugke2uctic0w
-            references compservice.schedule_period on delete cascade,
-    category_id      varchar(255) not null
-        constraint schedule_entries_category_id_fkey
-            references compservice.category_descriptor on delete cascade,
-    fight_duration   numeric(19, 2),
-    number_of_fights integer      not null,
-    start_time       timestamp,
-    schedule_order   integer      not null,
-    constraint schedule_entries_pkey
-        primary key (period_id, category_id, schedule_order)
 );
 
 create table compservice.stage_descriptor
@@ -393,7 +353,9 @@ create table compservice.fight_description
     result_type             varchar(255)
         constraint fight_description_fight_output_fkey references compservice.fight_result_option,
     lose_fight              varchar(255),
-    mat_id                  varchar(255),
+    mat_id                  varchar(255)
+        constraint fight_description_mat_description_fkey
+            references compservice.mat_description,
     number_in_round         integer      not null,
     number_on_mat           integer,
     parent_1_fight_id       varchar(255),
@@ -418,6 +380,30 @@ create table compservice.fight_description
     fight_order             integer
 );
 
+create table compservice.schedule_entry
+(
+    period_id        varchar(255) not null
+        constraint fkafy2hinwcl6a1ugke2uctic0w
+            references compservice.schedule_period on delete cascade,
+    category_id      varchar(255)
+        constraint schedule_entries_category_id_fkey
+            references compservice.category_descriptor on delete cascade,
+    fight_id         varchar(255)
+        constraint schedule_entries_fight_id_fkey
+            references compservice.fight_description on delete cascade,
+    mat_id           varchar(255) not null
+        constraint schedule_entries_mat_id_fkey
+            references compservice.mat_description,
+    fight_duration   numeric(19, 2),
+    number_of_fights integer      not null,
+    entry_type       integer      not null,
+    start_time       timestamp    not null,
+    end_time         timestamp,
+    schedule_order   integer      not null,
+    constraint schedule_entries_pkey
+        primary key (period_id, schedule_order)
+);
+
 create table compservice.comp_score
 (
     advantages                     integer,
@@ -432,21 +418,6 @@ create table compservice.comp_score
     comp_score_order               integer,
     constraint comp_score_pkey
         primary key (compscore_competitor_id, compscore_fight_description_id)
-);
-
-create table compservice.fight_start_times
-(
-    mat_schedule_id varchar(255) not null
-        constraint fk3qwq4ltq5uauo58p5e8ko6pld
-            references compservice.mat_schedule_container on delete cascade,
-    fight_id        varchar(255) not null
-        constraint fki3ci3hkg4wfrh8s2xwiellgbv
-            references compservice.fight_description on delete cascade,
-    fight_number    integer      not null,
-    start_time      timestamp,
-    fights_order    integer      not null,
-    constraint fight_start_times_pkey
-        primary key (mat_schedule_id, fights_order)
 );
 
 create table compservice.stage_input_descriptor

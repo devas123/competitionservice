@@ -14,7 +14,12 @@ import java.time.Instant;
 @NoArgsConstructor
 public class ScheduleEntryDTO {
     private String categoryId;
+    private String fightId;
+    private String matId;
+    private ScheduleEntryType entryType;
     private Instant startTime;
+    private Instant endTime;
     private Integer numberOfFights;
     private BigDecimal fightDuration;
+    private Integer order;
 }

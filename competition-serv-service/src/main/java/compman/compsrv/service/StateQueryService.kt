@@ -13,7 +13,6 @@ import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.dto.schedule.SchedulePropertiesDTO
 import compman.compsrv.repository.JooqQueries
-import compman.compsrv.service.fight.BracketsGenerateService
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.copy
 import io.scalecube.net.Address
@@ -37,11 +36,9 @@ class StateQueryService(private val clusterSession: ClusterSession,
                         private val periodDao: SchedulePeriodDao,
                         private val jooq: JooqQueries,
                         private val registrationInfoDao: RegistrationInfoDao,
-                        private val fightStartTimesDao: FightStartTimesDao,
                         private val staffDao: CompetitionPropertiesStaffIdsDao,
                         private val promoCodeDao: PromoCodeDao,
-                        private val matScheduleContainerDao: MatScheduleContainerDao,
-                        private val scheduleEntriesDao: ScheduleEntriesDao,
+                        private val scheduleEntriesDao: ScheduleEntryDao,
                         private val periodPropertiesDao: SchedulePeriodPropertiesDao,
                         private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
                         private val matDescriptionCrudRepository: MatDescriptionDao,
@@ -254,10 +251,8 @@ class StateQueryService(private val clusterSession: ClusterSession,
                             .setId(competitionId)
                             .setPeriods(periodDao.fetchByCompetitionId(competitionId).map { p ->
                                 p.toDTO(scheduleEntriesDao.fetchByPeriodId(p.id)?.map { it.toDTO() }?.toTypedArray()!!,
-                                        matScheduleContainerDao.fetchByPeriodId(p.id).map { mat ->
-                                            mat.toDTO(fightStartTimesDao.fetchByMatScheduleId(mat.id).map {
-                                                it.toDTO(mat.id)
-                                            }.toTypedArray())
+                                        matDescriptionCrudRepository.fetchByPeriodId(p.id).map { mat ->
+                                            mat.toDTO()
                                         }.toTypedArray())
                             }.toTypedArray())
                             .setScheduleProperties(SchedulePropertiesDTO()
@@ -286,7 +281,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
     fun getMats(competitionId: String, periodId: String): List<MatStateDTO>? {
         log.info("Getting mats for competition $competitionId and period $periodId")
         return localOrRemote(competitionId, {
-            val mats = matDescriptionCrudRepository.fetchByDashboardPeriodId(periodId)
+            val mats = matDescriptionCrudRepository.fetchByPeriodId(periodId)
            mats?.map { mat ->
                 val matDescrDto = mat.toDTO()
                 val topFiveFights = jooq.topMatFights(5, competitionId, mat.id, FightsService.notFinishedStatuses)
@@ -347,7 +342,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getDashboardState(competitionId: String): CompetitionDashboardStateDTO? {
         return localOrRemote(competitionId, {
-            val periods = jooq.fetchDashboardPeriodsByCompeititonId(competitionId).collectList().block()?.toTypedArray()
+            val periods = jooq.fetchPeriodsByCompeititonId(competitionId).collectList().block()?.toTypedArray()
             CompetitionDashboardStateDTO()
                     .setCompetitionId(competitionId)
                     .setPeriods(periods)

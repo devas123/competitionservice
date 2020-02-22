@@ -4,6 +4,7 @@ import arrow.core.Tuple3
 import com.compmanager.service.ServiceException
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
+import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.*
 import compman.compsrv.service.schedule.BracketSimulatorFactory
 import compman.compsrv.service.schedule.IBracketSimulator
@@ -37,33 +38,33 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
 
     private data class InternalMatScheduleContainer(
             val currentTime: Instant,
+            val name: String,
             val totalFights: Int,
             val id: String,
             val fights: List<InternalFightStartTime>,
             val timeZone: String,
             val pending: List<FightDescriptionDTO>)
 
-    private class ScheduleComposer(val startTime: Instant, val numberOfMats: Int, brackets: List<IBracketSimulator>, val pause: BigDecimal, riskFactor: BigDecimal, val periodId: String, val timeZone: String) {
+    private class ScheduleComposer(val startTime: Instant, val mats: Array<MatDescriptionDTO>, brackets: List<IBracketSimulator>, val pause: BigDecimal, riskFactor: BigDecimal, val periodId: String, val timeZone: String) {
         val schedule: MutableList<ScheduleEntryDTO>
         val riskCoeff: BigDecimal
         val brackets: ArrayList<IBracketSimulator> = ArrayList(brackets)
 
         init {
             this.schedule = ArrayList()
-
             riskCoeff = BigDecimal.ONE.plus(riskFactor)
         }
 
         fun categoryNotRegistered(categoryId: String): Boolean {
-            return this.schedule.size == 0 || !this.schedule.any { it.categoryId == categoryId }
+            return !this.schedule.any { it.categoryId == categoryId }
         }
 
         fun updateSchedule(f: FightDescriptionDTO, startTime: Instant) {
             if (this.categoryNotRegistered(f.categoryId)) {
-                this.schedule.add(ScheduleEntryDTO(f.categoryId,
-                        startTime,
-                        1,
-                        f.duration ?: BigDecimal.ZERO))
+                this.schedule.add(ScheduleEntryDTO().setCategoryId(f.categoryId)
+                        .setStartTime(startTime)
+                        .setNumberOfFights(1)
+                        .setFightDuration(f.duration ?: BigDecimal.ZERO))
             } else {
                 val entry = this.schedule.first { it.categoryId == f.categoryId }
                 entry.numberOfFights += 1
@@ -134,11 +135,12 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
 
         fun simulate(): List<InternalMatScheduleContainer> {
             val activeBrackets = ArrayList<IBracketSimulator>()
-            var fightsByMats = (0 until numberOfMats).map { i ->
+            var fightsByMats = mats.mapIndexed { i, mat ->
                 val initDate = ZonedDateTime.ofInstant(startTime, ZoneId.of(timeZone))
                 InternalMatScheduleContainer(
                         timeZone = timeZone,
-                        id = IDGenerator.createMatId(periodId, i),
+                        name = mat.name,
+                        id = mat.id ?: IDGenerator.createMatId(periodId, i),
                         fights = emptyList(),
                         currentTime = initDate.toInstant(),
                         totalFights = 0,
@@ -152,14 +154,14 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                 if (activeBrackets.getOrNull(i) != null) {
                     fights.addAll(activeBrackets[i++].getNextRound())
                 }
-                while (fights.size <= this.numberOfMats && this.brackets.isNotEmpty()) {
+                while (fights.size <= mats.size && this.brackets.isNotEmpty()) {
                     if (activeBrackets.getOrNull(i) == null) {
                         activeBrackets.add(this.brackets.removeAt(0))
                     }
                     fights.addAll(activeBrackets[i++].getNextRound())
                 }
                 activeBrackets.removeIf { b -> b.isEmpty() }
-                fightsByMats = fights.fold(fightsByMats) {acc, f ->
+                fightsByMats = fights.fold(fightsByMats) { acc, f ->
                     this.acceptFight(acc, f, getFightDuration(f), false)
                 }
             }
@@ -185,38 +187,42 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
     private fun doGenerateSchedule(stages: List<Pair<StageDescriptorDTO, List<FightDescriptionDTO>>>, properties: SchedulePropertiesDTO, timeZone: String, categoryCompetitorNumbers: Map<String, Int>): ScheduleDTO {
         return ScheduleDTO()
                 .setId(properties.competitionId)
-                        .setPeriods(properties.periodPropertiesList?.mapNotNull { periodPropertiesDTO ->
-                            periodPropertiesDTO?.let { p ->
+                .setPeriods(properties.periodPropertiesList?.mapNotNull { periodPropertiesDTO ->
+                    periodPropertiesDTO?.let { p ->
                         val id = IDGenerator.createPeriodId(properties.competitionId)
                         val periodStartTime = p.startTime
                         val brackets = p.categories.filter { (categoryCompetitorNumbers[it] ?: 0) > 0 }
                                 .flatMap { cat ->
                                     stages.filter { st -> st.first.categoryId == cat }
-                                            .map { Tuple3(cat, it.first, it.second) }  }
+                                            .map { Tuple3(cat, it.first, it.second) }
+                                }
                                 .map { tuple3 ->
                                     bracketSimulatorFactory.createSimulator(tuple3.b.id!!, tuple3.b.categoryId, tuple3.c,
-                                      tuple3.b.bracketType, categoryCompetitorNumbers[tuple3.a] ?: 0)
+                                            tuple3.b.bracketType, categoryCompetitorNumbers[tuple3.a] ?: 0)
                                 }
-                        val composer = ScheduleComposer(periodStartTime, p.numberOfMats, brackets, BigDecimal(p.timeBetweenFights), p.riskPercent, id, timeZone)
+                        val composer = ScheduleComposer(periodStartTime, p.mats, brackets, BigDecimal(p.timeBetweenFights), p.riskPercent, id, timeZone)
                         val fightsByMats = composer.simulate()
                         PeriodDTO()
                                 .setId(id)
                                 .setSchedule(composer.schedule.toTypedArray())
-                                .setFightsByMats(fightsByMats.map { container ->
-                                    MatScheduleContainerDTO()
-                                        .setFights(container.fights.map { FightStartTimePairDTO()
-                                                .setStartTime(it.startTime)
-                                                .setFightNumber(it.fightNumber)
-                                                .setFightId(it.fight.id)
-                                                .setPeriodId(it.periodId)
-                                                .setFightCategoryId(it.fight.categoryId)
-                                                .setMatId(it.matId)}.toTypedArray())
-                                        .setId(container.id)
-                                        .setTimeZone(container.timeZone)
-                                        .setTotalFights(container.totalFights)}.toTypedArray())
+                                .setMats(fightsByMats.mapIndexed { i, container ->
+                                    MatDescriptionDTO()
+                                            .setId(container.id)
+                                            .setPeriodId(id)
+                                            .setName(container.name)
+                                            .setMatOrder(i)
+                                            .setFightStartTimes(container.fights.map {
+                                                FightStartTimePairDTO()
+                                                        .setStartTime(it.startTime)
+                                                        .setFightNumber(it.fightNumber)
+                                                        .setFightId(it.fight.id)
+                                                        .setPeriodId(it.periodId)
+                                                        .setFightCategoryId(it.fight.categoryId)
+                                                        .setMatId(it.matId)
+                                            }.toTypedArray())
+                                }.toTypedArray())
                                 .setStartTime(periodStartTime)
                                 .setName(p.name)
-                                .setNumberOfMats(p.numberOfMats)
                     }
                 }?.toTypedArray())
                 .setScheduleProperties(properties)

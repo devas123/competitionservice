@@ -10,12 +10,9 @@ import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
 import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
-import compman.compsrv.model.dto.competition.CompetitionDashboardStateDTO
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.competition.RegistrationGroupDTO
-import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.dto.schedule.DashboardPeriodDTO
 import compman.compsrv.model.dto.schedule.SchedulePropertiesDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
@@ -38,14 +35,12 @@ import java.util.*
 @Component
 class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val clusterSession: ClusterSession,
-                                  private val periodDao: SchedulePeriodDao,
                                   private val categoryCrudRepository: CategoryDescriptorDao,
                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
                                   private val stageDescriptorCrudRepository: StageDescriptorDao,
                                   private val registrationGroupCrudRepository: RegistrationGroupDao,
                                   private val registrationPeriodCrudRepository: RegistrationPeriodDao,
                                   private val registrationInfoCrudRepository: RegistrationInfoDao,
-                                  private val dashboardPeriodDao: DashboardPeriodDao,
                                   private val jooqQueries: JooqQueries,
                                   private val mapper: ObjectMapper) : ICommandProcessor {
     override fun affectedCommands(): Set<CommandType> {
@@ -56,8 +51,6 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 CommandType.ADD_REGISTRATION_GROUP_COMMAND,
                 CommandType.ADD_REGISTRATION_PERIOD_COMMAND,
                 CommandType.CREATE_COMPETITION_COMMAND,
-                CommandType.CREATE_DASHBOARD_COMMAND,
-                CommandType.DELETE_DASHBOARD_COMMAND,
                 CommandType.DROP_ALL_BRACKETS_COMMAND,
                 CommandType.DROP_SCHEDULE_COMMAND,
                 CommandType.GENERATE_SCHEDULE_COMMAND,
@@ -127,41 +120,6 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 }
                 CommandType.DELETE_REGISTRATION_PERIOD_COMMAND -> {
                     listOf(createEvent(EventType.REGISTRATION_PERIOD_DELETED, command.payload["periodId"]))
-                }
-                CommandType.DELETE_DASHBOARD_COMMAND -> {
-                    listOf(createEvent(EventType.DASHBOARD_DELETED, command.competitionId))
-                }
-                CommandType.CREATE_DASHBOARD_COMMAND -> {
-                    val dashboardPeriods = dashboardPeriodDao.fetchByCompetitionId(command.competitionId)
-                    if (dashboardPeriods.isNullOrEmpty()) {
-                        val periods = periodDao.fetchByCompetitionId(command.competitionId)
-                        if (!periods.isNullOrEmpty()) {
-                            val dashbPeriods = periods.map { period ->
-                                val scheduleMatIds = jooqQueries.fetchDistinctMatIdsForSchedule(command.competitionId).collectList().block()
-                                val matIds = if (!scheduleMatIds.isNullOrEmpty()) {
-                                    scheduleMatIds
-                                } else {
-                                    (0..period.numberOfMats).map { number -> IDGenerator.hashString("${command.competitionId}/${period.id}/$number") }.toMutableSet()
-                                }
-                                val id = if (!period.id.isNullOrBlank()) {
-                                    period.id!!
-                                } else {
-                                    IDGenerator.hashString("${command.competitionId}/dashboard/period/${period.name}")
-                                }
-                                DashboardPeriodDTO().setId(id).setName(period.name).setStartTime(period.startTime?.toInstant()).setIsActive(false).apply {
-                                    mats = matIds
-                                            .mapIndexed { index, s -> MatDescriptionDTO().setId(s).setName("Mat ${index + 1}").setDashboardPeriodId(this.id) }
-                                            .toTypedArray()
-                                }
-                            }.toTypedArray()
-                            val state = CompetitionDashboardStateDTO().setCompetitionId(command.competitionId).setPeriods(dashbPeriods)
-                            listOf(createEvent(EventType.DASHBOARD_CREATED, DashboardCreatedPayload(state)))
-                        } else {
-                            listOf(createErrorEvent("Schedule not generated for competition ID: ${command.competitionId}"))
-                        }
-                    } else {
-                        listOf(createErrorEvent("Dashboard already exists for competition ID: ${command.competitionId}"))
-                    }
                 }
                 CommandType.DELETE_REGISTRATION_GROUP_COMMAND -> {
                     val payload = mapper.convertValue(command.payload, DeleteRegistrationGroupPayload::class.java)
@@ -309,7 +267,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                             val competitorNumbersByCategoryIds = jooqQueries.getCompetitorNumbersByCategoryIds(command.competitionId)
                             val schedule = scheduleService.generateSchedule(scheduleProperties, getAllBrackets(scheduleProperties.competitionId), compProps.timeZone, competitorNumbersByCategoryIds)
                             val newFights = schedule.periods?.flatMap { period ->
-                                period.fightsByMats?.flatMap { it.fights.map { f -> f.setPeriodId(period.id) } }
+                                period.mats?.flatMap { it.fightStartTimes.map { f -> f.setPeriodId(period.id) } }
                                         ?: emptyList()
                             }?.toTypedArray()
                             val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(newFights)
