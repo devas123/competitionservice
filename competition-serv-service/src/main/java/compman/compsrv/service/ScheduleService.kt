@@ -1,5 +1,6 @@
 package compman.compsrv.service
 
+import arrow.core.Tuple2
 import arrow.core.Tuple3
 import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import com.compmanager.service.ServiceException
@@ -21,6 +22,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.*
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.function.BiConsumer
 import java.util.function.BinaryOperator
 import java.util.function.Function
@@ -67,27 +69,18 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                                    val timeBetweenFights: Map<String, BigDecimal>,
                                    riskFactor: Map<String, BigDecimal>,
                                    val timeZone: String) {
-        private val schedule: MutableList<ScheduleEntryDTO> = mutableListOf()
-        fun schedule() = schedule.toList().sortedBy { it.startTime }
-
-        val pauses = scheduleRequirements.filter { it.entryType == ScheduleRequirementType.PAUSE }.toMutableList()
-
         val riskCoeff = riskFactor.mapValues { BigDecimal.ONE.plus(it.value) }
-
-        fun categoryNotRegistered(categoryId: String): Boolean {
-            return this.schedule.none { it.categoryIds?.contains(categoryId) == true }
-        }
 
         private fun internalMatById2(fightsByMats: List<InternalMatScheduleContainer>) = { matId: String -> fightsByMats.first { it.id == matId } }
 
-        fun fightNotRegistered(fightId: String) =
-                this.schedule.none { it.fightIds?.contains(fightId) == true }
+        fun fightNotRegistered(fightId: String, schedule: List<ScheduleEntryDTO>) =
+                schedule.none { it.fightIds?.contains(fightId) == true }
 
         fun haveRequirementsForFight(fightId: String) =
-                this.scheduleRequirements.any { it.entryType == ScheduleRequirementType.FIGHTS && it.fightIds?.contains(fightId) == true }
+                this.scheduleRequirements.any { it.entryType == ScheduleRequirementType.FIGHTS && (it.fightIds?.contains(fightId) == true) }
 
         fun haveRequirementsForCategory(categoryId: String) =
-                this.scheduleRequirements.any { it.entryType == ScheduleRequirementType.CATEGORIES && it.categoryIds?.contains(categoryId) == true }
+                this.scheduleRequirements.any { it.entryType == ScheduleRequirementType.CATEGORIES && (it.categoryIds?.contains(categoryId) == true) }
 
         fun updateMatInCollection2(fightsByMats: List<InternalMatScheduleContainer>) = { freshMatCopy: InternalMatScheduleContainer ->
             fightsByMats.map {
@@ -99,26 +92,41 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
             }
         }
 
+        fun updateScheduleEntry2(schedule: List<ScheduleEntryDTO>) = { newEntryDTO: ScheduleEntryDTO ->
+            if (schedule.none { it.id == newEntryDTO.id }) {
+                schedule + newEntryDTO
+            } else {
+                schedule.map {
+                    if (it.id == newEntryDTO.id) {
+                        newEntryDTO
+                    } else {
+                        it
+                    }
+                }
+            }
+        }
 
-        fun updateSchedule(f: FightDescription, fightsByMats: List<InternalMatScheduleContainer>, lastRun: Boolean): List<InternalMatScheduleContainer> {
-            val updateMatInCollection = updateMatInCollection2(fightsByMats)
-            val internalMatById = internalMatById2(fightsByMats)
-            log.debug("Updating schedule, fight: ${f.id}")
-            if (fightNotRegistered(f.id)) {
+
+        private fun updateSchedule(f: FightDescription, schedule: List<ScheduleEntryDTO>, matContainers: List<InternalMatScheduleContainer>, pauses: MutableList<ScheduleRequirementDTO>, lastRun: Boolean): Pair<List<ScheduleEntryDTO>, List<InternalMatScheduleContainer>> {
+            val updateMatInCollection = updateMatInCollection2(matContainers)
+            val updateScheduleEntry = updateScheduleEntry2(schedule)
+            val internalMatById = internalMatById2(matContainers)
+            if (fightNotRegistered(f.id, schedule)) {
                 val entryDTO = when {
                     haveRequirementsForFight(f.id) -> {
-                        log.debug("Fight ${f.id} has requirements.")
-                        scheduleEntryFromRequirement(this.scheduleRequirements.first { it.fightIds?.contains(f.id) == true })
+                        val e = scheduleEntryFromRequirement(this.scheduleRequirements.first { it.fightIds?.contains(f.id) == true }, schedule)
+                        log.info("Fight ${f.id} has fight requirements. ${e.id}")
+                        e
                     }
                     haveRequirementsForCategory(f.categoryId) -> {
-                        log.debug("Category ${f.categoryId} has requirements.")
-                        scheduleEntryFromRequirement(this.scheduleRequirements.first { it.categoryIds?.contains(f.categoryId) == true })
+                        log.debug("Category ${f.categoryId} has category requirements.")
+                        scheduleEntryFromRequirement(this.scheduleRequirements.first { it.categoryIds?.contains(f.categoryId) == true }, schedule)
                     }
                     else -> {
-                        log.warn("Neither category ${f.categoryId} nor fight ${f.id} was dispatched. Placing it to random mat")
-                        val defaultMat = fightsByMats.find { it.fights.isEmpty() }
-                                ?: fightsByMats.minBy { a -> a.currentTime.toEpochMilli() }!!
-                        this.schedule.firstOrNull { it.categoryIds?.contains(f.categoryId) == true && it.requirementIds.isNullOrEmpty() }
+                        log.warn("Neither category ${f.categoryId} nor fight ${f.id} was dispatched. Placing it to random mat.")
+                        val defaultMat = matContainers.find { it.fights.isEmpty() }
+                                ?: matContainers.minBy { a -> a.currentTime.toEpochMilli() }!!
+                        schedule.firstOrNull { it.categoryIds?.contains(f.categoryId) == true && it.requirementIds.isNullOrEmpty() }
                                 ?: ScheduleEntryDTO()
                                         .setId(UUID.randomUUID().toString())
                                         .setPeriodId(defaultMat.periodId)
@@ -129,26 +137,28 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                                         .setRequirementIds(emptyArray())
                     }
                 }
-                val defaultMat = fightsByMats.find { it.fights.isEmpty() && it.periodId == entryDTO.periodId }
-                        ?: fightsByMats.filter { it.periodId == entryDTO.periodId }.minBy { a -> a.currentTime.toEpochMilli() }!!
-                val m = entryDTO.matId ?: defaultMat.id
-                val mat = internalMatById(m)
-
-                val matsWithTheSameCategory = fightsByMats
+                val defaultMat = matContainers.find { it.fights.isEmpty() && it.periodId == entryDTO.periodId }
+                        ?: matContainers.filter { it.periodId == entryDTO.periodId }.minBy { a -> a.currentTime.toEpochMilli() }!!
+                val mat = entryDTO.matId?.let { internalMatById(it) } ?: defaultMat
+                val matsWithTheSameCategory = matContainers
                         .filter {
+                            it.periodId == mat.periodId &&
                             it.fights.isNotEmpty() && it.fights.last().fight.categoryId == f.categoryId
-                                    && (it.fights.last().fight.round ?: -1) < (f.round ?: -1)
+                                    &&  ((f.round ?: -1) - (it.fights.last().fight.round ?: -1)) in 1..2
                         }
                 if (matsWithTheSameCategory.isNotEmpty() && !lastRun) {
                     val matWithTheSameCat = matsWithTheSameCategory.minBy { it.currentTime.toEpochMilli() }!!
-                    return updateMatInCollection(matWithTheSameCat.copy(pending = matWithTheSameCat.pending + f))
+                    log.debug("Sending fight ${f.categoryId} -> ${f.round} to pending.")
+                    return schedule to updateMatInCollection(matWithTheSameCat.copy(pending = matWithTheSameCat.pending + f))
                 }
 
-                if (this.pauses.any { it.startTime <= mat.currentTime && it.matId == m }) {
-                    val pause = this.pauses.first { it.startTime <= mat.currentTime }
-                    this.schedule.add(ScheduleEntryDTO().apply {
+                if (pauses.any { it.startTime <= mat.currentTime && it.matId == mat.id && it.periodId == mat.periodId }) {
+                    val pause = pauses.first { it.startTime <= mat.currentTime }
+                    pauses.removeIf { it.id == pause.id }
+                    log.info("Pause.")
+                    return updateScheduleEntry(ScheduleEntryDTO().apply {
                         id = pause.id
-                        this.matId = m
+                        this.matId = pause.matId!!
                         categoryIds = emptyArray()
                         fightIds = emptyArray()
                         startTime = mat.currentTime
@@ -156,29 +166,18 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                         entryType = ScheduleEntryType.PAUSE
                         endTime = pause.endTime!!
                         requirementIds = arrayOf(pause.id)
-                    })
-                    pauses.removeIf { it.id == pause.id }
-                    return updateMatInCollection(
+                    }) to updateMatInCollection(
                             mat.copy(currentTime = pause.endTime!!, pending = mat.pending + f))
                 }
-                if (entryDTO.startTime == null || entryDTO.startTime <= mat.currentTime) {
-                    log.debug("Fight ${f.id} meets start time requirements.")
-                    if (this.categoryNotRegistered(f.categoryId)) {
-                        log.debug("Category ${f.categoryId} was not registered, creating new schedule entry for it")
-                        this.schedule.removeIf { it.id == entryDTO.id }
-                        this.schedule.add(entryDTO.apply {
-                            categoryIds = (categoryIds ?: emptyArray()) + f.categoryId
-                            fightIds = (fightIds ?: emptyArray()) + f.id
-                            startTime = startTime ?: mat.currentTime
-                            numberOfFights = (numberOfFights ?: 0) + 1
-                        })
-                    } else {
-                        log.debug("Category ${f.categoryId} was registered.")
-                        val entry = this.schedule.first { it.categoryIds.contains(f.categoryId) }
-                        entry.fightIds = (entry.fightIds ?: emptyArray()) + f.id
-                        entry.numberOfFights = (entry.numberOfFights ?: 0) + 1
-                    }
-                    return updateMatInCollection(
+                if (entryDTO.startTime == null || entryDTO.startTime <= mat.currentTime || lastRun) {
+                    log.info("Dispatching fight ${f.id} -> ${f.round}. to entry ${entryDTO.id}")
+                    val newSchedule = updateScheduleEntry(entryDTO.apply {
+                        categoryIds = ((categoryIds ?: emptyArray()) + f.categoryId).distinct().toTypedArray()
+                        fightIds = (fightIds ?: emptyArray()) + f.id
+                        startTime = startTime ?: mat.currentTime
+                        numberOfFights = (numberOfFights ?: 0) + 1
+                    })
+                    return newSchedule to updateMatInCollection(
                             mat.copy(
                                     currentTime = mat.currentTime.plus(Duration.ofMinutes(getFightDuration(f, mat.periodId).toLong())),
                                     fights = mat.fights +
@@ -191,16 +190,16 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                                     totalFights = mat.totalFights + 1))
                 } else {
                     log.info("Fight ${f.id} should be started later. Adding it to pending.")
-                    return updateMatInCollection(mat.copy(pending = mat.pending + f))
+                    return schedule to updateMatInCollection(mat.copy(pending = mat.pending + f))
                 }
             } else {
                 log.warn("Fight $f is already registered. Skipping.")
-                return fightsByMats
+                return schedule to matContainers
             }
         }
 
-        private fun scheduleEntryFromRequirement(requirement: ScheduleRequirementDTO): ScheduleEntryDTO {
-            return (this.schedule.firstOrNull { it.requirementIds?.contains(requirement.id) == true }
+        private fun scheduleEntryFromRequirement(requirement: ScheduleRequirementDTO, schedule: List<ScheduleEntryDTO>): ScheduleEntryDTO {
+            return (schedule.firstOrNull { it.requirementIds?.contains(requirement.id) == true }
                     ?: ScheduleEntryDTO()
                             .setId(requirement.id + "-entry")
                             .setPeriodId(requirement.periodId)
@@ -213,16 +212,15 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                             .setRequirementIds(arrayOf(requirement.id)))
         }
 
-        fun acceptFight(fightsByMats: List<InternalMatScheduleContainer>, f: FightDescription, lastrun: Boolean): List<InternalMatScheduleContainer> {
-            return this.updateSchedule(f, fightsByMats, lastrun)
+        fun acceptFight(schedule: List<ScheduleEntryDTO>, fightsByMats: List<InternalMatScheduleContainer>, f: FightDescription, pauses: MutableList<ScheduleRequirementDTO>, lastrun: Boolean): Pair<List<ScheduleEntryDTO>, List<InternalMatScheduleContainer>> {
+            return this.updateSchedule(f, schedule, fightsByMats, pauses, lastrun)
         }
 
         fun getFightDuration(fight: FightDescription, periodId: String) = fight.duration!!.multiply(riskCoeff[periodId]
                 ?: error("No risk coeff for $periodId")).plus(timeBetweenFights[periodId]
                 ?: error("No TimeBetweenFights for $periodId"))
 
-        fun simulate(): Mono<List<InternalMatScheduleContainer>> {
-            val activeBrackets = ArrayList<IBracketSimulator>()
+        fun simulate(): Mono<Tuple2<List<ScheduleEntryDTO>, List<InternalMatScheduleContainer>>> {
             val initialFightsByMats = mats.mapIndexed { i, mat ->
                 val initDate = ZonedDateTime.ofInstant(startTime[mat.periodId]
                         ?: error("No Start time for period ${mat.periodId}"), ZoneId.of(timeZone))
@@ -236,53 +234,83 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                         pending = emptyList(),
                         periodId = mat.periodId)
             }.toMutableList()
+            val pauses = CopyOnWriteArrayList(scheduleRequirements.filter { it.entryType == ScheduleRequirementType.PAUSE })
 
 
             return this.brackets.buffer(initialFightsByMats.size + 1 /* на всякий :) */)
                     .collect(Collector.of(
-                            Supplier { initialFightsByMats to mutableListOf<FightDescription>() },
-                            BiConsumer<Pair<MutableList<InternalMatScheduleContainer>, MutableList<FightDescription>>, MutableList<IBracketSimulator>> { fightsByMats, br ->
-                        var fbm = fightsByMats.first.toList()
-                        var pendingFights = fightsByMats.second.toList()
-                        while (br.isNotEmpty() || activeBrackets.isNotEmpty()) {
-                            val fights = ArrayList<FightDescription>()
-                            var i = 0
-                            if (activeBrackets.getOrNull(i) != null) {
-                                fights.addAll(activeBrackets[i++].getNextRound())
-                            }
-                            while (fights.size <= mats.size && br.isNotEmpty()) {
-                                if (activeBrackets.getOrNull(i) == null) {
-                                    activeBrackets.add(br.removeAt(0))
+                            Supplier {
+                                log.info("Supplier.")
+                                Tuple3(mutableListOf<ScheduleEntryDTO>(), initialFightsByMats, mutableListOf<FightDescription>())
+                            },
+                            BiConsumer<Tuple3<MutableList<ScheduleEntryDTO>, MutableList<InternalMatScheduleContainer>, MutableList<FightDescription>>, List<IBracketSimulator>> {
+                                fightsByMats, brackets ->
+                                val br = brackets.toMutableList()
+                                log.info("Consumer.")
+                                val activeBrackets = ArrayList<IBracketSimulator>()
+                                var pendingFights = fightsByMats.c.toList()
+                                var sfbm = fightsByMats.a.toList() to fightsByMats.b.toList()
+                                while (br.isNotEmpty() || activeBrackets.isNotEmpty()) {
+                                    log.info("Loop. ${br.size}, ${activeBrackets.size}")
+                                    val fights = ArrayList<FightDescription>()
+                                    var i = 0
+                                    if (activeBrackets.size >= i + 1) {
+                                        fights.addAll(activeBrackets[i++].getNextRound())
+                                    }
+                                    while (fights.size <= mats.size && br.isNotEmpty()) {
+                                        if (activeBrackets.getOrNull(i) == null) {
+                                            activeBrackets.add(br.removeAt(0))
+                                        }
+                                        fights.addAll(activeBrackets[i++].getNextRound())
+                                    }
+                                    activeBrackets.removeIf { b -> b.isEmpty() }
+                                    sfbm = (pendingFights + fights).fold(sfbm) { acc, f ->
+                                        this.acceptFight(acc.first, acc.second, f, pauses, false)
+                                    }
+                                    pendingFights = sfbm.second.flatMap { it.pending }
+                                    sfbm = sfbm.copy(second = sfbm.second.map { it.copy(pending = emptyList()) })
                                 }
-                                fights.addAll(activeBrackets[i++].getNextRound())
+                                fightsByMats.a.clear()
+                                fightsByMats.a.addAll(sfbm.first)
+                                fightsByMats.b.clear()
+                                fightsByMats.b.addAll(sfbm.second)
+                                fightsByMats.c.clear()
+                                fightsByMats.c.addAll(pendingFights)
+                            }, BinaryOperator<Tuple3<MutableList<ScheduleEntryDTO>, MutableList<InternalMatScheduleContainer>, MutableList<FightDescription>>> { t, u ->
+                        log.info("Combiner.")
+                        val b = t.b.map { mat ->
+                            u.b.find { m -> m.id == mat.id }
+                                    ?.let { scheduleContainer ->
+                                        val newFights = (mat.fights + scheduleContainer.fights.filter { f -> mat.fights.none { it.fight.id == f.fight.id } })
+                                                .sortedBy { fightStartTime -> fightStartTime.startTime }
+                                                .mapIndexed { ind, f ->
+                                                    f.copy(fightNumber = ind + 1)
+                                                }
+                                        mat.copy(fights = newFights, totalFights = newFights.size)
+                                    } ?: mat
+                        }.toMutableList()
+                        val a = (t.a + u.a).groupBy { it.id }.mapValues { e ->
+                            //Categories, fights, requirements
+                            val cfr = e.value.fold(Tuple3(emptyList<String>(), emptyList<String>(), emptyList<String>())) { acc, schedEntry ->
+                                Tuple3(acc.a + (schedEntry.categoryIds ?: emptyArray()), acc.b + (schedEntry.fightIds ?: emptyArray()), acc.c + (schedEntry.requirementIds ?: emptyArray()))
                             }
-
-                            activeBrackets.removeIf { b -> b.isEmpty() }
-                            fbm = (pendingFights + fights).fold(fbm) { acc, f ->
-                                this.acceptFight(acc, f, false)
-                            }
-                            pendingFights = fbm.flatMap { it.pending }
-                            fbm = fbm.map { it.copy(pending = emptyList()) }
-                        }
-                                fightsByMats.first.clear()
-                                fightsByMats.first.addAll(fbm)
-                                fightsByMats.second.clear()
-                                fightsByMats.second.addAll(pendingFights)
-                    }, BinaryOperator { t, u ->
-                     log.info("Combiner.")
-                        t.first.map { mat -> u.first.find { m -> m.id == mat.id }
-                             ?.let { scheduleContainer ->
-                                 val newFights = (mat.fights + scheduleContainer.fights.filter { f -> mat.fights.none { it.fight.id == f.fight.id }})
-                                         .sortedBy { fightStartTime -> fightStartTime.startTime }
-                                         .mapIndexed { ind, f ->
-                                             f.copy(fightNumber = ind + 1)
-                                 }
-                                 mat.copy(fights = newFights, totalFights = newFights.size)
-                             } ?: mat}.toMutableList() to t.second
-                    }, Function<Pair<MutableList<InternalMatScheduleContainer>, MutableList<FightDescription>>, Pair<MutableList<InternalMatScheduleContainer>, MutableList<FightDescription>>> {
+                            val entry = e.value[0]
+                            entry
+                                    .setCategoryIds(cfr.a.toTypedArray())
+                                    .setFightIds(cfr.b.toTypedArray())
+                                    .setRequirementIds(cfr.c.toTypedArray())
+                        }.toList().map { it.second }.toMutableList()
+                        Tuple3(a, b, t.c)
+                    }, Function<Tuple3<MutableList<ScheduleEntryDTO>, MutableList<InternalMatScheduleContainer>, MutableList<FightDescription>>,
+                            Tuple3<MutableList<ScheduleEntryDTO>, MutableList<InternalMatScheduleContainer>, MutableList<FightDescription>>> {
                         log.info("Finisher.")
-                        it.second.fold(it.first.toList()) { acc, f -> this.acceptFight(acc, f, true) }.toMutableList() to mutableListOf() }, Collector.Characteristics.IDENTITY_FINISH))
-                    .map { it.first }
+                        var k = it.c.fold(it.a.toList() to it.b.toList()) { acc, f -> this.acceptFight(acc.first, acc.second, f,  pauses,true) }
+                        while (!k.second.flatMap { container -> container.pending }.isNullOrEmpty()) {
+                            k = k.second.flatMap { container -> container.pending }.fold (k.first to k.second.map { it.copy(pending = emptyList()) }) { acc, f -> this.acceptFight(acc.first, acc.second, f,  pauses,true) }
+                        }
+                        Tuple3(k.first.toMutableList(), k.second.toMutableList(), mutableListOf())
+                    }, Collector.Characteristics.IDENTITY_FINISH))
+                    .map { Tuple2(it.a, it.b) }
         }
     }
 
@@ -345,11 +373,11 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                             .setTimeBetweenFights(period.timeBetweenFights)
                             .setIsActive(period.isActive)
                             .setScheduleRequirements(period.scheduleRequirements)
-                            .setScheduleEntries(composer.schedule().sortedBy { it.startTime.toEpochMilli() }.mapIndexed { i, scheduleEntryDTO ->
+                            .setScheduleEntries(fightsByMats.a.filter { it.periodId == period.id }.sortedBy { it.startTime.toEpochMilli() }.mapIndexed { i, scheduleEntryDTO ->
                                 scheduleEntryDTO.setId(IDGenerator.scheduleEntryId(competitionId, period.id, i, scheduleEntryDTO.entryType))
                                         .setOrder(i)
                             }.toTypedArray())
-                            .setMats(fightsByMats.filter { it.periodId == period.id }.mapIndexed { i, container ->
+                            .setMats(fightsByMats.b.filter { it.periodId == period.id }.mapIndexed { i, container ->
                                 MatDescriptionDTO()
                                         .setId(container.id)
                                         .setPeriodId(container.periodId)

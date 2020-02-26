@@ -19,7 +19,9 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.*
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class ScheduleServiceTest {
     private val fightsGenerateService = BracketsGenerateService()
@@ -52,7 +54,8 @@ class ScheduleServiceTest {
         val competitorNumbers = 10
         val fights = categories.map {
             it.first to generateFilledFights(competitionId, it.second, it.first, competitorNumbers, BigDecimal.valueOf(fightDuration))
-        }
+        }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f.toPojo()) })  }
+        val flatFights = fights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f.toPojo()) }
         val period1 = "Period1"
         val period2 = "Period2"
         val mats1 = arrayOf(MatDescriptionDTO()
@@ -96,7 +99,7 @@ class ScheduleServiceTest {
                                 .setId("$period2-entry2")
                                 .setMatId("mat2")
                                 .setFightIds(
-                                        lastCatFights.take(15).toTypedArray()
+                                        lastCatFights.take(5).toTypedArray()
                                 )
                                 .setEntryType(ScheduleRequirementType.FIGHTS),
                         ScheduleRequirementDTO()
@@ -116,6 +119,15 @@ class ScheduleServiceTest {
             println("${it.first} -> ${it.second.filter{ dto -> !ScheduleService.obsoleteFight(dto.toPojo()) }.size}")
         }
 
+        assertNotNull(schedule)
+        assertNotNull(schedule.periods)
+        assertEquals(flatFights.size, schedule.periods.flatMap { it.mats.flatMap { descriptionDTO -> descriptionDTO.fightStartTimes.toList() } }.size)
+        assertEquals(flatFights.size, schedule.periods.flatMap { it.scheduleEntries.flatMap { entryDTO -> entryDTO.fightIds.toList() } }.size)
+        val fightStartTimes = schedule.periods.flatMap { it.mats.flatMap { dto -> dto.fightStartTimes.toList() } }
+        val fightIdsInSchedule = schedule.periods.flatMap { it.scheduleEntries.flatMap { dto -> dto.fightIds.toList() } }
+        assertTrue(flatFights.fold(true) { acc, f -> acc && fightStartTimes.any { it.fightId == f.id } })
+        assertTrue(flatFights.fold(true) { acc, f -> acc && fightIdsInSchedule.contains(f.id) })
+        assertEquals(categories.size, schedule.periods.flatMap { it.scheduleEntries.flatMap { scheduleEntryDTO -> scheduleEntryDTO.categoryIds.toList() } }.distinct().size)
         println("Periods: ")
         schedule.periods.forEach {
             println("\n==== \n==== \n====")
@@ -126,14 +138,13 @@ class ScheduleServiceTest {
             }
             println("------------------ SCHEDULE REQUIREMENTS ${it.scheduleRequirements?.size} -----------------")
             it.scheduleRequirements?.forEach {e ->
-                println("${e.id} / start = ${e.startTime} / end = ${e.endTime} / categories: ${e.categoryIds?.distinct()?.size} / mat = ${e.matId} / fights: ${e.fightIds?.distinct()?.size}")
+                println("${e.id} / start = ${e.startTime} / end = ${e.endTime} / categories: ${e.categoryIds?.distinct()?.size} / mat = ${e.matId} / fights: ${e.fightIds?.distinct()?.joinToString("\n")}")
             }
             println("------------------ SCHEDULE ENTRIES ${it.scheduleEntries?.size} -----------------")
             it.scheduleEntries.forEach {e ->
                 println("${e.id} /  start =  ${e.startTime} / end =  ${e.endTime} / categories: ${e.categoryIds?.distinct()?.size}  / mat = ${e.matId} / fights: ${e.fightIds?.distinct()?.size}")
             }
         }
-        println(schedule)
     }
 
 
