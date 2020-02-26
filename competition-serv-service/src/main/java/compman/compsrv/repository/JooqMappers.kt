@@ -2,12 +2,10 @@ package compman.compsrv.repository
 
 import arrow.core.Tuple2
 import arrow.core.Tuple3
+import arrow.core.Tuple4
 import com.compmanager.compservice.jooq.tables.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.dto.schedule.FightStartTimePairDTO
-import compman.compsrv.model.dto.schedule.PeriodDTO
-import compman.compsrv.model.dto.schedule.ScheduleEntryDTO
-import compman.compsrv.model.dto.schedule.ScheduleEntryType
+import compman.compsrv.model.dto.schedule.*
 import org.jooq.Record
 import org.springframework.stereotype.Component
 import reactor.core.publisher.GroupedFlux
@@ -35,16 +33,25 @@ class JooqMappers {
     }
 
 
-    fun periodCollector(rec: GroupedFlux<String, Record>): Collector<Record, Tuple3<PeriodDTO, MutableList<Tuple2<MatDescriptionDTO, MutableList<FightStartTimePairDTO>>>, MutableList<Tuple3<ScheduleEntryDTO, MutableList<String>, MutableList<String>>>>, Tuple3<PeriodDTO, MutableList<Tuple2<MatDescriptionDTO, MutableList<FightStartTimePairDTO>>>, MutableList<Tuple3<ScheduleEntryDTO, MutableList<String>, MutableList<String>>>>> {
+    fun periodCollector(rec: GroupedFlux<String, Record>): Collector<Record,
+            Tuple4<PeriodDTO,
+                    MutableList<Tuple2<MatDescriptionDTO, MutableList<FightStartTimePairDTO>>>,
+                    MutableList<Tuple4<ScheduleEntryDTO, MutableList<String>, MutableList<String>, MutableList<String>>>,
+                    MutableList<Tuple3<ScheduleRequirementDTO, MutableList<String>, MutableList<String>>>>,
+            Tuple4<PeriodDTO,
+                    MutableList<Tuple2<MatDescriptionDTO, MutableList<FightStartTimePairDTO>>>,
+                    MutableList<Tuple4<ScheduleEntryDTO, MutableList<String>, MutableList<String>, MutableList<String>>>,
+                    MutableList<Tuple3<ScheduleRequirementDTO, MutableList<String>, MutableList<String>>>>> {
         return Collector.of(Supplier {
-            Tuple3(PeriodDTO().setId(rec.key()),
+            Tuple4(PeriodDTO().setId(rec.key()),
                     mutableListOf<Tuple2<MatDescriptionDTO, MutableList<FightStartTimePairDTO>>>(),
-                    mutableListOf<Tuple3<ScheduleEntryDTO, MutableList<String>,
-                            MutableList<String>>>())
+                    mutableListOf<Tuple4<ScheduleEntryDTO, MutableList<String>, MutableList<String>, MutableList<String>>>(),
+                    mutableListOf<Tuple3<ScheduleRequirementDTO, MutableList<String>, MutableList<String>>>())
         },
-                BiConsumer<Tuple3<PeriodDTO,
+                BiConsumer<Tuple4<PeriodDTO,
                         MutableList<Tuple2<MatDescriptionDTO, MutableList<FightStartTimePairDTO>>>,
-                        MutableList<Tuple3<ScheduleEntryDTO, MutableList<String>, MutableList<String>>>>, Record> { t, u ->
+                        MutableList<Tuple4<ScheduleEntryDTO, MutableList<String>, MutableList<String>, MutableList<String>>>,
+                        MutableList<Tuple3<ScheduleRequirementDTO, MutableList<String>, MutableList<String>>>>, Record> { t, u ->
                     t.a
                             .setEndTime(u[SchedulePeriod.SCHEDULE_PERIOD.END_TIME]?.toInstant())
                             .setIsActive(u[SchedulePeriod.SCHEDULE_PERIOD.IS_ACTIVE])
@@ -59,17 +66,19 @@ class JooqMappers {
                             }
                         } else {
                             if (hasFightStartTime(u)) {
-                                t.b.add(Tuple2(MatDescriptionDTO(), mutableListOf(fightStartTimePairDTO(u))))
+                                t.b.add(Tuple2(matDescriptionDTO(u), mutableListOf(fightStartTimePairDTO(u))))
                             } else {
-                                t.b.add(Tuple2(MatDescriptionDTO(), mutableListOf()))
+                                t.b.add(Tuple2(matDescriptionDTO(u), mutableListOf()))
                             }
                         }
                     }
                     if (!u[ScheduleEntry.SCHEDULE_ENTRY.ID].isNullOrBlank()) {
-                        if (t.c.none { tc -> tc.a.id == u[ScheduleEntry.SCHEDULE_ENTRY.ID] }) {
-                            t.c.add(Tuple3(
+                        if (t.c.none { tc ->
+                                    tc.a.id == u[ScheduleEntry.SCHEDULE_ENTRY.ID] }) {
+                            t.c.add(Tuple4(
                                     scheduleEntryDTO(u)
-                                    , mutableListOf(), mutableListOf()))
+                                    , mutableListOf(), mutableListOf(),
+                                    mutableListOf()))
                         }
                         val updatable = t.c.first { tc -> tc.a.id == u[ScheduleEntry.SCHEDULE_ENTRY.ID] }
                         if (!u[FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID].isNullOrBlank()) {
@@ -78,6 +87,14 @@ class JooqMappers {
                         if (u[CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.SCHEDULE_ENTRY_ID] == updatable.a.id &&
                                 !u[CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.CATEGORY_ID].isNullOrBlank()) {
                             updatable.c.add(u[CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.CATEGORY_ID])
+                        }
+                    }
+                    if (!u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ID].isNullOrBlank()) {
+                        if (t.d.none { tc ->
+                                    tc.a.id == u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ID] }) {
+                            t.d.add(Tuple3(
+                                    scheduleRequirement(u)
+                                    , mutableListOf(), mutableListOf()))
                         }
                     }
                 }, BinaryOperator { t, u ->
@@ -104,6 +121,14 @@ class JooqMappers {
         }, Collector.Characteristics.IDENTITY_FINISH, Collector.Characteristics.CONCURRENT)
     }
 
+    private fun matDescriptionDTO(u: Record): MatDescriptionDTO {
+        return MatDescriptionDTO().setId(u[MatDescription.MAT_DESCRIPTION.ID])
+                .setMatOrder(u[MatDescription.MAT_DESCRIPTION.MAT_ORDER])
+                .setPeriodId(u[MatDescription.MAT_DESCRIPTION.PERIOD_ID])
+                .setName(u[MatDescription.MAT_DESCRIPTION.NAME])
+                .setFightStartTimes(emptyArray())
+    }
+
     fun scheduleEntryDTO(u: Record): ScheduleEntryDTO {
         return ScheduleEntryDTO()
                 .setOrder(u[ScheduleEntry.SCHEDULE_ENTRY.SCHEDULE_ORDER])
@@ -116,5 +141,17 @@ class JooqMappers {
                 .setId(u[ScheduleEntry.SCHEDULE_ENTRY.ID])
                 .setPeriodId(u[ScheduleEntry.SCHEDULE_ENTRY.PERIOD_ID])
     }
+
+    fun scheduleRequirement(u: Record): ScheduleRequirementDTO {
+        return ScheduleRequirementDTO()
+                .setEntryType(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_TYPE]?.let { ScheduleRequirementType.values()[it] })
+                .setEndTime(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.END_TIME]?.toInstant())
+                .setStartTime(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.START_TIME]?.toInstant())
+                .setMatId(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.MAT_ID])
+                .setId(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ID])
+                .setForce(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.FORCE])
+                .setPeriodId(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.PERIOD_ID])
+    }
+
 
 }

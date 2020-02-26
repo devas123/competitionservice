@@ -25,9 +25,10 @@ import java.util.function.BinaryOperator
 import java.util.function.Supplier
 import java.util.stream.Collector
 
+fun Instant.toTimestamp(): Timestamp = Timestamp.from(this)
+
 @Repository
 class JooqRepository(private val create: DSLContext, private val queryProvider: JooqQueryProvider, private val jooqMappers: JooqMappers) {
-    fun Instant.toTimestamp(): Timestamp = Timestamp.from(this)
 
     fun getCompetitorNumbersByCategoryIds(competitionId: String): Map<String, Int> = queryProvider.competitorNumbersByCategoryIdsQuery(competitionId)
             .fetch { rec ->
@@ -152,30 +153,6 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                     .where(CompetitorCategories.COMPETITOR_CATEGORIES.COMPETITORS_ID.equal(fighterId)).and(CategoryDescriptor.CATEGORY_DESCRIPTOR.COMPETITION_ID.equal(competitionId))
                     .fetch(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID, String::class.java) ?: emptyList()
 
-
-    fun fetchPeriodsByCompeititonId(competitionId: String): Flux<PeriodDTO> {
-        return Flux.from(create
-                .selectFrom(SchedulePeriod.SCHEDULE_PERIOD.join(MatDescription.MAT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
-                        .on(SchedulePeriod.SCHEDULE_PERIOD.ID.eq(MatDescription.MAT_DESCRIPTION.PERIOD_ID)))
-                .where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(competitionId)))
-                .groupBy { it[SchedulePeriod.SCHEDULE_PERIOD.ID] }
-                .flatMap { fl ->
-                    fl.collect(Collector.of(Supplier { PeriodDTO() }, BiConsumer<PeriodDTO, Record> { t, rec ->
-                        val mat = rec[MatDescription.MAT_DESCRIPTION.ID]?.let {
-                            MatDescriptionDTO()
-                                    .setId(it)
-                                    .setPeriodId(fl.key())
-                                    .setName(rec[MatDescription.MAT_DESCRIPTION.NAME])
-                        }
-                        t
-                                .setId(rec[SchedulePeriod.SCHEDULE_PERIOD.ID])
-                                .setIsActive(rec[SchedulePeriod.SCHEDULE_PERIOD.IS_ACTIVE])
-                                .setName(rec[SchedulePeriod.SCHEDULE_PERIOD.NAME])
-                                .setStartTime(rec[SchedulePeriod.SCHEDULE_PERIOD.START_TIME]?.toInstant()).mats = mat?.let { arrayOf(it) }
-                                ?: emptyArray()
-                    }, BinaryOperator { t, u -> t.setMats(t.mats + u.mats) }))
-                }
-    }
 
     fun mapCompetitorWithoutCategories(it: Record): CompetitorDTO = CompetitorDTO()
             .setFirstName(it[Competitor.COMPETITOR.FIRST_NAME])
@@ -331,8 +308,6 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
         }
         create.batchStore(records).execute()
     }
-
-    fun getDsl() = create
 
     fun saveEvents(events: List<EventDTO>): IntArray =
             create.batchInsert(events.map { EventRecord(it.id, it.categoryId, it.competitionId, it.correlationId, it.matId, it.payload, it.type?.ordinal) }).execute()
@@ -521,6 +496,21 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                     ?.b?.add(u[CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE.SELECTOR_VALUE])
         }
     }
+
+    fun saveCompetitors(comps: List<CompetitorDTO>): IntArray =
+            create.batchInsert(comps.map { comp -> CompetitorRecord().also { cmp ->
+                cmp.id = comp.id
+                cmp.academyId = comp.academy?.id
+                cmp.academyName = comp.academy?.name
+                cmp.birthDate = comp.birthDate?.let { Timestamp.from(it) }
+                cmp.email = comp.email
+                cmp.firstName = comp.firstName
+                cmp.lastName = comp.lastName
+                cmp.competitionId = comp.competitionId
+                cmp.promo = comp.promo
+                cmp.registrationStatus = comp.registrationStatus?.let { RegistrationStatus.valueOf(it).ordinal }
+                cmp.userId = comp.userId
+            }}).execute()
 
     fun changeCompetitorCategories(fighterId: String, oldCategories: List<String>, newCategories: List<String>) {
         if (oldCategories.isNotEmpty()) {
@@ -721,36 +711,9 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
     }
 
     fun saveCompetitionState(state: CompetitionStateDTO?) {
-        state?.let {
+        state?.let { compState ->
             create.batch(
-                    listOf(
-                            create.insertInto(CompetitionProperties.COMPETITION_PROPERTIES,
-                                    CompetitionProperties.COMPETITION_PROPERTIES.ID,
-                                    CompetitionProperties.COMPETITION_PROPERTIES.COMPETITION_NAME,
-                                    CompetitionProperties.COMPETITION_PROPERTIES.BRACKETS_PUBLISHED,
-                                    CompetitionProperties.COMPETITION_PROPERTIES.SCHEDULE_PUBLISHED,
-                                    CompetitionProperties.COMPETITION_PROPERTIES.START_DATE,
-                                    CompetitionProperties.COMPETITION_PROPERTIES.END_DATE,
-                                    CompetitionProperties.COMPETITION_PROPERTIES.EMAIL_NOTIFICATIONS_ENABLED,
-                                    CompetitionProperties.COMPETITION_PROPERTIES.EMAIL_TEMPLATE,
-                                    CompetitionProperties.COMPETITION_PROPERTIES.CREATOR_ID,
-                                    CompetitionProperties.COMPETITION_PROPERTIES.TIME_ZONE,
-                                    CompetitionProperties.COMPETITION_PROPERTIES.STATUS,
-                                    CompetitionProperties.COMPETITION_PROPERTIES.CREATION_TIMESTAMP
-                            )
-                                    .values(state.properties?.id,
-                                            state.properties?.competitionName,
-                                            state.properties?.bracketsPublished,
-                                            state.properties?.schedulePublished,
-                                            state.properties?.startDate?.toTimestamp(),
-                                            state.properties?.endDate?.toTimestamp(),
-                                            state.properties?.emailNotificationsEnabled,
-                                            state.properties?.emailTemplate,
-                                            state.properties?.creatorId,
-                                            state.properties?.timeZone,
-                                            state.properties?.status?.ordinal,
-                                            state.properties?.creationTimestamp)
-                    ) +
+                    listOf(queryProvider.saveCompetitionPropertiesQuery(compState.properties)) +
                             (state.properties.staffIds?.map {
                                 create.insertInto(CompetitionPropertiesStaffIds.COMPETITION_PROPERTIES_STAFF_IDS,
                                         CompetitionPropertiesStaffIds.COMPETITION_PROPERTIES_STAFF_IDS.COMPETITION_PROPERTIES_ID,
@@ -776,74 +739,10 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
     }
 
     fun saveSchedule(schedule: ScheduleDTO?) = schedule?.let {
-        create.batch(it.periods.flatMap { per ->
-            listOf(create.insertInto(SchedulePeriod.SCHEDULE_PERIOD,
-                    SchedulePeriod.SCHEDULE_PERIOD.ID,
-                    SchedulePeriod.SCHEDULE_PERIOD.NAME,
-                    SchedulePeriod.SCHEDULE_PERIOD.START_TIME,
-                    SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID,
-                    SchedulePeriod.SCHEDULE_PERIOD.IS_ACTIVE,
-                    SchedulePeriod.SCHEDULE_PERIOD.END_TIME,
-                    SchedulePeriod.SCHEDULE_PERIOD.RISK_PERCENT,
-                    SchedulePeriod.SCHEDULE_PERIOD.TIME_BETWEEN_FIGHTS
-                    )
-                    .values(per.id, per.name, per.startTime?.toTimestamp(), it.id, per.isActive, per.endTime?.toTimestamp(),
-                            per.riskPercent, per.timeBetweenFights)) +
-                    per.scheduleEntries.mapIndexed { _, sch ->
-                        create.insertInto(ScheduleEntry.SCHEDULE_ENTRY,
-                                ScheduleEntry.SCHEDULE_ENTRY.ID,
-                                ScheduleEntry.SCHEDULE_ENTRY.PERIOD_ID,
-                                ScheduleEntry.SCHEDULE_ENTRY.DURATION,
-                                ScheduleEntry.SCHEDULE_ENTRY.START_TIME,
-                                ScheduleEntry.SCHEDULE_ENTRY.SCHEDULE_ORDER,
-                                ScheduleEntry.SCHEDULE_ENTRY.END_TIME,
-                                ScheduleEntry.SCHEDULE_ENTRY.ENTRY_TYPE,
-                                ScheduleEntry.SCHEDULE_ENTRY.DESCRIPTION,
-                                ScheduleEntry.SCHEDULE_ENTRY.MAT_ID)
-                                .values(sch.id,
-                                        per.id,
-                                        sch.duration,
-                                        sch.startTime?.toTimestamp(),
-                                        sch.order,
-                                        sch.endTime?.toTimestamp(),
-                                        sch.entryType?.ordinal,
-                                        sch.description,
-                                        sch.matId)
-                    } +
-                    per.scheduleEntries.flatMap { sch ->
-                        listOf(create.deleteFrom(CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY)
-                                .where(CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.SCHEDULE_ENTRY_ID.eq(sch.id))) +
-                                    sch.categoryIds.map { cat ->
-                            create.insertInto(CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY,
-                                    CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.CATEGORY_ID,
-                                    CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.SCHEDULE_ENTRY_ID)
-                                    .values(cat, sch.id)
-                        } +
-                                sch.fightIds.map { fid ->
-                                    create.update(FightDescription.FIGHT_DESCRIPTION)
-                                            .set(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID, sch.id)
-                                            .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fid))
-                                }
-                    } +
-                    per.mats.flatMap { ms ->
-                        listOf(create.insertInto(MatDescription.MAT_DESCRIPTION,
-                                MatDescription.MAT_DESCRIPTION.ID,
-                                MatDescription.MAT_DESCRIPTION.PERIOD_ID)
-                                .values(ms.id, per.id)) +
-                                ms.fightStartTimes.map { f ->
-                                    create.update(FightDescription.FIGHT_DESCRIPTION)
-                                            .set(FightDescription.FIGHT_DESCRIPTION.PERIOD, per.id)
-                                            .set(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT, f.numberOnMat)
-                                            .set(FightDescription.FIGHT_DESCRIPTION.MAT_ID, f.matId)
-                                            .set(FightDescription.FIGHT_DESCRIPTION.START_TIME, f.startTime?.toTimestamp())
-                                            .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(f.fightId))
-                                }
-                    }
-        }
-        ).execute()
+        create.batch(queryProvider.saveScheduleQuery(it)).execute()
     }
 
-    
+
     fun batchUpdateFightStartTimesMatPeriodNumber(newFights: List<FightStartTimePairDTO>): IntArray =
             create.batch(newFights.map {
                 create.update(FightDescription.FIGHT_DESCRIPTION)
@@ -871,7 +770,21 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
     }.map { t -> t.a
             .setMats(t.b.map { tm -> tm.a.setFightStartTimes(tm.b.toTypedArray()) }.toTypedArray())
             .setScheduleEntries(t.c.map {tm ->
-                tm.a.setFightIds(tm.b.toTypedArray()).setCategoryIds(tm.c.toTypedArray())}.toTypedArray())}
+                tm.a.setFightIds(tm.b.toTypedArray()).setCategoryIds(tm.c.toTypedArray())}.toTypedArray())
+            .setScheduleRequirements(t.d.map { tm ->
+                tm.a.setFightIds(tm.b.toTypedArray()).setCategoryIds(tm.c.toTypedArray())
+            }.toTypedArray())}
+            .flatMap { per ->
+                Flux.from(
+                        create.selectFrom(ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT)
+                                .where(ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT.SCHEDULE_ENTRY_ID.`in`(per.scheduleEntries.map { it.id }))
+                )
+                        .collectList()
+                        .map { list ->
+                            val map = list.groupBy { it.scheduleEntryId }.mapValues { e -> e.value.map { it.scheduleRequirementId } }
+                            per.setScheduleEntries(per.scheduleEntries?.map { it.setRequirementIds(map[it.id]?.toTypedArray()) }?.toTypedArray())
+                        }
+            }
 
     fun updateCompetitionStatus(id: String, status: CompetitionStatus) {
         create.update(CompetitionProperties.COMPETITION_PROPERTIES)

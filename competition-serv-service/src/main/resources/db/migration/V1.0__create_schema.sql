@@ -322,7 +322,7 @@ create table compservice.schedule_entry
     period_id      varchar(255) not null
         constraint fkafy2hinwcl6a1ugke2uctic0w
             references compservice.schedule_period on delete cascade,
-    mat_id         varchar(255) not null
+    mat_id         varchar(255)
         constraint schedule_entries_mat_id_fkey
             references compservice.mat_description,
     duration       numeric(19, 2),
@@ -343,11 +343,11 @@ create table compservice.schedule_requirement
     period_id   varchar(255) not null
         constraint schedule_requirement_period_id_fkey
             references compservice.schedule_period on delete cascade,
-    mat_id      varchar(255) not null
+    mat_id      varchar(255)
         constraint schedule_requirement_mat_id_fkey
             references compservice.mat_description,
     entry_type  integer      not null,
-    start_time  timestamp    not null,
+    start_time  timestamp,
     force       boolean,
     end_time    timestamp,
     description varchar(255),
@@ -431,8 +431,20 @@ create table compservice.category_schedule_entry
     category_id       varchar(255) not null
         constraint category_schedule_entry_category_fkey references compservice.category_descriptor,
     schedule_entry_id varchar(255) not null
-        constraint category_schedule_entry_schedule_entry_fkey references compservice.schedule_entry
+        constraint category_schedule_entry_schedule_entry_fkey references compservice.schedule_entry,
+    constraint category_schedule_entry_pkey primary key (category_id, schedule_entry_id)
 );
+
+create table compservice.schedule_entry_schedule_requirement
+(
+    schedule_requirement_id varchar(255) not null
+        constraint schedule_entry_schedule_requirement_schedule_requirement_fkey references compservice.schedule_requirement,
+    schedule_entry_id       varchar(255) not null
+        constraint schedule_entry_schedule_requirement_schedule_entry_fkey references compservice.schedule_entry,
+        constraint schedule_entry_schedule_requirement_pkey primary key (schedule_requirement_id, schedule_entry_id)
+);
+
+
 
 create table compservice.comp_score
 (

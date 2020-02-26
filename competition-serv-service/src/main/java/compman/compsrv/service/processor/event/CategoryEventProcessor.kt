@@ -122,9 +122,8 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
         val payload = getPayloadAs(event.payload, CompetitorAddedPayload::class.java)
         val competitor = payload?.fighter
         return if (competitor != null && !competitor.id.isNullOrBlank() && !competitor.categories.isNullOrEmpty()) {
-            val comp = competitor.toCompetitor()
-            log.info("Adding competitor: ${comp.id} to competition ${event.competitionId} and category ${competitor.categories}")
-            competitorCrudRepository.insert(comp)
+            log.info("Adding competitor: ${competitor.id} to competition ${event.competitionId} and category ${competitor.categories}")
+            jooqRepository.saveCompetitors(listOf(competitor))
             jooqRepository.changeCompetitorCategories(competitor.id, emptyList(), competitor.categories.toList())
             listOf(event)
         } else {

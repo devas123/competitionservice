@@ -330,7 +330,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getDashboardState(competitionId: String): CompetitionDashboardStateDTO? {
         return localOrRemote(competitionId, {
-            val periods = jooq.fetchPeriodsByCompeititonId(competitionId).collectList().block()?.toTypedArray()
+            val periods = jooq.fetchPeriodsByCompetitionId(competitionId).collectList().block()?.toTypedArray()
             CompetitionDashboardStateDTO()
                     .setCompetitionId(competitionId)
                     .setPeriods(periods)
