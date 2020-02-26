@@ -316,23 +316,43 @@ create table compservice.fight_result_option
 
 create table compservice.schedule_entry
 (
-    id               varchar(255) not null
+    id             varchar(255) not null
         constraint schedule_entry_pkey
             primary key,
-    period_id        varchar(255) not null
+    period_id      varchar(255) not null
         constraint fkafy2hinwcl6a1ugke2uctic0w
             references compservice.schedule_period on delete cascade,
-    mat_id           varchar(255) not null
+    mat_id         varchar(255) not null
         constraint schedule_entries_mat_id_fkey
             references compservice.mat_description,
-    duration         numeric(19, 2),
-    entry_type       integer      not null,
-    start_time       timestamp    not null,
-    end_time         timestamp,
-    schedule_order   integer      not null,
-    description      varchar(255),
+    duration       numeric(19, 2),
+    entry_type     integer      not null,
+    start_time     timestamp    not null,
+    end_time       timestamp,
+    schedule_order integer      not null,
+    description    varchar(255),
     constraint schedule_unique_period_mat_order
         unique (period_id, mat_id, schedule_order, entry_type)
+);
+
+create table compservice.schedule_requirement
+(
+    id          varchar(255) not null
+        constraint schedule_requirement_pkey
+            primary key,
+    period_id   varchar(255) not null
+        constraint schedule_requirement_period_id_fkey
+            references compservice.schedule_period on delete cascade,
+    mat_id      varchar(255) not null
+        constraint schedule_requirement_mat_id_fkey
+            references compservice.mat_description,
+    entry_type  integer      not null,
+    start_time  timestamp    not null,
+    force       boolean,
+    end_time    timestamp,
+    description varchar(255),
+    constraint schedule_requirement_unique_period_mat_order
+        unique (period_id, mat_id, entry_type)
 );
 
 create table compservice.fight_description
@@ -381,6 +401,27 @@ create table compservice.fight_description
     schedule_entry_id       varchar(255)
         constraint fight_description_schedule_entry_fkey
             references compservice.schedule_entry
+);
+
+
+create table compservice.schedule_requirement_fight_description
+(
+    requirement_id varchar(255) not null
+        constraint schedule_requirement_fight_description_requirement_id references compservice.schedule_requirement on delete cascade,
+    fight_id       varchar(255) not null
+        constraint schedule_requirement_fight_description_fight_id references compservice.fight_description on delete cascade,
+    constraint schedule_requirement_fight_description_pkey
+        primary key (requirement_id, fight_id)
+);
+
+create table compservice.schedule_requirement_category_description
+(
+    requirement_id varchar(255) not null
+        constraint schedule_requirement_category_description_requirement_id references compservice.schedule_requirement on delete cascade,
+    category_id    varchar(255) not null
+        constraint schedule_requirement_category_description_category_id references compservice.category_descriptor on delete cascade,
+    constraint schedule_requirement_category_description_pkey
+        primary key (requirement_id, category_id)
 );
 
 
