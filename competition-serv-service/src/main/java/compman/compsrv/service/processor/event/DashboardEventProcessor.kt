@@ -13,13 +13,13 @@ import compman.compsrv.model.events.payload.DashboardFightOrderChangedPayload
 import compman.compsrv.model.events.payload.FightCompetitorsAssignedPayload
 import compman.compsrv.model.events.payload.StageResultSetPayload
 import compman.compsrv.model.exceptions.EventApplyingException
-import compman.compsrv.repository.JooqQueries
+import compman.compsrv.repository.JooqRepository
 import compman.compsrv.util.getPayloadAs
 import org.springframework.stereotype.Component
 
 @Component
 class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
-                              private val jooqQueries: JooqQueries,
+                              private val jooqRepository: JooqRepository,
                               private val mapper: ObjectMapper) : IEventProcessor {
     override fun affectedEvents(): Set<EventType> {
         return setOf(EventType.DASHBOARD_FIGHT_ORDER_CHANGED,
@@ -34,7 +34,7 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
             EventType.DASHBOARD_STAGE_RESULT_SET -> {
                 val payload = mapper.getPayloadAs(event, StageResultSetPayload::class.java)
                 if (payload != null && !payload.stageId.isNullOrBlank() && !payload.results.isNullOrEmpty()) {
-                    jooqQueries.saveCompetitorResults(payload.results.toList())
+                    jooqRepository.saveCompetitorResults(payload.results.toList())
                     listOf(event)
                 } else {
                     throw EventApplyingException("stage ID is not provided.", event)
@@ -43,7 +43,7 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
             EventType.DASHBOARD_FIGHT_ORDER_CHANGED -> {
                 val payload = mapper.getPayloadAs(event, DashboardFightOrderChangedPayload::class.java)
                 if (payload != null && !payload.changedFights.isNullOrEmpty()) {
-                    jooqQueries.batchUpdateStartTimeAndMatAndNumberOnMatById(payload.changedFights.map { cf ->
+                    jooqRepository.batchUpdateStartTimeAndMatAndNumberOnMatById(payload.changedFights.map { cf ->
                         Tuple4(cf.fightId, cf.newStartTime, cf.newMatId, cf.newOrderOnMat)
                     })
                     listOf(event)
@@ -54,7 +54,7 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
             EventType.DASHBOARD_FIGHT_RESULT_SET -> {
                 val payload = mapper.getPayloadAs(event, SetFightResultPayload::class.java)
                 if (payload != null && !payload.fightId.isNullOrBlank() && payload.fightResult != null && !payload.scores.isNullOrEmpty()) {
-                    jooqQueries.updateFightResult(payload.fightId!!, payload.scores.toList(), payload.fightResult, FightStatus.FINISHED)
+                    jooqRepository.updateFightResult(payload.fightId!!, payload.scores.toList(), payload.fightResult, FightStatus.FINISHED)
                     listOf(event)
                 } else {
                     throw EventApplyingException("Not enough information in the payload. $payload", event)

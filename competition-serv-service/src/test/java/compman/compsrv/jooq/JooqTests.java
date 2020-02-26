@@ -4,7 +4,9 @@ import com.compmanager.compservice.jooq.tables.FightDescription;
 import com.compmanager.compservice.jooq.tables.records.FightDescriptionRecord;
 import compman.compsrv.model.dto.brackets.*;
 import compman.compsrv.model.dto.competition.*;
-import compman.compsrv.repository.JooqQueries;
+import compman.compsrv.repository.JooqMappers;
+import compman.compsrv.repository.JooqQueryProvider;
+import compman.compsrv.repository.JooqRepository;
 import compman.compsrv.service.CategoryGeneratorService;
 import compman.compsrv.service.fight.BracketsGenerateService;
 import kotlin.Pair;
@@ -51,14 +53,18 @@ public class JooqTests {
     public void testSaveDefaultCategories() throws SQLException {
         try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
              DSLContext dsl = DSL.using(conn, new Settings().withRenderNameStyle(RenderNameStyle.AS_IS))) {
-            JooqQueries jooqQueries = new JooqQueries(dsl);
+            JooqRepository jooqRepository = createJooqRepository(dsl);
             CategoryGeneratorService csg = new CategoryGeneratorService();
             List<CategoryDescriptorDTO> categories = csg.createDefaultBjjCategories(competitionId);
-            categories.forEach(cat -> jooqQueries.saveCategoryDescriptor(cat, competitionId));
+            categories.forEach(cat -> jooqRepository.saveCategoryDescriptor(cat, competitionId));
 
             Assert.assertEquals(categories.size(),
-                    Objects.requireNonNull(jooqQueries.fetchCategoryStatesByCompetitionId(competitionId).collectList().block()).size());
+                    Objects.requireNonNull(jooqRepository.fetchCategoryStatesByCompetitionId(competitionId).collectList().block()).size());
         }
+    }
+
+    private JooqRepository createJooqRepository(DSLContext dsl) {
+        return new JooqRepository(dsl, new JooqQueryProvider(dsl), new JooqMappers());
     }
 
     @Test
@@ -66,7 +72,7 @@ public class JooqTests {
         try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
              DSLContext dsl = DSL.using(conn, new Settings().withRenderNameStyle(RenderNameStyle.AS_IS))) {
             BigDecimal duration = BigDecimal.valueOf(8L);
-            JooqQueries jooqQueries = new JooqQueries(dsl);
+            JooqRepository jooqRepository = createJooqRepository(dsl);
             CategoryGeneratorService csg = new CategoryGeneratorService();
             List<CategoryDescriptorDTO> categories = csg.createDefaultBjjCategories(competitionId);
             String categoryId = "categoryId";
@@ -85,11 +91,11 @@ public class JooqTests {
                     .setStatus(CompetitionStatus.CREATED)
                     .setTimeZone("UTC")
                     .setSchedulePublished(false);
-            jooqQueries.saveCompetitionState(new CompetitionStateDTO()
+            jooqRepository.saveCompetitionState(new CompetitionStateDTO()
                     .setCategories(new CategoryStateDTO[]{})
                     .setId(competitionId)
                     .setProperties(competitionPropertiesDTO));
-            jooqQueries.saveCategoryDescriptor(category, competitionId);
+            jooqRepository.saveCategoryDescriptor(category, competitionId);
             List<FightDescriptionDTO> fights = bracketsGenerateService.generateDoubleEliminationBracket(competitionId, categoryId, stageId, 50, duration);
             ArrayList<StageDescriptorDTO> stages = new ArrayList<>();
             final AdditionalGroupSortingDescriptorDTO[] additionalGroupSortingDescriptorDTOS =new AdditionalGroupSortingDescriptorDTO[]{
@@ -124,22 +130,22 @@ public class JooqTests {
                                     .setName(stageId + "group-Name1")
                                     .setSize(25)
                     }));
-            jooqQueries.saveStages(stages);
-            jooqQueries.saveGroupDescriptors(stages.stream().map(s -> new Pair<>(s.getId(), Arrays.asList(s.getGroupDescriptors())))
+            jooqRepository.saveStages(stages);
+            jooqRepository.saveGroupDescriptors(stages.stream().map(s -> new Pair<>(s.getId(), Arrays.asList(s.getGroupDescriptors())))
                     .collect(Collectors.toList()));
-            jooqQueries.saveResultDescriptors(stages.stream().map(s -> new Pair<>(s.getId(), s.getStageResultDescriptor())).collect(Collectors.toList()));
-            jooqQueries.saveFights(fights);
+            jooqRepository.saveResultDescriptors(stages.stream().map(s -> new Pair<>(s.getId(), s.getStageResultDescriptor())).collect(Collectors.toList()));
+            jooqRepository.saveFights(fights);
 
-            List<FightDescriptionRecord> rawFights = jooqQueries.getDsl()
+            List<FightDescriptionRecord> rawFights = jooqRepository.getDsl()
                     .selectFrom(FightDescription.FIGHT_DESCRIPTION).fetch();
 
-            long count = jooqQueries.fightsCountByStageId(competitionId, stageId);
+            long count = jooqRepository.fightsCountByStageId(competitionId, stageId);
             Assert.assertEquals(fights.size(), count);
 
-            List<StageDescriptorDTO> loadedStages = jooqQueries.fetchStagesForCategory(competitionId, categoryId).collectList().block();
+            List<StageDescriptorDTO> loadedStages = jooqRepository.fetchStagesForCategory(competitionId, categoryId).collectList().block();
             Assert.assertNotNull(loadedStages);
             Assert.assertEquals(stages.size(), loadedStages.size());
-            List<FightDescriptionDTO> loadedFights = jooqQueries.fetchFightsByStageId(competitionId, stageId).collectList().block();
+            List<FightDescriptionDTO> loadedFights = jooqRepository.fetchFightsByStageId(competitionId, stageId).collectList().block();
             Assert.assertNotNull(loadedFights);
             Assert.assertEquals(fights.size(), loadedFights.size());
             loadedStages.forEach(st -> {

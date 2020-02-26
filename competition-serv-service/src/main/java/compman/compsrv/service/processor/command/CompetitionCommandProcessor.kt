@@ -17,7 +17,7 @@ import compman.compsrv.model.dto.schedule.PeriodDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
-import compman.compsrv.repository.JooqQueries
+import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.ScheduleService
 import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.createErrorEvent
@@ -42,7 +42,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val registrationGroupCrudRepository: RegistrationGroupDao,
                                   private val registrationPeriodCrudRepository: RegistrationPeriodDao,
                                   private val registrationInfoCrudRepository: RegistrationInfoDao,
-                                  private val jooqQueries: JooqQueries,
+                                  private val jooqRepository: JooqRepository,
                                   private val mapper: ObjectMapper) : ICommandProcessor {
     override fun affectedCommands(): Set<CommandType> {
         return setOf(CommandType.ASSIGN_REGISTRATION_GROUP_CATEGORIES_COMMAND,
@@ -133,10 +133,10 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                 if (!group?.displayName.isNullOrBlank() && !group?.registrationInfoId.isNullOrBlank()) {
                                     val groupId = IDGenerator.hashString("${group.registrationInfoId}/${group.displayName}")
                                     val regInfoId = group.registrationInfoId ?: command.competitionId
-                                    val periodGroups = jooqQueries.fetchRegistrationGroupIdsByPeriodIdAndRegistrationInfoId(regInfoId, payload.periodId).collectList().block()
+                                    val periodGroups = jooqRepository.fetchRegistrationGroupIdsByPeriodIdAndRegistrationInfoId(regInfoId, payload.periodId).collectList().block()
                                     val defaultGroup = group?.defaultGroup?.let {
                                         if (it) {
-                                            jooqQueries.fetchDefaulRegistrationGroupByCompetitionIdAndIdNeq(regInfoId, groupId).block()
+                                            jooqRepository.fetchDefaulRegistrationGroupByCompetitionIdAndIdNeq(regInfoId, groupId).block()
                                         } else {
                                             null
                                         }
@@ -224,7 +224,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 CommandType.DROP_ALL_BRACKETS_COMMAND -> {
                     val state = competitionPropertiesCrudRepository.findById(command.competitionId)
                     if (state?.bracketsPublished != true) {
-                        jooqQueries.getCategoryIdsForCompetition(command.competitionId).map { cat -> createEvent(EventType.CATEGORY_BRACKETS_DROPPED, command.payload).setCategoryId(cat) }.collectList().block()
+                        jooqRepository.getCategoryIdsForCompetition(command.competitionId).map { cat -> createEvent(EventType.CATEGORY_BRACKETS_DROPPED, command.payload).setCategoryId(cat) }.collectList().block()
                     } else {
                         listOf(createErrorEvent("Cannot drop brackets, they are already published."))
                     }
@@ -253,7 +253,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                     })
                     if (compProps != null && !compProps.schedulePublished && !periods.isNullOrEmpty()) {
                         if (missingCategories.isNullOrEmpty()) {
-                            val competitorNumbersByCategoryIds = jooqQueries.getCompetitorNumbersByCategoryIds(command.competitionId)
+                            val competitorNumbersByCategoryIds = jooqRepository.getCompetitorNumbersByCategoryIds(command.competitionId)
                             val schedule = scheduleService.generateSchedule(command.competitionId, periods,
                                     getAllBrackets(command.competitionId),
                                     compProps.timeZone,

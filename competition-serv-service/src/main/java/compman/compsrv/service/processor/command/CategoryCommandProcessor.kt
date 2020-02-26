@@ -19,7 +19,8 @@ import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
-import compman.compsrv.repository.JooqQueries
+import compman.compsrv.repository.JooqQueryProvider
+import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.IDGenerator
@@ -38,7 +39,9 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                                            private val categoryCrudRepository: CategoryDescriptorDao,
                                            private val competitorCrudRepository: CompetitorDao,
                                            private val fightCrudRepository: FightDescriptionDao,
-                                           private val jooq: JooqQueries) : ICommandProcessor {
+                                           private val jooq: JooqRepository,
+                                           private val jooqQueryProvider: JooqQueryProvider
+) : ICommandProcessor {
     private val commandsToHandlers: Map<CommandType, (command: CommandDTO) -> List<EventDTO>> = setOf(CommandType.ADD_COMPETITOR_COMMAND to ::doAddCompetitor,
             CommandType.REMOVE_COMPETITOR_COMMAND to ::doRemoveCompetitor,
             CommandType.ADD_CATEGORY_COMMAND to ::processAddCategoryCommandDTO,
@@ -123,7 +126,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
     private fun createEvent(command: CommandDTO, eventType: EventType, payload: Any?) = mapper.createEvent(command, eventType, payload)
 
     private fun doGenerateBrackets(command: CommandDTO): List<EventDTO> {
-        val competitors = jooq.competitorsQuery(command.competitionId).and(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.eq(command.categoryId)).fetch { rec -> jooq.mapCompetitorWithoutCategories(rec) }
+        val competitors = jooqQueryProvider.competitorsQuery(command.competitionId).and(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.eq(command.categoryId)).fetch { rec -> jooq.mapCompetitorWithoutCategories(rec) }
         val payload = mapper.convertValue(command.payload, GenerateBracketsPayload::class.java)
         return if (!competitors.isNullOrEmpty()
                 && !payload?.stageDescriptors.isNullOrEmpty()) {

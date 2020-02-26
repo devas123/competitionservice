@@ -1,7 +1,6 @@
 package compman.compsrv.repository
 
 import arrow.core.Tuple2
-import arrow.core.Tuple3
 import arrow.core.Tuple4
 import arrow.core.Tuple6
 import com.compmanager.compservice.jooq.tables.*
@@ -10,11 +9,12 @@ import com.compmanager.model.payment.RegistrationStatus
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.dto.schedule.*
+import compman.compsrv.model.dto.schedule.FightStartTimePairDTO
+import compman.compsrv.model.dto.schedule.PeriodDTO
+import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.util.compNotEmpty
 import org.jooq.*
-import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
@@ -26,13 +26,10 @@ import java.util.function.Supplier
 import java.util.stream.Collector
 
 @Repository
-class JooqQueries(private val create: DSLContext) {
+class JooqRepository(private val create: DSLContext, private val queryProvider: JooqQueryProvider, private val jooqMappers: JooqMappers) {
     fun Instant.toTimestamp(): Timestamp = Timestamp.from(this)
 
-    fun getCompetitorNumbersByCategoryIds(competitionId: String): Map<String, Int> = create.select(CompetitorCategories.COMPETITOR_CATEGORIES.CATEGORIES_ID, DSL.count())
-            .from(Competitor.COMPETITOR.join(CompetitorCategories.COMPETITOR_CATEGORIES).on(CompetitorCategories.COMPETITOR_CATEGORIES.COMPETITORS_ID.eq(Competitor.COMPETITOR.ID)))
-            .where(Competitor.COMPETITOR.COMPETITION_ID.eq(competitionId))
-            .groupBy(CompetitorCategories.COMPETITOR_CATEGORIES.CATEGORIES_ID)
+    fun getCompetitorNumbersByCategoryIds(competitionId: String): Map<String, Int> = queryProvider.competitorNumbersByCategoryIdsQuery(competitionId)
             .fetch { rec ->
                 rec.value1() to (rec.value2() ?: 0)
             }.toMap()
@@ -43,15 +40,9 @@ class JooqQueries(private val create: DSLContext) {
                     .where(RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_PERIOD_ID.eq(regPeriodId))
                     .and(RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_GROUP_ID.eq(regGroupId)).execute()
 
-    fun categoryQuery(competitionId: String): SelectConditionStep<Record> = create.selectFrom(CategoryDescriptor.CATEGORY_DESCRIPTOR
-            .join(CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION)
-            .on(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.eq(CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.CATEGORY_DESCRIPTOR_ID))
-            .join(CategoryRestriction.CATEGORY_RESTRICTION)
-            .on(CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.CATEGORY_RESTRICTION_ID.eq(CategoryRestriction.CATEGORY_RESTRICTION.ID)))
-            .where(CategoryDescriptor.CATEGORY_DESCRIPTOR.COMPETITION_ID.eq(competitionId))
 
     fun getCategory(competitionId: String, categoryId: String): CategoryDescriptorDTO {
-        val categoryFlatResults = categoryQuery(competitionId)
+        val categoryFlatResults = queryProvider.categoryQuery(competitionId)
                 .and(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.eq(categoryId))
                 .fetch()
         val categoryRestrictions = categoryFlatResults
@@ -71,49 +62,18 @@ class JooqQueries(private val create: DSLContext) {
     fun fightsCountByCategoryId(competitionId: String, categoryId: String) = create.fetchCount(FightDescription.FIGHT_DESCRIPTION, FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID.eq(categoryId).and(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId)))
     fun fightsCountByStageId(competitionId: String, stageId: String) = create.fetchCount(FightDescription.FIGHT_DESCRIPTION, FightDescription.FIGHT_DESCRIPTION.STAGE_ID.eq(stageId).and(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId)))
     fun fightsCountByMatId(competitionId: String, matId: String) = create.fetchCount(FightDescription.FIGHT_DESCRIPTION, FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId).and(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId)))
-    fun fightsQuery(competitionId: String): SelectConditionStep<Record> =
-            create.selectFrom(FightDescription.FIGHT_DESCRIPTION
-                    .join(CompScore.COMP_SCORE, JoinType.LEFT_OUTER_JOIN)
-                    .on(FightDescription.FIGHT_DESCRIPTION.ID.eq(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID))
-                    .join(Competitor.COMPETITOR, JoinType.LEFT_OUTER_JOIN)
-                    .on(Competitor.COMPETITOR.ID.eq(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID))
-                    .join(MatDescription.MAT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
-                    .on(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(MatDescription.MAT_DESCRIPTION.ID)))
-                    .where(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId))
 
-
-    fun topMatFightsQuery(limit: Int = 100, competitionId: String, matId: String, statuses: Iterable<FightStatus>): SelectLimitPercentStep<Record> = fightsQuery(competitionId)
-            .and(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId))
-            .and(FightDescription.FIGHT_DESCRIPTION.STATUS.`in`(statuses.map { it.ordinal }))
-            .and(Competitor.COMPETITOR.FIRST_NAME.isNotNull)
-            .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT, FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND)
-            .limit(limit)
-
-    fun fetchFightsByStageId(competitionId: String, stageId: String): Flux<FightDescriptionDTO> = fightsMapping(Flux.from(fightsQuery(competitionId)
+    fun fetchFightsByStageId(competitionId: String, stageId: String): Flux<FightDescriptionDTO> = fightsMapping(Flux.from(queryProvider.fightsQuery(competitionId)
             .and(FightDescription.FIGHT_DESCRIPTION.STAGE_ID.eq(stageId))
             .orderBy(FightDescription.FIGHT_DESCRIPTION.ROUND.asc(),
                     FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND.asc())))
 
-    fun fetchFightIdsByCategoryIds(competitionId: String, categoryIds: Collection<String>): Flux<String> = Flux.from(
-            create.select(FightDescription.FIGHT_DESCRIPTION.ID).from(FightDescription.FIGHT_DESCRIPTION).where(
-                    FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID.`in`(categoryIds)
-            ).and(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId))
-    ).map { it.value1() }
-
-
-    fun findFightByCompetitionIdAndId(competitionId: String, fightId: String): Mono<FightDescriptionDTO> = fightsMapping(Flux.from(fightsQuery(competitionId)
+    fun findFightByCompetitionIdAndId(competitionId: String, fightId: String): Mono<FightDescriptionDTO> = fightsMapping(Flux.from(queryProvider.fightsQuery(competitionId)
             .and(FightDescription.FIGHT_DESCRIPTION.ID.eq(fightId)))).last()
 
     fun getCategoryIdsForCompetition(competitionId: String): Flux<String> =
             Flux.from(create.select(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID).from(CategoryDescriptor.CATEGORY_DESCRIPTOR).where(CategoryDescriptor.CATEGORY_DESCRIPTOR.COMPETITION_ID.eq(competitionId)))
                     .map { it.into(String::class.java) }
-
-    fun competitorsQuery(competitionId: String): SelectConditionStep<Record> = create.selectFrom(Competitor.COMPETITOR
-            .join(CompetitorCategories.COMPETITOR_CATEGORIES, JoinType.JOIN)
-            .on(Competitor.COMPETITOR.ID.equal(CompetitorCategories.COMPETITOR_CATEGORIES.COMPETITORS_ID))
-            .join(CategoryDescriptor.CATEGORY_DESCRIPTOR)
-            .on(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.equal(CompetitorCategories.COMPETITOR_CATEGORIES.CATEGORIES_ID)))
-            .where(Competitor.COMPETITOR.COMPETITION_ID.equal(competitionId))
 
     fun fightsCount(competitionId: String, fighterId: String) =
             create.fetchCount(FightDescription.FIGHT_DESCRIPTION.join(CompScore.COMP_SCORE).on(FightDescription.FIGHT_DESCRIPTION.ID.eq(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID)),
@@ -177,7 +137,7 @@ class JooqQueries(private val create: DSLContext) {
 
 
     fun fetchCategoryStatesByCompetitionId(competitionId: String): Flux<CategoryStateDTO> {
-        return Flux.from(categoryQuery(competitionId))
+        return Flux.from(queryProvider.categoryQuery(competitionId))
                 .groupBy { it[CategoryDescriptor.CATEGORY_DESCRIPTOR.ID] }.flatMap { fl ->
                     fl.collect(categoryCollector())
                 }
@@ -185,14 +145,6 @@ class JooqQueries(private val create: DSLContext) {
                     getCategoryStateForCategoryDescriptor(competitionId, cat)
                 }
     }
-
-    fun getRegistrationGroupPeriodsQuery(competitionId: String): SelectConditionStep<Record> = create.selectFrom(RegistrationGroup.REGISTRATION_GROUP.join(RegGroupRegPeriod.REG_GROUP_REG_PERIOD, JoinType.LEFT_OUTER_JOIN)
-            .on(RegistrationGroup.REGISTRATION_GROUP.ID.equal(RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_GROUP_ID))
-            .join(RegistrationPeriod.REGISTRATION_PERIOD, JoinType.RIGHT_OUTER_JOIN)
-            .on(RegistrationPeriod.REGISTRATION_PERIOD.ID.equal(RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_PERIOD_ID))
-            .join(RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES, JoinType.FULL_OUTER_JOIN)
-            .on(RegistrationGroup.REGISTRATION_GROUP.ID.equal(RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES.REGISTRATION_GROUP_ID)))
-            .where(RegistrationGroup.REGISTRATION_GROUP.REGISTRATION_INFO_ID.equal(competitionId))
 
     fun getCompetitorCategories(competitionId: String, fighterId: String): List<String> =
             create.selectFrom(CategoryDescriptor.CATEGORY_DESCRIPTOR.join(CompetitorCategories.COMPETITOR_CATEGORIES)
@@ -311,7 +263,7 @@ class JooqQueries(private val create: DSLContext) {
 
     fun topMatFights(limit: Int = 100, competitionId: String, matId: String, statuses: Iterable<FightStatus>): Flux<FightDescriptionDTO> {
         val queryResultsFlux =
-                Flux.from(topMatFightsQuery(limit, competitionId, matId, statuses))
+                Flux.from(queryProvider.topMatFightsQuery(limit, competitionId, matId, statuses))
         return fightsMapping(queryResultsFlux)
     }
 
@@ -477,82 +429,7 @@ class JooqQueries(private val create: DSLContext) {
                             mutableListOf<GroupDescriptorDTO>(),
                             mutableListOf<AdditionalGroupSortingDescriptorDTO>())
                 }, { t, u ->
-                    t.a.id = u[StageDescriptor.STAGE_DESCRIPTOR.ID]
-                    t.a.bracketType = BracketType.values()[u[StageDescriptor.STAGE_DESCRIPTOR.BRACKET_TYPE]]
-                    t.a.categoryId = u[StageDescriptor.STAGE_DESCRIPTOR.CATEGORY_ID]
-                    t.a.competitionId = u[StageDescriptor.STAGE_DESCRIPTOR.COMPETITION_ID]
-                    t.a.hasThirdPlaceFight = u[StageDescriptor.STAGE_DESCRIPTOR.HAS_THIRD_PLACE_FIGHT]
-                    t.a.name = u[StageDescriptor.STAGE_DESCRIPTOR.NAME]
-                    t.a.stageType = StageType.values()[u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_TYPE]]
-                    t.a.stageOrder = u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_ORDER]
-                    t.a.stageStatus = u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_STATUS]?.let { StageStatus.values()[it] }
-                    t.a.waitForPrevious = u[StageDescriptor.STAGE_DESCRIPTOR.WAIT_FOR_PREVIOUS]
-
-                    if (!u[FightResultOption.FIGHT_RESULT_OPTION.ID].isNullOrBlank()
-                            && t.b.none { it.id == u[FightResultOption.FIGHT_RESULT_OPTION.ID] }) {
-                        t.b.add(FightResultOptionDTO()
-                                .setId(u[FightResultOption.FIGHT_RESULT_OPTION.ID])
-                                .setWinnerPoints(u[FightResultOption.FIGHT_RESULT_OPTION.WINNER_POINTS])
-                                .setWinnerAdditionalPoints(u[FightResultOption.FIGHT_RESULT_OPTION.WINNER_ADDITIONAL_POINTS])
-                                .setLoserPoints(u[FightResultOption.FIGHT_RESULT_OPTION.LOSER_POINTS])
-                                .setLoserAdditionalPoints(u[FightResultOption.FIGHT_RESULT_OPTION.LOSER_ADDITIONAL_POINTS])
-                                .setShortName(u[FightResultOption.FIGHT_RESULT_OPTION.SHORT_NAME])
-                                .setDraw(u[FightResultOption.FIGHT_RESULT_OPTION.DRAW])
-                                .setDescription(u[FightResultOption.FIGHT_RESULT_OPTION.DESCRIPTION]))
-                    }
-                    if (!u[GroupDescriptor.GROUP_DESCRIPTOR.ID].isNullOrBlank()
-                            && t.e.none { it.id == u[GroupDescriptor.GROUP_DESCRIPTOR.ID] }) {
-                        t.e.add(GroupDescriptorDTO()
-                                .setId(u[GroupDescriptor.GROUP_DESCRIPTOR.ID])
-                                .setName(u[GroupDescriptor.GROUP_DESCRIPTOR.NAME])
-                                .setSize(u[GroupDescriptor.GROUP_DESCRIPTOR.SIZE]))
-                    }
-
-                    t.c.a.id = u[StageDescriptor.STAGE_DESCRIPTOR.ID]
-                    t.c.a.name = u[StageDescriptor.STAGE_DESCRIPTOR.NAME] + "-Results"
-                    if (t.c.b.none {
-                                it.competitorId == u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.COMPETITOR_ID]
-                                        && it.stageId == u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID]
-                            }
-                            && !u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID].isNullOrBlank()) {
-                        t.c.b.add(CompetitorStageResultDTO()
-                                .setStageId(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID])
-                                .setCompetitorId(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.COMPETITOR_ID])
-                                .setPlace(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.PLACE])
-                                .setGroupId(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.GROUP_ID])
-                                .setRound(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.ROUND])
-                                .setPoints(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.POINTS]))
-                    }
-
-                    if (!u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.STAGE_ID].isNullOrBlank()
-                            && u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_SPECIFIER] != null &&
-                            t.f.none {
-                                it.groupSortSpecifier?.ordinal == u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_SPECIFIER]
-                            }) {
-                        t.f.add(AdditionalGroupSortingDescriptorDTO()
-                                .setGroupSortDirection(u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_DIRECTION]?.let {
-                                    GroupSortDirection.values()[it]
-                                })
-                                .setGroupSortSpecifier(u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_SPECIFIER]?.let {
-                                    GroupSortSpecifier.values()[it]
-                                }))
-                    }
-
-                    t.d.a.id = u[StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.ID]
-                    t.d.a.numberOfCompetitors = u[StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.NUMBER_OF_COMPETITORS]
-                    t.d.a.distributionType = u[StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.DISTRIBUTION_TYPE]?.let { DistributionType.values()[it] }
-                    if (t.d.b.none { it.a.id == u[CompetitorSelector.COMPETITOR_SELECTOR.ID] } && !u[CompetitorSelector.COMPETITOR_SELECTOR.ID].isNullOrBlank()) {
-                        t.d.b.add(Tuple2(CompetitorSelectorDTO()
-                                .setId(u[CompetitorSelector.COMPETITOR_SELECTOR.ID])
-                                .setApplyToStageId(u[CompetitorSelector.COMPETITOR_SELECTOR.APPLY_TO_STAGE_ID])
-                                .setClassifier(u[CompetitorSelector.COMPETITOR_SELECTOR.CLASSIFIER]?.let { SelectorClassifier.values()[it] })
-                                .setLogicalOperator(u[CompetitorSelector.COMPETITOR_SELECTOR.LOGICAL_OPERATOR]?.let { LogicalOperator.values()[it] })
-                                .setOperator(u[CompetitorSelector.COMPETITOR_SELECTOR.OPERATOR]?.let { OperatorType.values()[it] }),
-                                mutableSetOf(u[CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE.SELECTOR_VALUE])))
-                    } else if (!u[CompetitorSelector.COMPETITOR_SELECTOR.ID].isNullOrBlank()) {
-                        t.d.b.find { it.a.id == u[CompetitorSelector.COMPETITOR_SELECTOR.ID] }
-                                ?.b?.add(u[CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE.SELECTOR_VALUE])
-                    }
+                    addStageFromRecord(t, u)
                 })
             }.map { tuple ->
                 tuple.a
@@ -565,6 +442,85 @@ class JooqQueries(private val create: DSLContext) {
                                 .setSelectors(tuple.d.b.map { db -> db.a.setSelectorValue(db.b.toTypedArray()) }.toTypedArray()))
                         .setNumberOfFights(fightsCountByStageId(tuple.a.competitionId, tuple.a.id))
             }
+
+    private fun addStageFromRecord(t: Tuple6<StageDescriptorDTO, MutableList<FightResultOptionDTO>, Tuple2<StageResultDescriptorDTO, MutableList<CompetitorStageResultDTO>>, Tuple2<StageInputDescriptorDTO, MutableList<Tuple2<CompetitorSelectorDTO, MutableSet<String>>>>, MutableList<GroupDescriptorDTO>, MutableList<AdditionalGroupSortingDescriptorDTO>>, u: Record) {
+        t.a.id = u[StageDescriptor.STAGE_DESCRIPTOR.ID]
+        t.a.bracketType = BracketType.values()[u[StageDescriptor.STAGE_DESCRIPTOR.BRACKET_TYPE]]
+        t.a.categoryId = u[StageDescriptor.STAGE_DESCRIPTOR.CATEGORY_ID]
+        t.a.competitionId = u[StageDescriptor.STAGE_DESCRIPTOR.COMPETITION_ID]
+        t.a.hasThirdPlaceFight = u[StageDescriptor.STAGE_DESCRIPTOR.HAS_THIRD_PLACE_FIGHT]
+        t.a.name = u[StageDescriptor.STAGE_DESCRIPTOR.NAME]
+        t.a.stageType = StageType.values()[u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_TYPE]]
+        t.a.stageOrder = u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_ORDER]
+        t.a.stageStatus = u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_STATUS]?.let { StageStatus.values()[it] }
+        t.a.waitForPrevious = u[StageDescriptor.STAGE_DESCRIPTOR.WAIT_FOR_PREVIOUS]
+
+        if (!u[FightResultOption.FIGHT_RESULT_OPTION.ID].isNullOrBlank()
+                && t.b.none { it.id == u[FightResultOption.FIGHT_RESULT_OPTION.ID] }) {
+            t.b.add(FightResultOptionDTO()
+                    .setId(u[FightResultOption.FIGHT_RESULT_OPTION.ID])
+                    .setWinnerPoints(u[FightResultOption.FIGHT_RESULT_OPTION.WINNER_POINTS])
+                    .setWinnerAdditionalPoints(u[FightResultOption.FIGHT_RESULT_OPTION.WINNER_ADDITIONAL_POINTS])
+                    .setLoserPoints(u[FightResultOption.FIGHT_RESULT_OPTION.LOSER_POINTS])
+                    .setLoserAdditionalPoints(u[FightResultOption.FIGHT_RESULT_OPTION.LOSER_ADDITIONAL_POINTS])
+                    .setShortName(u[FightResultOption.FIGHT_RESULT_OPTION.SHORT_NAME])
+                    .setDraw(u[FightResultOption.FIGHT_RESULT_OPTION.DRAW])
+                    .setDescription(u[FightResultOption.FIGHT_RESULT_OPTION.DESCRIPTION]))
+        }
+        if (!u[GroupDescriptor.GROUP_DESCRIPTOR.ID].isNullOrBlank()
+                && t.e.none { it.id == u[GroupDescriptor.GROUP_DESCRIPTOR.ID] }) {
+            t.e.add(GroupDescriptorDTO()
+                    .setId(u[GroupDescriptor.GROUP_DESCRIPTOR.ID])
+                    .setName(u[GroupDescriptor.GROUP_DESCRIPTOR.NAME])
+                    .setSize(u[GroupDescriptor.GROUP_DESCRIPTOR.SIZE]))
+        }
+
+        t.c.a.id = u[StageDescriptor.STAGE_DESCRIPTOR.ID]
+        t.c.a.name = u[StageDescriptor.STAGE_DESCRIPTOR.NAME] + "-Results"
+        if (t.c.b.none {
+                    it.competitorId == u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.COMPETITOR_ID]
+                            && it.stageId == u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID]
+                }
+                && !u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID].isNullOrBlank()) {
+            t.c.b.add(CompetitorStageResultDTO()
+                    .setStageId(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID])
+                    .setCompetitorId(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.COMPETITOR_ID])
+                    .setPlace(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.PLACE])
+                    .setGroupId(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.GROUP_ID])
+                    .setRound(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.ROUND])
+                    .setPoints(u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.POINTS]))
+        }
+
+        if (!u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.STAGE_ID].isNullOrBlank()
+                && u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_SPECIFIER] != null &&
+                t.f.none {
+                    it.groupSortSpecifier?.ordinal == u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_SPECIFIER]
+                }) {
+            t.f.add(AdditionalGroupSortingDescriptorDTO()
+                    .setGroupSortDirection(u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_DIRECTION]?.let {
+                        GroupSortDirection.values()[it]
+                    })
+                    .setGroupSortSpecifier(u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_SPECIFIER]?.let {
+                        GroupSortSpecifier.values()[it]
+                    }))
+        }
+
+        t.d.a.id = u[StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.ID]
+        t.d.a.numberOfCompetitors = u[StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.NUMBER_OF_COMPETITORS]
+        t.d.a.distributionType = u[StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.DISTRIBUTION_TYPE]?.let { DistributionType.values()[it] }
+        if (t.d.b.none { it.a.id == u[CompetitorSelector.COMPETITOR_SELECTOR.ID] } && !u[CompetitorSelector.COMPETITOR_SELECTOR.ID].isNullOrBlank()) {
+            t.d.b.add(Tuple2(CompetitorSelectorDTO()
+                    .setId(u[CompetitorSelector.COMPETITOR_SELECTOR.ID])
+                    .setApplyToStageId(u[CompetitorSelector.COMPETITOR_SELECTOR.APPLY_TO_STAGE_ID])
+                    .setClassifier(u[CompetitorSelector.COMPETITOR_SELECTOR.CLASSIFIER]?.let { SelectorClassifier.values()[it] })
+                    .setLogicalOperator(u[CompetitorSelector.COMPETITOR_SELECTOR.LOGICAL_OPERATOR]?.let { LogicalOperator.values()[it] })
+                    .setOperator(u[CompetitorSelector.COMPETITOR_SELECTOR.OPERATOR]?.let { OperatorType.values()[it] }),
+                    mutableSetOf(u[CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE.SELECTOR_VALUE])))
+        } else if (!u[CompetitorSelector.COMPETITOR_SELECTOR.ID].isNullOrBlank()) {
+            t.d.b.find { it.a.id == u[CompetitorSelector.COMPETITOR_SELECTOR.ID] }
+                    ?.b?.add(u[CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE.SELECTOR_VALUE])
+        }
+    }
 
     fun changeCompetitorCategories(fighterId: String, oldCategories: List<String>, newCategories: List<String>) {
         if (oldCategories.isNotEmpty()) {
@@ -640,22 +596,6 @@ class JooqQueries(private val create: DSLContext) {
                     .values(cr.groupId, cr.place, cr.points, cr.round, cr.competitorId, cr.stageId, cr.conflicting, cr.roundType?.ordinal)
                     .onDuplicateKeyIgnore()
 
-    private fun saveFightResultOptionQuery(stageId: String, fro: FightResultOptionDTO): InsertReturningStep<FightResultOptionRecord> =
-            create.insertInto(FightResultOption.FIGHT_RESULT_OPTION,
-                    FightResultOption.FIGHT_RESULT_OPTION.ID, FightResultOption.FIGHT_RESULT_OPTION.STAGE_ID,
-                    FightResultOption.FIGHT_RESULT_OPTION.WINNER_POINTS, FightResultOption.FIGHT_RESULT_OPTION.WINNER_ADDITIONAL_POINTS,
-                    FightResultOption.FIGHT_RESULT_OPTION.LOSER_POINTS, FightResultOption.FIGHT_RESULT_OPTION.LOSER_ADDITIONAL_POINTS,
-                    FightResultOption.FIGHT_RESULT_OPTION.DRAW, FightResultOption.FIGHT_RESULT_OPTION.DESCRIPTION,
-                    FightResultOption.FIGHT_RESULT_OPTION.SHORT_NAME)
-                    .values(fro.id, stageId, fro.winnerPoints, fro.winnerAdditionalPoints, fro.loserPoints,
-                            fro.loserAdditionalPoints, fro.isDraw, fro.description, fro.shortName).onDuplicateKeyIgnore()
-
-    private fun saveAdditionalGroupSortingDescriptorQuery(stageId: String, agsd: AdditionalGroupSortingDescriptorDTO) =
-            AdditionalGroupSortingDescriptorRecord(stageId, agsd.groupSortDirection?.ordinal, agsd.groupSortSpecifier?.ordinal).let {
-                create.insertInto(AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR,
-                        *it.fields()).values(it.value1(), it.value2(), it.value3())
-            }
-
 
     fun saveCompetitorResults(crs: Iterable<CompetitorStageResultDTO>) {
         create.batch(crs.map { cr -> saveCompetitorResultQuery(cr) }).execute()
@@ -666,10 +606,10 @@ class JooqQueries(private val create: DSLContext) {
             (pair.second.competitorResults?.map { cr ->
                 saveCompetitorResultQuery(cr)
             } ?: emptyList()) + (pair.second.fightResultOptions?.map {
-                saveFightResultOptionQuery(pair.first, it)
+                queryProvider.saveFightResultOptionQuery(pair.first, it)
             } ?: emptyList()) +
                     (pair.second.additionalGroupSortingDescriptors?.map {
-                        saveAdditionalGroupSortingDescriptorQuery(pair.first, it)
+                        queryProvider.saveAdditionalGroupSortingDescriptorQuery(pair.first, it)
                     } ?: emptyList())
         }
         create.batch(batch).execute()
@@ -727,7 +667,7 @@ class JooqQueries(private val create: DSLContext) {
                                     .and(RegistrationPeriod.REGISTRATION_PERIOD.REGISTRATION_INFO_ID.eq(regInfo.id))
                         } +
                         regInfo.registrationGroups.flatMap {
-                            updateRegistrationGroupCategoriesQueries(it.id, it.categories.toList()) +
+                            queryProvider.updateRegistrationGroupCategoriesQueries(it.id, it.categories.toList()) +
                                     create.update(RegistrationGroup.REGISTRATION_GROUP)
                                             .set(RegistrationGroup.REGISTRATION_GROUP.DISPLAY_NAME, it.displayName)
                                             .set(RegistrationGroup.REGISTRATION_GROUP.REGISTRATION_FEE, it.registrationFee)
@@ -735,36 +675,14 @@ class JooqQueries(private val create: DSLContext) {
                                             .and(RegistrationGroup.REGISTRATION_GROUP.REGISTRATION_INFO_ID.eq(regInfo.id))
                         } +
                         regInfo.registrationPeriods.flatMap {
-                            replaceRegPeriodsRegGroupsQueries(it.id, it.registrationGroupIds.toList())
+                            queryProvider.replaceRegPeriodsRegGroupsQueries(it.id, it.registrationGroupIds.toList())
                         }
         ).execute()
     }
 
-    private fun replaceRegPeriodsRegGroupsQueries(periodId: String, groupIds: List<String>): List<RowCountQuery> {
-        return listOf(create.delete(RegGroupRegPeriod.REG_GROUP_REG_PERIOD).where(RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_PERIOD_ID.eq(periodId))) +
-                insertGroupIdsForPeriodIdQueries(groupIds, periodId)
-    }
-
-    private fun insertGroupIdsForPeriodIdQueries(groupIds: List<String>, periodId: String): List<InsertReturningStep<RegGroupRegPeriodRecord>> {
-        return groupIds.map { groupId ->
-            create.insertInto(RegGroupRegPeriod.REG_GROUP_REG_PERIOD, RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_PERIOD_ID, RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_GROUP_ID)
-                    .values(periodId, groupId).onDuplicateKeyIgnore()
-        }
-    }
-
-    private fun updateRegistrationGroupCategoriesQueries(regGroupId: String, categories: List<String>): List<RowCountQuery> {
-        return listOf(create.deleteFrom(RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES)
-                .where(RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES.REGISTRATION_GROUP_ID.eq(regGroupId))
-        ) +
-                categories.map { cat ->
-                    create.insertInto(RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES,
-                            RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES.REGISTRATION_GROUP_ID, RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES.CATEGORY_ID)
-                            .values(regGroupId, cat)
-                }
-    }
 
     fun updateRegistrationGroupCategories(regGroupId: String, categories: List<String>) {
-        create.batch(updateRegistrationGroupCategoriesQueries(regGroupId, categories)).execute()
+        create.batch(queryProvider.updateRegistrationGroupCategoriesQueries(regGroupId, categories)).execute()
     }
 
 //    fun replaceRegistrationPeriodRegistrationGroups(periodId: String, groupIds: List<String>) {
@@ -782,7 +700,7 @@ class JooqQueries(private val create: DSLContext) {
                             RegistrationGroup.REGISTRATION_GROUP.REGISTRATION_INFO_ID)
                             .values(it.id, it.defaultGroup, it.displayName, it.registrationFee, it.registrationInfoId)
                 } +
-                        insertGroupIdsForPeriodIdQueries(newGroups, periodId)
+                        queryProvider.insertGroupIdsForPeriodIdQueries(newGroups, periodId)
         ).execute()
     }
 
@@ -797,7 +715,7 @@ class JooqQueries(private val create: DSLContext) {
                         RegistrationPeriod.REGISTRATION_PERIOD.START_DATE,
                         RegistrationPeriod.REGISTRATION_PERIOD.REGISTRATION_INFO_ID)
                         .values(per.id, per.name, per.end?.toTimestamp(),
-                                per.start?.toTimestamp(), per.competitionId)) + insertGroupIdsForPeriodIdQueries(per.registrationGroupIds?.toList()
+                                per.start?.toTimestamp(), per.competitionId)) + queryProvider.insertGroupIdsForPeriodIdQueries(per.registrationGroupIds?.toList()
                         ?: emptyList(), per.id)
         ).execute()
     }
@@ -924,8 +842,9 @@ class JooqQueries(private val create: DSLContext) {
         }
         ).execute()
     }
+
     
-    fun batchUpdateFightStartTimesMatPeriodNumber(newFights: List<FightStartTimePairDTO>) =
+    fun batchUpdateFightStartTimesMatPeriodNumber(newFights: List<FightStartTimePairDTO>): IntArray =
             create.batch(newFights.map {
                 create.update(FightDescription.FIGHT_DESCRIPTION)
                         .set(FightDescription.FIGHT_DESCRIPTION.MAT_ID, it.matId)
@@ -935,7 +854,7 @@ class JooqQueries(private val create: DSLContext) {
                         .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(it.fightId))
             }).execute()
 
-    fun batchUpdateStartTimeAndMatAndNumberOnMatById(updates: List<Tuple4<String, Instant, String, Int>>) =
+    fun batchUpdateStartTimeAndMatAndNumberOnMatById(updates: List<Tuple4<String, Instant, String, Int>>): IntArray =
             create.batch(updates.map {
                 create.update(FightDescription.FIGHT_DESCRIPTION)
                         .set(FightDescription.FIGHT_DESCRIPTION.MAT_ID, it.c)
@@ -946,113 +865,13 @@ class JooqQueries(private val create: DSLContext) {
 
 
     fun fetchPeriodsByCompetitionId(competitionId: String): Flux<PeriodDTO> = Flux.from(
-            create.selectFrom(SchedulePeriod.SCHEDULE_PERIOD
-                    .join(ScheduleEntry.SCHEDULE_ENTRY, JoinType.LEFT_OUTER_JOIN)
-                    .on(ScheduleEntry.SCHEDULE_ENTRY.PERIOD_ID.eq(SchedulePeriod.SCHEDULE_PERIOD.ID))
-                    .join(CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY, JoinType.LEFT_OUTER_JOIN)
-                    .on(CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.SCHEDULE_ENTRY_ID.eq(ScheduleEntry.SCHEDULE_ENTRY.ID))
-                    .join(FightDescription.FIGHT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
-                    .on(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID.eq(ScheduleEntry.SCHEDULE_ENTRY.ID))
-                    .join(MatDescription.MAT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
-                    .on(MatDescription.MAT_DESCRIPTION.PERIOD_ID.eq(SchedulePeriod.SCHEDULE_PERIOD.ID)))
-                    .where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(competitionId))
+            queryProvider.selectPeriodsQuery(competitionId)
     ).groupBy { it[SchedulePeriod.SCHEDULE_PERIOD.ID] }.flatMap { rec ->
-        rec.collect(Collector.of(Supplier { Tuple3(PeriodDTO().setId(rec.key()),
-                mutableListOf<Tuple2<MatDescriptionDTO, MutableList<FightStartTimePairDTO>>>(),
-                mutableListOf<Tuple3<ScheduleEntryDTO, MutableList<String>,
-                        MutableList<String>>>()) },
-                BiConsumer<Tuple3<PeriodDTO,
-                        MutableList<Tuple2<MatDescriptionDTO, MutableList<FightStartTimePairDTO>>>,
-                        MutableList<Tuple3<ScheduleEntryDTO, MutableList<String>, MutableList<String>>>>, Record> { t, u ->
-                    t.a
-                            .setEndTime(u[SchedulePeriod.SCHEDULE_PERIOD.END_TIME]?.toInstant())
-                            .setIsActive(u[SchedulePeriod.SCHEDULE_PERIOD.IS_ACTIVE])
-                            .setRiskPercent(u[SchedulePeriod.SCHEDULE_PERIOD.RISK_PERCENT])
-                            .setName(u[SchedulePeriod.SCHEDULE_PERIOD.NAME])
-                            .setStartTime(u[SchedulePeriod.SCHEDULE_PERIOD.START_TIME]?.toInstant())
-                            .setTimeBetweenFights(u[SchedulePeriod.SCHEDULE_PERIOD.TIME_BETWEEN_FIGHTS])
-                    if (!u[MatDescription.MAT_DESCRIPTION.ID].isNullOrBlank()) {
-                        if (t.b.any { u[MatDescription.MAT_DESCRIPTION.ID] == it.a.id }) {
-                            if (hasFightStartTime(u)) {
-                                t.b.first { u[MatDescription.MAT_DESCRIPTION.ID] == it.a.id }.b.add(fightStartTimePairDTO(u))
-                            }
-                        } else {
-                            if (hasFightStartTime(u)) {
-                                t.b.add(Tuple2(MatDescriptionDTO(), mutableListOf(fightStartTimePairDTO(u))))
-                            } else {
-                                t.b.add(Tuple2(MatDescriptionDTO(), mutableListOf()))
-                            }
-                        }
-                    }
-                    if (!u[ScheduleEntry.SCHEDULE_ENTRY.ID].isNullOrBlank()) {
-                        if (t.c.none { tc -> tc.a.id == u[ScheduleEntry.SCHEDULE_ENTRY.ID] }) {
-                            t.c.add(Tuple3(
-                                    scheduleEntryDTO(u)
-                            , mutableListOf(), mutableListOf()))
-                        }
-                        val updatable = t.c.first { tc -> tc.a.id == u[ScheduleEntry.SCHEDULE_ENTRY.ID] }
-                        if (!u[FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID].isNullOrBlank()) {
-                            updatable.b.add(u[FightDescription.FIGHT_DESCRIPTION.ID])
-                        }
-                        if (u[CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.SCHEDULE_ENTRY_ID] == updatable.a.id &&
-                                !u[CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.CATEGORY_ID].isNullOrBlank()) {
-                            updatable.c.add(u[CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.CATEGORY_ID])
-                        }
-                    }
-                }, BinaryOperator { t, u ->
-            if (t.a.id == u.a.id) {
-                u.b.forEach { m ->
-                    if (t.b.any { bm -> bm.a.id == m.a.id }) {
-                        t.b.first { bm -> bm.a.id == m.a.id }.b.addAll(m.b)
-                    } else {
-                        t.b.add(m)
-                    }
-                }
-                u.c.forEach { uc ->
-                    if (t.c.any { it.a.id == uc.a.id }) {
-                        t.c.first { it.a.id == uc.a.id }.b.addAll(uc.b)
-                        t.c.first { it.a.id == uc.a.id }.c.addAll(uc.c)
-                    } else {
-                        t.c.add(uc)
-                    }
-                }
-                t
-            } else {
-                throw RuntimeException("Periods with different ids... $t\n $u")
-            }
-        }, Collector.Characteristics.IDENTITY_FINISH, Collector.Characteristics.CONCURRENT))
+        rec.collect(jooqMappers.periodCollector(rec))
     }.map { t -> t.a
             .setMats(t.b.map { tm -> tm.a.setFightStartTimes(tm.b.toTypedArray()) }.toTypedArray())
             .setScheduleEntries(t.c.map {tm ->
                 tm.a.setFightIds(tm.b.toTypedArray()).setCategoryIds(tm.c.toTypedArray())}.toTypedArray())}
-
-    private fun scheduleEntryDTO(u: Record): ScheduleEntryDTO {
-        return ScheduleEntryDTO()
-                .setOrder(u[ScheduleEntry.SCHEDULE_ENTRY.SCHEDULE_ORDER])
-                .setEntryType(u[ScheduleEntry.SCHEDULE_ENTRY.ENTRY_TYPE]?.let { ScheduleEntryType.values()[it] })
-                .setEndTime(u[ScheduleEntry.SCHEDULE_ENTRY.END_TIME]?.toInstant())
-                .setStartTime(u[ScheduleEntry.SCHEDULE_ENTRY.START_TIME]?.toInstant())
-                .setMatId(u[ScheduleEntry.SCHEDULE_ENTRY.MAT_ID])
-                .setDescription(u[ScheduleEntry.SCHEDULE_ENTRY.DESCRIPTION])
-                .setDuration(u[ScheduleEntry.SCHEDULE_ENTRY.DURATION])
-                .setId(u[ScheduleEntry.SCHEDULE_ENTRY.ID])
-                .setPeriodId(u[ScheduleEntry.SCHEDULE_ENTRY.PERIOD_ID])
-    }
-
-    private fun hasFightStartTime(u: Record): Boolean {
-        return (!u[FightDescription.FIGHT_DESCRIPTION.ID].isNullOrBlank()
-                && !u[FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID].isNullOrBlank() &&
-                u[FightDescription.FIGHT_DESCRIPTION.START_TIME] != null)
-    }
-
-    private fun fightStartTimePairDTO(u: Record): FightStartTimePairDTO {
-        return FightStartTimePairDTO()
-                .setMatId(u[FightDescription.FIGHT_DESCRIPTION.MAT_ID])
-                .setFightCategoryId(u[FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID])
-                .setPeriodId(u[FightDescription.FIGHT_DESCRIPTION.PERIOD])
-                .setStartTime(u[FightDescription.FIGHT_DESCRIPTION.START_TIME]?.toInstant())
-                .setNumberOnMat(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT])
-    }
 
     fun updateCompetitionStatus(id: String, status: CompetitionStatus) {
         create.update(CompetitionProperties.COMPETITION_PROPERTIES)

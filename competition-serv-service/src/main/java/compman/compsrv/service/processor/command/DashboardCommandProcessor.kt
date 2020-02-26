@@ -41,7 +41,7 @@ import kotlin.math.sign
 
 @Component
 class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptionDao,
-                                private val jooqQueries: JooqQueries,
+                                private val jooqRepository: JooqRepository,
                                 private val fightsGenerateService: FightServiceFactory,
                                 private val pointsAssignmentDescriptorDao: FightResultOptionDao,
                                 private val stageDescriptorCrudRepository: StageDescriptorDao,
@@ -73,7 +73,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                             if (payload.newMatId != payload.currentMatId) {
                                 log.info("Moving fight $fight to the new mat: ${payload.newMatId}.")
                                 //all the fights after current on the current mat -> number - 1
-                                val fightsToMoveOnCurrentMat = jooqQueries.findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStatusNotInOrderByNumberOnMat(payload.currentMatId,
+                                val fightsToMoveOnCurrentMat = jooqRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStatusNotInOrderByNumberOnMat(payload.currentMatId,
                                         command.competitionId, fight.numberOnMat!! + 1, FightsService.unMovableFightStatuses)
                                         .collectList().block()
                                 val fightOrderChangesCurrentMat = fightsToMoveOnCurrentMat?.map {
@@ -83,7 +83,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
 
                                 //fights on the new mat:
                                 //all the fights after current -> number + 1
-                                val fightsToMoveOnTheNewMat = jooqQueries.findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStatusNotInOrderByNumberOnMat(payload.newMatId,
+                                val fightsToMoveOnTheNewMat = jooqRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStatusNotInOrderByNumberOnMat(payload.newMatId,
                                         command.competitionId, newOrderOnMat, FightsService.unMovableFightStatuses).collectList().block()
 
                                 val fightOrderChangesNewMat = fightsToMoveOnTheNewMat?.map {
@@ -92,7 +92,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                                 } ?: emptyList()
                                 val newStartTimeOfTheCurrentFight = Option.fromNullable(fightOrderChangesNewMat).flatMap { Option.fromNullable(it.firstOrNull()) }.map { f -> f.newStartTime!! }
                                         .orElse {
-                                            Option.fromNullable(jooqQueries.findDistinctByMatIdAndCompetitionIdAndNumberOnMatLessThanAndStatusNotInOrderByNumberOnMatDesc(payload.newMatId,
+                                            Option.fromNullable(jooqRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatLessThanAndStatusNotInOrderByNumberOnMatDesc(payload.newMatId,
                                                     command.competitionId, newOrderOnMat, FightsService.unMovableFightStatuses).collectList().block()?.toList()).map { it.firstOrNull() }
                                                     .map { f -> f?.startTime?.toInstant()!! }
                                         }
@@ -107,7 +107,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                                     val sign = sign((fight.numberOnMat!! - newOrderOnMat).toDouble()).toInt()
                                     val start = min(fight.numberOnMat!!, newOrderOnMat) + (1 - sign) / 2
                                     val end = max(fight.numberOnMat!!, newOrderOnMat) - (1 + sign) / 2
-                                    val fightsToMoveOnCurrentMat = jooqQueries.findDistinctByMatIdAndCompetitionIdAndNumberOnMatBetweenAndStatusNotInOrderByNumberOnMat(payload.newMatId,
+                                    val fightsToMoveOnCurrentMat = jooqRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatBetweenAndStatusNotInOrderByNumberOnMat(payload.newMatId,
                                             command.competitionId, start, end, FightsService.unMovableFightStatuses).collectList().block()
                                     val fightOrderChangesCurrentMat = fightsToMoveOnCurrentMat?.map {
                                         val newStartTime = if (sign > 0) {
@@ -191,7 +191,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                 }
 
 
-                val fight = jooqQueries.findFightByCompetitionIdAndId(command.competitionId, payload.fightId).block()!!
+                val fight = jooqRepository.findFightByCompetitionIdAndId(command.competitionId, payload.fightId).block()!!
 
                 val fightUpdates = result +
                         if (!payload.fightResult?.winnerId.isNullOrBlank()) {
@@ -204,7 +204,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
 
                 fightUpdates + if (checkIfAllStageFightsFinished(command.competitionId, fight.stageId, updatedFightIds)) {
                     val stage = stageDescriptorCrudRepository.findById(fight.stageId!!)
-                    val fightsWithResult = jooqQueries.fetchFightsByStageId(command.competitionId, stage.id!!).collectList().block()?.map { fd ->
+                    val fightsWithResult = jooqRepository.fetchFightsByStageId(command.competitionId, stage.id!!).collectList().block()?.map { fd ->
                         if (fd.id == payload.fightId) {
                             fd.copy(fightResult = payload.fightResult)
                         } else {
@@ -226,9 +226,9 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
         }
     }
 
-    fun checkIfAllStageFightsFinished(competitionId: String, stageId: String?, additionalFinishedFightIds: Set<String>) = stageId?.let { jooqQueries.fetchFightsByStageId(competitionId, stageId)
+    fun checkIfAllStageFightsFinished(competitionId: String, stageId: String?, additionalFinishedFightIds: Set<String>) = stageId?.let { jooqRepository.fetchFightsByStageId(competitionId, stageId)
             .all { it.status == FightStatus.FINISHED || it.status == FightStatus.WALKOVER || it.status == FightStatus.UNCOMPLETABLE || additionalFinishedFightIds.contains(it.id) }.block() }
             ?: false
 
-    fun checkIfFightCanBePacked(fightId: String, competitionId: String) = FightsService.checkIfFightCanBePacked(fightId) { jooqQueries.findFightByCompetitionIdAndId(competitionId, it).block()!! }
+    fun checkIfFightCanBePacked(fightId: String, competitionId: String) = FightsService.checkIfFightCanBePacked(fightId) { jooqRepository.findFightByCompetitionIdAndId(competitionId, it).block()!! }
 }

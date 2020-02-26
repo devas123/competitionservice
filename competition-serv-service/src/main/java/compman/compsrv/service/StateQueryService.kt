@@ -11,7 +11,8 @@ import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
-import compman.compsrv.repository.JooqQueries
+import compman.compsrv.repository.JooqQueryProvider
+import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.copy
 import io.scalecube.net.Address
@@ -32,7 +33,8 @@ import kotlin.math.max
 @Component
 class StateQueryService(private val clusterSession: ClusterSession,
                         restTemplateBuilder: RestTemplateBuilder,
-                        private val jooq: JooqQueries,
+                        private val jooq: JooqRepository,
+                        private val jooqQueryProvider: JooqQueryProvider,
                         private val registrationInfoDao: RegistrationInfoDao,
                         private val staffDao: CompetitionPropertiesStaffIdsDao,
                         private val promoCodeDao: PromoCodeDao,
@@ -50,7 +52,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     private fun getLocalCompetitors(competitionId: String, categoryId: String?, searchString: String?, pageSize: Int, page: Int): PageResponse<CompetitorDTO> {
         val pageNumber = max(page - 1, 0)
-        val fromJoinedTables = jooq.competitorsQuery(competitionId)
+        val fromJoinedTables = jooqQueryProvider.competitorsQuery(competitionId)
         val count = jooq.competitorsCount(competitionId, categoryId)
 
         val prefetch = if (!searchString.isNullOrBlank()) {
@@ -146,7 +148,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
                 {
                     log.info("Getting competition properties id $competitionId")
 
-                    val joinedColumnsFlat = jooq.getRegistrationGroupPeriodsQuery(competitionId)
+                    val joinedColumnsFlat = jooqQueryProvider.getRegistrationGroupPeriodsQuery(competitionId)
                             .fetchSize(200)
                             .fetch()
 
