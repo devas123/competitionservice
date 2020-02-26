@@ -1,19 +1,19 @@
 package compman.compsrv.service.processor.command
 
 import arrow.core.Either
+import arrow.core.Tuple3
 import arrow.core.flatMap
 import com.compmanager.compservice.jooq.tables.daos.*
+import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
 import compman.compsrv.model.dto.brackets.BracketType
-import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.CompetitionStatus
-import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.competition.RegistrationGroupDTO
-import compman.compsrv.model.dto.schedule.SchedulePropertiesDTO
+import compman.compsrv.model.dto.schedule.PeriodDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
@@ -27,9 +27,9 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import reactor.core.publisher.Flux
 import java.time.Instant
 import java.time.ZoneId
-import java.util.*
 
 @Lazy
 @Component
@@ -38,6 +38,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val categoryCrudRepository: CategoryDescriptorDao,
                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
                                   private val stageDescriptorCrudRepository: StageDescriptorDao,
+                                  private val fightDescriptionDao: FightDescriptionDao,
                                   private val registrationGroupCrudRepository: RegistrationGroupDao,
                                   private val registrationPeriodCrudRepository: RegistrationPeriodDao,
                                   private val registrationInfoCrudRepository: RegistrationInfoDao,
@@ -68,16 +69,10 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
         private val log = LoggerFactory.getLogger(CompetitionCommandProcessor::class.java)
     }
 
-    private fun getAllBrackets(competitionId: String): List<Pair<StageDescriptorDTO, List<FightDescriptionDTO>>> {
-        return stageDescriptorCrudRepository.fetchByCompetitionId(competitionId)?.map {
-            StageDescriptorDTO()
-                    .setId(it.id)
-                    .setCategoryId(it.categoryId)
-                    .setBracketType(BracketType.values()[it.bracketType])
-                    .setHasThirdPlaceFight(it.hasThirdPlaceFight)
-                    .setName(it.name) to (jooqQueries.fetchFightsByStageId(competitionId, it.id).collectList().block()?.toList()
-                    ?: emptyList())
-        } ?: emptyList()
+    private fun getAllBrackets(competitionId: String): Flux<Pair<Tuple3<String, String, BracketType>, List<FightDescription>>> {
+        return Flux.fromIterable(stageDescriptorCrudRepository.fetchByCompetitionId(competitionId)).map {
+            Tuple3(it.id,  it.categoryId, BracketType.values()[it.bracketType]) to (fightDescriptionDao.fetchByStageId(competitionId) ?: emptyList())
+        }
     }
 
 
@@ -147,7 +142,8 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                         }
                                     }
                                     if (defaultGroup != null) {
-                                        Either.left("There is already a default group for competition ${command.competitionId} with different id: ${defaultGroup.displayName  ?: "<Unknown>"}, ${defaultGroup.id}")
+                                        Either.left("There is already a default group for competition ${command.competitionId} with different id: ${defaultGroup.displayName
+                                                ?: "<Unknown>"}, ${defaultGroup.id}")
                                     } else {
                                         if (registrationPeriodCrudRepository.existsById(payload.periodId)) {
                                             if (periodGroups?.any { it == groupId } != true) {
@@ -243,18 +239,11 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 }
                 CommandType.GENERATE_SCHEDULE_COMMAND -> {
                     val payload = command.payload!!
-                    val scheduleProperties = mapper.convertValue(payload, SchedulePropertiesDTO::class.java)
-                    scheduleProperties.periodPropertiesList = scheduleProperties.periodPropertiesList.map {
-                        if (it.id.isNullOrBlank()) {
-                            it.setId("${command.competitionId}-${UUID.randomUUID()}")
-                        } else {
-                            it
-                        }
-                    }.toTypedArray()
+                    val periods = mapper.convertValue(payload, Array<PeriodDTO>::class.java)?.map { it.setId(it.id ?: IDGenerator.createPeriodId(command.competitionId)) }
                     val compProps = competitionPropertiesCrudRepository.findById(command.competitionId)
-                    val categories = scheduleProperties.periodPropertiesList?.flatMap {
-                        it.categories?.toList() ?: emptyList()
-                    }?.distinct()
+                    val categories = periods?.flatMap {
+                        it.scheduleEntries?.toList() ?: emptyList()
+                    }?.flatMap { it.categoryIds?.toList() ?: emptyList() }?.distinct()
                     val missingCategories = categories?.fold(emptyList<String>(), { acc, cat ->
                         if (categoryCrudRepository.existsById(cat)) {
                             acc
@@ -262,10 +251,13 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                             acc + cat
                         }
                     })
-                    if (compProps != null && !compProps.schedulePublished) {
+                    if (compProps != null && !compProps.schedulePublished && !periods.isNullOrEmpty()) {
                         if (missingCategories.isNullOrEmpty()) {
                             val competitorNumbersByCategoryIds = jooqQueries.getCompetitorNumbersByCategoryIds(command.competitionId)
-                            val schedule = scheduleService.generateSchedule(scheduleProperties, getAllBrackets(scheduleProperties.competitionId), compProps.timeZone, competitorNumbersByCategoryIds)
+                            val schedule = scheduleService.generateSchedule(command.competitionId, periods,
+                                    getAllBrackets(command.competitionId),
+                                    compProps.timeZone,
+                                    competitorNumbersByCategoryIds)
                             val newFights = schedule.periods?.flatMap { period ->
                                 period.mats?.flatMap { it.fightStartTimes.map { f -> f.setPeriodId(period.id) } }
                                         ?: emptyList()
@@ -274,7 +266,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
 
                             listOf(createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule)), createEvent(EventType.FIGHTS_START_TIME_UPDATED, fightStartTimeUpdatedPayload))
                         } else {
-                            listOf(createErrorEvent("Categories $missingCategories are missing"))
+                            listOf(createErrorEvent("Categories $missingCategories are unknown"))
                         }
                     } else {
                         listOf(createErrorEvent("could not find competition with ID: ${command.competitionId}"))

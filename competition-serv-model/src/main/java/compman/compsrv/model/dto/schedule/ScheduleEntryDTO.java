@@ -13,13 +13,17 @@ import java.time.Instant;
 @Accessors(chain = true)
 @NoArgsConstructor
 public class ScheduleEntryDTO {
-    private String categoryId;
-    private String fightId;
+    private String id;
+    private String[] categoryIds;
+    private String[] fightIds;
     private String matId;
+    private String periodId;
+    private String description;
     private ScheduleEntryType entryType;
+    private String[] requirementIds;
     private Instant startTime;
     private Instant endTime;
     private Integer numberOfFights;
-    private BigDecimal fightDuration;
+    private BigDecimal duration;
     private Integer order;
 }

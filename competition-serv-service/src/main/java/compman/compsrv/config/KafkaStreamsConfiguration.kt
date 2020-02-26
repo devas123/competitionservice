@@ -142,7 +142,8 @@ class KafkaStreamsConfiguration {
             configurer: ConcurrentKafkaListenerContainerFactoryConfigurer,
             trm: ChainedKafkaTransactionManager<Any, Any>,
             kafkaConsumerFactory: ConsumerFactory<String, CommandDTO>): ConcurrentKafkaListenerContainerFactory<Any, Any> {
-        val factory: ConcurrentKafkaListenerContainerFactory<Any, Any> = ConcurrentKafkaListenerContainerFactory<Any, Any>()
+        val factory: ConcurrentKafkaListenerContainerFactory<Any, Any> = ConcurrentKafkaListenerContainerFactory()
+        @Suppress("UNCHECKED_CAST")
         configurer.configure(factory, kafkaConsumerFactory as ConsumerFactory<Any, Any>)
         factory.containerProperties.transactionManager = trm
         return factory

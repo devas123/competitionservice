@@ -7,31 +7,13 @@ import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.*
 import compman.compsrv.util.IDGenerator
+import java.sql.Timestamp
 
-fun SchedulePeriodProperties.toDTO(categories: Array<String>?): PeriodPropertiesDTO = PeriodPropertiesDTO()
-        .setId(id)
-        .setName(name)
-        .setStartTime(startTime?.toInstant())
-        .setTimeBetweenFights(timeBetweenFights)
-        .setRiskPercent(riskPercent)
-        .setCategories(categories)
-
-
-fun ScheduleEntry.toDTO(): ScheduleEntryDTO = ScheduleEntryDTO()
-        .setCategoryId(categoryId)
-        .setFightId(fightId)
-        .setMatId(matId)
-        .setOrder(scheduleOrder)
-        .setEndTime(endTime?.toInstant())
-        .setEntryType(entryType?.let { ScheduleEntryType.values()[it] })
-        .setStartTime(startTime?.toInstant())
-        .setNumberOfFights(numberOfFights)
-        .setFightDuration(fightDuration)
 
 fun SchedulePeriod.toDTO(scheduleEntries: Array<ScheduleEntryDTO>, mats: Array<MatDescriptionDTO>): PeriodDTO = PeriodDTO()
         .setId(id)
         .setName(name)
-        .setSchedule(scheduleEntries)
+        .setScheduleEntries(scheduleEntries)
         .setStartTime(startTime?.toInstant())
         .setMats(mats)
 
@@ -143,3 +125,29 @@ fun FightResultOption.toDTO(): FightResultOptionDTO = FightResultOptionDTO()
         .setLoserAdditionalPoints(loserAdditionalPoints)
         .setWinnerPoints(winnerPoints)
         .setLoserPoints(loserPoints)
+
+fun FightDescriptionDTO.toPojo(): FightDescription =
+        FightDescription().also {
+            it.id = this.id
+            it.categoryId = this.categoryId
+            it.reason = this.fightResult?.reason
+            it.winnerId = this.fightResult?.winnerId
+            it.resultType = this.fightResult?.resultTypeId
+            it.duration = this.duration
+            it.winFight = this.winFight
+            it.loseFight = this.loseFight
+            it.matId = this.mat?.id
+            it.numberOnMat = this.numberOnMat
+            it.numberInRound = this.numberInRound
+            it.parent_1FightId = this.parentId1?.fightId
+            it.parent_2FightId = this.parentId2?.fightId
+            it.parent_1ReferenceType = this.parentId1?.referenceType?.ordinal
+            it.parent_2ReferenceType = this.parentId2?.referenceType?.ordinal
+            it.startTime = this.startTime?.let { Timestamp.from(it) }
+            it.fightName = this.fightName
+            it.stageId = this.stageId
+            it.status = this.status?.ordinal
+            it.round = this.round
+            it.roundType = this.roundType?.ordinal
+            it.groupId = this.groupId
+        }

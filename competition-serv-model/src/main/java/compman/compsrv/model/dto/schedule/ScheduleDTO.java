@@ -11,6 +11,5 @@ import lombok.experimental.Accessors;
 @NoArgsConstructor
 public class ScheduleDTO {
     private String id;
-    private SchedulePropertiesDTO scheduleProperties;
     private PeriodDTO[] periods;
 }

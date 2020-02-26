@@ -1,6 +1,9 @@
 package compman.compsrv.service.processor.event
 
-import com.compmanager.compservice.jooq.tables.daos.*
+import com.compmanager.compservice.jooq.tables.daos.CategoryDescriptorDao
+import com.compmanager.compservice.jooq.tables.daos.CompetitionPropertiesDao
+import com.compmanager.compservice.jooq.tables.daos.CompetitorDao
+import com.compmanager.compservice.jooq.tables.daos.StageDescriptorDao
 import com.compmanager.compservice.jooq.tables.pojos.Competitor
 import com.compmanager.model.payment.RegistrationStatus
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -12,7 +15,7 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.model.exceptions.EventApplyingException
-import compman.compsrv.repository.*
+import compman.compsrv.repository.JooqQueries
 import compman.compsrv.util.getPayloadFromString
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -40,7 +43,6 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
                              private val competitionPropertiesDao: CompetitionPropertiesDao,
                              private val categoryDescriptorCrudRepository: CategoryDescriptorDao,
                              private val competitorCrudRepository: CompetitorDao,
-                             private val jdbcRepository: JdbcRepository,
                              private val jooqQueries: JooqQueries,
                              private val stageDescriptorCrudRepository: StageDescriptorDao) : IEventProcessor {
     override fun affectedEvents(): Set<EventType> {
@@ -187,7 +189,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
         val payload = getPayloadAs(event.payload, FightStartTimeUpdatedPayload::class.java)
         val newFights = payload?.newFights
         return if (!newFights.isNullOrEmpty()) {
-            jdbcRepository.batchUpdateFightStartTimesMatPeriodNumber(newFights.filterNotNull())
+            jooqQueries.batchUpdateFightStartTimesMatPeriodNumber(newFights.filterNotNull())
             listOf(event)
         } else {
             throw EventApplyingException("Fights are null.", event)

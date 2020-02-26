@@ -11,7 +11,6 @@ import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
-import compman.compsrv.model.dto.schedule.SchedulePropertiesDTO
 import compman.compsrv.repository.JooqQueries
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.copy
@@ -33,13 +32,10 @@ import kotlin.math.max
 @Component
 class StateQueryService(private val clusterSession: ClusterSession,
                         restTemplateBuilder: RestTemplateBuilder,
-                        private val periodDao: SchedulePeriodDao,
                         private val jooq: JooqQueries,
                         private val registrationInfoDao: RegistrationInfoDao,
                         private val staffDao: CompetitionPropertiesStaffIdsDao,
                         private val promoCodeDao: PromoCodeDao,
-                        private val scheduleEntriesDao: ScheduleEntryDao,
-                        private val periodPropertiesDao: SchedulePeriodPropertiesDao,
                         private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
                         private val matDescriptionCrudRepository: MatDescriptionDao,
                         private val competitorCrudRepository: CompetitorDao) {
@@ -244,22 +240,12 @@ class StateQueryService(private val clusterSession: ClusterSession,
         })
     }
 
-    fun getSchedule(competitionId: String?): ScheduleDTO? {
+    fun getSchedule(competitionId: String): ScheduleDTO? {
         return localOrRemote(competitionId,
                 {
                     ScheduleDTO()
                             .setId(competitionId)
-                            .setPeriods(periodDao.fetchByCompetitionId(competitionId).map { p ->
-                                p.toDTO(scheduleEntriesDao.fetchByPeriodId(p.id)?.map { it.toDTO() }?.toTypedArray()!!,
-                                        matDescriptionCrudRepository.fetchByPeriodId(p.id).map { mat ->
-                                            mat.toDTO()
-                                        }.toTypedArray())
-                            }.toTypedArray())
-                            .setScheduleProperties(SchedulePropertiesDTO()
-                                    .setCompetitionId(competitionId)
-                                    .setPeriodPropertiesList(periodPropertiesDao.fetchByCompetitionId(competitionId).map {
-                                        it.toDTO(jooq.getCategoryIdsForSchedulePeriodProperties(competitionId!!, it.id).collectList().block()?.toTypedArray())
-                                    }.toTypedArray()))
+                            .setPeriods(jooq.fetchPeriodsByCompetitionId(competitionId).collectList().block()?.toTypedArray())
                 },
                 { _, restTemplate, urlPrefix ->
                     restTemplate.getForObject("$urlPrefix/api/v1/store/schedule?competitionId=$competitionId", ScheduleDTO::class.java)

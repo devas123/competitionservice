@@ -13,16 +13,13 @@ import compman.compsrv.model.events.payload.DashboardFightOrderChangedPayload
 import compman.compsrv.model.events.payload.FightCompetitorsAssignedPayload
 import compman.compsrv.model.events.payload.StageResultSetPayload
 import compman.compsrv.model.exceptions.EventApplyingException
-import compman.compsrv.repository.JdbcRepository
 import compman.compsrv.repository.JooqQueries
 import compman.compsrv.util.getPayloadAs
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 @Component
 class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
                               private val jooqQueries: JooqQueries,
-                              private val jdbcRepository: JdbcRepository,
                               private val mapper: ObjectMapper) : IEventProcessor {
     override fun affectedEvents(): Set<EventType> {
         return setOf(EventType.DASHBOARD_FIGHT_ORDER_CHANGED,
@@ -46,7 +43,7 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
             EventType.DASHBOARD_FIGHT_ORDER_CHANGED -> {
                 val payload = mapper.getPayloadAs(event, DashboardFightOrderChangedPayload::class.java)
                 if (payload != null && !payload.changedFights.isNullOrEmpty()) {
-                    jdbcRepository.batchUpdateStartTimeAndMatAndNumberOnMatById(payload.changedFights.map { cf ->
+                    jooqQueries.batchUpdateStartTimeAndMatAndNumberOnMatById(payload.changedFights.map { cf ->
                         Tuple4(cf.fightId, cf.newStartTime, cf.newMatId, cf.newOrderOnMat)
                     })
                     listOf(event)

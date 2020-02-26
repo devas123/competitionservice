@@ -4,6 +4,8 @@ import com.google.common.hash.Hashing
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
 import compman.compsrv.model.dto.competition.CategoryRestrictionDTO
+import compman.compsrv.model.dto.schedule.ScheduleEntryType
+import compman.compsrv.model.dto.schedule.ScheduleRequirementType
 import java.util.*
 import kotlin.random.Random
 
@@ -26,5 +28,7 @@ object IDGenerator {
     fun compResultId(competitorId: String, stageId: String, competitionId: String): String = hashString(competitorId + stageId + competitionId)
     fun createPeriodId(competitionId: String) = hashString("$competitionId-period-${UUID.randomUUID()}")
     fun createMatId(periodId: String, matNumber: Int) = hashString("$periodId-mat-$matNumber")
+    fun scheduleEntryId(competitionId: String, periodId: String, index: Int, entryType: ScheduleEntryType): String =         hashString("$competitionId-$periodId-scheduleEntry-${entryType}-$index")
+    fun scheduleRequirementId(competitionId: String, periodId: String, index: Int, entryType: ScheduleRequirementType): String =         hashString("$competitionId-$periodId-scheduleRequirement-${entryType}-$index")
 
 }

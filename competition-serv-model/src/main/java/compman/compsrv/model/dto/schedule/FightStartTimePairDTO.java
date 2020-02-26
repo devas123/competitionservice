@@ -14,7 +14,7 @@ import java.time.Instant;
 public class FightStartTimePairDTO {
     private String fightId;
     private String matId;
-    private Integer fightNumber;
+    private Integer numberOnMat;
     private Instant startTime;
     private String periodId;
     private String fightCategoryId;
