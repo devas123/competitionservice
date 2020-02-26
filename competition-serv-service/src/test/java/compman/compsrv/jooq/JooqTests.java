@@ -19,6 +19,7 @@ import org.jooq.conf.RenderNameStyle;
 import org.jooq.conf.Settings;
 import org.jooq.impl.DSL;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -34,6 +35,7 @@ import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.stream.Collectors;
 
+@Ignore
 @RunWith(MockitoJUnitRunner.class)
 public class JooqTests {
     static {
