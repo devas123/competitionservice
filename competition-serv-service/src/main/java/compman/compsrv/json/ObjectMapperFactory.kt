@@ -23,8 +23,9 @@ object ObjectMapperFactory {
                 .registerModule(JavaTimeModule())
                 .setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL)
                 .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+                .enableDefaultTyping(ObjectMapper.DefaultTyping.OBJECT_AND_NON_CONCRETE, JsonTypeInfo.As.PROPERTY)/*
                 .activateDefaultTyping(BasicPolymorphicTypeValidator.builder().build(), ObjectMapper.DefaultTyping.OBJECT_AND_NON_CONCRETE,
-                        JsonTypeInfo.As.PROPERTY)
+                        JsonTypeInfo.As.PROPERTY)*/
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
         mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
         mapper.configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true)

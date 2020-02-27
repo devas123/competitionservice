@@ -10,8 +10,8 @@ import java.util.*
 class CategoryGeneratorService {
     companion object {
         val bjj: CategoryRestrictionDTO = CategoryRestrictionDTO().setId(UUID.randomUUID().toString()).setType(CategoryRestrictionType.Value).setName("Sport").setValue("BJJ")
-        private fun weightRestriction(maxValue: String, minValue: String = "0", alias: String = ""): CategoryRestrictionDTO = CategoryRestrictionDTO()
-                .setId(IDGenerator.hashString("Weight/$minValue/$maxValue"))
+        private fun weightRestriction(alias: String = "", maxValue: String, minValue: String = "0"): CategoryRestrictionDTO = CategoryRestrictionDTO()
+                .setId(IDGenerator.hashString("Weight/$minValue/$maxValue/$alias"))
                 .setType(CategoryRestrictionType.Range)
                 .setName("Weight")
                 .setMaxValue(maxValue)
@@ -20,7 +20,7 @@ class CategoryGeneratorService {
                 .setUnit("kg")
 
         private fun ageRestriction(alias: String = "", minValue: String, maxValue: String = minValue): CategoryRestrictionDTO = CategoryRestrictionDTO()
-                .setId(IDGenerator.hashString("Age/$minValue/$maxValue"))
+                .setId(IDGenerator.hashString("Age/$minValue/$maxValue/$alias"))
                 .setType(CategoryRestrictionType.Range)
                 .setName("Age")
                 .setMaxValue(maxValue)
