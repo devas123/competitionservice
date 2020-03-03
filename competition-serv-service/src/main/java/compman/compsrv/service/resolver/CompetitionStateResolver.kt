@@ -45,7 +45,6 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
         log.info("Retrieving state for the competitionId: $competitionId")
         if (!clusterSesion.isProcessedLocally(competitionId)) {
             log.error("Trying to find the 'COMPETITION_CREATED' event in the events for the past 365 days.")
-            competitionCleaner.deleteCompetition(competitionId)
             val consumer = KafkaConsumer<String, EventDTO>(consumerProperties())
             consumer.use { cons ->
                 val topicPartitions = cons.partitionsFor(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME).map { TopicPartition(it.topic(), it.partition()) }
@@ -70,6 +69,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                                     .find { it.value()?.type == EventType.COMPETITION_CREATED }
                             if (createdEvent != null) {
                                 log.info("Yay! Found the 'COMPETITION_CREATED' event for $competitionId !")
+                                competitionCleaner.deleteCompetition(competitionId)
                                 competitionCreated = true
                                 competitionStateService.apply(createdEvent.value())
                                 log.info("Finished applying 'COMPETITION_CREATED' event for $competitionId")

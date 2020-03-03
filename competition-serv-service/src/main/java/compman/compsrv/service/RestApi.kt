@@ -3,6 +3,7 @@ package compman.compsrv.service
 import compman.compsrv.cluster.ClusterMember
 import compman.compsrv.model.CommonResponse
 import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatStateDTO
@@ -121,6 +122,17 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
             categoryGeneratorService.createDefaultBjjCategories(competitionId)
         }
     }
+
+    @RequestMapping("/store/defaultfightresults", method = [RequestMethod.GET])
+    fun getDefaultFightResults(@RequestParam("sportsId") sportsId: String?, @RequestParam("competitionId") competitionId: String?, includeKids: Boolean? = false): List<FightResultOptionDTO> {
+        return if (competitionId.isNullOrBlank()) {
+            log.warn("Sports id is $sportsId, competition ID is $competitionId.")
+            emptyList()
+        } else {
+            FightResultOptionDTO.values
+        }
+    }
+
 
     @RequestMapping("/store/dashboardstate", method = [RequestMethod.GET])
     fun getDashboardState(@RequestParam("competitionId") competitionId: String?): CompetitionDashboardStateDTO? {
