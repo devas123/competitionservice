@@ -64,7 +64,8 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
     fun fightsCountByStageId(competitionId: String, stageId: String) = create.fetchCount(FightDescription.FIGHT_DESCRIPTION, FightDescription.FIGHT_DESCRIPTION.STAGE_ID.eq(stageId).and(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId)))
     fun fightsCountByMatId(competitionId: String, matId: String) = create.fetchCount(FightDescription.FIGHT_DESCRIPTION, FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId).and(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId)))
 
-    fun fetchFightsByStageId(competitionId: String, stageId: String): Flux<FightDescriptionDTO> = fightsMapping(Flux.from(queryProvider.fightsQuery(competitionId)
+    fun fetchFightsByStageId(competitionId: String, stageId: String): Flux<FightDescriptionDTO> =
+            fightsMapping(Flux.from(queryProvider.fightsQuery(competitionId)
             .and(FightDescription.FIGHT_DESCRIPTION.STAGE_ID.eq(stageId))
             .orderBy(FightDescription.FIGHT_DESCRIPTION.ROUND.asc(),
                     FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND.asc())))
@@ -200,12 +201,17 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
             Supplier { FightDescriptionDTO().setScores(emptyArray()) },
             BiConsumer<FightDescriptionDTO, Record> { t, it ->
 
-                val compscore = if (!it[CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID].isNullOrBlank()) {
-                    arrayOf(CompScoreDTO()
+                val compscore = if (!it[CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID].isNullOrBlank()) {
+                    val cs = CompScoreDTO()
                             .setScore(ScoreDTO().setPenalties(it[CompScore.COMP_SCORE.PENALTIES])
                                     .setAdvantages(it[CompScore.COMP_SCORE.ADVANTAGES])
                                     .setPoints(it[CompScore.COMP_SCORE.POINTS]))
-                            .setCompetitor(mapCompetitorWithoutCategories(it)))
+                            .setPlaceholderId(it[CompScore.COMP_SCORE.PLACEHOLDER_ID])
+                    if (!it[CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID].isNullOrBlank()) {
+                        arrayOf(cs.setCompetitor(mapCompetitorWithoutCategories(it)))
+                    } else {
+                        arrayOf(cs)
+                    }
                 } else {
                     emptyArray()
                 }
@@ -368,7 +374,8 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 penalties = cs.score?.penalties
                 compscoreFightDescriptionId = fightId
                 compScoreOrder = cs.order
-                compscoreCompetitorId = cs.competitor?.id!!
+                compscoreCompetitorId = cs.competitor?.id
+                placeholderId = cs.placeholderId
             }
 
 
@@ -527,6 +534,10 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
         create.batch(batch).execute()
     }
 
+    fun doInTransaction (f: (c: Configuration) -> Unit) {
+        create.transaction { configuration ->  f.invoke(configuration) }
+    }
+
     fun saveStages(stages: List<StageDescriptorDTO>): IntArray = create.batchInsert(stages.map { stage ->
         StageDescriptorRecord().apply {
             id = stage.id
@@ -636,9 +647,18 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
 
     fun replaceFightScore(fightId: String, value: CompScoreDTO, index: Int) {
         create.batch(
-                create.deleteFrom(CompScore.COMP_SCORE).where(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.eq(fightId)).and(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.eq(value.competitor.id)),
-                create.insertInto(CompScore.COMP_SCORE, CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID, CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID, CompScore.COMP_SCORE.POINTS, CompScore.COMP_SCORE.PENALTIES,
-                        CompScore.COMP_SCORE.ADVANTAGES, CompScore.COMP_SCORE.COMP_SCORE_ORDER).values(value.competitor.id, fightId, value.score.points, value.score.penalties, value.score.advantages, index)
+                create.deleteFrom(CompScore.COMP_SCORE)
+                        .where(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.eq(fightId))
+                        .and(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.eq(value.competitor.id)),
+                create.insertInto(CompScore.COMP_SCORE,
+                        CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID,
+                        CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID,
+                        CompScore.COMP_SCORE.POINTS,
+                        CompScore.COMP_SCORE.PENALTIES,
+                        CompScore.COMP_SCORE.ADVANTAGES,
+                        CompScore.COMP_SCORE.COMP_SCORE_ORDER,
+                        CompScore.COMP_SCORE.PLACEHOLDER_ID).values(value.competitor.id, fightId, value.score.points, value.score.penalties,
+                        value.score.advantages, index, value.placeholderId)
         ).execute()
     }
 

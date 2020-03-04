@@ -17,20 +17,45 @@ import java.math.BigDecimal
 class GroupStageGenerateService : FightsService() {
     override fun supportedBracketTypes(): List<BracketType> = listOf(BracketType.MULTIPLE_GROUPS, BracketType.GROUP)
 
-    override fun generateStageFights(competitionId: String, categoryId: String,
+    override fun generateStageFights(competitionId: String,
+                                     categoryId: String,
                                      stage: StageDescriptorDTO,
                                      compssize: Int,
                                      duration: BigDecimal,
                                      competitors: List<CompetitorDTO>,
                                      outputSize: Int): List<FightDescriptionDTO> {
-        if (stage.groupDescriptors.isNullOrEmpty() || stage.groupDescriptors.fold(0) { acc, gr -> acc + gr.size } != competitors.size) {
+        val comps = when (stage.stageOrder) {
+            0 -> competitors
+            else -> {
+                if (stage.inputDescriptor.numberOfCompetitors <= competitors.size) {
+                    competitors.take(stage.inputDescriptor.numberOfCompetitors)
+                } else {
+                    competitors + generatePlaceholderCompetitorsForGroup(stage.inputDescriptor.numberOfCompetitors - competitors.size)
+                }
+            }
+        }
+        if (stage.groupDescriptors.isNullOrEmpty() || stage.groupDescriptors.fold(0) { acc, gr -> acc + gr.size } != comps.size) {
             throw IllegalArgumentException("Group descriptors are empty or total groups size is less than competitors size")
         }
 
         return stage.groupDescriptors.fold(0 to emptyList<FightDescriptionDTO>()) { acc, groupDescriptorDTO ->
             (acc.first + groupDescriptorDTO.size) to (acc.second + createGroupFights(competitionId, categoryId, stage.id, groupDescriptorDTO.id, duration,
-                    competitors.subList(acc.first, groupDescriptorDTO.size)))
+                    comps.subList(acc.first, acc.first + groupDescriptorDTO.size)))
         }.second
+    }
+
+    private fun createCompscore(competitor: CompetitorDTO, order: Int): CompScoreDTO {
+        return if (!competitor.isPlaceholder) {
+             CompScoreDTO()
+                    .setCompetitor(competitor)
+                    .setOrder(order)
+                    .setScore(ScoreDTO().setPoints(0).setPenalties(0).setAdvantages(0))
+        } else {
+            CompScoreDTO()
+                    .setPlaceholderId(competitor.id)
+                    .setOrder(order)
+                    .setScore(ScoreDTO().setPoints(0).setPenalties(0).setAdvantages(0))
+        }
     }
 
     private fun createGroupFights(competitionId: String, categoryId: String, stageId: String, groupId: String, duration: BigDecimal, competitors: List<CompetitorDTO>): List<FightDescriptionDTO> {
@@ -38,17 +63,11 @@ class GroupStageGenerateService : FightsService() {
                 .fix()
         return combined.filter { it.a.id != it.b.id }.distinctBy { sortedSetOf(it.a.id, it.b.id).joinToString() }
                 .mapIndexed { ind, comps ->
-                    fightDescription(competitionId, categoryId, stageId, 0, StageRoundType.GROUP, ind, duration, "Round 0 fight $ind")
+                    fightDescription(competitionId, categoryId, stageId, 0, StageRoundType.GROUP, ind, duration, "Round 0 fight $ind", groupId)
                             .setScores(arrayOf(
-                                    CompScoreDTO()
-                                            .setCompetitor(comps.a)
-                                            .setOrder(0)
-                                            .setScore(ScoreDTO().setPoints(0).setPenalties(0).setAdvantages(0)),
-                                    CompScoreDTO()
-                                            .setCompetitor(comps.b)
-                                            .setOrder(1)
-                                            .setScore(ScoreDTO().setPoints(0).setPenalties(0).setAdvantages(0))))
-                            .setGroupId(groupId)
+                                    createCompscore(comps.a, 0),
+                                    createCompscore(comps.b, 1)
+                            ))
                 }
     }
 

@@ -441,7 +441,7 @@ create table compservice.schedule_entry_schedule_requirement
         constraint schedule_entry_schedule_requirement_schedule_requirement_fkey references compservice.schedule_requirement,
     schedule_entry_id       varchar(255) not null
         constraint schedule_entry_schedule_requirement_schedule_entry_fkey references compservice.schedule_entry,
-        constraint schedule_entry_schedule_requirement_pkey primary key (schedule_requirement_id, schedule_entry_id)
+    constraint schedule_entry_schedule_requirement_pkey primary key (schedule_requirement_id, schedule_entry_id)
 );
 
 
@@ -451,7 +451,8 @@ create table compservice.comp_score
     advantages                     integer,
     penalties                      integer,
     points                         integer,
-    compscore_competitor_id        varchar(255) not null
+    placeholder_id                 varchar(255),
+    compscore_competitor_id        varchar(255)
         constraint fkiuy2929idw7lx296op7w8govx
             references compservice.competitor on delete cascade,
     compscore_fight_description_id varchar(255) not null
@@ -459,7 +460,7 @@ create table compservice.comp_score
             references compservice.fight_description on delete cascade,
     comp_score_order               integer,
     constraint comp_score_pkey
-        primary key (compscore_competitor_id, compscore_fight_description_id)
+        primary key (comp_score_order, compscore_fight_description_id)
 );
 
 create table compservice.stage_input_descriptor

@@ -37,7 +37,7 @@ class BracketsGenerateService : FightsService() {
                 roundType,
                 index,
                 duration,
-                "Round $currentRound, fight #${index + 1}")
+                "Round $currentRound, fight #${index + 1}", null)
     }
 
 
@@ -101,7 +101,7 @@ class BracketsGenerateService : FightsService() {
         assert(winnerFightsAndGrandFinal.none { it.parentId2?.referenceType == FightReferenceType.LOSER }) { "Winner brackets fights contain contain references from loser brackets." }
         val winnerFights = winnerFightsAndGrandFinal.filter { it.roundType != StageRoundType.GRAND_FINAL } + winnerFightsAndGrandFinal.first { it.roundType == StageRoundType.GRAND_FINAL }.copy(roundType = StageRoundType.WINNER_BRACKETS)
         val totalWinnerRounds = winnerFights.maxBy { it.round!! }?.round!! + 1
-        val grandFinal = fightDescription(competitionId, categoryId, stageId, totalWinnerRounds, StageRoundType.GRAND_FINAL, 0, duration, GRAND_FINAL)
+        val grandFinal = fightDescription(competitionId, categoryId, stageId, totalWinnerRounds, StageRoundType.GRAND_FINAL, 0, duration, GRAND_FINAL, null)
         val totalLoserRounds = 2 * (totalWinnerRounds - 1)
         val firstWinnerRoundFights = winnerFights.filter { it.round == 0 }
         val loserBracketsSize = firstWinnerRoundFights.size / 2
@@ -204,7 +204,7 @@ class BracketsGenerateService : FightsService() {
         val semiFinal = winnerFights.fold(0) { acc, fightDescription -> max(fightDescription.round!!, acc) } - 1
         val semiFinalFights = winnerFights.filter { it.round == semiFinal }
         assert(semiFinalFights.size == 2) { "There should be exactly two semifinal fights, but there are ${winnerFights.count { it.round == semiFinal }}" }
-        val thirdPlaceFight = fightDescription(competitionId, categoryId, stageId, semiFinal + 1, StageRoundType.THIRD_PLACE_FIGHT, 0, semiFinalFights[0].duration!!, THIRD_PLACE_FIGHT)
+        val thirdPlaceFight = fightDescription(competitionId, categoryId, stageId, semiFinal + 1, StageRoundType.THIRD_PLACE_FIGHT, 0, semiFinalFights[0].duration!!, THIRD_PLACE_FIGHT, null)
         val updatedFights = listOf(semiFinalFights[0].copy(loseFight = thirdPlaceFight.id), semiFinalFights[1].copy(loseFight = thirdPlaceFight.id),
                 thirdPlaceFight.copy(parentId1 = ParentFightReferenceDTO(FightReferenceType.LOSER, semiFinalFights[0].id), parentId2 = ParentFightReferenceDTO(FightReferenceType.LOSER, semiFinalFights[1].id)))
         return winnerFights.map {
@@ -245,13 +245,18 @@ class BracketsGenerateService : FightsService() {
             }
         }
 
-        val processedFights = if (stage.stageType == StageType.PRELIMINARY) {
-            filterPreliminaryFights(outputSize, assignedFights, stage.bracketType)
-        } else {
-            assignedFights
+        val filteredUncompletableFights = filterUncompletableFirstRoundFights(assignedFights) { id ->
+            assignedFights.first { fight -> fight.id == id }
         }
 
-        return filterUncompletableFirstRoundFights(processedFights)
+
+        val processedFights = if (stage.stageType == StageType.PRELIMINARY) {
+            filterPreliminaryFights(outputSize, filteredUncompletableFights, stage.bracketType)
+        } else {
+            filteredUncompletableFights
+        }
+
+        return processedFights
     }
 
 
@@ -286,8 +291,8 @@ class BracketsGenerateService : FightsService() {
         }
     }
 
-    fun filterUncompletableFirstRoundFights(fights: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
-        val firstRoundFights = fights.filter { it.id != null && !checkIfFightCanBePacked(it.id!!) { id -> fights.first { fight -> fight.id == id } } }
+    fun filterUncompletableFirstRoundFights(fights: List<FightDescriptionDTO>, getFightById: (id: String) -> FightDescriptionDTO): List<FightDescriptionDTO> {
+        val firstRoundFights = fights.filter { it.id != null && !checkIfFightCanBePacked(it.id!!, getFightById) }
         return firstRoundFights.fold(fights) { acc, fightDescription ->
             val updatedFight = fightDescription.copy(status = FightStatus.UNCOMPLETABLE, fightResult = FightResultDTO(fightDescription.scores?.firstOrNull()?.competitor?.id, null, "BYE"))
             val winFightId = fightDescription.winFight

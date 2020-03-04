@@ -81,7 +81,8 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
             if (!compScores.isNullOrEmpty()) {
                 compScoreCrudRepository.insert(
                         scores.map { compScore ->
-                            CompScore(compScore.score.advantages, compScore.score.penalties, compScore.score.points, compScore.competitor.id, fightId, compScore.order)
+                            CompScore(compScore.score.advantages, compScore.score.penalties, compScore.score.points,
+                                    compScore.placeholderId, compScore.competitor.id, fightId, compScore.order)
                         })
             }
         } else {

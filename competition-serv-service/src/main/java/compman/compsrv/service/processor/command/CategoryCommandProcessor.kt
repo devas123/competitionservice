@@ -138,18 +138,30 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                     else -> 0
                 }
                 val stageId = IDGenerator.stageId(command.competitionId, command.categoryId, stage.name, stage.stageOrder)
-                val size = if (stage.stageOrder == 0) competitors.size else stage.inputDescriptor.numberOfCompetitors!!
-                val twoFighterFights = fightsGenerateService.generateStageFights(command.competitionId, command.categoryId, stage.setId(stageId), size, duration, competitors, outputSize)
-                stage
+                val groupDescr = stage.groupDescriptors?.mapIndexed { index, it ->
+                    it.setId(IDGenerator.groupId(command.competitionId, command.categoryId, stageId, index))
+                }?.toTypedArray()
+                val inputDescriptor = stage.inputDescriptor?.setId(stageId)?.setSelectors(stage.inputDescriptor?.selectors?.mapIndexed { index, sel -> sel.setId("$stageId-s-$index") }?.toTypedArray())
+                val resultDescriptor = stage.stageResultDescriptor?.setId(stageId) ?: StageResultDescriptorDTO().setId(stageId)
+                val stageWithIds = stage
                         .setCategoryId(command.categoryId)
                         .setId(stageId)
                         .setCompetitionId(command.competitionId)
-                        .setName(stage.name ?: "Default brackets")
-                        .setStageStatus(StageStatus.WAITING_FOR_APPROVAL)
-                        .setInputDescriptor(stage.inputDescriptor?.setId(stageId))
-                        .setStageResultDescriptor(StageResultDescriptorDTO()
-                                .setId(stageId)
-                                .setFightResultOptions(stage?.stageResultDescriptor?.fightResultOptions?.map { it.setId(IDGenerator.hashString("$stageId-${UUID.randomUUID()}")) }?.toTypedArray()))
+                        .setGroupDescriptors(groupDescr)
+                        .setInputDescriptor(inputDescriptor)
+                        .setStageResultDescriptor(resultDescriptor)
+                val size = if (stage.stageOrder == 0) competitors.size else stage.inputDescriptor.numberOfCompetitors!!
+                val status = if (stage.stageOrder == 0) StageStatus.WAITING_FOR_APPROVAL else StageStatus.WAITING_FOR_COMPETITORS
+                val comps = if (stage.stageOrder == 0) { competitors } else { emptyList() }
+                val twoFighterFights = fightsGenerateService.generateStageFights(command.competitionId, command.categoryId,
+                        stageWithIds,
+                        size, duration, comps, outputSize)
+                stageWithIds
+                        .setName(stageWithIds.name ?: "Default brackets")
+                        .setStageStatus(status)
+                        .setInputDescriptor(inputDescriptor)
+                        .setStageResultDescriptor(stageWithIds.stageResultDescriptor
+                                ?.setFightResultOptions(stageWithIds.stageResultDescriptor?.fightResultOptions?.map { it.setId(IDGenerator.hashString("$stageId-${UUID.randomUUID()}")) }?.toTypedArray()))
                         .setNumberOfFights(twoFighterFights.size) to twoFighterFights
             }
             val fightAddedEvents = updatedStages.flatMap { pair ->

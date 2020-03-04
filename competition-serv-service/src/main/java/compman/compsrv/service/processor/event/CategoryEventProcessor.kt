@@ -201,11 +201,16 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
         val stages = payload?.stages
         val categoryId = event.categoryId
         return if (stages != null && !categoryId.isNullOrBlank()) {
-            jooqRepository.saveStages(stages.mapIndexedNotNull { index, stage ->
-                stage.setStageOrder(index) })
-            jooqRepository.saveInputDescriptors(stages.mapNotNull { it.inputDescriptor })
-            jooqRepository.saveResultDescriptors(stages.mapNotNull { it.id to it.stageResultDescriptor })
-            jooqRepository.saveGroupDescriptors(stages.map { it.id to (it.groupDescriptors?.toList() ?: emptyList()) })
+            jooqRepository.doInTransaction {
+                jooqRepository.saveStages(stages.mapIndexedNotNull { index, stage ->
+                    stage.setStageOrder(index)
+                })
+                jooqRepository.saveInputDescriptors(stages.mapNotNull { it.inputDescriptor })
+                jooqRepository.saveResultDescriptors(stages.mapNotNull { it.stageResultDescriptor?.let { srd -> it.id to srd } })
+                jooqRepository.saveGroupDescriptors(stages.map {
+                    it.id to (it.groupDescriptors?.filter { gd -> !gd.id.isNullOrBlank() } ?: emptyList())
+                })
+            }
             listOf(event)
         } else {
             throw EventApplyingException("Fights are null or empty or category ID is empty.", event)

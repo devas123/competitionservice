@@ -20,5 +20,6 @@ public class CompetitorDTO {
     private String[] categories;
     private String competitionId;
     private String registrationStatus;
+    private boolean placeholder;
     private String promo;
 }

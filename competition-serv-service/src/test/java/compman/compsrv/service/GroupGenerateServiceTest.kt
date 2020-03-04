@@ -1,9 +1,7 @@
 package compman.compsrv.service
 
-import compman.compsrv.model.dto.brackets.BracketType
-import compman.compsrv.model.dto.brackets.GroupDescriptorDTO
-import compman.compsrv.model.dto.brackets.StageDescriptorDTO
-import compman.compsrv.model.dto.brackets.StageStatus
+import compman.compsrv.model.dto.brackets.*
+import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.service.fight.GroupStageGenerateService
@@ -43,9 +41,42 @@ class GroupGenerateServiceTest : AbstractGenerateServiceTest() {
         return stage to fights
     }
 
+    private fun generateEmptyGroupFights(competitorsSize: Int, numberOfGroups: Int): Pair<StageDescriptorDTO, List<FightDescriptionDTO>> {
+        val groups = (0 until numberOfGroups).map {
+            val groupId = "$stageId-group$it"
+            GroupDescriptorDTO()
+                    .setSize(competitorsSize)
+                    .setId(groupId)
+                    .setName("Valera_group-${it + 1}")
+        }.toTypedArray()
+        val stage = StageDescriptorDTO()
+                .setId(stageId)
+                .setStageOrder(1)
+                .setBracketType(BracketType.GROUP)
+                .setInputDescriptor(StageInputDescriptorDTO().setId(stageId).setNumberOfCompetitors(competitorsSize * numberOfGroups))
+                .setGroupDescriptors(groups)
+        val competitors = emptyList<CompetitorDTO>()
+        val fights = fightsGenerateService.generateStageFights(competitionId, categoryId, stage, competitorsSize * numberOfGroups, duration, competitors, 0)
+        assertNotNull(fights)
+        assertTrue(fights.none { it.groupId.isNullOrBlank() })
+        assertEquals(fights.size, fights.distinctBy { it.id }.size)
+        val groupedFights = fights.groupBy { it.groupId }
+        assertEquals(numberOfGroups, groupedFights.keys.size)
+        groupedFights.forEach { (_, fs) ->
+            assertTrue(fs.all { it.scores.size == 2 }) //all fights are packed
+            assertEquals(competitorsSize * (competitorsSize - 1) / 2, fs.size)
+        }
+        return stage to fights
+    }
+
     @Test
     fun testGenerateGroupFights() {
         generateGroupFights(14)
+    }
+
+    @Test
+    fun testGenerateEmptyMultiGroupFights() {
+        generateEmptyGroupFights(8, 3)
     }
 
     @Test
