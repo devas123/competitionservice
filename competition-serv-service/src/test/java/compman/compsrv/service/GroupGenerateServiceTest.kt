@@ -5,14 +5,12 @@ import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.service.fight.GroupStageGenerateService
+import compman.compsrv.service.fight.dsl.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.junit.MockitoJUnitRunner
 import java.math.BigDecimal
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 
 @RunWith(MockitoJUnitRunner::class)
@@ -92,6 +90,10 @@ class GroupGenerateServiceTest : AbstractGenerateServiceTest() {
         assertTrue(results.all { it.points != null && it.points >= BigDecimal.ZERO })
         assertFalse(results.all { it.points == BigDecimal.ZERO })
         assertEquals(results.size, results.distinctBy { it.place }.size)
+
+        val program = combine(firstNPlaces(2), lastNPlaces(2))
+        val selected = program.failFast(results.toTypedArray(), fightsWithResult, fightResultOptions)
+        selected.fold( { fail(it.toString()) }, {println(it.joinToString("\n"))})
     }
 
 }

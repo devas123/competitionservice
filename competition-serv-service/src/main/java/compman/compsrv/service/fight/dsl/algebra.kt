@@ -16,13 +16,15 @@
 package compman.compsrv.service.fight.dsl
 
 import arrow.Kind
-import arrow.core.*
+import arrow.core.Either
 import arrow.core.extensions.either.monad.monad
+import arrow.core.fix
 import arrow.free.Free
 import arrow.free.foldMap
 import arrow.higherkind
 import compman.compsrv.model.dto.brackets.CompetitorStageResultDTO
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
+import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 
 class ForCompetitorSelect private constructor() {
@@ -31,11 +33,12 @@ class ForCompetitorSelect private constructor() {
 
 @higherkind
 sealed class CompetitorSelectA<out A> : CompetitorSelectKind<A> {
-    data class FirstNPlaces<A>(val n: Int) : CompetitorSelectA<Array<A>>()
-    data class LastNPlaces<A>(val n: Int) : CompetitorSelectA<Array<A>>()
-    data class WinnerOfFight<A>(val id: String) : CompetitorSelectA<Option<A>>()
-    data class LoserOfFight<A>(val id: String) : CompetitorSelectA<Option<A>>()
-    data class PassedToRound<A>(val n: Int) : CompetitorSelectA<Array<A>>()
+    data class FirstNPlaces(val n: Int) : CompetitorSelectA<Array<String>>()
+    data class LastNPlaces(val n: Int) : CompetitorSelectA<Array<String>>()
+    data class WinnerOfFight(val id: String) : CompetitorSelectA<Array<String>>()
+    data class LoserOfFight(val id: String) : CompetitorSelectA<Array<String>>()
+    data class PassedToRound(val n: Int, val roundType: StageRoundType) : CompetitorSelectA<Array<String>>()
+    data class Manual(val ids: List<String>) : CompetitorSelectA<Array<String>>()
     data class And<A>(val a: CompetitorSelect<A>, val b: CompetitorSelect<A>) : CompetitorSelectA<A>()
 }
 
@@ -47,14 +50,18 @@ inline fun <A> CompetitorSelectKind<A>.fix(): CompetitorSelectA<A> =
 
 typealias CompetitorSelect<A> = Free<ForCompetitorSelect, A>
 
-inline fun <reified A> firstNPlaces(n: Int): CompetitorSelect<Array<A>> = Free.liftF(CompetitorSelectA.FirstNPlaces(n))
-inline fun <reified A> lastNPlaces(n: Int): CompetitorSelect<Array<A>> = Free.liftF(CompetitorSelectA.LastNPlaces(n))
-inline fun <reified A> winnerOfFight(id: String): CompetitorSelect<Option<A>> = Free.liftF(CompetitorSelectA.WinnerOfFight(id))
-inline fun <reified A> loserOfFight(id: String): CompetitorSelect<Option<A>> = Free.liftF(CompetitorSelectA.LoserOfFight(id))
-inline fun <reified A> passedToRound(n: Int): CompetitorSelect<Array<A>> = Free.liftF(CompetitorSelectA.PassedToRound(n))
+fun firstNPlaces(n: Int): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.FirstNPlaces(n))
+fun lastNPlaces(n: Int): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.LastNPlaces(n))
+fun winnerOfFight(id: String): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.WinnerOfFight(id))
+fun loserOfFight(id: String): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.LoserOfFight(id))
+fun passedToRound(n: Int, roundType: StageRoundType): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.PassedToRound(n, roundType))
 inline fun <reified A> and(a: CompetitorSelect<A>, b: CompetitorSelect<A>): CompetitorSelect<A> =
         Free.liftF(CompetitorSelectA.And(a, b))
 
+fun <A> combine(a: CompetitorSelect<A>, b: CompetitorSelect<A>): CompetitorSelect<A> = Free.liftF(CompetitorSelectA.And(a, b))
+
+operator fun <A> CompetitorSelect<A>.plus(other: CompetitorSelect<A>): CompetitorSelect<A> =
+        combine(this, other)
 
 fun <A> CompetitorSelect<A>.failFast(competitorResults: Array<CompetitorStageResultDTO>,
                                      fights: List<FightDescriptionDTO>,

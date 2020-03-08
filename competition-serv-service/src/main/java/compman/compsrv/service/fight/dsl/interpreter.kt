@@ -33,26 +33,26 @@ class EitherFunctor(private val competitorResults: Array<CompetitorStageResultDT
         val g = fa.fix()
         val results = kotlin.runCatching {
             when (g) {
-                is CompetitorSelectA.FirstNPlaces<*> -> {
+                is CompetitorSelectA.FirstNPlaces -> {
                     right(competitorResults.sortedBy { it.place }.take(g.n).map { e -> e.competitorId }.toTypedArray()).map { it as A }
                 }
-                is CompetitorSelectA.LastNPlaces<*> -> {
+                is CompetitorSelectA.LastNPlaces -> {
                     right(competitorResults.sortedByDescending { it.place }.take(g.n).map { e -> e.competitorId }.toTypedArray()).map { it as A }
                 }
-                is CompetitorSelectA.PassedToRound<*> -> {
+                is CompetitorSelectA.PassedToRound -> {
                     right(competitorResults.filter { it.round == g.n }.map { e -> e.competitorId }.toTypedArray()).map { it as A }
                 }
-                is CompetitorSelectA.WinnerOfFight<*> -> {
+                is CompetitorSelectA.WinnerOfFight -> {
                     Either.monadError<Throwable>().catch {
                         val fight = fights.first { it.id == g.id }
                         val resultDescr = resultOptions.first { it.id == fight.fightResult.resultTypeId }
                         if (resultDescr.isDraw) {
                             throw IllegalArgumentException("No winner in fight ${g.id}")
                         }
-                        competitorResults.first { it.competitorId == fight.fightResult.winnerId }
+                        arrayOf(competitorResults.first { it.competitorId == fight.fightResult.winnerId }.competitorId)
                     }.mapLeft { CompetitorSelectError.NoWinnerOfFight(g.id, it) }.map { it as A }
                 }
-                is CompetitorSelectA.LoserOfFight<*> -> {
+                is CompetitorSelectA.LoserOfFight -> {
                     Either.monadError<Throwable>().catch {
                         val fight = fights.first { it.id == g.id }
                         val resultDescr = resultOptions.first { it.id == fight.fightResult.resultTypeId }
@@ -60,14 +60,17 @@ class EitherFunctor(private val competitorResults: Array<CompetitorStageResultDT
                             throw IllegalArgumentException("No winner in fight ${g.id}")
                         }
                         val loserId = fight.scores.first { it.competitor.id != fight.fightResult.winnerId }.competitor.id
-                        competitorResults.first { it.competitorId == loserId }
+                        arrayOf(competitorResults.first { it.competitorId == loserId }.competitorId)
                     }.mapLeft { CompetitorSelectError.NoWinnerOfFight(g.id, it) }.map { it as A }
                 }
-                is CompetitorSelectA.And<*> -> {
-                    val a = g.a.failFast(competitorResults, fights, resultOptions).map { it as A }
-                    val b = g.b.failFast(competitorResults, fights, resultOptions).map { it as A }
-                    val k = a.combineK(b)
+                is CompetitorSelectA.And -> {
+                    val a = g.a.failFast(competitorResults, fights, resultOptions).map { it as Array<String> }
+                    val b = g.b.failFast(competitorResults, fights, resultOptions).map { it as Array<String> }
+                    val k = a.flatMap { arr -> b.map { it + arr } }.map { it as A }
                     k
+                }
+                is CompetitorSelectA.Manual -> {
+                    return right(g.ids.toTypedArray() as A)
                 }
             }
         }
