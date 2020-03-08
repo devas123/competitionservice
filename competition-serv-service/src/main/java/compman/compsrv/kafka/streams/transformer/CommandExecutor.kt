@@ -1,7 +1,6 @@
-package compman.compsrv.config
+package compman.compsrv.kafka.streams.transformer
 
 import compman.compsrv.cluster.ClusterSession
-import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
@@ -21,7 +20,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 @Component
-class CommandListener(private val commandTransformer: CompetitionCommandTransformer,
+class CommandExecutor(private val commandTransformer: CompetitionCommandTransformer,
                       private val template: KafkaTemplate<String, EventDTO>,
                       private val jooqRepository: JooqRepository,
                       private val clusterSession: ClusterSession,

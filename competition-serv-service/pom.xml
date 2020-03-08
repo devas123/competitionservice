@@ -105,6 +105,10 @@
         </dependency>
         <dependency>
             <groupId>io.arrow-kt</groupId>
+            <artifactId>arrow-free-data</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.arrow-kt</groupId>
             <artifactId>arrow-core</artifactId>
         </dependency>
         <dependency>

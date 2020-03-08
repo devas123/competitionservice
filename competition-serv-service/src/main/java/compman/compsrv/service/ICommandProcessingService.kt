@@ -2,6 +2,8 @@ package compman.compsrv.service
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 import java.time.Duration
 
 interface ICommandProcessingService<Command, Event> {
@@ -11,6 +13,7 @@ interface ICommandProcessingService<Command, Event> {
 
     fun apply(event: Event, isBatch: Boolean = false): List<Event>
 
+    @Transactional(propagation = Propagation.REQUIRED)
     fun batchApply(events: List<Event>): List<Event> {
         return events.filter {
             log.info("Check if event is duplicate: $it")
