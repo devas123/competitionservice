@@ -9,6 +9,8 @@ import compman.compsrv.service.fight.dsl.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.junit.MockitoJUnitRunner
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.math.BigDecimal
 import kotlin.test.*
 
@@ -16,6 +18,8 @@ import kotlin.test.*
 @RunWith(MockitoJUnitRunner::class)
 class GroupGenerateServiceTest : AbstractGenerateServiceTest() {
     private val fightsGenerateService = GroupStageGenerateService()
+
+    private val log: Logger = LoggerFactory.getLogger(GroupGenerateServiceTest::class.java)
 
     private fun generateGroupFights(competitorsSize: Int): Pair<StageDescriptorDTO, List<FightDescriptionDTO>> {
         val groupId = "$stageId-group0"
@@ -91,9 +95,10 @@ class GroupGenerateServiceTest : AbstractGenerateServiceTest() {
         assertFalse(results.all { it.points == BigDecimal.ZERO })
         assertEquals(results.size, results.distinctBy { it.place }.size)
 
-        val program = combine(firstNPlaces(2), lastNPlaces(2))
+        val program = firstNPlaces(2) + lastNPlaces(2) + manual(listOf("a", "b", "c")) + passedToRound(0, StageRoundType.GROUP)
+
+        program.log(log)
         val selected = program.failFast(results.toTypedArray(), fightsWithResult, fightResultOptions)
         selected.fold( { fail(it.toString()) }, {println(it.joinToString("\n"))})
     }
-
 }

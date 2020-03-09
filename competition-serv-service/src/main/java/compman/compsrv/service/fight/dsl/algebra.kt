@@ -17,7 +17,9 @@ package compman.compsrv.service.fight.dsl
 
 import arrow.Kind
 import arrow.core.Either
+import arrow.core.Id
 import arrow.core.extensions.either.monad.monad
+import arrow.core.extensions.id.monad.monad
 import arrow.core.fix
 import arrow.free.Free
 import arrow.free.foldMap
@@ -26,13 +28,14 @@ import compman.compsrv.model.dto.brackets.CompetitorStageResultDTO
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
+import org.slf4j.Logger
 
 class ForCompetitorSelect private constructor() {
     companion object
 }
 
 @higherkind
-sealed class CompetitorSelectA<out A> : CompetitorSelectKind<A> {
+sealed class CompetitorSelectA<out A> : CompetitorSelectAOf<A> {
     data class FirstNPlaces(val n: Int) : CompetitorSelectA<Array<String>>()
     data class LastNPlaces(val n: Int) : CompetitorSelectA<Array<String>>()
     data class WinnerOfFight(val id: String) : CompetitorSelectA<Array<String>>()
@@ -42,16 +45,17 @@ sealed class CompetitorSelectA<out A> : CompetitorSelectKind<A> {
     data class And<A>(val a: CompetitorSelect<A>, val b: CompetitorSelect<A>) : CompetitorSelectA<A>()
 }
 
-typealias CompetitorSelectKind<A> = Kind<ForCompetitorSelect, A>
+typealias CompetitorSelectAOf<A> = Kind<ForCompetitorSelect, A>
 
 @Suppress("NOTHING_TO_INLINE")
-inline fun <A> CompetitorSelectKind<A>.fix(): CompetitorSelectA<A> =
+inline fun <A> CompetitorSelectAOf<A>.fix(): CompetitorSelectA<A> =
         this as CompetitorSelectA<A>
 
 typealias CompetitorSelect<A> = Free<ForCompetitorSelect, A>
 
 fun firstNPlaces(n: Int): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.FirstNPlaces(n))
 fun lastNPlaces(n: Int): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.LastNPlaces(n))
+fun manual(ids: List<String>): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.Manual(ids))
 fun winnerOfFight(id: String): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.WinnerOfFight(id))
 fun loserOfFight(id: String): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.LoserOfFight(id))
 fun passedToRound(n: Int, roundType: StageRoundType): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.PassedToRound(n, roundType))
@@ -67,4 +71,10 @@ fun <A> CompetitorSelect<A>.failFast(competitorResults: Array<CompetitorStageRes
                                      fights: List<FightDescriptionDTO>,
                                      resultOptions: List<FightResultOptionDTO>): Either<CompetitorSelectError, A> {
     return foldMap(safeInterpreterEither(competitorResults, fights, resultOptions), Either.monad()).fix()
+
+
+}
+
+fun <A> CompetitorSelect<A>.log(log: Logger): Id<A> {
+    return foldMap(LoggingInterpreter(log), Id.monad()).fix()
 }
