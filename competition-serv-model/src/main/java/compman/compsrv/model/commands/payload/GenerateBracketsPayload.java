@@ -11,6 +11,6 @@ import java.io.Serializable;
 @Data
 @NoArgsConstructor
 @Accessors(chain = true)
-public class GenerateBracketsPayload implements Serializable {
+public class GenerateBracketsPayload implements Serializable, Payload {
     private StageDescriptorDTO[] stageDescriptors;
 }

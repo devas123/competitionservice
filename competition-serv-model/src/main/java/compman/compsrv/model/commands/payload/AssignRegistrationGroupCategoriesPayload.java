@@ -9,7 +9,7 @@ import java.io.Serializable;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class AssignRegistrationGroupCategoriesPayload implements Serializable {
+public class AssignRegistrationGroupCategoriesPayload implements Serializable, Payload {
     private String periodId;
     private String groupId;
     private String[] categories;

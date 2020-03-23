@@ -1,5 +1,6 @@
 package compman.compsrv.model.events.payload;
 
+import compman.compsrv.model.commands.payload.Payload;
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -10,6 +11,6 @@ import java.io.Serializable;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class BracketsGeneratedPayload implements Serializable {
+public class BracketsGeneratedPayload implements Serializable, Payload {
     private StageDescriptorDTO[] stages;
 }

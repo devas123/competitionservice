@@ -8,6 +8,6 @@ import java.util.Timer;
 
 @Data
 @NoArgsConstructor
-public class FightEditorApplyChangesPayload implements Serializable {
+public class FightEditorApplyChangesPayload implements Serializable, Payload {
     private FightChanges[] changes;
 }

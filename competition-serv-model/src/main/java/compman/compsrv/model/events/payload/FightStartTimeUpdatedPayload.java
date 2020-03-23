@@ -1,5 +1,6 @@
 package compman.compsrv.model.events.payload;
 
+import compman.compsrv.model.commands.payload.Payload;
 import compman.compsrv.model.dto.schedule.FightStartTimePairDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -12,6 +13,6 @@ import java.io.Serializable;
 @NoArgsConstructor
 @AllArgsConstructor
 @Accessors(chain = true)
-public class FightStartTimeUpdatedPayload implements Serializable {
+public class FightStartTimeUpdatedPayload implements Serializable, Payload {
     private FightStartTimePairDTO[] newFights;
 }

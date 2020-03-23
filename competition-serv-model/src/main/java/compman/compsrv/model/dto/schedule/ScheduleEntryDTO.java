@@ -25,5 +25,6 @@ public class ScheduleEntryDTO {
     private Instant endTime;
     private Integer numberOfFights;
     private BigDecimal duration;
+    private String[] invalidFightIds;
     private Integer order;
 }

@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 @Data
@@ -21,4 +22,6 @@ public class ScheduleRequirementDTO {
     private boolean force;
     private Instant startTime;
     private Instant endTime;
+    private BigDecimal durationMinutes;
+    private Integer entryOrder;
 }

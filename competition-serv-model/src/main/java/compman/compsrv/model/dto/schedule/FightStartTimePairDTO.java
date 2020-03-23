@@ -18,4 +18,5 @@ public class FightStartTimePairDTO {
     private Instant startTime;
     private String periodId;
     private String fightCategoryId;
+    private Boolean invalid;
 }

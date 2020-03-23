@@ -6,7 +6,7 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 @Data
 @NoArgsConstructor
-public class CreateFakeCompetitorsPayload implements Serializable {
+public class CreateFakeCompetitorsPayload implements Serializable, Payload {
     private Integer numberOfCompetitors;
     private Integer numberOfAcademies;
 }

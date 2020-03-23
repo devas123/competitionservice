@@ -12,6 +12,6 @@ import java.io.Serializable;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-public class AddRegistrationPeriodPayload implements Serializable {
+public class AddRegistrationPeriodPayload implements Serializable, Payload {
     private RegistrationPeriodDTO period;
 }

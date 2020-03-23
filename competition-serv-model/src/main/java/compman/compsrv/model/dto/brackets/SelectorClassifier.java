@@ -5,5 +5,6 @@ public enum SelectorClassifier {
     LAST_N_PLACES,
     WINNER_OF_FIGHT,
     LOSER_OF_FIGHT,
-    PASSED_TO_ROUND
+    PASSED_TO_ROUND,
+    MANUAL
 }
