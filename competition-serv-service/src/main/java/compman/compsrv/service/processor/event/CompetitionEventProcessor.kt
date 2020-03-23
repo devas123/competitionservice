@@ -3,6 +3,7 @@ package compman.compsrv.service.processor.event
 import com.compmanager.compservice.jooq.tables.daos.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.mapping.toDTO
+import compman.compsrv.model.commands.payload.Payload
 import compman.compsrv.model.dto.competition.CompetitionStateDTO
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.model.events.EventDTO
@@ -52,7 +53,7 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
         private val log = LoggerFactory.getLogger(CompetitionEventProcessor::class.java)
     }
 
-    private fun <T> getPayloadAs(payload: String?, clazz: Class<T>): T? = mapper.getPayloadFromString(payload, clazz)
+    private inline fun <reified T: Payload> getPayloadAs(payload: String?, clazz: Class<T>): T? = mapper.getPayloadFromString(payload, clazz)
 
     override fun applyEvent(event: EventDTO): List<EventDTO> {
         fun createError(error: String) = EventApplyingException(error, event)
@@ -106,8 +107,8 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
                     }
                 }
                 EventType.REGISTRATION_PERIOD_DELETED -> {
-                    val payload = getPayloadAs(event.payload, String::class.java)
-                    registrationPeriodCrudRepository.deleteById(payload!!)
+                    val payload = getPayloadAs(event.payload, RegistrationPeriodDeletedPayload::class.java)!!
+                    registrationPeriodCrudRepository.deleteById(payload.periodId)
                 }
                 EventType.COMPETITION_DELETED -> {
                     competitionCleaner.deleteCompetition(event.competitionId)
@@ -140,7 +141,7 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
                     }
                 }
                 in listOf(EventType.COMPETITION_STARTED, EventType.COMPETITION_STOPPED, EventType.COMPETITION_PUBLISHED, EventType.COMPETITION_UNPUBLISHED) -> {
-                    val status = getPayloadAs(event.payload, CompetitionStatus::class.java)
+                    val status = getPayloadAs(event.payload, CompetitionStatusUpdatedPayload::class.java)?.status
                     if (status != null) {
                         jooqRepository.updateCompetitionStatus(event.competitionId, status)
                     }

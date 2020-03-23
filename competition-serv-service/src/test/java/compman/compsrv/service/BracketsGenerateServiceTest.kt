@@ -1,5 +1,6 @@
 package compman.compsrv.service
 
+import com.google.common.math.DoubleMath
 import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.brackets.StageStatus
@@ -12,6 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.junit.MockitoJUnitRunner
 import org.slf4j.LoggerFactory
+import kotlin.math.pow
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -50,43 +52,18 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
     @Test
     fun testGenerateEmptyDoubleEliminationFights() {
         val fights = generateEmptyWinnerFights(14)
-        assertEquals(8 + 4 + 2 + 1, fights.size)
-        assertEquals(8, fights.filter { it.round == 0 }.size)
-        assertEquals(4, fights.filter { it.round == 1 }.size)
-        assertEquals(2, fights.filter { it.round == 2 }.size)
-        assertEquals(1, fights.filter { it.round == 3 }.size)
-        assertTrue { fights.filter { it.round == 0 }.none { it.parentId1 != null || it.parentId2 != null } }
-        assertTrue { fights.filter { it.round != 0 }.none { it.parentId1 == null || it.parentId2 == null } }
-        assertTrue { fights.filter { it.round == 3 }.none { it.winFight != null } }
-        assertTrue { fights.filter { it.round != 3 }.none { it.winFight == null } }
+        checkWinnerFightsLaws(fights,8)
         val doubleEliminationBracketFights = fightsGenerateService.generateLoserBracketAndGrandFinalForWinnerBracket(competitionId, categoryId, stageId, fights, duration, true)
         log.info("${doubleEliminationBracketFights.size}")
         log.info(doubleEliminationBracketFights.joinToString("\n"))
-        assertEquals(30, doubleEliminationBracketFights.size)
-        val loserBracketsFights = doubleEliminationBracketFights.filter { it.roundType == StageRoundType.LOSER_BRACKETS }
-        assertEquals(14, loserBracketsFights.size)
-        assertEquals(4, loserBracketsFights.filter { it.round == 0 }.size)
-        assertEquals(4, loserBracketsFights.filter { it.round == 1 }.size)
-        assertEquals(2, loserBracketsFights.filter { it.round == 2 }.size)
-        assertEquals(2, loserBracketsFights.filter { it.round == 3 }.size)
-        assertEquals(1, loserBracketsFights.filter { it.round == 4 }.size)
-        assertEquals(1, loserBracketsFights.filter { it.round == 5 }.size)
-        assertEquals(1, doubleEliminationBracketFights.filter { it.roundType == StageRoundType.GRAND_FINAL }.size)
+        checkDoubleEliminationLaws(doubleEliminationBracketFights, 8)
 
     }
 
     @Test
     fun testGenerateThirdPlaceFight() {
         val fights = generateEmptyWinnerFights(14)
-        assertEquals(8 + 4 + 2 + 1, fights.size)
-        assertEquals(8, fights.filter { it.round == 0 }.size)
-        assertEquals(4, fights.filter { it.round == 1 }.size)
-        assertEquals(2, fights.filter { it.round == 2 }.size)
-        assertEquals(1, fights.filter { it.round == 3 }.size)
-        assertTrue { fights.filter { it.round == 0 }.none { it.parentId1 != null || it.parentId2 != null } }
-        assertTrue { fights.filter { it.round != 0 }.none { it.parentId1 == null || it.parentId2 == null } }
-        assertTrue { fights.filter { it.round == 3 }.none { it.winFight != null } }
-        assertTrue { fights.filter { it.round != 3 }.none { it.winFight == null } }
+        checkWinnerFightsLaws(fights, 8)
         val withThirdPlaceFight = fightsGenerateService.generateThirdPlaceFightForOlympicSystem(competitionId, categoryId, stageId, fights)
         log.info("${withThirdPlaceFight.size}")
         log.info(withThirdPlaceFight.joinToString("\n"))

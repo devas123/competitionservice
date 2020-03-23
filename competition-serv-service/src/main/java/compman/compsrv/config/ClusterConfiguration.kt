@@ -44,7 +44,7 @@ class ClusterConfiguration {
         } else {
             clusterConfigurationProperties.advertisedHost
         }
-        val clusterSeed = clusterConfigurationProperties.clusterSeed?.mapNotNull { s -> Address.from(s) } ?: emptyList()
+        val clusterSeed = clusterConfigurationProperties.clusterSeed?.mapNotNull { s -> Address.from(s) }.orEmpty()
         log.info("Configured initial cluster seed: $clusterSeed")
         return ClusterConfig.defaultConfig()
                 .transport {

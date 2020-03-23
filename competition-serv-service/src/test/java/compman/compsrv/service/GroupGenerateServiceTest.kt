@@ -95,10 +95,10 @@ class GroupGenerateServiceTest : AbstractGenerateServiceTest() {
         assertFalse(results.all { it.points == BigDecimal.ZERO })
         assertEquals(results.size, results.distinctBy { it.place }.size)
 
-        val program = firstNPlaces(2) + lastNPlaces(2) + manual(listOf("a", "b", "c")) + passedToRound(0, StageRoundType.GROUP)
+        val program = firstNPlaces(stageId,2) + lastNPlaces(stageId,2) + manual(stageId, listOf("a", "b", "c")) + passedToRound(stageId,0, StageRoundType.GROUP)
 
         program.log(log)
-        val selected = program.failFast(results.toTypedArray(), fightsWithResult, fightResultOptions)
+        val selected = program.failFast({results}, {fightsWithResult}, {fightResultOptions})
         selected.fold( { fail(it.toString()) }, {println(it.joinToString("\n"))})
     }
 }

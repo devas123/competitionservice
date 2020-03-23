@@ -2,7 +2,9 @@ package compman.compsrv.service.processor.command
 
 import arrow.core.Either
 import arrow.core.Tuple3
-import arrow.core.flatMap
+import arrow.core.extensions.either.monad.monad
+import arrow.core.extensions.list.foldable.foldM
+import arrow.core.fix
 import com.compmanager.compservice.jooq.tables.daos.*
 import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -71,7 +73,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
 
     private fun getAllBrackets(competitionId: String): Flux<Pair<Tuple3<String, String, BracketType>, List<FightDescription>>> {
         return Flux.fromIterable(stageDescriptorCrudRepository.fetchByCompetitionId(competitionId)).map {
-            Tuple3(it.id,  it.categoryId, BracketType.values()[it.bracketType]) to (fightDescriptionDao.fetchByStageId(competitionId) ?: emptyList())
+            Tuple3(it.id,  it.categoryId, BracketType.values()[it.bracketType]) to (fightDescriptionDao.fetchByStageId(competitionId).orEmpty())
         }
     }
 
@@ -114,7 +116,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                     }
                 }
                 CommandType.DELETE_REGISTRATION_PERIOD_COMMAND -> {
-                    listOf(createEvent(EventType.REGISTRATION_PERIOD_DELETED, command.payload["periodId"]))
+                    listOf(createEvent(EventType.REGISTRATION_PERIOD_DELETED, RegistrationPeriodDeletedPayload(command.payload["periodId"]?.toString())))
                 }
                 CommandType.DELETE_REGISTRATION_GROUP_COMMAND -> {
                     val payload = mapper.convertValue(command.payload, DeleteRegistrationGroupPayload::class.java)
@@ -128,38 +130,37 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 CommandType.ADD_REGISTRATION_GROUP_COMMAND -> {
                     val payload = mapper.convertValue(command.payload, AddRegistrationGroupPayload::class.java)
                     if (!payload.periodId.isNullOrBlank() && !payload.groups.isNullOrEmpty()) {
-                        val k: Either<String, List<RegistrationGroupDTO>> = payload.groups.fold(Either.right(emptyList())) { either, group ->
-                            either.flatMap { existingGroups ->
-                                if (!group?.displayName.isNullOrBlank() && !group?.registrationInfoId.isNullOrBlank()) {
-                                    val groupId = IDGenerator.hashString("${group.registrationInfoId}/${group.displayName}")
-                                    val regInfoId = group.registrationInfoId ?: command.competitionId
-                                    val periodGroups = jooqRepository.fetchRegistrationGroupIdsByPeriodIdAndRegistrationInfoId(regInfoId, payload.periodId).collectList().block()
-                                    val defaultGroup = group?.defaultGroup?.let {
-                                        if (it) {
-                                            jooqRepository.fetchDefaulRegistrationGroupByCompetitionIdAndIdNeq(regInfoId, groupId).block()
-                                        } else {
-                                            null
-                                        }
-                                    }
-                                    if (defaultGroup != null) {
-                                        Either.left("There is already a default group for competition ${command.competitionId} with different id: ${defaultGroup.displayName
-                                                ?: "<Unknown>"}, ${defaultGroup.id}")
+                        val groupsList = payload.groups.toList()
+                        val k = groupsList.foldM(Either.monad(), emptyList<RegistrationGroupDTO>()) { acc, group ->
+                            val o = if (!group?.displayName.isNullOrBlank() && !group?.registrationInfoId.isNullOrBlank()) {
+                                val groupId = IDGenerator.hashString("${group.registrationInfoId}/${group.displayName}")
+                                val regInfoId = group.registrationInfoId ?: command.competitionId
+                                val periodGroups = jooqRepository.fetchRegistrationGroupIdsByPeriodIdAndRegistrationInfoId(regInfoId, payload.periodId).collectList().block()
+                                val defaultGroup = group?.defaultGroup?.let {
+                                    if (it) {
+                                        jooqRepository.fetchDefaulRegistrationGroupByCompetitionIdAndIdNeq(regInfoId, groupId).block()
                                     } else {
-                                        if (registrationPeriodCrudRepository.existsById(payload.periodId)) {
-                                            if (periodGroups?.any { it == groupId } != true) {
-                                                Either.right(existingGroups + group.setId(groupId).setRegistrationInfoId(regInfoId))
-                                            } else {
-                                                Either.left("Group with id $groupId already exists")
-                                            }
-                                        } else {
-                                            Either.left("Cannot find period with ID: ${payload.periodId}")
-                                        }
+                                        null
                                     }
-                                } else {
-                                    Either.left("Group name is not specified ${group?.displayName}.")
                                 }
+                                if (defaultGroup != null) {
+                                    Either.left("There is already a default group for competition ${command.competitionId} with different id: ${defaultGroup.displayName ?: "<Unknown>"}, ${defaultGroup.id}")
+                                } else {
+                                    if (registrationPeriodCrudRepository.existsById(payload.periodId)) {
+                                        if (periodGroups?.any { it == groupId } != true) {
+                                            Either.right(acc + group.setId(groupId).setRegistrationInfoId(regInfoId))
+                                        } else {
+                                            Either.left("Group with id $groupId already exists")
+                                        }
+                                    } else {
+                                        Either.left("Cannot find period with ID: ${payload.periodId}")
+                                    }
+                                }
+                            } else {
+                                Either.left("Group name is not specified ${group?.displayName}.")
                             }
-                        }
+                            o
+                        }.fix()
                         k.fold({
                             log.error(it)
                             listOf(createErrorEvent(it))
@@ -242,8 +243,8 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                     val periods = mapper.convertValue(payload, Array<PeriodDTO>::class.java)?.map { it.setId(it.id ?: IDGenerator.createPeriodId(command.competitionId)) }
                     val compProps = competitionPropertiesCrudRepository.findById(command.competitionId)
                     val categories = periods?.flatMap {
-                        it.scheduleEntries?.toList() ?: emptyList()
-                    }?.flatMap { it.categoryIds?.toList() ?: emptyList() }?.distinct()
+                        it.scheduleEntries?.toList().orEmpty()
+                    }?.flatMap { it.categoryIds?.toList().orEmpty() }?.distinct()
                     val missingCategories = categories?.fold(emptyList<String>(), { acc, cat ->
                         if (categoryCrudRepository.existsById(cat)) {
                             acc
@@ -257,10 +258,10 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                             val schedule = scheduleService.generateSchedule(command.competitionId, periods,
                                     getAllBrackets(command.competitionId),
                                     compProps.timeZone,
-                                    competitorNumbersByCategoryIds)
+                                    competitorNumbersByCategoryIds) { fightDescriptionDao.findById(it) }
                             val newFights = schedule.periods?.flatMap { period ->
                                 period.mats?.flatMap { it.fightStartTimes.map { f -> f.setPeriodId(period.id) } }
-                                        ?: emptyList()
+                                       .orEmpty()
                             }?.toTypedArray()
                             val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(newFights)
 

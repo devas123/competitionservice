@@ -109,7 +109,15 @@
         </dependency>
         <dependency>
             <groupId>io.arrow-kt</groupId>
-            <artifactId>arrow-core</artifactId>
+            <artifactId>arrow-syntax</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.arrow-kt</groupId>
+            <artifactId>arrow-optics</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.arrow-kt</groupId>
+            <artifactId>arrow-mtl</artifactId>
         </dependency>
         <dependency>
             <groupId>io.arrow-kt</groupId>

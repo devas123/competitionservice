@@ -150,4 +150,5 @@ fun FightDescriptionDTO.toPojo(): FightDescription =
             it.round = this.round
             it.roundType = this.roundType?.ordinal
             it.groupId = this.groupId
+            it.invalid = this.invalid
         }

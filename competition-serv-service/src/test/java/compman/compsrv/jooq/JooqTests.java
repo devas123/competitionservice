@@ -10,6 +10,7 @@ import compman.compsrv.model.dto.schedule.ScheduleDTO;
 import compman.compsrv.repository.JooqMappers;
 import compman.compsrv.repository.JooqQueryProvider;
 import compman.compsrv.repository.JooqRepository;
+import compman.compsrv.service.AbstractGenerateServiceTest;
 import compman.compsrv.service.CategoryGeneratorService;
 import compman.compsrv.service.TestDataGenerationUtils;
 import compman.compsrv.service.fight.BracketsGenerateService;
@@ -35,7 +36,6 @@ import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.stream.Collectors;
 
-@Ignore
 @RunWith(MockitoJUnitRunner.class)
 public class JooqTests {
     static {
@@ -89,6 +89,7 @@ public class JooqTests {
                     .setProperties(competitionPropertiesDTO));
             jooqRepository.saveCategoryDescriptor(category, competitionId);
             List<FightDescriptionDTO> fights = bracketsGenerateService.generateDoubleEliminationBracket(competitionId, categoryId, stageId, 50, duration);
+            AbstractGenerateServiceTest.Companion.checkDoubleEliminationLaws(fights, 32);
             final AdditionalGroupSortingDescriptorDTO[] additionalGroupSortingDescriptorDTOS =new AdditionalGroupSortingDescriptorDTO[]{
                     new AdditionalGroupSortingDescriptorDTO()
                             .setGroupSortDirection(GroupSortDirection.ASC)
@@ -113,6 +114,7 @@ public class JooqTests {
             List<FightDescriptionDTO> loadedFights = jooqRepository.fetchFightsByStageId(competitionId, stageId).collectList().block();
             Assert.assertNotNull(loadedFights);
             Assert.assertEquals(fights.size(), loadedFights.size());
+            AbstractGenerateServiceTest.Companion.checkDoubleEliminationLaws(loadedFights, 32);
             loadedStages.forEach(st -> {
                 Assert.assertNotNull(st.getStageResultDescriptor());
                 Assert.assertNotNull(st.getStageResultDescriptor().getAdditionalGroupSortingDescriptors());

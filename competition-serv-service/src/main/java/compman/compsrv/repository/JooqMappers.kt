@@ -6,6 +6,7 @@ import arrow.core.Tuple4
 import com.compmanager.compservice.jooq.tables.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.*
+import compman.compsrv.util.orFalse
 import org.jooq.Record
 import org.springframework.stereotype.Component
 import reactor.core.publisher.GroupedFlux
@@ -30,6 +31,7 @@ class JooqMappers {
                 .setPeriodId(u[FightDescription.FIGHT_DESCRIPTION.PERIOD])
                 .setStartTime(u[FightDescription.FIGHT_DESCRIPTION.START_TIME]?.toInstant())
                 .setNumberOnMat(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT])
+                .setInvalid(u[FightDescription.FIGHT_DESCRIPTION.INVALID])
     }
 
 
@@ -83,6 +85,11 @@ class JooqMappers {
                         val updatable = t.c.first { tc -> tc.a.id == u[ScheduleEntry.SCHEDULE_ENTRY.ID] }
                         if (!u[FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID].isNullOrBlank()) {
                             updatable.b.add(u[FightDescription.FIGHT_DESCRIPTION.ID])
+                            if (u[FightDescription.FIGHT_DESCRIPTION.INVALID].orFalse()) {
+                                val id = u[FightDescription.FIGHT_DESCRIPTION.ID]
+                                val invalidIds = updatable.a.invalidFightIds.orEmpty()
+                                updatable.a.invalidFightIds = (invalidIds.toList() + id).toTypedArray()
+                            }
                         }
                         if (u[CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.SCHEDULE_ENTRY_ID] == updatable.a.id &&
                                 !u[CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.CATEGORY_ID].isNullOrBlank()) {
@@ -151,6 +158,8 @@ class JooqMappers {
                 .setId(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ID])
                 .setForce(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.FORCE])
                 .setPeriodId(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.PERIOD_ID])
+                .setDurationMinutes(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.DURATION_MINUTES])
+                .setEntryOrder(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_ORDER])
     }
 
 

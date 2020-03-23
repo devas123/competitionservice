@@ -1,8 +1,11 @@
 package compman.compsrv.service.fight
 
+import arrow.core.Either
+import arrow.core.flatMap
 import com.compmanager.model.payment.RegistrationStatus
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
+import compman.compsrv.service.fight.dsl.*
 import compman.compsrv.util.IDGenerator
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -151,48 +154,44 @@ abstract class FightsService {
     }
 
     fun applyStageInputDescriptorToResultsAndFights(descriptor: StageInputDescriptorDTO,
-                                                    stageResults: List<CompetitorStageResultDTO>,
-                                                    fights: List<FightDescriptionDTO>): List<String> {
-        fun selectWinnerIdOfFight(fightId: String) = fights.first {
-            it.id == fightId
-        }.fightResult?.winnerId
-
-        fun selectLoserIdOfFight(fightId: String): String? {
-            val fight = fights.first {
-                it.id == fightId
-            }
-            return fight.scores?.first { it.competitor.id != fight.fightResult!!.winnerId }?.competitor?.id
+                                                    previousStageId: String,
+                                                    fightResultOptions: (stageId: String) -> List<FightResultOptionDTO>,
+                                                    stageResults: (stageId: String) -> List<CompetitorStageResultDTO>,
+                                                    fights: (stageId: String) -> List<FightDescriptionDTO>): List<String> {
+        val program = if (!descriptor.selectors.isNullOrEmpty()) {
+            descriptor.selectors.flatMap {
+                it.classifier?.let { classifier ->
+                    when (classifier) {
+                        SelectorClassifier.FIRST_N_PLACES -> listOf(firstNPlaces(it.applyToStageId, it.selectorValue.first().toInt()))
+                        SelectorClassifier.LAST_N_PLACES -> listOf(lastNPlaces(it.applyToStageId, it.selectorValue.first().toInt()))
+                        SelectorClassifier.WINNER_OF_FIGHT -> it.selectorValue.map { sv -> winnerOfFight(it.applyToStageId, sv) }
+                        SelectorClassifier.LOSER_OF_FIGHT -> it.selectorValue.map { sv -> loserOfFight(it.applyToStageId, sv) }
+                        SelectorClassifier.PASSED_TO_ROUND -> if (it.selectorValue.size != 2) {
+                            log.warn("Passed to round selector has invalid value size (should be 2 but ${it.selectorValue.size})")
+                            emptyList()
+                        } else {
+                            listOf(passedToRound(it.applyToStageId, it.selectorValue[0].toInt(), StageRoundType.valueOf(it.selectorValue[1])))
+                        }
+                        SelectorClassifier.MANUAL -> listOf(manual(it.applyToStageId, it.selectorValue.toList()))
+                    }
+                }.orEmpty()
+            }.reduce { acc, free -> acc + free }
+        } else {
+            firstNPlaces(previousStageId, descriptor.numberOfCompetitors!!)
         }
-
-        fun findWinnersOrLosers(selector: CompetitorSelectorDTO, selectorFun: (fightId: String) -> String?, stageResults: List<CompetitorStageResultDTO>): List<CompetitorStageResultDTO> {
-            val selectorVal = selector.selectorValue!!
-            val selectedFighterIds = selectorVal.mapNotNull { selectorFun.invoke(it) }
-            return stageResults.filter { selectedFighterIds.contains(it.competitorId) }
-        }
-
-        fun filterResults(selector: CompetitorSelectorDTO, stageResults: List<CompetitorStageResultDTO>): List<CompetitorStageResultDTO> {
-            return when (selector.classifier!!) {
-                SelectorClassifier.FIRST_N_PLACES -> {
-                    val selectorVal = selector.selectorValue?.first()!!.toInt()
-                    stageResults.sortedBy { it.place!! }.take(selectorVal)
-                }
-                SelectorClassifier.LAST_N_PLACES -> {
-                    val selectorVal = selector.selectorValue?.first()!!.toInt()
-                    stageResults.sortedBy { it.place!! }.takeLast(selectorVal)
-                }
-                SelectorClassifier.WINNER_OF_FIGHT -> {
-                    findWinnersOrLosers(selector, ::selectWinnerIdOfFight, stageResults)
-                }
-                SelectorClassifier.LOSER_OF_FIGHT -> {
-                    findWinnersOrLosers(selector, ::selectLoserIdOfFight, stageResults)
-                }
-                SelectorClassifier.PASSED_TO_ROUND -> {
-                    val selectorVal = selector.selectorValue?.first()!!.toInt()
-                    stageResults.filter { it.round!! >= selectorVal }
-                }
-            }
-        }
-        return filterResults(descriptor.selectors!!.first(), stageResults).mapNotNull { it.competitorId }.take(descriptor.numberOfCompetitors)
+        log.info("The following selectors will be used to find competitors that pass to the next stage: ")
+        program.log(log)
+        return program.failFast(stageResults, fights, fightResultOptions).map { it.distinct() }
+                .flatMap {
+                    if (it.size != descriptor.numberOfCompetitors) {
+                        Either.left(CompetitorSelectError.SelectedSizeNotMatch(descriptor.numberOfCompetitors, it.size))
+                    } else {
+                        Either.right(it)
+                    }
+                }.fold({
+                    log.error("Error while fight result selectors: $it")
+                    emptyList()
+                }, { it.toList() })
     }
 
     abstract fun supportedBracketTypes(): List<BracketType>

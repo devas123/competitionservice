@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.model.commands.payload.CategoryRegistrationStatusChangePayload
 import compman.compsrv.model.commands.payload.ChangeCompetitorCategoryPayload
 import compman.compsrv.model.commands.payload.JsonPatch
+import compman.compsrv.model.commands.payload.Payload
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
@@ -208,7 +209,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
                 jooqRepository.saveInputDescriptors(stages.mapNotNull { it.inputDescriptor })
                 jooqRepository.saveResultDescriptors(stages.mapNotNull { it.stageResultDescriptor?.let { srd -> it.id to srd } })
                 jooqRepository.saveGroupDescriptors(stages.map {
-                    it.id to (it.groupDescriptors?.filter { gd -> !gd.id.isNullOrBlank() } ?: emptyList())
+                    it.id to (it.groupDescriptors?.filter { gd -> !gd.id.isNullOrBlank() }.orEmpty())
                 })
             }
             listOf(event)
@@ -239,5 +240,5 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
 
     private val log = LoggerFactory.getLogger(CategoryEventProcessor::class.java)
 
-    private fun <T> getPayloadAs(payload: String?, clazz: Class<T>): T? = mapper.getPayloadFromString(payload, clazz)
+    private inline fun <reified T: Payload> getPayloadAs(payload: String?, clazz: Class<T>): T? = mapper.getPayloadFromString(payload, clazz)
 }

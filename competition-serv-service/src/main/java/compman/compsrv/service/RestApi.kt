@@ -1,5 +1,6 @@
 package compman.compsrv.service
 
+import arrow.core.extensions.either.monadError.monadError
 import compman.compsrv.cluster.ClusterMember
 import compman.compsrv.model.CommonResponse
 import compman.compsrv.model.commands.CommandDTO
@@ -25,12 +26,17 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
         private val log = LoggerFactory.getLogger(RestApi::class.java)
     }
 
+    @RequestMapping("/store/fightsbycategories", method = [RequestMethod.GET])
+    fun getFightIdsByCategoryIds(@RequestParam("competitionId") competitionId: String): Map<String, Array<String>> {
+        return stateQueryService.getFightIdsByCategoryIds(competitionId);
+    }
+
     @RequestMapping(path = ["/command/{competitionId}", "/command"], method = [RequestMethod.POST])
     fun sendCommand(@RequestBody command: CommandDTO, @PathVariable competitionId: String?): ResponseEntity<CommonResponse> {
-        return try {
+        return  kotlin.runCatching {
             val response = commandProducer.sendCommandAsync(command, competitionId)
             ResponseEntity(response, HttpStatus.resolve(response.status) ?: HttpStatus.OK)
-        } catch (e: Exception) {
+        }.getOrElse { e ->
             ResponseEntity(CommonResponse(500, "Exception: ${e.message}", null), HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
@@ -53,17 +59,17 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
 
     @RequestMapping("/store/mats", method = [RequestMethod.GET])
     fun getMats(@RequestParam("competitionId") competitionId: String, @RequestParam("periodId") periodId: String): List<MatStateDTO> {
-        return stateQueryService.getMats(competitionId, periodId)?.toList() ?: emptyList()
+        return stateQueryService.getMats(competitionId, periodId)?.toList().orEmpty()
     }
 
     @RequestMapping("/store/matfights", method = [RequestMethod.GET])
     fun getMatFights(@RequestParam("competitionId") competitionId: String, @RequestParam("matId") matId: String, @RequestParam("maxResults") maxResults: Int): List<FightDescriptionDTO> {
-        return stateQueryService.getMatFights(competitionId, matId, maxResults)?.toList() ?: emptyList()
+        return stateQueryService.getMatFights(competitionId, matId, maxResults)?.toList().orEmpty()
     }
 
     @RequestMapping("/store/stagefights", method = [RequestMethod.GET])
     fun getStageFights(@RequestParam("competitionId") competitionId: String, @RequestParam("stageId") stageId: String): List<FightDescriptionDTO> {
-        return stateQueryService.getStageFights(competitionId, stageId)?.toList() ?: emptyList()
+        return stateQueryService.getStageFights(competitionId, stageId)?.toList().orEmpty()
     }
 
     @RequestMapping("/store/stages", method = [RequestMethod.GET])
@@ -96,6 +102,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
         log.info("looking for the competition properties for competition $competitionId")
         return competitionId?.let { stateQueryService.getCompetitionProperties(it) }
     }
+
     @RequestMapping("/store/infotemplate", method = [RequestMethod.GET])
     fun getCompetitionInfo(@RequestParam("competitionId") competitionId: String?) = stateQueryService.getCompetitionInfoTemplate(competitionId)
 

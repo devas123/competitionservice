@@ -181,7 +181,7 @@ class BracketsGenerateService : FightsService() {
                     val grandFinal = fights.firstOrNull { it.roundType == StageRoundType.GRAND_FINAL }
                     fights.filter { it.id != grandFinal?.id }
                 } else {
-                    assert(DoubleMath.isMathematicalInteger(DoubleMath.log2(outputSize.toDouble()))) { "Output for single elimination brackets must be power of two, but it is $outputSize" }
+                    assert(DoubleMath.isPowerOfTwo(outputSize.toDouble())) { "Output for single elimination brackets must be power of two, but it is $outputSize" }
                     val roundsToReturn = fights.asSequence().groupBy { it.round!! }.map { entry -> entry.key to entry.value.size }.filter { it.second * 2 > outputSize }.map { it.first }
                     fights.filter { roundsToReturn.contains(it.round) }
                 }
@@ -327,7 +327,7 @@ class BracketsGenerateService : FightsService() {
                         val finalRound = grandFinal.round!!
                         val filteredFights = thirdPlaceFight?.let { fights.filter { it.roundType != StageRoundType.GRAND_FINAL && it.roundType != StageRoundType.THIRD_PLACE_FIGHT && it.round != finalRound - 1 } }
                                 ?: fights.filter { it.roundType != StageRoundType.GRAND_FINAL }
-                                ?: emptyList()
+                               .orEmpty()
 
                         fun calculateLoserPlace(round: Int): Int {
                             val diff = finalRound - round
@@ -365,7 +365,7 @@ class BracketsGenerateService : FightsService() {
                                     .setRound(thirdPlaceFight.round)
                                     .setRoundType(thirdPlaceFight.roundType)
                                     .setPlace(place)
-                        } ?: emptyList())
+                        }.orEmpty())
                     }
                     BracketType.DOUBLE_ELIMINATION -> {
                         emptyList()

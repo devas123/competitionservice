@@ -35,7 +35,7 @@ class GroupStageGenerateService : FightsService() {
             }
         }
         if (stage.groupDescriptors.isNullOrEmpty() || stage.groupDescriptors.fold(0) { acc, gr -> acc + gr.size } != comps.size) {
-            throw IllegalArgumentException("Group descriptors are empty or total groups size is less than competitors size")
+            throw IllegalArgumentException("Group descriptors are empty (${stage.groupDescriptors?.size}) or total groups size (${stage.groupDescriptors.fold(0) { acc, gr -> acc + gr.size }}) does not match the competitors (${comps.size}) size")
         }
 
         return stage.groupDescriptors.fold(0 to emptyList<FightDescriptionDTO>()) { acc, groupDescriptorDTO ->

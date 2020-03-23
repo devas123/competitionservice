@@ -61,7 +61,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                     do {
                         val result = cons.poll(Duration.of(200, ChronoUnit.MILLIS))
                         records = result?.records(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME)?.toList()
-                                ?: emptyList()
+                               .orEmpty()
                         if (!competitionCreated) {
                             val recSequence = records.asSequence()
                                     .filter { it.key() == competitionId }

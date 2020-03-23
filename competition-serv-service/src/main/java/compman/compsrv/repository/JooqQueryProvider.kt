@@ -158,18 +158,24 @@ class JooqQueryProvider(private val create: DSLContext) {
                                 sch.fightIds.map { fid ->
                                     create.update(FightDescription.FIGHT_DESCRIPTION)
                                             .set(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID, sch.id)
+                                            .set(FightDescription.FIGHT_DESCRIPTION.INVALID, false)
                                             .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fid))
-                                }
+                                } +
+                                sch.invalidFightIds?.map { fid ->
+                                    create.update(FightDescription.FIGHT_DESCRIPTION)
+                                            .set(FightDescription.FIGHT_DESCRIPTION.INVALID, true)
+                                            .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fid))
+                                }.orEmpty()
                     }
-        } + (it.periods?.flatMap { per -> per.scheduleRequirements?.toList() ?: emptyList() }
-                ?.flatMap { scheduleRequirementDTO -> saveScheduleRequirementsQuery(scheduleRequirementDTO) } ?: emptyList()) +
-                (it.periods?.flatMap { per -> per.scheduleEntries?.toList() ?: emptyList() }
+        } + it.periods?.flatMap { per -> per.scheduleRequirements?.toList().orEmpty() }
+                ?.flatMap { scheduleRequirementDTO -> saveScheduleRequirementsQuery(scheduleRequirementDTO) }.orEmpty() +
+                it.periods?.flatMap { per -> per.scheduleEntries?.toList().orEmpty() }
                         ?.flatMap { e -> e.requirementIds?.map { req ->
                             create.insertInto(ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT,
-                                    ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT.SCHEDULE_ENTRY_ID,
-                                    ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT.SCHEDULE_REQUIREMENT_ID)
+                                            ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT.SCHEDULE_ENTRY_ID,
+                                            ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT.SCHEDULE_REQUIREMENT_ID)
                                     .values(e.id, req)
-                        } ?: emptyList() } ?: emptyList())
+                        }.orEmpty() }.orEmpty()
     }
 
     fun saveMatQuery(mat: MatDescriptionDTO): InsertReturningStep<MatDescriptionRecord> =
@@ -196,29 +202,59 @@ class JooqQueryProvider(private val create: DSLContext) {
                         .where(ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.REQUIREMENT_ID.eq(schedReqDTO.id)),
                 create.deleteFrom(ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION)
                         .where(ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.REQUIREMENT_ID.eq(schedReqDTO.id))) +
-                (schedReqDTO.categoryIds?.map {
+                schedReqDTO.categoryIds?.map {
                     create.insertInto(ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION,
-                            ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.REQUIREMENT_ID,
-                            ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.CATEGORY_ID)
+                                    ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.REQUIREMENT_ID,
+                                    ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.CATEGORY_ID)
                             .values(schedReqDTO.id, it)
-                } ?: emptyList()) +
-                (schedReqDTO.fightIds?.map {
+                }.orEmpty() +
+                schedReqDTO.fightIds?.map {
                     create.insertInto(ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION,
-                            ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.REQUIREMENT_ID,
-                            ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.FIGHT_ID)
+                                    ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.REQUIREMENT_ID,
+                                    ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.FIGHT_ID)
                             .values(schedReqDTO.id, it)
-                } ?: emptyList())
+                }.orEmpty()
     }
 
 
-    fun saveAdditionalGroupSortingDescriptorQuery(stageId: String, agsd: AdditionalGroupSortingDescriptorDTO): InsertValuesStepN<AdditionalGroupSortingDescriptorRecord> =
+    fun saveAdditionalGroupSortingDescriptorQuery(stageId: String, agsd: AdditionalGroupSortingDescriptorDTO): InsertReturningStep<AdditionalGroupSortingDescriptorRecord> =
             AdditionalGroupSortingDescriptorRecord(stageId, agsd.groupSortDirection?.ordinal, agsd.groupSortSpecifier?.ordinal).let {
                 create.insertInto(AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR,
-                        *it.fields()).values(it.value1(), it.value2(), it.value3())
+                        *it.fields()).values(it.value1(), it.value2(), it.value3()).onDuplicateKeyIgnore()
             }
 
+    fun selectStagesByCategoryIdQuery(competitionId: String, categoryId: String): SelectConditionStep<Record> {
+        return stageJoinQuery()
+                .where(StageDescriptor.STAGE_DESCRIPTOR.COMPETITION_ID.eq(competitionId))
+                .and(StageDescriptor.STAGE_DESCRIPTOR.CATEGORY_ID.eq(categoryId))
+    }
 
-     fun replaceRegPeriodsRegGroupsQueries(periodId: String, groupIds: List<String>): List<RowCountQuery> {
+    fun selectStagesByIdQuery(competitionId: String, stageId: String): SelectConditionStep<Record> {
+        return stageJoinQuery()
+                .where(StageDescriptor.STAGE_DESCRIPTOR.COMPETITION_ID.eq(competitionId))
+                .and(StageDescriptor.STAGE_DESCRIPTOR.ID.eq(stageId))
+    }
+
+    private fun stageJoinQuery(): SelectWhereStep<Record> {
+        return create.selectFrom(StageDescriptor.STAGE_DESCRIPTOR
+                .join(FightResultOption.FIGHT_RESULT_OPTION, JoinType.LEFT_OUTER_JOIN)
+                .on(FightResultOption.FIGHT_RESULT_OPTION.STAGE_ID.eq(StageDescriptor.STAGE_DESCRIPTOR.ID))
+                .join(GroupDescriptor.GROUP_DESCRIPTOR, JoinType.LEFT_OUTER_JOIN)
+                .on(GroupDescriptor.GROUP_DESCRIPTOR.STAGE_ID.eq(StageDescriptor.STAGE_DESCRIPTOR.ID))
+                .join(CompetitorStageResult.COMPETITOR_STAGE_RESULT, JoinType.LEFT_OUTER_JOIN)
+                .on(CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID.eq(StageDescriptor.STAGE_DESCRIPTOR.ID))
+                .join(StageInputDescriptor.STAGE_INPUT_DESCRIPTOR, JoinType.LEFT_OUTER_JOIN)
+                .on(StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.ID.eq(StageDescriptor.STAGE_DESCRIPTOR.ID))
+                .join(CompetitorSelector.COMPETITOR_SELECTOR, JoinType.LEFT_OUTER_JOIN)
+                .on(CompetitorSelector.COMPETITOR_SELECTOR.STAGE_INPUT_ID.eq(StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.ID))
+                .join(AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR, JoinType.LEFT_OUTER_JOIN)
+                .on(StageDescriptor.STAGE_DESCRIPTOR.ID.eq(AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.STAGE_ID))
+                .join(CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE, JoinType.LEFT_OUTER_JOIN)
+                .on(CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE.COMPETITOR_SELECTOR_ID.eq(CompetitorSelector.COMPETITOR_SELECTOR.ID)))
+    }
+
+
+    fun replaceRegPeriodsRegGroupsQueries(periodId: String, groupIds: List<String>): List<RowCountQuery> {
         return listOf(create.delete(RegGroupRegPeriod.REG_GROUP_REG_PERIOD).where(RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_PERIOD_ID.eq(periodId))) +
                 insertGroupIdsForPeriodIdQueries(groupIds, periodId)
     }

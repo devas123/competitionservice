@@ -3,11 +3,9 @@ package compman.compsrv.util
 import arrow.Kind
 import arrow.core.*
 import arrow.core.extensions.either.applicativeError.applicativeError
-import arrow.core.extensions.either.applicativeError.raiseError
 import arrow.core.extensions.nonemptylist.semigroup.semigroup
 import arrow.core.extensions.validated.applicativeError.applicativeError
 import arrow.typeclasses.ApplicativeError
-import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
 import compman.compsrv.model.dto.competition.CategoryRestrictionDTO
 import compman.compsrv.model.dto.competition.CategoryRestrictionType
 
@@ -22,7 +20,7 @@ sealed class ValidationError(val msg: String) {
 sealed class Rules<F>(A: ApplicativeError<F, Nel<ValidationError>>) : ApplicativeError<F, Nel<ValidationError>> by A {
 
     private fun isNumericOrNull(value: String?, type: CategoryRestrictionType): Kind<F, String?> {
-        return if (value.isNullOrBlank()) {
+        return if (value == null) {
             just(value)
         } else {
             runCatching { value.toBigDecimal() }.map { just(value) }.getOrElse { raiseError(ValidationError.NotNumerical(value, type).nel()) }
@@ -44,9 +42,8 @@ sealed class Rules<F>(A: ApplicativeError<F, Nel<ValidationError>>) : Applicativ
             else raiseError(ValidationError.MaxLength(maxLength).nel())
 
     fun CategoryRestrictionDTO.validate(): Kind<F, CategoryRestrictionDTO> =
-            map(validateMaxValue(), validateMinValue(), nameMaxLength(50)) {
-                this
-            }.handleErrorWith { raiseError(ValidationError.NotValid(this, it).nel()) }
+            map(validateMaxValue(), validateMinValue(), nameMaxLength(50)) { this }
+                    .handleErrorWith { raiseError(ValidationError.NotValid(this, it).nel()) }
 
     object ErrorAccumulationStrategy :
             Rules<ValidatedPartialOf<Nel<ValidationError>>>(Validated.applicativeError(NonEmptyList.semigroup()))

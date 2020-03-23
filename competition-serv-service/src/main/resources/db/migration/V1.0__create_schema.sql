@@ -337,20 +337,22 @@ create table compservice.schedule_entry
 
 create table compservice.schedule_requirement
 (
-    id          varchar(255) not null
+    id              varchar(255) not null
         constraint schedule_requirement_pkey
             primary key,
-    period_id   varchar(255) not null
+    period_id       varchar(255) not null
         constraint schedule_requirement_period_id_fkey
             references compservice.schedule_period on delete cascade,
-    mat_id      varchar(255)
+    mat_id          varchar(255)
         constraint schedule_requirement_mat_id_fkey
             references compservice.mat_description,
-    entry_type  integer      not null,
-    start_time  timestamp,
-    force       boolean,
-    end_time    timestamp,
-    description varchar(255),
+    entry_type      integer      not null,
+    entry_order      integer      not null,
+    start_time      timestamp,
+    force           boolean,
+    end_time        timestamp,
+    duration_minutes numeric(19, 2),
+    description     varchar(255),
     constraint schedule_requirement_unique_period_mat_order
         unique (period_id, mat_id, entry_type)
 );
@@ -398,6 +400,7 @@ create table compservice.fight_description
         constraint fight_description_group_descriptor_fkey
             references compservice.group_descriptor on delete cascade,
     fight_order             integer,
+    invalid                 boolean,
     schedule_entry_id       varchar(255)
         constraint fight_description_schedule_entry_fkey
             references compservice.schedule_entry

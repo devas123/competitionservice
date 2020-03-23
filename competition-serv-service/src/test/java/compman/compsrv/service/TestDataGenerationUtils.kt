@@ -92,7 +92,7 @@ class TestDataGenerationUtils(private val fightsGenerateService: FightsService) 
                 .setSchedulePublished(false)
     }
 
-    fun createPeriod(id: String, mats: Array<MatDescriptionDTO>, scheduleEntries: Array<ScheduleRequirementDTO>): PeriodDTO =
+    private fun createPeriod(id: String, mats: Array<MatDescriptionDTO>, scheduleEntries: Array<ScheduleRequirementDTO>): PeriodDTO =
             PeriodDTO()
                     .setId(id)
                     .setMats(mats)
@@ -137,30 +137,34 @@ class TestDataGenerationUtils(private val fightsGenerateService: FightsService) 
                                 .toTypedArray())
                         .setMatId("mat1")
                         .setEntryType(ScheduleRequirementType.CATEGORIES)
+                        .setEntryOrder(0)
         )),
                 createPeriod(period2, mats2, arrayOf(
                         ScheduleRequirementDTO()
                                 .setId("$period2-entry1")
                                 .setCategoryIds(categories.subList(1, 2).map { it.second.id }
                                         .toTypedArray())
-                                .setEntryType(ScheduleRequirementType.CATEGORIES),
+                                .setEntryType(ScheduleRequirementType.CATEGORIES)
+                                .setEntryOrder(0),
                         ScheduleRequirementDTO()
                                 .setId("$period2-entry2")
                                 .setMatId("mat2")
                                 .setFightIds(
                                         lastCatFights.take(5).toTypedArray()
                                 )
-                                .setEntryType(ScheduleRequirementType.FIGHTS),
+                                .setEntryType(ScheduleRequirementType.FIGHTS)
+                                .setEntryOrder(1),
                         ScheduleRequirementDTO()
                                 .setId("$period2-entry3")
                                 .setCategoryIds(categories.subList(2, categories.size).map { it.second.id }.toTypedArray())
                                 .setEntryType(ScheduleRequirementType.CATEGORIES)
+                                .setEntryOrder(2)
 
                 )))
         return scheduleService.generateSchedule(competitionId, periods, Flux.fromIterable(stagesToFights.map<Pair<String, List<FightDescriptionDTO>>, Pair<Tuple3<String, String, BracketType>, List<FightDescription>>> {
             Tuple3(it.first, it.second.first().categoryId, BracketType.SINGLE_ELIMINATION) to it.second.map { f ->
                 f.toPojo()
             }
-        }), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap())
+        }), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap()) { id -> stagesToFights.flatMap { it.second }.firstOrNull { it.id == id }?.toPojo() }
     }
 }

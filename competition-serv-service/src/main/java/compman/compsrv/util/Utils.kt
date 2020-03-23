@@ -18,6 +18,8 @@ private fun parseDate(date: Any?, default: Instant?) = if (date != null && !date
     default
 }
 
+fun Boolean?.orFalse() = this == true
+
 fun getId(name: String) = IDGenerator.hashString(name)
 
 fun CompetitorDTO.copy(id: String? = this.id,
