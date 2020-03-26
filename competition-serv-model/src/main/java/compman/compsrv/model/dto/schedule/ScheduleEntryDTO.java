@@ -19,6 +19,8 @@ public class ScheduleEntryDTO {
     private String matId;
     private String periodId;
     private String description;
+    private String name;
+    private String color;
     private ScheduleEntryType entryType;
     private String[] requirementIds;
     private Instant startTime;

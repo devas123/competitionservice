@@ -191,7 +191,8 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                 if (fixedPause != null) {
                     pauses.removeIf { it.id == fixedPause.id }
                     log.info("Fixed pause.")
-                    val endTime = fixedPause.endTime ?: fixedPause.startTime.plusMillis(fixedPause.durationMinutes.multiply(BigDecimal.valueOf(60000L)).toLong())
+                    val endTime = fixedPause.endTime
+                            ?: fixedPause.startTime.plusMillis(fixedPause.durationMinutes.multiply(BigDecimal.valueOf(60000L)).toLong())
                     val pauseEntry = createFixedPauseEntry(fixedPause, endTime)
                     return updateScheduleEntry(pauseEntry) to updateMatInCollection(
                             mat.copy(currentTime = endTime, pending = LinkedHashSet(mat.pending + f)))
@@ -209,7 +210,7 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                     log.info("Dispatching fight ${f.id} -> ${f.round}. to entry ${entryDTO.id}")
                     val newSchedule = updateScheduleEntry(entryDTO.apply {
                         categoryIds = ((categoryIds ?: emptyArray()) + f.categoryId).distinct().toTypedArray()
-                        fightIds = (fightIds ?: emptyArray()) + f.id
+                        fightIds = ((fightIds ?: emptyArray()) + f.id).distinct().toTypedArray()
                         startTime = startTime ?: mat.currentTime
                         numberOfFights = (numberOfFights ?: 0) + 1
                     })
@@ -260,7 +261,7 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
         }
 
         private fun createPauseEntry(pauseReq: ScheduleRequirementDTO, startTime: Instant, endTime: Instant, pauseType: ScheduleEntryType): ScheduleEntryDTO {
-            return                 ScheduleEntryDTO().apply {
+            return ScheduleEntryDTO().apply {
                 id = pauseReq.id
                 this.matId = pauseReq.matId!!
                 categoryIds = emptyArray()
@@ -276,12 +277,9 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
 
         }
 
-        private fun createFixedPauseEntry(fixedPause: ScheduleRequirementDTO, endTime: Instant)
-                = createPauseEntry(fixedPause, fixedPause.startTime, endTime, ScheduleEntryType.FIXED_PAUSE)
+        private fun createFixedPauseEntry(fixedPause: ScheduleRequirementDTO, endTime: Instant) = createPauseEntry(fixedPause, fixedPause.startTime, endTime, ScheduleEntryType.FIXED_PAUSE)
 
-        private fun createRelativePauseEntry(requirement: ScheduleRequirementDTO, startTime: Instant, endTime: Instant)
-                = createPauseEntry(requirement, startTime, endTime, ScheduleEntryType.RELATIVE_PAUSE)
-
+        private fun createRelativePauseEntry(requirement: ScheduleRequirementDTO, startTime: Instant, endTime: Instant) = createPauseEntry(requirement, startTime, endTime, ScheduleEntryType.RELATIVE_PAUSE)
 
 
         private inline fun prevReqPredicate(requirement: ScheduleRequirementDTO, crossinline matCondition: (s: ScheduleRequirementDTO) -> Boolean) = { it: ScheduleRequirementDTO ->
@@ -327,7 +325,9 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                             .setCategoryIds(emptyArray())
                             .setStartTime(requirement.startTime)
                             .setEndTime(requirement.endTime)
-                            .setRequirementIds(arrayOf(requirement.id)))
+                            .setRequirementIds(arrayOf(requirement.id))
+                            .setName(requirement.name)
+                            .setColor(requirement.color))
         }
 
         fun acceptFight(schedule: List<ScheduleEntryDTO>, fightsByMats: List<InternalMatScheduleContainer>, f: FightDescription, pauses: MutableList<ScheduleRequirementDTO>, lastrun: Boolean): Pair<List<ScheduleEntryDTO>, List<InternalMatScheduleContainer>> {
@@ -400,7 +400,8 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                                     sfbm = sfbm.copy(second = sfbm.second.map { it.copy(pending = LinkedHashSet()) })
                                 }
                                 val invalidFights = sfbm.second.flatMap { internalMatScheduleContainer ->
-                                    internalMatScheduleContainer.invalid.map { it.id } }
+                                    internalMatScheduleContainer.invalid.map { it.id }
+                                }
                                 fightsByMats.a.replaceAll(sfbm.first)
                                 fightsByMats.b.replaceAll(sfbm.second)
                                 fightsByMats.c.replaceAll(pendingFights)
@@ -422,15 +423,15 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                                 val a = (t.a + u.a).groupBy { it.id }.mapValues { e ->
                                     //Categories, fights, requirements
                                     val cfr = e.value.fold(Tuple3(emptyList<String>(), emptyList<String>(), emptyList<String>())) { acc, schedEntry ->
-                                        Tuple3(acc.a + (schedEntry.categoryIds
-                                                ?: emptyArray()), acc.b + (schedEntry.fightIds
-                                                ?: emptyArray()), acc.c + (schedEntry.requirementIds ?: emptyArray()))
+                                        Tuple3((acc.a + schedEntry.categoryIds.orEmpty()).distinct(),
+                                                (acc.b + schedEntry.fightIds.orEmpty()).distinct(),
+                                                (acc.c + schedEntry.requirementIds.orEmpty()).distinct())
                                     }
                                     val entry = e.value[0]
                                     entry
-                                            .setCategoryIds(cfr.a.toTypedArray())
-                                            .setFightIds(cfr.b.toTypedArray())
-                                            .setRequirementIds(cfr.c.toTypedArray())
+                                            .setCategoryIds(cfr.a.distinct().toTypedArray())
+                                            .setFightIds(cfr.b.distinct().toTypedArray())
+                                            .setRequirementIds(cfr.c.distinct().toTypedArray())
                                 }.toList().map { it.second }.toMutableList()
                                 Tuple4(a,
                                         b,
@@ -491,15 +492,12 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
             // if we have two schedule groups with specified fights for one category and they do not contain all the fights,
             // we will dynamically create a 'default' schedule group for the remaining fights
             // later if we move the schedule groups we will have to re-calculate the whole schedule again to avoid inconsistencies.
-            periodDTO.scheduleRequirements.groupBy { it.matId ?: "${periodDTO.id}_no_mat" }
-                    .mapValues { e -> e.value.mapIndexed { ind, v -> v.setEntryOrder(ind) } }
-                    .toList()
-                    .flatMap { it.second }
-                    .mapIndexed { index, it ->
-                        it.setEntryOrder(index).setId(it.id
-                                ?: IDGenerator.scheduleRequirementId(competitionId, periodDTO.id, index, it.entryType)).setPeriodId(periodDTO.id)
-                    }
+            periodDTO.scheduleRequirements?.map { it.setPeriodId(periodDTO.id) }.orEmpty()
+        }.mapIndexed { index, it ->
+            it.setEntryOrder(index).setId(it.id
+                    ?: IDGenerator.scheduleRequirementId(competitionId, it.periodId, index, it.entryType))
         }
+
         val flatFights = enrichedScheduleRequirements.flatMap { it.fightIds?.toList().orEmpty() }
         assert(flatFights.distinct().size == flatFights.size)
         val brackets = stages.filter { categoryCompetitorNumbers[it.first.b] ?: 0 > 0 }
@@ -529,7 +527,7 @@ class ScheduleService(private val bracketSimulatorFactory: BracketSimulatorFacto
                             .setRiskPercent(period.riskPercent)
                             .setTimeBetweenFights(period.timeBetweenFights)
                             .setIsActive(period.isActive)
-                            .setScheduleRequirements(period.scheduleRequirements)
+                            .setScheduleRequirements(enrichedScheduleRequirements.filter { it.periodId === period.id }.toTypedArray())
                             .setScheduleEntries(fightsByMats.a.filter { it.periodId == period.id }
                                     .sortedBy { it.startTime.toEpochMilli() }
                                     .mapIndexed { i, scheduleEntryDTO ->

@@ -22,6 +22,7 @@ class JooqQueryProvider(private val create: DSLContext) {
             .join(CategoryRestriction.CATEGORY_RESTRICTION)
             .on(CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.CATEGORY_RESTRICTION_ID.eq(CategoryRestriction.CATEGORY_RESTRICTION.ID)))
             .where(CategoryDescriptor.CATEGORY_DESCRIPTOR.COMPETITION_ID.eq(competitionId))
+
     fun competitorNumbersByCategoryIdsQuery(competitionId: String): SelectHavingStep<Record2<String, Int>> {
         return create.select(CompetitorCategories.COMPETITOR_CATEGORIES.CATEGORIES_ID, DSL.count())
                 .from(Competitor.COMPETITOR.join(CompetitorCategories.COMPETITOR_CATEGORIES).on(CompetitorCategories.COMPETITOR_CATEGORIES.COMPETITORS_ID.eq(Competitor.COMPETITOR.ID)))
@@ -102,7 +103,10 @@ class JooqQueryProvider(private val create: DSLContext) {
 
     fun saveScheduleQuery(it: ScheduleDTO): List<RowCountQuery> {
         return it.periods.flatMap { per ->
-            listOf(create.insertInto(SchedulePeriod.SCHEDULE_PERIOD,
+            listOf(
+                    create.deleteFrom(SchedulePeriod.SCHEDULE_PERIOD)
+                            .where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(it.id)),
+                    create.insertInto(SchedulePeriod.SCHEDULE_PERIOD,
                     SchedulePeriod.SCHEDULE_PERIOD.ID,
                     SchedulePeriod.SCHEDULE_PERIOD.NAME,
                     SchedulePeriod.SCHEDULE_PERIOD.START_TIME,
@@ -113,7 +117,14 @@ class JooqQueryProvider(private val create: DSLContext) {
                     SchedulePeriod.SCHEDULE_PERIOD.TIME_BETWEEN_FIGHTS
             )
                     .values(per.id, per.name, per.startTime?.toTimestamp(), it.id, per.isActive, per.endTime?.toTimestamp(),
-                            per.riskPercent, per.timeBetweenFights)) +
+                            per.riskPercent, per.timeBetweenFights).onDuplicateKeyUpdate()
+                    .set(SchedulePeriod.SCHEDULE_PERIOD.END_TIME, per.endTime?.toTimestamp())
+                    .set(SchedulePeriod.SCHEDULE_PERIOD.START_TIME, per.startTime?.toTimestamp())
+                    .set(SchedulePeriod.SCHEDULE_PERIOD.NAME, per.name)
+                    .set(SchedulePeriod.SCHEDULE_PERIOD.RISK_PERCENT, per.riskPercent)
+                    .set(SchedulePeriod.SCHEDULE_PERIOD.TIME_BETWEEN_FIGHTS, per.timeBetweenFights)
+                    .set(SchedulePeriod.SCHEDULE_PERIOD.IS_ACTIVE, per.isActive)
+                    ) +
                     per.mats.flatMap { ms ->
                         listOf(saveMatQuery(ms)) +
                                 ms.fightStartTimes.map { f ->
@@ -135,6 +146,8 @@ class JooqQueryProvider(private val create: DSLContext) {
                                 ScheduleEntry.SCHEDULE_ENTRY.END_TIME,
                                 ScheduleEntry.SCHEDULE_ENTRY.ENTRY_TYPE,
                                 ScheduleEntry.SCHEDULE_ENTRY.DESCRIPTION,
+                                ScheduleEntry.SCHEDULE_ENTRY.NAME,
+                                ScheduleEntry.SCHEDULE_ENTRY.COLOR,
                                 ScheduleEntry.SCHEDULE_ENTRY.MAT_ID)
                                 .values(sch.id,
                                         per.id,
@@ -144,6 +157,8 @@ class JooqQueryProvider(private val create: DSLContext) {
                                         sch.endTime?.toTimestamp(),
                                         sch.entryType?.ordinal,
                                         sch.description,
+                                        sch.name,
+                                        sch.color,
                                         sch.matId)
                     } +
                     per.scheduleEntries.flatMap { sch ->
@@ -170,19 +185,20 @@ class JooqQueryProvider(private val create: DSLContext) {
         } + it.periods?.flatMap { per -> per.scheduleRequirements?.toList().orEmpty() }
                 ?.flatMap { scheduleRequirementDTO -> saveScheduleRequirementsQuery(scheduleRequirementDTO) }.orEmpty() +
                 it.periods?.flatMap { per -> per.scheduleEntries?.toList().orEmpty() }
-                        ?.flatMap { e -> e.requirementIds?.map { req ->
-                            create.insertInto(ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT,
-                                            ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT.SCHEDULE_ENTRY_ID,
-                                            ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT.SCHEDULE_REQUIREMENT_ID)
-                                    .values(e.id, req)
-                        }.orEmpty() }.orEmpty()
+                        ?.flatMap { e ->
+                            e.requirementIds?.map { req ->
+                                create.insertInto(ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT,
+                                        ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT.SCHEDULE_ENTRY_ID,
+                                        ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT.SCHEDULE_REQUIREMENT_ID)
+                                        .values(e.id, req)
+                            }.orEmpty()
+                        }.orEmpty()
     }
 
     fun saveMatQuery(mat: MatDescriptionDTO): InsertReturningStep<MatDescriptionRecord> =
             create.insertInto(MatDescription.MAT_DESCRIPTION, *MatDescription.MAT_DESCRIPTION.fields())
                     .values(mat.id, mat.name, mat.matOrder, mat.periodId)
                     .onDuplicateKeyIgnore()
-
 
 
     fun saveScheduleRequirementsQuery(schedReqDTO: ScheduleRequirementDTO): List<RowCountQuery> {
@@ -194,24 +210,40 @@ class JooqQueryProvider(private val create: DSLContext) {
             this.force = schedReqDTO.isForce
             this.startTime = schedReqDTO.startTime?.toTimestamp()
             this.endTime = schedReqDTO.endTime?.toTimestamp()
+            this.name = schedReqDTO.name
+            this.color = schedReqDTO.color
+            this.entryOrder = schedReqDTO.entryOrder
+            this.durationMinutes = schedReqDTO.durationMinutes
         }
         return listOf(create.insertInto(ScheduleRequirement.SCHEDULE_REQUIREMENT, *record.fields())
                 .values(record.value1(), record.value2(), record.value3(), record.value4(),
-                        record.value5(), record.value6(), record.value7(), record.value8()),
+                        record.value5(), record.value6(), record.value7(), record.value8(), record.value9(),
+                        record.value10(), record.value11(), record.value12())
+                .onDuplicateKeyUpdate()
+                .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.COLOR, schedReqDTO.color)
+                .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_ORDER, schedReqDTO.entryOrder)
+                .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_TYPE, schedReqDTO.entryType?.ordinal)
+                .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.START_TIME, schedReqDTO.startTime?.toTimestamp())
+                .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.END_TIME, schedReqDTO.endTime?.toTimestamp())
+                .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.DURATION_MINUTES, schedReqDTO.durationMinutes)
+                .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.PERIOD_ID, schedReqDTO.periodId)
+                .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.MAT_ID, schedReqDTO.matId)
+                .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.FORCE, schedReqDTO.isForce)
+                .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.NAME, schedReqDTO.name),
                 create.deleteFrom(ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION)
                         .where(ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.REQUIREMENT_ID.eq(schedReqDTO.id)),
                 create.deleteFrom(ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION)
                         .where(ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.REQUIREMENT_ID.eq(schedReqDTO.id))) +
                 schedReqDTO.categoryIds?.map {
                     create.insertInto(ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION,
-                                    ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.REQUIREMENT_ID,
-                                    ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.CATEGORY_ID)
+                            ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.REQUIREMENT_ID,
+                            ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.CATEGORY_ID)
                             .values(schedReqDTO.id, it)
                 }.orEmpty() +
                 schedReqDTO.fightIds?.map {
                     create.insertInto(ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION,
-                                    ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.REQUIREMENT_ID,
-                                    ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.FIGHT_ID)
+                            ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.REQUIREMENT_ID,
+                            ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.FIGHT_ID)
                             .values(schedReqDTO.id, it)
                 }.orEmpty()
     }
@@ -259,14 +291,14 @@ class JooqQueryProvider(private val create: DSLContext) {
                 insertGroupIdsForPeriodIdQueries(groupIds, periodId)
     }
 
-     fun insertGroupIdsForPeriodIdQueries(groupIds: List<String>, periodId: String): List<InsertReturningStep<RegGroupRegPeriodRecord>> {
+    fun insertGroupIdsForPeriodIdQueries(groupIds: List<String>, periodId: String): List<InsertReturningStep<RegGroupRegPeriodRecord>> {
         return groupIds.map { groupId ->
             create.insertInto(RegGroupRegPeriod.REG_GROUP_REG_PERIOD, RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_PERIOD_ID, RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_GROUP_ID)
                     .values(periodId, groupId).onDuplicateKeyIgnore()
         }
     }
 
-     fun updateRegistrationGroupCategoriesQueries(regGroupId: String, categories: List<String>): List<RowCountQuery> {
+    fun updateRegistrationGroupCategoriesQueries(regGroupId: String, categories: List<String>): List<RowCountQuery> {
         return listOf(create.deleteFrom(RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES)
                 .where(RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES.REGISTRATION_GROUP_ID.eq(regGroupId))
         ) +
@@ -288,7 +320,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                 .join(FightDescription.FIGHT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
                 .on(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID.eq(ScheduleEntry.SCHEDULE_ENTRY.ID))
                 .join(MatDescription.MAT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
-                .on(MatDescription.MAT_DESCRIPTION.PERIOD_ID.eq(SchedulePeriod.SCHEDULE_PERIOD.ID)))
+                .on(SchedulePeriod.SCHEDULE_PERIOD.ID.eq(MatDescription.MAT_DESCRIPTION.PERIOD_ID)))
                 .where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(competitionId))
     }
 

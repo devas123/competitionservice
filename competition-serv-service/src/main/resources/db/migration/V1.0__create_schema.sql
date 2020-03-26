@@ -331,30 +331,34 @@ create table compservice.schedule_entry
     end_time       timestamp,
     schedule_order integer      not null,
     description    varchar(255),
+    name           varchar(255),
+    color          varchar(255),
     constraint schedule_unique_period_mat_order
         unique (period_id, mat_id, schedule_order, entry_type)
 );
 
 create table compservice.schedule_requirement
 (
-    id              varchar(255) not null
+    id               varchar(255) not null
         constraint schedule_requirement_pkey
             primary key,
-    period_id       varchar(255) not null
+    period_id        varchar(255) not null
         constraint schedule_requirement_period_id_fkey
             references compservice.schedule_period on delete cascade,
-    mat_id          varchar(255)
+    mat_id           varchar(255)
         constraint schedule_requirement_mat_id_fkey
             references compservice.mat_description,
-    entry_type      integer      not null,
+    entry_type       integer      not null,
     entry_order      integer      not null,
-    start_time      timestamp,
-    force           boolean,
-    end_time        timestamp,
+    start_time       timestamp,
+    force            boolean,
+    end_time         timestamp,
     duration_minutes numeric(19, 2),
-    description     varchar(255),
+    description      varchar(255),
+    name             varchar(255),
+    color            varchar(255),
     constraint schedule_requirement_unique_period_mat_order
-        unique (period_id, mat_id, entry_type)
+        unique (period_id, mat_id, entry_order)
 );
 
 create table compservice.fight_description
@@ -410,7 +414,7 @@ create table compservice.fight_description
 create table compservice.schedule_requirement_fight_description
 (
     requirement_id varchar(255) not null
-        constraint schedule_requirement_fight_description_requirement_id references compservice.schedule_requirement on delete cascade,
+        constraint schedule_requirement_fight_description_requirement_id references compservice.schedule_requirement  on delete cascade,
     fight_id       varchar(255) not null
         constraint schedule_requirement_fight_description_fight_id references compservice.fight_description on delete cascade,
     constraint schedule_requirement_fight_description_pkey
@@ -420,9 +424,9 @@ create table compservice.schedule_requirement_fight_description
 create table compservice.schedule_requirement_category_description
 (
     requirement_id varchar(255) not null
-        constraint schedule_requirement_category_description_requirement_id references compservice.schedule_requirement on delete cascade,
+        constraint schedule_requirement_category_description_requirement_id references compservice.schedule_requirement  on delete cascade,
     category_id    varchar(255) not null
-        constraint schedule_requirement_category_description_category_id references compservice.category_descriptor on delete cascade,
+        constraint schedule_requirement_category_description_category_id references compservice.category_descriptor  on delete cascade,
     constraint schedule_requirement_category_description_pkey
         primary key (requirement_id, category_id)
 );
@@ -432,18 +436,18 @@ create table compservice.schedule_requirement_category_description
 create table compservice.category_schedule_entry
 (
     category_id       varchar(255) not null
-        constraint category_schedule_entry_category_fkey references compservice.category_descriptor,
+        constraint category_schedule_entry_category_fkey references compservice.category_descriptor on delete cascade,
     schedule_entry_id varchar(255) not null
-        constraint category_schedule_entry_schedule_entry_fkey references compservice.schedule_entry,
+        constraint category_schedule_entry_schedule_entry_fkey references compservice.schedule_entry on delete cascade,
     constraint category_schedule_entry_pkey primary key (category_id, schedule_entry_id)
 );
 
 create table compservice.schedule_entry_schedule_requirement
 (
     schedule_requirement_id varchar(255) not null
-        constraint schedule_entry_schedule_requirement_schedule_requirement_fkey references compservice.schedule_requirement,
+        constraint schedule_entry_schedule_requirement_schedule_requirement_fkey references compservice.schedule_requirement on delete cascade ,
     schedule_entry_id       varchar(255) not null
-        constraint schedule_entry_schedule_requirement_schedule_entry_fkey references compservice.schedule_entry,
+        constraint schedule_entry_schedule_requirement_schedule_entry_fkey references compservice.schedule_entry on delete cascade ,
     constraint schedule_entry_schedule_requirement_pkey primary key (schedule_requirement_id, schedule_entry_id)
 );
 

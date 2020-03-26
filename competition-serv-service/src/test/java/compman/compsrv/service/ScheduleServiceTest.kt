@@ -13,7 +13,7 @@ class ScheduleServiceTest {
     private val fightDuration = 8L
 
 
-    private val testDataGenerationUtils  = TestDataGenerationUtils(fightsGenerateService)
+    private val testDataGenerationUtils = TestDataGenerationUtils(fightsGenerateService)
 
     @Test
     fun testScheduleGeneration() {
@@ -25,14 +25,14 @@ class ScheduleServiceTest {
         val competitorNumbers = 10
         val fights = categories.map {
             it.first to testDataGenerationUtils.generateFilledFights(competitionId, it.second, it.first, competitorNumbers, BigDecimal.valueOf(fightDuration))
-        }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f.toPojo()) })  }
+        }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f.toPojo()) }) }
         val flatFights = fights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f.toPojo()) }
 
         val schedule = testDataGenerationUtils.generateSchedule(categories, fights, competitionId, competitorNumbers)
 
         println("Fights: ")
         fights.forEach {
-            println("${it.first} -> ${it.second.filter{ dto -> !ScheduleService.obsoleteFight(dto.toPojo()) }.size}")
+            println("${it.first} -> ${it.second.filter { dto -> !ScheduleService.obsoleteFight(dto.toPojo()) }.size}")
         }
 
         assertNotNull(schedule)
@@ -44,6 +44,16 @@ class ScheduleServiceTest {
         assertTrue(flatFights.fold(true) { acc, f -> acc && fightStartTimes.any { it.fightId == f.id } })
         assertTrue(flatFights.fold(true) { acc, f -> acc && fightIdsInSchedule.contains(f.id) })
         assertEquals(categories.size, schedule.periods.flatMap { it.scheduleEntries.flatMap { scheduleEntryDTO -> scheduleEntryDTO.categoryIds.toList() } }.distinct().size)
+        assertTrue(schedule.periods.all {
+            it.scheduleRequirements.all { sr ->
+                sr.entryOrder != null && sr.periodId == it.id
+            }
+        })
+        assertTrue(schedule.periods.all {
+            it.scheduleEntries.all { sr ->
+                sr.periodId == it.id && sr.id != null && sr.startTime != null
+            }
+        })
         println("Periods: ")
         schedule.periods.forEach {
             println("\n==== \n==== \n====")
@@ -53,11 +63,11 @@ class ScheduleServiceTest {
                 println("${mat.id} -> ${mat.fightStartTimes?.size} -> \n${mat.fightStartTimes?.joinToString(separator = "\n") { f -> "${f.fightId} -> ${f.startTime} -> ${f.numberOnMat}" }}")
             }
             println("------------------ SCHEDULE REQUIREMENTS ${it.scheduleRequirements?.size} -----------------")
-            it.scheduleRequirements?.forEach {e ->
+            it.scheduleRequirements?.forEach { e ->
                 println("${e.id} / start = ${e.startTime} / end = ${e.endTime} / categories: ${e.categoryIds?.distinct()?.size} / mat = ${e.matId} / fights: ${e.fightIds?.distinct()?.joinToString("\n")}")
             }
             println("------------------ SCHEDULE ENTRIES ${it.scheduleEntries?.size} -----------------")
-            it.scheduleEntries.forEach {e ->
+            it.scheduleEntries.forEach { e ->
                 println("${e.id} /  start =  ${e.startTime} / end =  ${e.endTime} / categories: ${e.categoryIds?.distinct()?.size}  / mat = ${e.matId} / fights: ${e.fightIds?.distinct()?.size}")
             }
         }

@@ -21,11 +21,13 @@ class JooqMappers {
     fun hasFightStartTime(u: Record): Boolean {
         return (!u[FightDescription.FIGHT_DESCRIPTION.ID].isNullOrBlank()
                 && !u[FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID].isNullOrBlank() &&
-                u[FightDescription.FIGHT_DESCRIPTION.START_TIME] != null)
+                u[FightDescription.FIGHT_DESCRIPTION.START_TIME] != null
+                && u[FightDescription.FIGHT_DESCRIPTION.MAT_ID] == u[MatDescription.MAT_DESCRIPTION.ID] )
     }
 
     fun fightStartTimePairDTO(u: Record): FightStartTimePairDTO {
         return FightStartTimePairDTO()
+                .setFightId(u[FightDescription.FIGHT_DESCRIPTION.ID])
                 .setMatId(u[FightDescription.FIGHT_DESCRIPTION.MAT_ID])
                 .setFightCategoryId(u[FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID])
                 .setPeriodId(u[FightDescription.FIGHT_DESCRIPTION.PERIOD])
@@ -147,6 +149,8 @@ class JooqMappers {
                 .setDuration(u[ScheduleEntry.SCHEDULE_ENTRY.DURATION])
                 .setId(u[ScheduleEntry.SCHEDULE_ENTRY.ID])
                 .setPeriodId(u[ScheduleEntry.SCHEDULE_ENTRY.PERIOD_ID])
+                .setName(u[ScheduleEntry.SCHEDULE_ENTRY.NAME])
+                .setColor(u[ScheduleEntry.SCHEDULE_ENTRY.COLOR])
     }
 
     fun scheduleRequirement(u: Record): ScheduleRequirementDTO {
@@ -160,6 +164,9 @@ class JooqMappers {
                 .setPeriodId(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.PERIOD_ID])
                 .setDurationMinutes(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.DURATION_MINUTES])
                 .setEntryOrder(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_ORDER])
+                .setName(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.NAME])
+                .setColor(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.COLOR])
+
     }
 
 

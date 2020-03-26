@@ -15,7 +15,6 @@ import compman.compsrv.model.commands.payload.*
 import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.model.dto.competition.RegistrationGroupDTO
-import compman.compsrv.model.dto.schedule.PeriodDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
@@ -73,7 +72,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
 
     private fun getAllBrackets(competitionId: String): Flux<Pair<Tuple3<String, String, BracketType>, List<FightDescription>>> {
         return Flux.fromIterable(stageDescriptorCrudRepository.fetchByCompetitionId(competitionId)).map {
-            Tuple3(it.id,  it.categoryId, BracketType.values()[it.bracketType]) to (fightDescriptionDao.fetchByStageId(competitionId).orEmpty())
+            Tuple3(it.id,  it.categoryId, BracketType.values()[it.bracketType]) to (fightDescriptionDao.fetchByStageId(it.id).orEmpty())
         }
     }
 
@@ -240,7 +239,8 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 }
                 CommandType.GENERATE_SCHEDULE_COMMAND -> {
                     val payload = command.payload!!
-                    val periods = mapper.convertValue(payload, Array<PeriodDTO>::class.java)?.map { it.setId(it.id ?: IDGenerator.createPeriodId(command.competitionId)) }
+                    val periods = mapper.convertValue(payload, GenerateSchedulePayload::class.java)
+                            ?.periods?.map { it.setId(it.id ?: IDGenerator.createPeriodId(command.competitionId)) }
                     val compProps = competitionPropertiesCrudRepository.findById(command.competitionId)
                     val categories = periods?.flatMap {
                         it.scheduleEntries?.toList().orEmpty()
@@ -264,7 +264,6 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                        .orEmpty()
                             }?.toTypedArray()
                             val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(newFights)
-
                             listOf(createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule)), createEvent(EventType.FIGHTS_START_TIME_UPDATED, fightStartTimeUpdatedPayload))
                         } else {
                             listOf(createErrorEvent("Categories $missingCategories are unknown"))

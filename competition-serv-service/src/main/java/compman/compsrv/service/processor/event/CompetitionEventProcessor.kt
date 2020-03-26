@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.mapping.toDTO
 import compman.compsrv.model.commands.payload.Payload
 import compman.compsrv.model.dto.competition.CompetitionStateDTO
-import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
@@ -122,7 +121,7 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
                     } ?: throw createError("Properties are missing.")
                 }
                 EventType.SCHEDULE_DROPPED -> {
-                    jooqRepository.deleteScheudlePeriodsByCompetitionId(event.competitionId)
+                    jooqRepository.deleteScheduleEntriesByCompetitionId(event.competitionId)
                 }
                 EventType.SCHEDULE_GENERATED -> {
                     val scheduleGeneratedPayload = getPayloadAs(event.payload, ScheduleGeneratedPayload::class.java)

@@ -18,6 +18,8 @@ public class ScheduleRequirementDTO {
     private String[] fightIds;
     private String matId;
     private String periodId;
+    private String name;
+    private String color;
     private ScheduleRequirementType entryType;
     private boolean force;
     private Instant startTime;
