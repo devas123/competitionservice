@@ -99,12 +99,12 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
     private fun setCompScores(fightId: String, compScores: Array<CompScoreDTO>) {
         val existingScores = compScoreCrudRepository.fetchByCompscoreFightDescriptionId(fightId)
         if (existingScores.size < 2) {
-            val scores = compScores.filter { cs -> existingScores.none { it.compscoreCompetitorId == cs.competitor.id } }
+            val scores = compScores.filter { cs -> existingScores.none { it.compscoreCompetitorId == cs.competitorId } }
             if (!compScores.isNullOrEmpty()) {
                 compScoreCrudRepository.insert(
                         scores.map { compScore ->
                             CompScore(compScore.score.advantages, compScore.score.penalties, compScore.score.points,
-                                    compScore.placeholderId, compScore.competitor.id, fightId, compScore.order)
+                                    compScore.placeholderId, compScore.competitorId, fightId, compScore.order)
                         })
             }
         } else {

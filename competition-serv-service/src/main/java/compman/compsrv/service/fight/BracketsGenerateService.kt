@@ -274,10 +274,10 @@ class BracketsGenerateService : FightsService() {
 
                 val updatedFirstRoundFights = firstRoundFights
                         .map { f ->
-                            getNextCompetitor()?.let { f.pushCompetitor(it) } ?: f
+                            getNextCompetitor()?.let { f.pushCompetitor(it.id) } ?: f
                         }
                         .map { f ->
-                            getNextCompetitor()?.let { f.pushCompetitor(it) } ?: f
+                            getNextCompetitor()?.let { f.pushCompetitor(it.id) } ?: f
                         }
                 assert(getNextCompetitor() == null) { "Not all competitors were distributed." }
                 return fights.map {
@@ -294,12 +294,13 @@ class BracketsGenerateService : FightsService() {
     fun filterUncompletableFirstRoundFights(fights: List<FightDescriptionDTO>, getFightById: (id: String) -> FightDescriptionDTO): List<FightDescriptionDTO> {
         val firstRoundFights = fights.filter { it.id != null && !checkIfFightCanBePacked(it.id!!, getFightById) }
         return firstRoundFights.fold(fights) { acc, fightDescription ->
-            val updatedFight = fightDescription.copy(status = FightStatus.UNCOMPLETABLE, fightResult = FightResultDTO(fightDescription.scores?.firstOrNull()?.competitor?.id, null, "BYE"))
+            val updatedFight = fightDescription.copy(status = FightStatus.UNCOMPLETABLE,
+                    fightResult = FightResultDTO(fightDescription.scores?.firstOrNull()?.competitorId, null, "BYE"))
             val winFightId = fightDescription.winFight
             val updates = if (!winFightId.isNullOrBlank()) {
                 //find win fight
                 val winfight = acc.first { it.id == winFightId }
-                fightDescription.scores?.firstOrNull()?.competitor?.let {
+                fightDescription.scores?.firstOrNull()?.competitorId?.let {
                     listOf(updatedFight, winfight.pushCompetitor(it))
                 } ?: listOf(updatedFight)
             } else {
@@ -336,10 +337,10 @@ class BracketsGenerateService : FightsService() {
                         }
                         filteredFights.mapNotNull { f ->
                             log.info("Processing fight for result: $f")
-                            val result = f.scores?.find { it.competitor.id != f.fightResult?.winnerId!! }?.let { compScore ->
+                            val result = f.scores?.find { it.competitorId != f.fightResult?.winnerId!! }?.let { compScore ->
                                 CompetitorStageResultDTO()
                                         .setStageId(stageId)
-                                        .setCompetitorId(compScore.competitor.id)
+                                        .setCompetitorId(compScore.competitorId)
                                         .setPoints(BigDecimal.ZERO)
                                         .setRound(f.round)
                                         .setRoundType(f.roundType)
@@ -348,19 +349,19 @@ class BracketsGenerateService : FightsService() {
                             log.info("Created competitor result: $result")
                             result
                         } + grandFinal.scores!!.map {
-                            val place = if (it.competitor.id == grandFinal.fightResult!!.winnerId) 1 else 2
+                            val place = if (it.competitorId == grandFinal.fightResult!!.winnerId) 1 else 2
                             CompetitorStageResultDTO()
                                     .setStageId(stageId)
-                                    .setCompetitorId(it.competitor.id)
+                                    .setCompetitorId(it.competitorId)
                                     .setPoints(BigDecimal.ZERO)
                                     .setRound(grandFinal.round)
                                     .setRoundType(grandFinal.roundType)
                                     .setPlace(place)
                         } + (thirdPlaceFight?.scores?.map {
-                            val place = if (it.competitor.id == thirdPlaceFight.fightResult!!.winnerId) 3 else 4
+                            val place = if (it.competitorId == thirdPlaceFight.fightResult!!.winnerId) 3 else 4
                             CompetitorStageResultDTO()
                                     .setStageId(stageId)
-                                    .setCompetitorId(it.competitor.id)
+                                    .setCompetitorId(it.competitorId)
                                     .setPoints(BigDecimal.ZERO)
                                     .setRound(thirdPlaceFight.round)
                                     .setRoundType(thirdPlaceFight.roundType)

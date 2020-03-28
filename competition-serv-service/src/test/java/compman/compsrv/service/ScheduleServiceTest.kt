@@ -2,6 +2,7 @@ package compman.compsrv.service
 
 import compman.compsrv.mapping.toPojo
 import compman.compsrv.service.fight.BracketsGenerateService
+import compman.compsrv.service.fight.FightsService
 import java.math.BigDecimal
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -24,7 +25,8 @@ class ScheduleServiceTest {
                 "stageid4" to testDataGenerationUtils.category4(fightDuration))
         val competitorNumbers = 10
         val fights = categories.map {
-            it.first to testDataGenerationUtils.generateFilledFights(competitionId, it.second, it.first, competitorNumbers, BigDecimal.valueOf(fightDuration))
+            val competitors = FightsService.generateRandomCompetitorsForCategory(competitorNumbers, competitorNumbers, it.second, competitionId)
+            it.first to testDataGenerationUtils.generateFilledFights(competitionId, it.second, it.first, competitors, BigDecimal.valueOf(fightDuration))
         }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f.toPojo()) }) }
         val flatFights = fights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f.toPojo()) }
 

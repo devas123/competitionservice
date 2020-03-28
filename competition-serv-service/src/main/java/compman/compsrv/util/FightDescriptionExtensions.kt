@@ -52,13 +52,13 @@ fun FightDescriptionDTO.copy(id: String = this.id,
         .setStageId(stageId)
         .setGroupId(groupId)
 
-fun FightDescriptionDTO.pushCompetitor(competitor: CompetitorDTO): FightDescriptionDTO {
-    if (competitor.id == "fake") {
+fun FightDescriptionDTO.pushCompetitor(competitorId: String): FightDescriptionDTO {
+    if (competitorId == "fake") {
         return this
     }
     val localScores = mutableListOf<CompScoreDTO>().apply { scores?.toList()?.let { this.addAll(it) } }
     if (localScores.size < 2) {
-        localScores.add(CompScoreDTO().setCompetitor(competitor).setScore(ScoreDTO()).setOrder(localScores.size))
+        localScores.add(CompScoreDTO().setCompetitorId(competitorId).setScore(ScoreDTO()).setOrder(localScores.size))
     } else {
         throw RuntimeException("Fight is already packed. Cannot add competitors")
     }

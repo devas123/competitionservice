@@ -44,7 +44,7 @@ class EitherFunctor(private val competitorResults: (stageId: String) -> List<Com
                         if (resultDescr.isDraw) {
                             throw IllegalArgumentException("No loser in fight ${g.id}")
                         }
-                        val loserId = fight.scores.first { it.competitor.id != fight.fightResult.winnerId }.competitor.id
+                        val loserId = fight.scores.first { it.competitorId != fight.fightResult.winnerId }.competitorId
                         arrayOf(competitorResults(g.stageId).first { it.competitorId == loserId }.competitorId)
                     }.mapLeft { CompetitorSelectError.NoLoserOfFight(g.id, it) }.map { it as A }
                 }

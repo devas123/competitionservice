@@ -14,13 +14,13 @@ import compman.compsrv.service.AbstractGenerateServiceTest;
 import compman.compsrv.service.CategoryGeneratorService;
 import compman.compsrv.service.TestDataGenerationUtils;
 import compman.compsrv.service.fight.BracketsGenerateService;
+import compman.compsrv.service.fight.FightsService;
 import kotlin.Pair;
 import org.jooq.DSLContext;
 import org.jooq.conf.RenderNameStyle;
 import org.jooq.conf.Settings;
 import org.jooq.impl.DSL;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -90,7 +90,7 @@ public class JooqTests {
             jooqRepository.saveCategoryDescriptor(category, competitionId);
             List<FightDescriptionDTO> fights = bracketsGenerateService.generateDoubleEliminationBracket(competitionId, categoryId, stageId, 50, duration);
             AbstractGenerateServiceTest.Companion.checkDoubleEliminationLaws(fights, 32);
-            final AdditionalGroupSortingDescriptorDTO[] additionalGroupSortingDescriptorDTOS =new AdditionalGroupSortingDescriptorDTO[]{
+            final AdditionalGroupSortingDescriptorDTO[] additionalGroupSortingDescriptorDTOS = new AdditionalGroupSortingDescriptorDTO[]{
                     new AdditionalGroupSortingDescriptorDTO()
                             .setGroupSortDirection(GroupSortDirection.ASC)
                             .setGroupSortSpecifier(GroupSortSpecifier.POINTS_DIFFERENCE),
@@ -136,7 +136,7 @@ public class JooqTests {
     }
 
     @Test
-    public void  testSaveSchedule() throws SQLException {
+    public void testSaveSchedule() throws SQLException {
         String competitionId = "competitionId";
         long fightDuration = 8L;
         List<Pair<String, CategoryDescriptorDTO>> categories = Arrays.asList(
@@ -145,28 +145,28 @@ public class JooqTests {
                 new Pair<>("stage3", testDataGenerationUtils.category3(fightDuration)),
                 new Pair<>("stage4", testDataGenerationUtils.category4(fightDuration)));
         int competitorNumbers = 10;
-        List<Pair<String, List<FightDescriptionDTO>>> fights = categories.stream().map( cat ->
-                new Pair<>(cat.getFirst(), testDataGenerationUtils.generateFilledFights(competitionId, cat.getSecond(), cat.getFirst(), competitorNumbers, BigDecimal.valueOf(fightDuration))))
-                .collect(Collectors.toList());
-        ScheduleDTO schedule = testDataGenerationUtils.generateSchedule(categories, fights, competitionId, competitorNumbers);
         try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
              DSLContext dsl = DSL.using(conn, new Settings().withRenderNameStyle(RenderNameStyle.AS_IS))) {
             JooqRepository jooqRepository = createJooqRepository(dsl);
+            List<Pair<String, List<FightDescriptionDTO>>> fights = categories.stream().map(cat -> {
+                List<CompetitorDTO> competitors = FightsService.Companion.generateRandomCompetitorsForCategory(competitorNumbers, 10, cat.getSecond(), competitionId);
+                jooqRepository.saveCompetitors(competitors);
+                return new Pair<>(cat.getFirst(), testDataGenerationUtils.generateFilledFights(competitionId, cat.getSecond(),
+                        cat.getFirst(), competitors, BigDecimal.valueOf(fightDuration)));
+            })
+                    .collect(Collectors.toList());
+            ScheduleDTO schedule = testDataGenerationUtils.generateSchedule(categories, fights, competitionId, competitorNumbers);
             CompetitionPropertiesDTO competitionPropertiesDTO = testDataGenerationUtils.createCompetitionPropertiesDTO(competitionId);
             jooqRepository.saveCompetitionState(new CompetitionStateDTO()
                     .setCategories(new CategoryStateDTO[]{})
                     .setId(competitionId)
                     .setProperties(competitionPropertiesDTO));
-            List<CompetitorDTO> competitors = fights.stream().flatMap(f -> f.getSecond().stream())
-                    .flatMap(f -> Arrays.stream(Optional.ofNullable(f.getScores()).orElse(new CompScoreDTO[] {})))
-            .map(CompScoreDTO::getCompetitor)
-            .filter(comp -> comp != null && comp.getId() != null)
-            .collect(Collectors.toList());
             categories.forEach(cat -> jooqRepository.saveCategoryDescriptor(cat.getSecond(), competitionId));
             List<StageDescriptorDTO> stages = categories.stream().map(cat -> testDataGenerationUtils.createStage(competitionId, cat.getSecond().getId(), cat.getFirst(),
-                    fights.stream().filter(p -> p.getFirst().equalsIgnoreCase(cat.getFirst())).findFirst().get().getSecond(), null)).collect(Collectors.toList());
+                    fights.stream().filter(p -> p.getFirst().equalsIgnoreCase(cat.getFirst())).findFirst()
+                            .map(Pair::getSecond)
+                            .orElse(new ArrayList<>()), null)).collect(Collectors.toList());
             jooqRepository.saveStages(stages);
-            jooqRepository.saveCompetitors(competitors);
             jooqRepository.saveFights(fights.stream().flatMap(p -> p.getSecond().stream()).collect(Collectors.toList()));
             jooqRepository.saveSchedule(schedule);
             List<PeriodDTO> periods = jooqRepository.fetchPeriodsByCompetitionId(competitionId).collectList().block();

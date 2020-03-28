@@ -1,12 +1,13 @@
 package compman.compsrv.repository
 
-import arrow.core.Tuple2
-import arrow.core.Tuple3
-import arrow.core.Tuple4
 import com.compmanager.compservice.jooq.tables.*
+import compman.compsrv.model.dto.brackets.FightReferenceType
+import compman.compsrv.model.dto.brackets.ParentFightReferenceDTO
+import compman.compsrv.model.dto.brackets.StageRoundType
+import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.dto.schedule.*
-import compman.compsrv.util.orFalse
+import compman.compsrv.repository.collectors.PeriodCollector
+import compman.compsrv.repository.collectors.StageCollector
 import org.jooq.Record
 import org.springframework.stereotype.Component
 import reactor.core.publisher.GroupedFlux
@@ -17,157 +18,93 @@ import java.util.stream.Collector
 
 @Component
 class JooqMappers {
+    fun periodCollector(rec: GroupedFlux<String, Record>) = PeriodCollector(rec.key()!!)
 
-    fun hasFightStartTime(u: Record): Boolean {
-        return (!u[FightDescription.FIGHT_DESCRIPTION.ID].isNullOrBlank()
-                && !u[FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID].isNullOrBlank() &&
-                u[FightDescription.FIGHT_DESCRIPTION.START_TIME] != null
-                && u[FightDescription.FIGHT_DESCRIPTION.MAT_ID] == u[MatDescription.MAT_DESCRIPTION.ID] )
-    }
+    fun stageCollector() = StageCollector()
 
-    fun fightStartTimePairDTO(u: Record): FightStartTimePairDTO {
-        return FightStartTimePairDTO()
-                .setFightId(u[FightDescription.FIGHT_DESCRIPTION.ID])
-                .setMatId(u[FightDescription.FIGHT_DESCRIPTION.MAT_ID])
-                .setFightCategoryId(u[FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID])
-                .setPeriodId(u[FightDescription.FIGHT_DESCRIPTION.PERIOD])
-                .setStartTime(u[FightDescription.FIGHT_DESCRIPTION.START_TIME]?.toInstant())
-                .setNumberOnMat(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT])
-                .setInvalid(u[FightDescription.FIGHT_DESCRIPTION.INVALID])
-    }
+    fun categoryCollector(): Collector<Record, CategoryDescriptorDTO, CategoryDescriptorDTO> = Collector.of(
+            Supplier { CategoryDescriptorDTO() }, BiConsumer<CategoryDescriptorDTO, Record> { t, it ->
+        val restriction = CategoryRestrictionDTO()
+                .setId(it[CategoryRestriction.CATEGORY_RESTRICTION.ID])
+                .setType(it[CategoryRestriction.CATEGORY_RESTRICTION.TYPE]?.let { CategoryRestrictionType.values()[it] })
+                .setName(it[CategoryRestriction.CATEGORY_RESTRICTION.NAME])
+                .setMinValue(it[CategoryRestriction.CATEGORY_RESTRICTION.MIN_VALUE])
+                .setMaxValue(it[CategoryRestriction.CATEGORY_RESTRICTION.MAX_VALUE])
+                .setUnit(it[CategoryRestriction.CATEGORY_RESTRICTION.UNIT])
 
+        val oldRestrictions = t.restrictions ?: emptyArray()
+        val newRestrictions = restriction?.let { arrayOf(it) } ?: emptyArray()
+        t
+                .setId(it[CategoryDescriptor.CATEGORY_DESCRIPTOR.ID])
+                .setRegistrationOpen(it[CategoryDescriptor.CATEGORY_DESCRIPTOR.REGISTRATION_OPEN])
+                .setFightDuration(it[CategoryDescriptor.CATEGORY_DESCRIPTOR.FIGHT_DURATION])
+                .setRestrictions(oldRestrictions + newRestrictions)
+                .name = it[CategoryDescriptor.CATEGORY_DESCRIPTOR.NAME]
 
-    fun periodCollector(rec: GroupedFlux<String, Record>): Collector<Record,
-            Tuple4<PeriodDTO,
-                    MutableList<Tuple2<MatDescriptionDTO, MutableList<FightStartTimePairDTO>>>,
-                    MutableList<Tuple4<ScheduleEntryDTO, MutableList<String>, MutableList<String>, MutableList<String>>>,
-                    MutableList<Tuple3<ScheduleRequirementDTO, MutableList<String>, MutableList<String>>>>,
-            Tuple4<PeriodDTO,
-                    MutableList<Tuple2<MatDescriptionDTO, MutableList<FightStartTimePairDTO>>>,
-                    MutableList<Tuple4<ScheduleEntryDTO, MutableList<String>, MutableList<String>, MutableList<String>>>,
-                    MutableList<Tuple3<ScheduleRequirementDTO, MutableList<String>, MutableList<String>>>>> {
-        return Collector.of(Supplier {
-            Tuple4(PeriodDTO().setId(rec.key()),
-                    mutableListOf<Tuple2<MatDescriptionDTO, MutableList<FightStartTimePairDTO>>>(),
-                    mutableListOf<Tuple4<ScheduleEntryDTO, MutableList<String>, MutableList<String>, MutableList<String>>>(),
-                    mutableListOf<Tuple3<ScheduleRequirementDTO, MutableList<String>, MutableList<String>>>())
-        },
-                BiConsumer<Tuple4<PeriodDTO,
-                        MutableList<Tuple2<MatDescriptionDTO, MutableList<FightStartTimePairDTO>>>,
-                        MutableList<Tuple4<ScheduleEntryDTO, MutableList<String>, MutableList<String>, MutableList<String>>>,
-                        MutableList<Tuple3<ScheduleRequirementDTO, MutableList<String>, MutableList<String>>>>, Record> { t, u ->
-                    t.a
-                            .setEndTime(u[SchedulePeriod.SCHEDULE_PERIOD.END_TIME]?.toInstant())
-                            .setIsActive(u[SchedulePeriod.SCHEDULE_PERIOD.IS_ACTIVE])
-                            .setRiskPercent(u[SchedulePeriod.SCHEDULE_PERIOD.RISK_PERCENT])
-                            .setName(u[SchedulePeriod.SCHEDULE_PERIOD.NAME])
-                            .setStartTime(u[SchedulePeriod.SCHEDULE_PERIOD.START_TIME]?.toInstant())
-                            .setTimeBetweenFights(u[SchedulePeriod.SCHEDULE_PERIOD.TIME_BETWEEN_FIGHTS])
-                    if (!u[MatDescription.MAT_DESCRIPTION.ID].isNullOrBlank()) {
-                        if (t.b.any { u[MatDescription.MAT_DESCRIPTION.ID] == it.a.id }) {
-                            if (hasFightStartTime(u)) {
-                                t.b.first { u[MatDescription.MAT_DESCRIPTION.ID] == it.a.id }.b.add(fightStartTimePairDTO(u))
-                            }
-                        } else {
-                            if (hasFightStartTime(u)) {
-                                t.b.add(Tuple2(matDescriptionDTO(u), mutableListOf(fightStartTimePairDTO(u))))
-                            } else {
-                                t.b.add(Tuple2(matDescriptionDTO(u), mutableListOf()))
-                            }
-                        }
-                    }
-                    if (!u[ScheduleEntry.SCHEDULE_ENTRY.ID].isNullOrBlank()) {
-                        if (t.c.none { tc ->
-                                    tc.a.id == u[ScheduleEntry.SCHEDULE_ENTRY.ID] }) {
-                            t.c.add(Tuple4(
-                                    scheduleEntryDTO(u)
-                                    , mutableListOf(), mutableListOf(),
-                                    mutableListOf()))
-                        }
-                        val updatable = t.c.first { tc -> tc.a.id == u[ScheduleEntry.SCHEDULE_ENTRY.ID] }
-                        if (!u[FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID].isNullOrBlank()) {
-                            updatable.b.add(u[FightDescription.FIGHT_DESCRIPTION.ID])
-                            if (u[FightDescription.FIGHT_DESCRIPTION.INVALID].orFalse()) {
-                                val id = u[FightDescription.FIGHT_DESCRIPTION.ID]
-                                val invalidIds = updatable.a.invalidFightIds.orEmpty()
-                                updatable.a.invalidFightIds = (invalidIds.toList() + id).toTypedArray()
-                            }
-                        }
-                        if (u[CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.SCHEDULE_ENTRY_ID] == updatable.a.id &&
-                                !u[CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.CATEGORY_ID].isNullOrBlank()) {
-                            updatable.c.add(u[CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.CATEGORY_ID])
-                        }
-                    }
-                    if (!u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ID].isNullOrBlank()) {
-                        if (t.d.none { tc ->
-                                    tc.a.id == u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ID] }) {
-                            t.d.add(Tuple3(
-                                    scheduleRequirement(u)
-                                    , mutableListOf(), mutableListOf()))
-                        }
-                    }
-                }, BinaryOperator { t, u ->
-            if (t.a.id == u.a.id) {
-                u.b.forEach { m ->
-                    if (t.b.any { bm -> bm.a.id == m.a.id }) {
-                        t.b.first { bm -> bm.a.id == m.a.id }.b.addAll(m.b)
-                    } else {
-                        t.b.add(m)
-                    }
+    }, BinaryOperator { t, u ->
+        t.setRestrictions(t.restrictions + u.restrictions)
+    }, Collector.Characteristics.CONCURRENT, Collector.Characteristics.IDENTITY_FINISH)
+
+    fun fightCollector(): Collector<Record, FightDescriptionDTO, FightDescriptionDTO> = Collector.of(
+            Supplier { FightDescriptionDTO().setScores(emptyArray()) },
+            BiConsumer { t: FightDescriptionDTO, it: Record ->
+                val compscore = if (!it[CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID].isNullOrBlank()) {
+                    val cs = CompScoreDTO()
+                            .setScore(ScoreDTO().setPenalties(it[CompScore.COMP_SCORE.PENALTIES])
+                                    .setAdvantages(it[CompScore.COMP_SCORE.ADVANTAGES])
+                                    .setPoints(it[CompScore.COMP_SCORE.POINTS]))
+                            .setPlaceholderId(it[CompScore.COMP_SCORE.PLACEHOLDER_ID])
+                    arrayOf(cs.setCompetitorId(it[CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID]))
+                } else {
+                    emptyArray()
                 }
-                u.c.forEach { uc ->
-                    if (t.c.any { it.a.id == uc.a.id }) {
-                        t.c.first { it.a.id == uc.a.id }.b.addAll(uc.b)
-                        t.c.first { it.a.id == uc.a.id }.c.addAll(uc.c)
-                    } else {
-                        t.c.add(uc)
-                    }
-                }
-                t
-            } else {
-                throw RuntimeException("Periods with different ids... $t\n $u")
-            }
-        }, Collector.Characteristics.IDENTITY_FINISH, Collector.Characteristics.CONCURRENT)
-    }
+                mapFightDescription(t, it, t.scores + compscore)
+            }, BinaryOperator { t: FightDescriptionDTO, u: FightDescriptionDTO ->
+        t.setScores(t.scores + u.scores)
+    }, Collector.Characteristics.CONCURRENT, Collector.Characteristics.IDENTITY_FINISH)
 
-    private fun matDescriptionDTO(u: Record): MatDescriptionDTO {
-        return MatDescriptionDTO().setId(u[MatDescription.MAT_DESCRIPTION.ID])
-                .setMatOrder(u[MatDescription.MAT_DESCRIPTION.MAT_ORDER])
-                .setPeriodId(u[MatDescription.MAT_DESCRIPTION.PERIOD_ID])
-                .setName(u[MatDescription.MAT_DESCRIPTION.NAME])
-                .setFightStartTimes(emptyArray())
-    }
 
-    fun scheduleEntryDTO(u: Record): ScheduleEntryDTO {
-        return ScheduleEntryDTO()
-                .setOrder(u[ScheduleEntry.SCHEDULE_ENTRY.SCHEDULE_ORDER])
-                .setEntryType(u[ScheduleEntry.SCHEDULE_ENTRY.ENTRY_TYPE]?.let { ScheduleEntryType.values()[it] })
-                .setEndTime(u[ScheduleEntry.SCHEDULE_ENTRY.END_TIME]?.toInstant())
-                .setStartTime(u[ScheduleEntry.SCHEDULE_ENTRY.START_TIME]?.toInstant())
-                .setMatId(u[ScheduleEntry.SCHEDULE_ENTRY.MAT_ID])
-                .setDescription(u[ScheduleEntry.SCHEDULE_ENTRY.DESCRIPTION])
-                .setDuration(u[ScheduleEntry.SCHEDULE_ENTRY.DURATION])
-                .setId(u[ScheduleEntry.SCHEDULE_ENTRY.ID])
-                .setPeriodId(u[ScheduleEntry.SCHEDULE_ENTRY.PERIOD_ID])
-                .setName(u[ScheduleEntry.SCHEDULE_ENTRY.NAME])
-                .setColor(u[ScheduleEntry.SCHEDULE_ENTRY.COLOR])
-    }
+    fun mapCompetitorWithoutCategories(it: Record): CompetitorDTO = CompetitorDTO()
+            .setFirstName(it[Competitor.COMPETITOR.FIRST_NAME])
+            .setLastName(it[Competitor.COMPETITOR.LAST_NAME])
+            .setAcademy(AcademyDTO()
+                    .setName(it[Competitor.COMPETITOR.ACADEMY_NAME])
+                    .setId(it[Competitor.COMPETITOR.ACADEMY_ID]))
+            .setBirthDate(it[Competitor.COMPETITOR.BIRTH_DATE]?.toInstant())
+            .setEmail(it[Competitor.COMPETITOR.EMAIL])
+            .setId(it[Competitor.COMPETITOR.ID])
+            .setUserId(it[Competitor.COMPETITOR.USER_ID])
+            .setCompetitionId(it[Competitor.COMPETITOR.COMPETITION_ID])
+            .setPromo(it[Competitor.COMPETITOR.PROMO])
 
-    fun scheduleRequirement(u: Record): ScheduleRequirementDTO {
-        return ScheduleRequirementDTO()
-                .setEntryType(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_TYPE]?.let { ScheduleRequirementType.values()[it] })
-                .setEndTime(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.END_TIME]?.toInstant())
-                .setStartTime(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.START_TIME]?.toInstant())
-                .setMatId(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.MAT_ID])
-                .setId(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ID])
-                .setForce(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.FORCE])
-                .setPeriodId(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.PERIOD_ID])
-                .setDurationMinutes(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.DURATION_MINUTES])
-                .setEntryOrder(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_ORDER])
-                .setName(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.NAME])
-                .setColor(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.COLOR])
-
-    }
+    fun mapFightDescription(t: FightDescriptionDTO, u: Record, compScore: Array<CompScoreDTO>): FightDescriptionDTO =
+            t.setId(u[FightDescription.FIGHT_DESCRIPTION.ID])
+                    .setInvalid(u[FightDescription.FIGHT_DESCRIPTION.INVALID])
+                    .setCategoryId(u[FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID])
+                    .setCompetitionId(u[FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID])
+                    .setDuration(u[FightDescription.FIGHT_DESCRIPTION.DURATION])
+                    .setFightName(u[FightDescription.FIGHT_DESCRIPTION.FIGHT_NAME])
+                    .setFightResult(FightResultDTO()
+                            .setResultTypeId(u[FightDescription.FIGHT_DESCRIPTION.RESULT_TYPE])
+                            .setWinnerId(u[FightDescription.FIGHT_DESCRIPTION.WINNER_ID])
+                            .setReason(u[FightDescription.FIGHT_DESCRIPTION.REASON]))
+                    .setWinFight(u[FightDescription.FIGHT_DESCRIPTION.WIN_FIGHT])
+                    .setLoseFight(u[FightDescription.FIGHT_DESCRIPTION.LOSE_FIGHT])
+                    .setMat(MatDescriptionDTO()
+                            .setId(u[FightDescription.FIGHT_DESCRIPTION.MAT_ID])
+                            .setName(u[MatDescription.MAT_DESCRIPTION.NAME]))
+                    .setParentId1(ParentFightReferenceDTO()
+                            .setFightId(u[FightDescription.FIGHT_DESCRIPTION.PARENT_1_FIGHT_ID])
+                            .setReferenceType(u[FightDescription.FIGHT_DESCRIPTION.PARENT_1_REFERENCE_TYPE]?.let { FightReferenceType.values()[it] }))
+                    .setParentId2(ParentFightReferenceDTO()
+                            .setFightId(u[FightDescription.FIGHT_DESCRIPTION.PARENT_2_FIGHT_ID])
+                            .setReferenceType(u[FightDescription.FIGHT_DESCRIPTION.PARENT_2_REFERENCE_TYPE]?.let { FightReferenceType.values()[it] }))
+                    .setNumberInRound(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND])
+                    .setStageId(u[FightDescription.FIGHT_DESCRIPTION.STAGE_ID])
+                    .setGroupId(u[FightDescription.FIGHT_DESCRIPTION.GROUP_ID])
+                    .setRound(u[FightDescription.FIGHT_DESCRIPTION.ROUND])
+                    .setRoundType(u[FightDescription.FIGHT_DESCRIPTION.ROUND_TYPE]?.let { StageRoundType.values()[it] })
+                    .setNumberOnMat(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT]).setScores(compScore)
 
 
 }

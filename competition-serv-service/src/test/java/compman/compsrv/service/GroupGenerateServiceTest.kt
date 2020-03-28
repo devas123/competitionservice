@@ -39,7 +39,7 @@ class GroupGenerateServiceTest : AbstractGenerateServiceTest() {
         assertEquals(competitorsSize * (competitorsSize - 1) / 2, fights.size)
         assertTrue(fights.all { it.scores.size == 2 }) //all fights are packed
         assertTrue(fights.all { it.groupId == groupId }) //all fights have a group id
-        assertTrue(competitors.all { comp -> fights.filter { f -> f.scores.any { it.competitor.id == comp.id } }.size == competitorsSize - 1 }) //each fighter fights with all the other fighters
+        assertTrue(competitors.all { comp -> fights.filter { f -> f.scores.any { it.competitorId == comp.id } }.size == competitorsSize - 1 }) //each fighter fights with all the other fighters
         return stage to fights
     }
 

@@ -51,11 +51,11 @@ fun PromoCode.toDTO(): PromoCodeDTO = PromoCodeDTO()
         .setStartAt(startAt.toInstant())
         .setExpireAt(expireAt.toInstant())
 
-fun CompScore.toDTO(getCompetitor: (id: String) -> CompetitorDTO): CompScoreDTO = CompScoreDTO().setScore(ScoreDTO()
+fun CompScore.toDTO(): CompScoreDTO = CompScoreDTO().setScore(ScoreDTO()
         .setPoints(points)
         .setAdvantages(advantages)
         .setPenalties(penalties))
-        .setCompetitor(getCompetitor(compscoreCompetitorId))
+        .setCompetitorId(compscoreCompetitorId)
 
 fun CompetitionProperties.toDTO(staffIds: Array<String>?, promoCodes: Array<PromoCodeDTO>?, getRegistrationInfo: (id: String) -> RegistrationInfoDTO?): CompetitionPropertiesDTO =
         CompetitionPropertiesDTO()

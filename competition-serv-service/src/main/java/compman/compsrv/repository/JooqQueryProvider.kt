@@ -102,10 +102,17 @@ class JooqQueryProvider(private val create: DSLContext) {
                             fro.loserAdditionalPoints, fro.isDraw, fro.description, fro.shortName).onDuplicateKeyIgnore()
 
     fun saveScheduleQuery(it: ScheduleDTO): List<RowCountQuery> {
-        return it.periods.flatMap { per ->
+        return listOf(create.update(FightDescription.FIGHT_DESCRIPTION)
+                .set(FightDescription.FIGHT_DESCRIPTION.PERIOD, null as String?)
+                .set(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID, null as String?)
+                .set(FightDescription.FIGHT_DESCRIPTION.MAT_ID, null as String?)
+                .set(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT, null as Int?)
+                .set(FightDescription.FIGHT_DESCRIPTION.INVALID, null as Boolean?)
+                .set(FightDescription.FIGHT_DESCRIPTION.START_TIME, null as Timestamp?)
+                .where(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(it.id)),
+                create.deleteFrom(SchedulePeriod.SCHEDULE_PERIOD)
+                        .where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(it.id))) + it.periods.flatMap { per ->
             listOf(
-                    create.deleteFrom(SchedulePeriod.SCHEDULE_PERIOD)
-                            .where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(it.id)),
                     create.insertInto(SchedulePeriod.SCHEDULE_PERIOD,
                     SchedulePeriod.SCHEDULE_PERIOD.ID,
                     SchedulePeriod.SCHEDULE_PERIOD.NAME,

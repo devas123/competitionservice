@@ -1,10 +1,8 @@
 package compman.compsrv.service
 
-import com.google.common.math.DoubleMath
 import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.brackets.StageStatus
-import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.service.fight.BracketsGenerateService
 import compman.compsrv.service.fight.FightsService
@@ -13,7 +11,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.junit.MockitoJUnitRunner
 import org.slf4j.LoggerFactory
-import kotlin.math.pow
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -75,7 +72,7 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
     fun testDistributeCompetitors() {
         val fights = generateEmptyWinnerFights(14)
         val competitors = FightsService.generateRandomCompetitorsForCategory(14, 20, category, competitionId)
-        val fightsWithCompetitors = fightsGenerateService.distributeCompetitors(competitors, fights, BracketType.SINGLE_ELIMINATION)
+        fightsGenerateService.distributeCompetitors(competitors, fights, BracketType.SINGLE_ELIMINATION)
     }
 
     @Test
@@ -83,8 +80,8 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
         val fights = generateEmptyWinnerFights(14)
         val competitors = FightsService.generateRandomCompetitorsForCategory(14, 20, category, competitionId)
         val fightsWithCompetitors = fightsGenerateService.distributeCompetitors(competitors, fights, BracketType.SINGLE_ELIMINATION)
-        fun processBracketsRound(roundFights: List<FightDescriptionDTO>): List<Pair<FightDescriptionDTO, CompetitorDTO?>> = roundFights.map { generateFightResult(it) }
-        fun fillNextRound(previousRoundResult: List<Pair<FightDescriptionDTO, CompetitorDTO?>>, nextRoundFights: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
+        fun processBracketsRound(roundFights: List<FightDescriptionDTO>): List<Pair<FightDescriptionDTO, String?>> = roundFights.map { generateFightResult(it) }
+        fun fillNextRound(previousRoundResult: List<Pair<FightDescriptionDTO, String?>>, nextRoundFights: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
             return previousRoundResult.fold(nextRoundFights) { acc, pf ->
                 val updatedFight = pf.second?.let { acc.first { f -> f.id == pf.first.winFight }.pushCompetitor(it) }
                         ?: acc.first { f -> f.id == pf.first.winFight }
@@ -92,7 +89,7 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
             }
         }
 
-        val filledFights = fightsWithCompetitors.groupBy { it.round!! }.toList().sortedBy { it.first }.fold(emptyList<Pair<FightDescriptionDTO, CompetitorDTO?>>() to emptyList<FightDescriptionDTO>()) { acc, pair ->
+        val filledFights = fightsWithCompetitors.groupBy { it.round!! }.toList().sortedBy { it.first }.fold(emptyList<Pair<FightDescriptionDTO, String?>>() to emptyList<FightDescriptionDTO>()) { acc, pair ->
             val processedFights = if (acc.first.isEmpty() && pair.first == 0) {
                 //this is first round
                 processBracketsRound(pair.second)

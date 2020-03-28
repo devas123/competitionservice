@@ -47,7 +47,7 @@ class GroupStageGenerateService : FightsService() {
     private fun createCompscore(competitor: CompetitorDTO, order: Int): CompScoreDTO {
         return if (!competitor.isPlaceholder) {
              CompScoreDTO()
-                    .setCompetitor(competitor)
+                    .setCompetitorId(competitor.id)
                     .setOrder(order)
                     .setScore(ScoreDTO().setPoints(0).setPenalties(0).setAdvantages(0))
         } else {
@@ -88,7 +88,7 @@ class GroupStageGenerateService : FightsService() {
                     when (pointsDescriptor?.isDraw) {
                         true -> {
                             fight.scores.forEach { sc ->
-                                sc.competitor?.id?.let {
+                                sc.competitorId?.let {
                                     competitorPointsMap.compute(it) { _, u ->
                                         val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
                                         Tuple3(basis.a + (pointsDescriptor.winnerPoints
@@ -106,7 +106,7 @@ class GroupStageGenerateService : FightsService() {
                                         ?: BigDecimal.ZERO), basis.c)
                             }
 
-                            fight.scores.find { it.competitor?.id != fight.fightResult.winnerId }?.competitor?.id?.let {
+                            fight.scores.find { it.competitorId != fight.fightResult.winnerId }?.competitorId?.let {
                                 competitorPointsMap.compute(it) { _, u ->
                                     val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
                                     Tuple3(basis.a + (pointsDescriptor?.winnerPoints

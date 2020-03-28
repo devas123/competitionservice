@@ -2,7 +2,6 @@ package compman.compsrv.service
 
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.brackets.StageRoundType
-import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.competition.FightResultDTO
 import compman.compsrv.util.copy
@@ -19,20 +18,20 @@ import kotlin.test.assertTrue
 open class AbstractGenerateServiceTest {
     companion object {
         val fightResultOptions = FightResultOptionDTO.values.map { it.setId(UUID.randomUUID().toString()) }
-        fun generateFightResult(fight: FightDescriptionDTO): Pair<FightDescriptionDTO, CompetitorDTO?> {
+        fun generateFightResult(fight: FightDescriptionDTO): Pair<FightDescriptionDTO, String?> {
             val scores = fight.scores?.toList()
             val competitor = when (scores?.size) {
                 2 -> {
-                    scores[Random.nextInt(2)].competitor
+                    scores[Random.nextInt(2)].competitorId
                 }
                 1 -> {
-                    scores.first().competitor
+                    scores.first().competitorId
                 }
                 else -> {
                     null
                 }
             }
-            return fight.copy(fightResult = competitor?.let { FightResultDTO(it.id, fightResultOptions[Random.nextInt(3)].id, "bla bla bla") }) to competitor
+            return fight.copy(fightResult = competitor?.let { FightResultDTO(it, fightResultOptions[Random.nextInt(3)].id, "bla bla bla") }) to competitor
         }
 
         fun checkWinnerFightsLaws(fights: List<FightDescriptionDTO>, firstRoundSize: Int) {

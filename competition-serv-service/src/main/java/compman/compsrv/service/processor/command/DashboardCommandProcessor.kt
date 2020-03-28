@@ -84,7 +84,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
             val competitorIdsToFightIds = fightsGenerateService
                     .distributeCompetitors(propagatedCompetitors, propagatedStageFights, stage.bracketType, stage.inputDescriptor.distributionType)
                     .fold(mapOf<String, String>()) { acc, f ->
-                        val newPairs = f.scores?.mapNotNull { it.competitor?.let { c -> c.id to f.id } }?.toMap() ?: emptyMap()
+                        val newPairs = f.scores?.mapNotNull { it.competitorId?.let { c -> c to f.id } }?.toMap() ?: emptyMap()
                         acc + newPairs
                     }
             listOf(mapper.createEvent(com, EventType.COMPETITORS_PROPAGATED_TO_STAGE, CompetitorsPropagatedToStagePayload()
@@ -99,10 +99,10 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
         val updatedFightIds = mutableSetOf<String>()
         val payload = mapper.getPayloadAs(command, SetFightResultPayload::class.java)!!
         fun moveFightersToSiblings(fightIds: List<String?>, winnerId: String, compScores: Array<CompScoreDTO>, isSibling: Boolean = false): List<EventDTO> {
-            fun newCompScores(winner: Boolean) = arrayOf(compScores.first { (winner && it.competitor.id == winnerId) || (!winner && it.competitor.id != winnerId) }
+            fun newCompScores(winner: Boolean) = arrayOf(compScores.first { (winner && it.competitorId == winnerId) || (!winner && it.competitorId != winnerId) }
                     .setScore(ScoreDTO().setAdvantages(0).setPenalties(0).setPoints(0)))
 
-            fun loser() = compScores.first { it.competitor.id != winnerId }.competitor.id
+            fun loser() = compScores.first { it.competitorId != winnerId }.competitorId
             val ids = fightIds.mapIndexed { index, id -> id to (index == 0) }.filter { !it.first.isNullOrBlank() }
             return ids.flatMap { idAndWinFight ->
                 val id = idAndWinFight.first
@@ -122,9 +122,9 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                         listOf(mapper.createEvent(command, EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED, FightCompetitorsAssignedPayload().setFightId(id)
                                 .setCompscores(compScores.filter {
                                     if (winner) {
-                                        it.competitor.id == winnerId
+                                        it.competitorId == winnerId
                                     } else {
-                                        it.competitor.id != winnerId
+                                        it.competitorId != winnerId
                                     }
                                 }.map {
                                     it

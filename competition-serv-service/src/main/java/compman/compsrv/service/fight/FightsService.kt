@@ -109,7 +109,8 @@ abstract class FightsService {
         }
 
         private fun canProduceReferenceToChild(it: Pair<FightReferenceType?, FightDescriptionDTO?>, child: FightDescriptionDTO, getFight: (id: String) -> FightDescriptionDTO): Boolean {
-            return ((it.second?.scores?.all { sc -> child.scores!!.none { compScore -> compScore.competitor.id == sc.competitor.id } } == true)
+            return ((it.second?.scores?.all { sc -> child.scores!!.none { compScore ->
+                compScore.competitorId == sc.competitorId } } == true)
                     && checkIfFightCanProduceReference(it.second?.id!!, it.first!!, getFight))
         }
 
@@ -126,7 +127,8 @@ abstract class FightsService {
                     listOfNotNull(fight.parentId1, fight.parentId2)
                             .map { it.referenceType to it.fightId?.let { id -> getFight(id) } }
                             .filter { it.first != null && it.second != null }
-                            .filter { it.second!!.scores!!.none { sc -> fight.scores!!.any { fsc -> fsc.competitor.id == sc.competitor.id } } }
+                            .filter { it.second!!.scores!!.none { sc -> fight.scores!!.any { fsc ->
+                                fsc.competitorId == sc.competitorId } } }
                             .filter { checkIfFightCanProduceReference(it.second?.id!!, it.first!!, getFight) }
                             .size + (fight.scores?.size ?: 0) >= 2
                 }

@@ -4,10 +4,7 @@ import arrow.core.Tuple3
 import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.dto.brackets.*
-import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
-import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
-import compman.compsrv.model.dto.competition.CompetitionStatus
-import compman.compsrv.model.dto.competition.FightDescriptionDTO
+import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.PeriodDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
@@ -32,10 +29,10 @@ class TestDataGenerationUtils(private val fightsGenerateService: FightsService) 
 
 
     fun generateFilledFights(competitionId: String,
-                                     category: CategoryDescriptorDTO,
-                                     stageId: String,
-                                     compsSize: Int,
-                                     duration: BigDecimal): List<FightDescriptionDTO> {
+                             category: CategoryDescriptorDTO,
+                             stageId: String,
+                             competitors: List<CompetitorDTO>,
+                             duration: BigDecimal): List<FightDescriptionDTO> {
         val stage = StageDescriptorDTO()
                 .setId(stageId)
                 .setStageOrder(0)
@@ -44,8 +41,7 @@ class TestDataGenerationUtils(private val fightsGenerateService: FightsService) 
                 .setBracketType(BracketType.SINGLE_ELIMINATION)
                 .setHasThirdPlaceFight(false)
                 .setCategoryId(category.id)
-        val competitors = FightsService.generateRandomCompetitorsForCategory(compsSize, 20, category, competitionId)
-        val fights = fightsGenerateService.generateStageFights(competitionId, category.id, stage, compsSize, duration, competitors, 0)
+        val fights = fightsGenerateService.generateStageFights(competitionId, category.id, stage, competitors.size, duration, competitors, 0)
         assertNotNull(fights)
         return fights
     }
@@ -103,8 +99,8 @@ class TestDataGenerationUtils(private val fightsGenerateService: FightsService) 
                     .setName("Test Period 1")
                     .setScheduleRequirements(scheduleEntries)
 
-    fun generateSchedule(categories:  List<Pair<String, CategoryDescriptorDTO>>,
-                         stagesToFights:  List<Pair<String, List<FightDescriptionDTO>>>,
+    fun generateSchedule(categories: List<Pair<String, CategoryDescriptorDTO>>,
+                         stagesToFights: List<Pair<String, List<FightDescriptionDTO>>>,
                          competitionId: String,
                          competitorNumbers: Int): ScheduleDTO {
         val findFightIdsByCatIds = { categoryIds: Collection<String> ->

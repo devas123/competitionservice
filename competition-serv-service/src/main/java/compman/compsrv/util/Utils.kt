@@ -1,15 +1,8 @@
 package compman.compsrv.util
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.dto.brackets.ParentFightReferenceDTO
-import compman.compsrv.model.dto.brackets.StageRoundType
-import compman.compsrv.model.dto.competition.*
-import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.events.EventDTO
-import compman.compsrv.model.events.EventType
-import compman.compsrv.model.events.payload.ErrorEventPayload
-import java.math.BigDecimal
+import compman.compsrv.model.dto.competition.AcademyDTO
+import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
+import compman.compsrv.model.dto.competition.CompetitorDTO
 import java.time.Instant
 
 private fun parseDate(date: Any?, default: Instant?) = if (date != null && !date.toString().isBlank()) {
