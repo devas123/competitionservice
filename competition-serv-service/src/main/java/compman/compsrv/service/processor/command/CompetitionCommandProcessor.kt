@@ -1,7 +1,6 @@
 package compman.compsrv.service.processor.command
 
 import arrow.core.Either
-import arrow.core.Tuple3
 import arrow.core.extensions.either.monad.monad
 import arrow.core.extensions.list.foldable.foldM
 import arrow.core.fix
@@ -12,14 +11,16 @@ import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
-import compman.compsrv.model.dto.brackets.BracketType
+import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.model.dto.competition.RegistrationGroupDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.repository.JooqRepository
-import compman.compsrv.service.ScheduleService
+import compman.compsrv.service.schedule.BracketSimulatorFactory
+import compman.compsrv.service.schedule.StageGraph
+import compman.compsrv.service.schedule.ScheduleService
 import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.createErrorEvent
 import compman.compsrv.util.createEvent
@@ -38,12 +39,12 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val clusterSession: ClusterSession,
                                   private val categoryCrudRepository: CategoryDescriptorDao,
                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
-                                  private val stageDescriptorCrudRepository: StageDescriptorDao,
                                   private val fightDescriptionDao: FightDescriptionDao,
                                   private val registrationGroupCrudRepository: RegistrationGroupDao,
                                   private val registrationPeriodCrudRepository: RegistrationPeriodDao,
                                   private val registrationInfoCrudRepository: RegistrationInfoDao,
                                   private val jooqRepository: JooqRepository,
+                                  private val bracketSimulatorFactory: BracketSimulatorFactory,
                                   private val mapper: ObjectMapper) : ICommandProcessor {
     override fun affectedCommands(): Set<CommandType> {
         return setOf(CommandType.ASSIGN_REGISTRATION_GROUP_CATEGORIES_COMMAND,
@@ -70,10 +71,14 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
         private val log = LoggerFactory.getLogger(CompetitionCommandProcessor::class.java)
     }
 
-    private fun getAllBrackets(competitionId: String): Flux<Pair<Tuple3<String, String, BracketType>, List<FightDescription>>> {
-        return Flux.fromIterable(stageDescriptorCrudRepository.fetchByCompetitionId(competitionId)).map {
-            Tuple3(it.id,  it.categoryId, BracketType.values()[it.bracketType]) to (fightDescriptionDao.fetchByStageId(it.id).orEmpty())
-        }
+    private fun getAllBrackets(competitionId: String): Flux<StageGraph> {
+        return jooqRepository.fetchStagesByCompetitionIdOrdered(competitionId).flatMap {
+            jooqRepository.getFightsByStageIdOrderedByRounds(it.id).collectList().map { fights -> it to fights }
+        }.groupBy { it.first.categoryId }
+                .flatMap { grfl ->
+                    grfl.collectList().map { it.fold(emptyList<StageDescriptorDTO>() to emptyList<FightDescription>()) { acc, pair ->
+                        (acc.first + pair.first) to (acc.second + pair.second?.toList().orEmpty())
+                    } }.map { pr -> StageGraph(grfl.key()!!, pr.first, pr.second, bracketSimulatorFactory) } }
     }
 
 
@@ -261,7 +266,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                     competitorNumbersByCategoryIds) { fightDescriptionDao.findById(it) }
                             val newFights = schedule.periods?.flatMap { period ->
                                 period.mats?.flatMap { it.fightStartTimes.map { f -> f.setPeriodId(period.id) } }
-                                       .orEmpty()
+                                        .orEmpty()
                             }?.toTypedArray()
                             val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(newFights)
                             listOf(createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule)), createEvent(EventType.FIGHTS_START_TIME_UPDATED, fightStartTimeUpdatedPayload))

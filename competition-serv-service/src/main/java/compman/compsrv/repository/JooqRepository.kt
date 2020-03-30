@@ -4,6 +4,7 @@ import arrow.core.Tuple4
 import com.compmanager.compservice.jooq.tables.*
 import com.compmanager.compservice.jooq.tables.records.*
 import com.compmanager.model.payment.RegistrationStatus
+import compman.compsrv.mapping.toRecord
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.schedule.FightStartTimePairDTO
@@ -150,8 +151,6 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                     .on(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.eq(CompetitorCategories.COMPETITOR_CATEGORIES.CATEGORIES_ID)))
                     .where(CompetitorCategories.COMPETITOR_CATEGORIES.COMPETITORS_ID.equal(fighterId)).and(CategoryDescriptor.CATEGORY_DESCRIPTOR.COMPETITION_ID.equal(competitionId))
                     .fetch(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID, String::class.java).orEmpty()
-
-
 
 
     fun topMatFights(limit: Int = 100, competitionId: String, matId: String, statuses: Iterable<FightStatus>): Flux<FightDescriptionDTO> {
@@ -308,6 +307,13 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
 
     fun fetchStagesForCategory(competitionId: String, categoryId: String): Flux<StageDescriptorDTO> = Flux.from(
             queryProvider.selectStagesByCategoryIdQuery(competitionId, categoryId)
+    ).groupBy { it[StageDescriptor.STAGE_DESCRIPTOR.ID] }
+            .flatMap { records ->
+                flatMapToTupleMono(records)
+            }
+
+    fun fetchStagesByCompetitionIdOrdered(competitionId: String): Flux<StageDescriptorDTO> = Flux.from(
+            queryProvider.selectStagesByCompetitionIdQuery(competitionId)
     ).groupBy { it[StageDescriptor.STAGE_DESCRIPTOR.ID] }
             .flatMap { records ->
                 flatMapToTupleMono(records)
@@ -685,5 +691,63 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 .set(CompetitionProperties.COMPETITION_PROPERTIES.COMPETITION_NAME, propertiesDTO.competitionName)
                 .set(CompetitionProperties.COMPETITION_PROPERTIES.STATUS, propertiesDTO.status?.ordinal)
                 .where(CompetitionProperties.COMPETITION_PROPERTIES.ID.eq(propertiesDTO.id)).execute()
+    }
+
+    fun getFightsByStageIdOrderedByRounds(stageId: String): Flux<com.compmanager.compservice.jooq.tables.pojos.FightDescription> {
+        return Flux.from(create.selectFrom(FightDescription.FIGHT_DESCRIPTION)
+                .where(FightDescription.FIGHT_DESCRIPTION.STAGE_ID.eq(stageId))
+                .orderBy(FightDescription.FIGHT_DESCRIPTION.ROUND, FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND))
+                .map {
+                    com.compmanager.compservice.jooq.tables.pojos.FightDescription().apply {
+                        this.id = it.id
+                        this.categoryId = it.categoryId
+                        this.competitionId = it.competitionId
+                        this.duration = it.duration
+                        this.fightName = it.fightName
+                        this.winnerId = it.winnerId
+                        this.reason = it.reason
+                        this.resultType = it.resultType
+                        this.loseFight = it.loseFight
+                        this.matId = it.matId
+                        this.numberInRound = it.numberInRound
+                        this.numberOnMat = it.numberOnMat
+                        this.parent_1FightId = it.parent_1FightId
+                        this.parent_1ReferenceType = it.parent_1ReferenceType
+                        this.parent_2FightId = it.parent_2FightId
+                        this.parent_2ReferenceType = it.parent_2ReferenceType
+                        this.period = it.period
+                        this.priority = it.priority
+                        this.round = it.round
+                        this.roundType = it.roundType
+                        this.status = it.status
+                        this.startTime = it.startTime
+                        this.winFight = it.winFight
+                        this.stageId = it.stageId
+                        this.groupId = it.groupId
+                        this.fightOrder = it.fightOrder
+                        this.invalid = it.invalid
+                        this.scheduleEntryId = it.scheduleEntryId
+                    }
+                }
+    }
+
+    fun updateFightsStatusAndCompScores(orEmpty: Array<out FightDescriptionDTO>) {
+        create.batch(
+                listOf(create.deleteFrom(CompScore.COMP_SCORE).where(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.`in`(orEmpty.map { it.id }))) +
+                        orEmpty.flatMap { it.scores?.mapIndexedNotNull { ind, s -> s.toRecord(ind, it.id) }.orEmpty() }.map { csr ->
+                            create.insertInto(CompScore.COMP_SCORE, *csr.fields())
+                                    .values(csr.value1(),
+                                            csr.value2(),
+                                            csr.value3(),
+                                            csr.value4(),
+                                            csr.value5(),
+                                            csr.value6(),
+                                            csr.value7())
+                                    .onDuplicateKeyUpdate()
+                                    .set(csr)
+                        } +
+        orEmpty.map { f -> create.update(FightDescription.FIGHT_DESCRIPTION)
+                .set(FightDescription.FIGHT_DESCRIPTION.STATUS, f.status?.ordinal)
+                .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(f.id))}).execute()
     }
 }

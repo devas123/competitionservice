@@ -1,15 +1,11 @@
 package compman.compsrv.service.processor.event
 
-import com.compmanager.compservice.jooq.tables.daos.CategoryDescriptorDao
-import com.compmanager.compservice.jooq.tables.daos.CompetitionPropertiesDao
-import com.compmanager.compservice.jooq.tables.daos.CompetitorDao
-import com.compmanager.compservice.jooq.tables.daos.StageDescriptorDao
+import com.compmanager.compservice.jooq.tables.daos.*
 import com.compmanager.compservice.jooq.tables.pojos.Competitor
 import com.compmanager.model.payment.RegistrationStatus
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.model.commands.payload.CategoryRegistrationStatusChangePayload
 import compman.compsrv.model.commands.payload.ChangeCompetitorCategoryPayload
-import compman.compsrv.model.commands.payload.JsonPatch
 import compman.compsrv.model.commands.payload.Payload
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
@@ -21,7 +17,6 @@ import compman.compsrv.util.getPayloadFromString
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.sql.Timestamp
-import kotlin.math.min
 
 
 fun CompetitorDTO.toCompetitor() =
@@ -42,6 +37,7 @@ fun CompetitorDTO.toCompetitor() =
 @Component
 class CategoryEventProcessor(private val mapper: ObjectMapper,
                              private val competitionPropertiesDao: CompetitionPropertiesDao,
+                             private val compScoreDao: CompScoreDao,
                              private val categoryDescriptorCrudRepository: CategoryDescriptorDao,
                              private val competitorCrudRepository: CompetitorDao,
                              private val jooqRepository: JooqRepository,
@@ -158,31 +154,8 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
 
     private fun applyCompetitorMovedEvent(event: EventDTO): List<EventDTO> {
         val payload = getPayloadAs(event.payload, FightEditorChangesAppliedPayload::class.java)
-        payload?.changes?.forEach { change ->
-            change.changePatches.forEach {
-                applyChange(it, change.selectedFightIds)
-            }
-        } ?: throw EventApplyingException("Payload is null, or changes are null.", event)
+        jooqRepository.updateFightsStatusAndCompScores(payload?.changes.orEmpty())
         return listOf(event)
-    }
-
-    private fun applyChange(jsonPatch: JsonPatch?, fightIds: Array<String>) {
-        when (jsonPatch?.op) {
-            "replace" -> {
-                val path = jsonPatch.path
-                val cs = jsonPatch.value
-                val fightId = fightIds[jsonPatch.path[0].toInt()]
-                if (path[1] == "scores") {
-                    val index = min(path[2].toInt(), jooqRepository.getCompScoreSize(fightId))
-                    jooqRepository.replaceFightScore(fightId, cs, index)
-                } else {
-                    log.warn("We only update scores.")
-                }
-            }
-            else -> {
-                log.warn("Unknown patch operation: ${jsonPatch?.op}")
-            }
-        }
     }
 
     private fun applyFighStartTimeUpdatedEvent(event: EventDTO): List<EventDTO> {
@@ -240,5 +213,5 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
 
     private val log = LoggerFactory.getLogger(CategoryEventProcessor::class.java)
 
-    private inline fun <reified T: Payload> getPayloadAs(payload: String?, clazz: Class<T>): T? = mapper.getPayloadFromString(payload, clazz)
+    private inline fun <reified T : Payload> getPayloadAs(payload: String?, clazz: Class<T>): T? = mapper.getPayloadFromString(payload, clazz)
 }

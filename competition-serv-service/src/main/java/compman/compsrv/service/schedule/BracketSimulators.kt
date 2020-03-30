@@ -2,19 +2,19 @@ package compman.compsrv.service.schedule
 
 import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import compman.compsrv.model.dto.brackets.StageRoundType
-import compman.compsrv.service.ScheduleService
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 interface IBracketSimulator {
     fun isEmpty(): Boolean
     fun getNextRound(): List<FightDescription>
-    val stageId: String
+    val stageIds: Set<String>
     val categoryId: String
 }
 
-class SingleEliminationSimulator(override val stageId: String, override val categoryId: String, fights: List<FightDescription>, threeCompetitorCategory: Boolean) : IBracketSimulator {
+class SingleEliminationSimulator(val stageId: String, override val categoryId: String, fights: List<FightDescription>, threeCompetitorCategory: Boolean) : IBracketSimulator {
     private val fightsByRounds: MutableList<List<FightDescription>>
+    override val stageIds = setOf(stageId)
 
     init {
         fightsByRounds = if (fights.isNotEmpty()) {
@@ -42,8 +42,10 @@ class SingleEliminationSimulator(override val stageId: String, override val cate
     }
 }
 
-class DoubleEliminationSimulator(override val stageId: String, override val categoryId: String, fights: List<FightDescription>) : IBracketSimulator {
+class DoubleEliminationSimulator(val stageId: String, override val categoryId: String, fights: List<FightDescription>) : IBracketSimulator {
     private var fightsByBracketTypeAndRounds: List<List<FightDescription>>
+    override val stageIds = setOf(stageId)
+
 
     companion object {
         private val log: Logger = LoggerFactory.getLogger(DoubleEliminationSimulator::class.java)
@@ -81,8 +83,10 @@ class DoubleEliminationSimulator(override val stageId: String, override val cate
     }
 }
 
-class GroupSimulator(override val stageId: String, override val categoryId: String, fights: List<FightDescription>) : IBracketSimulator {
+class GroupSimulator(val stageId: String, override val categoryId: String, fights: List<FightDescription>) : IBracketSimulator {
     private val fightsByRounds: MutableList<List<FightDescription>>
+    override val stageIds = setOf(stageId)
+
 
     init {
         fightsByRounds = if (fights.isNotEmpty()) {

@@ -1,6 +1,7 @@
 package compman.compsrv.mapping
 
 import com.compmanager.compservice.jooq.tables.pojos.*
+import com.compmanager.compservice.jooq.tables.records.CompScoreRecord
 import com.compmanager.model.payment.RegistrationStatus
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
@@ -125,6 +126,18 @@ fun FightResultOption.toDTO(): FightResultOptionDTO = FightResultOptionDTO()
         .setLoserAdditionalPoints(loserAdditionalPoints)
         .setWinnerPoints(winnerPoints)
         .setLoserPoints(loserPoints)
+
+
+fun CompScoreDTO.toRecord(order: Int, fightId: String): CompScoreRecord =
+        CompScoreRecord().also {
+            it.compScoreOrder = order
+            it.advantages = this.score?.advantages
+            it.points = this.score?.points
+            it.penalties = this.score?.penalties
+            it.placeholderId = this.placeholderId
+            it.compscoreCompetitorId = this.competitorId
+            it.compscoreFightDescriptionId = fightId
+        }
 
 fun FightDescriptionDTO.toPojo(): FightDescription =
         FightDescription().also {

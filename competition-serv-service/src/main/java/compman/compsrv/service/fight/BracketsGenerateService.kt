@@ -9,8 +9,6 @@ import com.google.common.math.LongMath
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
-import compman.compsrv.model.dto.competition.FightResultDTO
-import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.util.copy
 import compman.compsrv.util.pushCompetitor
 import org.springframework.stereotype.Component
@@ -171,30 +169,6 @@ class BracketsGenerateService : FightsService() {
         return mergeAll(firstWinnerRoundFightsPairs, currentRoundFights).map(connectFun)
     }
 
-    fun filterPreliminaryFights(outputSize: Int, fights: List<FightDescriptionDTO>, bracketType: BracketType): List<FightDescriptionDTO> {
-        log.info("Filtering fights: $outputSize, fights size: ${fights.size}, brackets type: $bracketType")
-        val result = when (bracketType) {
-            BracketType.SINGLE_ELIMINATION -> {
-                if (outputSize == 3) {
-                    val thirdPlaceFight = fights.firstOrNull { it.roundType == StageRoundType.THIRD_PLACE_FIGHT }
-                    assert(thirdPlaceFight != null) { "There is no fight for third place, but the output of the stage is 3, cannot calculate." }
-                    val grandFinal = fights.firstOrNull { it.roundType == StageRoundType.GRAND_FINAL }
-                    fights.filter { it.id != grandFinal?.id }
-                } else {
-                    assert(DoubleMath.isPowerOfTwo(outputSize.toDouble())) { "Output for single elimination brackets must be power of two, but it is $outputSize" }
-                    val roundsToReturn = fights.asSequence().groupBy { it.round!! }.map { entry -> entry.key to entry.value.size }.filter { it.second * 2 > outputSize }.map { it.first }
-                    fights.filter { roundsToReturn.contains(it.round) }
-                }
-            }
-            BracketType.GROUP -> {
-                fights
-            }
-            else -> TODO("Brackets type $bracketType is not supported as a preliminary stage.")
-        }
-        log.info("Filtered fights: $outputSize, result size: ${result.size}, brackets type: $bracketType")
-        return result
-    }
-
     fun generateThirdPlaceFightForOlympicSystem(competitionId: String, categoryId: String, stageId: String, winnerFights: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
         if (winnerFights.isEmpty()) {
             return winnerFights
@@ -245,18 +219,16 @@ class BracketsGenerateService : FightsService() {
             }
         }
 
-        val filteredUncompletableFights = filterUncompletableFirstRoundFights(assignedFights) { id ->
+        val filteredUncompletableFights = markUncompletableFights(assignedFights) { id ->
             assignedFights.first { fight -> fight.id == id }
         }
 
 
-        val processedFights = if (stage.stageType == StageType.PRELIMINARY) {
+        return if (stage.stageType == StageType.PRELIMINARY) {
             filterPreliminaryFights(outputSize, filteredUncompletableFights, stage.bracketType)
         } else {
             filteredUncompletableFights
         }
-
-        return processedFights
     }
 
 
@@ -291,28 +263,6 @@ class BracketsGenerateService : FightsService() {
         }
     }
 
-    fun filterUncompletableFirstRoundFights(fights: List<FightDescriptionDTO>, getFightById: (id: String) -> FightDescriptionDTO): List<FightDescriptionDTO> {
-        val firstRoundFights = fights.filter { it.id != null && !checkIfFightCanBePacked(it.id!!, getFightById) }
-        return firstRoundFights.fold(fights) { acc, fightDescription ->
-            val updatedFight = fightDescription.copy(status = FightStatus.UNCOMPLETABLE,
-                    fightResult = FightResultDTO(fightDescription.scores?.firstOrNull()?.competitorId, null, "BYE"))
-            val winFightId = fightDescription.winFight
-            val updates = if (!winFightId.isNullOrBlank()) {
-                //find win fight
-                val winfight = acc.first { it.id == winFightId }
-                fightDescription.scores?.firstOrNull()?.competitorId?.let {
-                    listOf(updatedFight, winfight.pushCompetitor(it))
-                } ?: listOf(updatedFight)
-            } else {
-                listOf(updatedFight)
-            }
-            acc.map { f ->
-                val updF = updates.firstOrNull { it.id == f.id }
-                updF ?: f
-            }
-        }
-    }
-
     override fun buildStageResults(bracketType: BracketType,
                                    stageStatus: StageStatus,
                                    fights: List<FightDescriptionDTO>,
@@ -328,7 +278,6 @@ class BracketsGenerateService : FightsService() {
                         val finalRound = grandFinal.round!!
                         val filteredFights = thirdPlaceFight?.let { fights.filter { it.roundType != StageRoundType.GRAND_FINAL && it.roundType != StageRoundType.THIRD_PLACE_FIGHT && it.round != finalRound - 1 } }
                                 ?: fights.filter { it.roundType != StageRoundType.GRAND_FINAL }
-                               .orEmpty()
 
                         fun calculateLoserPlace(round: Int): Int {
                             val diff = finalRound - round

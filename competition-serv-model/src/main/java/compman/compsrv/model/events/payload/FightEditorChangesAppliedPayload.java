@@ -1,7 +1,8 @@
 package compman.compsrv.model.events.payload;
 
-import compman.compsrv.model.commands.payload.FightChanges;
 import compman.compsrv.model.commands.payload.Payload;
+import compman.compsrv.model.dto.competition.CompScoreDTO;
+import compman.compsrv.model.dto.competition.FightDescriptionDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,5 +13,5 @@ import java.io.Serializable;
 @AllArgsConstructor
 @NoArgsConstructor
 public class FightEditorChangesAppliedPayload implements Serializable, Payload {
-    private FightChanges[] changes;
+    private FightDescriptionDTO[] changes;
 }

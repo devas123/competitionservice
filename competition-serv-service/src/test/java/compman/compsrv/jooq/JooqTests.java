@@ -98,7 +98,7 @@ public class JooqTests {
                             .setGroupSortDirection(GroupSortDirection.DESC)
                             .setGroupSortSpecifier(GroupSortSpecifier.DIRECT_FIGHT_RESULT)
             };
-            List<StageDescriptorDTO> stages = Collections.singletonList(testDataGenerationUtils.createStage(competitionId, categoryId, stageId, fights, additionalGroupSortingDescriptorDTOS));
+            List<StageDescriptorDTO> stages = Collections.singletonList(testDataGenerationUtils.createGroupStage(competitionId, categoryId, stageId, additionalGroupSortingDescriptorDTOS));
             jooqRepository.saveStages(stages);
             jooqRepository.saveGroupDescriptors(stages.stream().map(s -> new Pair<>(s.getId(), Arrays.asList(s.getGroupDescriptors())))
                     .collect(Collectors.toList()));
@@ -148,24 +148,26 @@ public class JooqTests {
         try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
              DSLContext dsl = DSL.using(conn, new Settings().withRenderNameStyle(RenderNameStyle.AS_IS))) {
             JooqRepository jooqRepository = createJooqRepository(dsl);
-            List<Pair<String, List<FightDescriptionDTO>>> fights = categories.stream().map(cat -> {
-                List<CompetitorDTO> competitors = FightsService.Companion.generateRandomCompetitorsForCategory(competitorNumbers, 10, cat.getSecond(), competitionId);
-                jooqRepository.saveCompetitors(competitors);
-                return new Pair<>(cat.getFirst(), testDataGenerationUtils.generateFilledFights(competitionId, cat.getSecond(),
-                        cat.getFirst(), competitors, BigDecimal.valueOf(fightDuration)));
-            })
-                    .collect(Collectors.toList());
-            ScheduleDTO schedule = testDataGenerationUtils.generateSchedule(categories, fights, competitionId, competitorNumbers);
             CompetitionPropertiesDTO competitionPropertiesDTO = testDataGenerationUtils.createCompetitionPropertiesDTO(competitionId);
             jooqRepository.saveCompetitionState(new CompetitionStateDTO()
                     .setCategories(new CategoryStateDTO[]{})
                     .setId(competitionId)
                     .setProperties(competitionPropertiesDTO));
+            List<Pair<StageDescriptorDTO, List<FightDescriptionDTO>>> fights = categories.stream().map(cat -> {
+                List<CompetitorDTO> competitors = FightsService.Companion.generateRandomCompetitorsForCategory(competitorNumbers, 10, cat.getSecond(), competitionId);
+                StageDescriptorDTO stage = testDataGenerationUtils.createSingleEliminationStage(competitionId, cat.getSecond().getId(), cat.getFirst(), competitorNumbers);
+                jooqRepository.saveCompetitors(competitors);
+                return new Pair<>(stage, testDataGenerationUtils.generateFilledFights(competitionId, cat.getSecond(),
+                        stage, competitors, BigDecimal.valueOf(fightDuration)));
+            })
+                    .collect(Collectors.toList());
+            ScheduleDTO schedule = testDataGenerationUtils.generateSchedule(categories, fights, competitionId, competitorNumbers);
             categories.forEach(cat -> jooqRepository.saveCategoryDescriptor(cat.getSecond(), competitionId));
-            List<StageDescriptorDTO> stages = categories.stream().map(cat -> testDataGenerationUtils.createStage(competitionId, cat.getSecond().getId(), cat.getFirst(),
-                    fights.stream().filter(p -> p.getFirst().equalsIgnoreCase(cat.getFirst())).findFirst()
-                            .map(Pair::getSecond)
-                            .orElse(new ArrayList<>()), null)).collect(Collectors.toList());
+            List<StageDescriptorDTO> stages = new ArrayList<>();
+            for (Pair<StageDescriptorDTO, List<FightDescriptionDTO>> fight : fights) {
+                StageDescriptorDTO first = fight.getFirst();
+                stages.add(first);
+            }
             jooqRepository.saveStages(stages);
             jooqRepository.saveFights(fights.stream().flatMap(p -> p.getSecond().stream()).collect(Collectors.toList()));
             jooqRepository.saveSchedule(schedule);

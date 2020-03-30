@@ -8,6 +8,7 @@ import arrow.core.extensions.validated.applicativeError.applicativeError
 import arrow.typeclasses.ApplicativeError
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.payload.DashboardFightOrderChangePayload
+import compman.compsrv.model.commands.payload.FightEditorApplyChangesPayload
 import compman.compsrv.model.commands.payload.Payload
 import compman.compsrv.model.commands.payload.PropagateCompetitorsPayload
 import compman.compsrv.model.events.EventDTO
@@ -41,6 +42,20 @@ sealed class PayloadValidationRules<F>(private val A: ApplicativeError<F, Nel<Pa
                 raiseError(PayloadValidationError.FieldMissing(name, com.id).nel())
             } else {
                 kind
+            }
+        }
+    }
+
+    private fun FightEditorApplyChangesPayload.validate(com: CommandDTO): Kind<F, FightEditorApplyChangesPayload> {
+        return when {
+            stageId.isNullOrBlank() -> {
+                raiseError(PayloadValidationError.FieldMissing("stageId", com.id).nel())
+            }
+            fights.isNullOrEmpty() -> {
+                raiseError(PayloadValidationError.FieldMissing("fights", com.id).nel())
+            }
+            else -> {
+                just(this)
             }
         }
     }

@@ -7,7 +7,7 @@ import compman.compsrv.config.ClusterConfigurationProperties;
 import compman.compsrv.json.ObjectMapperFactory;
 import compman.compsrv.kafka.EmbeddedSingleNodeKafkaCluster;
 import compman.compsrv.service.RestApi;
-import compman.compsrv.service.ScheduleService;
+import compman.compsrv.service.schedule.ScheduleService;
 import compman.compsrv.service.processor.event.CategoryEventProcessor;
 import kafka.server.KafkaConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;

@@ -9,8 +9,11 @@ import compman.compsrv.util.PayloadValidationRules
 import compman.compsrv.util.PayloadValidator
 import compman.compsrv.util.createErrorEvent
 import compman.compsrv.util.getPayloadAs
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 abstract class AbstractCommandProcessor(val mapper: ObjectMapper, val validators: List<PayloadValidator>) : ICommandProcessor {
+    val log: Logger = LoggerFactory.getLogger(AbstractCommandProcessor::class.java)
     inline fun <reified T : Payload> executeValidated(command: CommandDTO, payloadClass: Class<T>,
                                                       crossinline logic: (payload: T, com: CommandDTO) -> List<EventDTO>): List<EventDTO> {
         val payload = mapper.getPayloadAs(command, payloadClass)!!
@@ -20,6 +23,9 @@ abstract class AbstractCommandProcessor(val mapper: ObjectMapper, val validators
                             .map { logic(payload, command) }
                             .fold({ it.map { p -> mapper.createErrorEvent(command, p) }.all }, { it })
                 }
-                .getOrElse { listOf(mapper.createErrorEvent(command, "Error during command execuion: ${it.message}")) }
+                .getOrElse {
+                    log.error("Error during command execution: $command", it)
+                    listOf(mapper.createErrorEvent(command, "Error during command execuion: ${it.message}"))
+                }
     }
 }

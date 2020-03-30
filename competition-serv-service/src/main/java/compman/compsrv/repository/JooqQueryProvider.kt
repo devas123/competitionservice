@@ -267,6 +267,11 @@ class JooqQueryProvider(private val create: DSLContext) {
                 .where(StageDescriptor.STAGE_DESCRIPTOR.COMPETITION_ID.eq(competitionId))
                 .and(StageDescriptor.STAGE_DESCRIPTOR.CATEGORY_ID.eq(categoryId))
     }
+    fun selectStagesByCompetitionIdQuery(competitionId: String): SelectSeekStep1<Record, Int> {
+        return stageJoinQuery()
+                .where(StageDescriptor.STAGE_DESCRIPTOR.COMPETITION_ID.eq(competitionId))
+                .orderBy(StageDescriptor.STAGE_DESCRIPTOR.STAGE_ORDER)
+    }
 
     fun selectStagesByIdQuery(competitionId: String, stageId: String): SelectConditionStep<Record> {
         return stageJoinQuery()
