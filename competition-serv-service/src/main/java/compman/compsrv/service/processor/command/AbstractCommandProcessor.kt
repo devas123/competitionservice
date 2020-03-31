@@ -18,11 +18,11 @@ abstract class AbstractCommandProcessor(val mapper: ObjectMapper, val validators
                                                       crossinline logic: (payload: T, com: CommandDTO) -> List<EventDTO>): List<EventDTO> {
         val payload = mapper.getPayloadAs(command, payloadClass)!!
         return kotlin.runCatching {
-                    PayloadValidationRules
-                            .accumulateErrors { payload.validate(command, validators).fix() }
-                            .map { logic(payload, command) }
-                            .fold({ it.map { p -> mapper.createErrorEvent(command, p) }.all }, { it })
-                }
+            PayloadValidationRules
+                    .accumulateErrors { payload.validate(command, validators).fix() }
+                    .map { logic(payload, command) }
+                    .fold({ it.map { p -> mapper.createErrorEvent(command, p) }.all }, { it })
+        }
                 .getOrElse {
                     log.error("Error during command execution: $command", it)
                     listOf(mapper.createErrorEvent(command, "Error during command execuion: ${it.message}"))

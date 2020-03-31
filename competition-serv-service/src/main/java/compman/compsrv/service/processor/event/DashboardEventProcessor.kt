@@ -21,7 +21,6 @@ import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.util.PayloadValidator
 import compman.compsrv.util.getPayloadAs
-import org.springframework.beans.factory.ObjectProvider
 import org.springframework.stereotype.Component
 
 @Component
@@ -30,8 +29,8 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
                               private val jooqRepository: JooqRepository,
                               private val fightsService: FightServiceFactory,
                               private val competitorDao: CompetitorDao,
-                              validators: ObjectProvider<List<PayloadValidator>>,
-                              mapper: ObjectMapper) : AbstractEventProcessor(mapper, validators.ifAvailable.orEmpty()) {
+                              validators: List<PayloadValidator>,
+                              mapper: ObjectMapper) : AbstractEventProcessor(mapper, validators) {
     override fun affectedEvents(): Set<EventType> {
         return setOf(EventType.DASHBOARD_FIGHT_ORDER_CHANGED,
                 EventType.DASHBOARD_FIGHT_RESULT_SET,
@@ -47,9 +46,11 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
                 executeValidated(event, CompetitorsPropagatedToStagePayload::class.java) { p, _ ->
                     val competitorIdToFightId = p.competitorIdToFightId
                     val compScores = competitorIdToFightId.toList()
-                            .groupBy { it.second }.mapValues { e -> e.value.mapIndexed {ind,  p ->
-                        CompScoreRecord(0, 0, 0, null, p.first, p.second, ind)
-                            } }.values.flatten()
+                            .groupBy { it.second }.mapValues { e ->
+                                e.value.mapIndexed { ind, p ->
+                                    CompScoreRecord(0, 0, 0, null, p.first, p.second, ind)
+                                }
+                            }.values.flatten()
                     compScores.forEach { it.store() }
                 }
             }

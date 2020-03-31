@@ -8,7 +8,6 @@ import arrow.core.extensions.validated.applicativeError.applicativeError
 import arrow.typeclasses.ApplicativeError
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.payload.DashboardFightOrderChangePayload
-import compman.compsrv.model.commands.payload.FightEditorApplyChangesPayload
 import compman.compsrv.model.commands.payload.Payload
 import compman.compsrv.model.commands.payload.PropagateCompetitorsPayload
 import compman.compsrv.model.events.EventDTO
@@ -46,22 +45,7 @@ sealed class PayloadValidationRules<F>(private val A: ApplicativeError<F, Nel<Pa
         }
     }
 
-    private fun FightEditorApplyChangesPayload.validate(com: CommandDTO): Kind<F, FightEditorApplyChangesPayload> {
-        return when {
-            stageId.isNullOrBlank() -> {
-                raiseError(PayloadValidationError.FieldMissing("stageId", com.id).nel())
-            }
-            fights.isNullOrEmpty() -> {
-                raiseError(PayloadValidationError.FieldMissing("fights", com.id).nel())
-            }
-            else -> {
-                just(this)
-            }
-        }
-    }
-
-
-    fun Payload.validate(com: CommandDTO, validators: List<PayloadValidator>): Kind<F, Payload> =
+    fun Payload.validate(com: CommandDTO, validators: Iterable<PayloadValidator>): Kind<F, Payload> =
             when (this) {
                 is DashboardFightOrderChangePayload ->
                     this.validate(com)
@@ -69,13 +53,13 @@ sealed class PayloadValidationRules<F>(private val A: ApplicativeError<F, Nel<Pa
                     this.validate(com)
                 else ->
                     validators.filter { it.canValidate(this) }.fold(just(this)) { k, p ->
-                        map(k, p.validate(this, Ior.Left(com))) { this }.handleErrorWith { raiseError(it) }
+                        map(k, p.validate(this@PayloadValidationRules, this, Ior.Left(com))) { this }.handleErrorWith { raiseError(it) }
                     }
             }
 
-    fun Payload.validate(event: EventDTO, validators: List<PayloadValidator>): Kind<F, Payload> =
+    fun Payload.validate(event: EventDTO, validators: Iterable<PayloadValidator>): Kind<F, Payload> =
             validators.filter { it.canValidate(this) }.fold(just(this)) { k, p ->
-                map(k, p.validate(this, Ior.Right(event))) { this }.handleErrorWith { raiseError(it) }
+                map(k, p.validate(this@PayloadValidationRules, this, Ior.Right(event))) { this }.handleErrorWith { raiseError(it) }
             }
 
 
@@ -93,5 +77,5 @@ sealed class PayloadValidationRules<F>(private val A: ApplicativeError<F, Nel<Pa
 
 interface PayloadValidator {
     fun canValidate(payload: Payload): Boolean
-    fun <F, T : Payload> validate(payload: T, comEv: Ior<CommandDTO, EventDTO>): Kind<F, T>
+    fun <F, T : Payload> validate(validationRules: PayloadValidationRules<F>, payload: T, comEv: Ior<CommandDTO, EventDTO>): Kind<F, T>
 }

@@ -24,7 +24,6 @@ import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.*
-import org.springframework.beans.factory.ObjectProvider
 import org.springframework.stereotype.Component
 import java.time.Duration
 import java.util.*
@@ -33,14 +32,14 @@ import java.util.*
 @Component
 class CategoryCommandProcessor constructor(private val fightsGenerateService: FightServiceFactory,
                                            mapper: ObjectMapper,
-                                           validators: ObjectProvider<List<PayloadValidator>>,
+                                           validators: List<PayloadValidator>,
                                            private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
                                            private val categoryCrudRepository: CategoryDescriptorDao,
                                            private val competitorCrudRepository: CompetitorDao,
                                            private val jooq: JooqRepository,
                                            private val jooqQueryProvider: JooqQueryProvider,
                                            private val jooqMappers: JooqMappers
-) : AbstractCommandProcessor(mapper, validators.ifAvailable.orEmpty()) {
+) : AbstractCommandProcessor(mapper, validators) {
     private val commandsToHandlers: Map<CommandType, (command: CommandDTO) -> List<EventDTO>> = setOf(CommandType.ADD_COMPETITOR_COMMAND to ::doAddCompetitor,
             CommandType.REMOVE_COMPETITOR_COMMAND to ::doRemoveCompetitor,
             CommandType.ADD_CATEGORY_COMMAND to ::processAddCategoryCommandDTO,

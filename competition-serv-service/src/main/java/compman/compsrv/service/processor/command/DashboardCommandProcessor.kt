@@ -24,7 +24,6 @@ import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.*
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.ObjectProvider
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -41,8 +40,8 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                                 private val competitorStageResultDao: CompetitorStageResultDao,
                                 private val competitorDao: CompetitorDao,
                                 private val stageDescriptorCrudRepository: StageDescriptorDao,
-                                validators: ObjectProvider<List<PayloadValidator>>,
-                                mapper: ObjectMapper) : AbstractCommandProcessor(mapper, validators.ifAvailable.orEmpty()) {
+                                validators: List<PayloadValidator>,
+                                mapper: ObjectMapper) : AbstractCommandProcessor(mapper, validators) {
     override fun affectedCommands(): Set<CommandType> {
         return setOf(CommandType.DASHBOARD_FIGHT_ORDER_CHANGE_COMMAND,
                 CommandType.DASHBOARD_SET_FIGHT_RESULT_COMMAND,
@@ -74,7 +73,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                     { id -> competitorStageResultDao.fetchByStageId(id).map { it.toDTO() } },
                     { id ->
                         jooqRepository.fetchFightsByStageId(com.competitionId, id).collectList().block(Duration.ofMillis(300))
-                               .orEmpty()
+                                .orEmpty()
                     })
 
             val propagatedCompetitors = competitorDao.fetchById(*propagatedCompetitorIds.toTypedArray()).map { it.toDTO(arrayOf(command.categoryId)) }
@@ -84,7 +83,8 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
             val competitorIdsToFightIds = fightsGenerateService
                     .distributeCompetitors(propagatedCompetitors, propagatedStageFights, stage.bracketType, stage.inputDescriptor.distributionType)
                     .fold(mapOf<String, String>()) { acc, f ->
-                        val newPairs = f.scores?.mapNotNull { it.competitorId?.let { c -> c to f.id } }?.toMap() ?: emptyMap()
+                        val newPairs = f.scores?.mapNotNull { it.competitorId?.let { c -> c to f.id } }?.toMap()
+                                ?: emptyMap()
                         acc + newPairs
                     }
             listOf(mapper.createEvent(com, EventType.COMPETITORS_PROPAGATED_TO_STAGE, CompetitorsPropagatedToStagePayload()
@@ -168,7 +168,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                 }
             }
             val fightResultOptions = fightResultOptionDao.fetchByStageId(fight.stageId)?.map { it.toDTO() }
-                   .orEmpty()
+                    .orEmpty()
             val stageResults = fightsGenerateService.buildStageResults(BracketType.values()[stage.bracketType], StageStatus.FINISHED,
                     fightsWithResult.orEmpty(), stage.id!!, stage.competitionId, fightResultOptions)
             listOf(mapper.createEvent(command, EventType.DASHBOARD_STAGE_RESULT_SET,
@@ -195,7 +195,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                         log.info("Moving fight $fight to the new mat: ${payload.newMatId}.")
                         //all the fights after current on the current mat -> number - 1
                         val fightsToMoveOnCurrentMat = jooqRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStatusNotInOrderByNumberOnMat(payload.currentMatId,
-                                        command.competitionId, fight.numberOnMat!! + 1, FightsService.unMovableFightStatuses)
+                                command.competitionId, fight.numberOnMat!! + 1, FightsService.unMovableFightStatuses)
                                 .collectList().block()
                         val fightOrderChangesCurrentMat = fightsToMoveOnCurrentMat?.map {
                             DashboardFightOrderChange().setFightId(it.id).setNewMatId(it.matId).setNewOrderOnMat(it.numberOnMat!! - 1)
@@ -214,7 +214,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                         val newStartTimeOfTheCurrentFight = Option.fromNullable(fightOrderChangesNewMat).flatMap { Option.fromNullable(it.firstOrNull()) }.map { f -> f.newStartTime!! }
                                 .orElse {
                                     Option.fromNullable(jooqRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatLessThanAndStatusNotInOrderByNumberOnMatDesc(payload.newMatId,
-                                                    command.competitionId, newOrderOnMat, FightsService.unMovableFightStatuses).collectList().block()?.toList()).map { it.firstOrNull() }
+                                            command.competitionId, newOrderOnMat, FightsService.unMovableFightStatuses).collectList().block()?.toList()).map { it.firstOrNull() }
                                             .map { f -> f?.startTime?.toInstant()!! }
                                 }
                                 .fold({ fight.startTime?.toInstant()!! }, { it })
