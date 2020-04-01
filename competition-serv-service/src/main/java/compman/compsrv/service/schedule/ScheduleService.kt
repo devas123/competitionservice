@@ -68,16 +68,16 @@ class ScheduleService {
             // later if we move the schedule groups we will have to re-calculate the whole schedule again to avoid inconsistencies.
             periodDTO.scheduleRequirements?.map { it.setPeriodId(periodDTO.id) }.orEmpty()
         }.mapIndexed { index, it ->
-            it.setEntryOrder(index).setId(it.id
+            it.setId(it.id
                     ?: IDGenerator.scheduleRequirementId(competitionId, it.periodId, index, it.entryType))
-        }
+        }.sortedBy { it.entryOrder }
 
         val flatFights = enrichedScheduleRequirements.flatMap { it.fightIds?.toList().orEmpty() }
         assert(flatFights.distinct().size == flatFights.size)
 
         val composer = ScheduleProducer(startTime = periods.map { p -> p.id!! to p.startTime!! }.toMap(),
                 mats = periods.flatMap { it.mats?.toList().orEmpty() },
-                scheduleRequirements = enrichedScheduleRequirements,
+                req = enrichedScheduleRequirements,
                 brackets = stages,
                 timeBetweenFights = periods.map { p -> p.id!! to BigDecimal(p.timeBetweenFights) }.toMap(),
                 riskFactor = periods.map { p -> p.id!! to p.riskPercent }.toMap(),

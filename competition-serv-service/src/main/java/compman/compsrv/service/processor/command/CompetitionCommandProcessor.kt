@@ -19,12 +19,12 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.schedule.BracketSimulatorFactory
-import compman.compsrv.service.schedule.StageGraph
 import compman.compsrv.service.schedule.ScheduleService
+import compman.compsrv.service.schedule.StageGraph
 import compman.compsrv.util.IDGenerator
+import compman.compsrv.util.PayloadValidator
 import compman.compsrv.util.createErrorEvent
 import compman.compsrv.util.createEvent
-import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
@@ -44,8 +44,9 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val registrationPeriodCrudRepository: RegistrationPeriodDao,
                                   private val registrationInfoCrudRepository: RegistrationInfoDao,
                                   private val jooqRepository: JooqRepository,
+                                  validators: List<PayloadValidator>,
                                   private val bracketSimulatorFactory: BracketSimulatorFactory,
-                                  private val mapper: ObjectMapper) : ICommandProcessor {
+                                  mapper: ObjectMapper) : AbstractCommandProcessor(mapper, validators) {
     override fun affectedCommands(): Set<CommandType> {
         return setOf(CommandType.ASSIGN_REGISTRATION_GROUP_CATEGORIES_COMMAND,
                 CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND,
@@ -67,18 +68,17 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 CommandType.UPDATE_REGISTRATION_INFO_COMMAND)
     }
 
-    companion object {
-        private val log = LoggerFactory.getLogger(CompetitionCommandProcessor::class.java)
-    }
-
     private fun getAllBrackets(competitionId: String): Flux<StageGraph> {
         return jooqRepository.fetchStagesByCompetitionIdOrdered(competitionId).flatMap {
             jooqRepository.getFightsByStageIdOrderedByRounds(it.id).collectList().map { fights -> it to fights }
         }.groupBy { it.first.categoryId }
                 .flatMap { grfl ->
-                    grfl.collectList().map { it.fold(emptyList<StageDescriptorDTO>() to emptyList<FightDescription>()) { acc, pair ->
-                        (acc.first + pair.first) to (acc.second + pair.second?.toList().orEmpty())
-                    } }.map { pr -> StageGraph(grfl.key()!!, pr.first, pr.second, bracketSimulatorFactory) } }
+                    grfl.collectList().map {
+                        it.fold(emptyList<StageDescriptorDTO>() to emptyList<FightDescription>()) { acc, pair ->
+                            (acc.first + pair.first) to (acc.second + pair.second?.toList().orEmpty())
+                        }
+                    }.map { pr -> StageGraph(grfl.key()!!, pr.first, pr.second, bracketSimulatorFactory) }
+                }
     }
 
 
@@ -242,11 +242,11 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                         listOf(createErrorEvent("Cannot drop schedule, it is already published."))
                     }
                 }
-                CommandType.GENERATE_SCHEDULE_COMMAND -> {
-                    val payload = command.payload!!
-                    val periods = mapper.convertValue(payload, GenerateSchedulePayload::class.java)
-                            ?.periods?.map { it.setId(it.id ?: IDGenerator.createPeriodId(command.competitionId)) }
-                    val compProps = competitionPropertiesCrudRepository.findById(command.competitionId)
+                CommandType.GENERATE_SCHEDULE_COMMAND -> executeValidated(command, GenerateSchedulePayload::class.java) { payload, com ->
+                    val periods = payload.periods?.map {
+                        it.setId(it.id ?: IDGenerator.createPeriodId(com.competitionId))
+                    }
+                    val compProps = competitionPropertiesCrudRepository.findById(com.competitionId)
                     val categories = periods?.flatMap {
                         it.scheduleEntries?.toList().orEmpty()
                     }?.flatMap { it.categoryIds?.toList().orEmpty() }?.distinct()
@@ -259,9 +259,9 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                     })
                     if (compProps != null && !compProps.schedulePublished && !periods.isNullOrEmpty()) {
                         if (missingCategories.isNullOrEmpty()) {
-                            val competitorNumbersByCategoryIds = jooqRepository.getCompetitorNumbersByCategoryIds(command.competitionId)
-                            val schedule = scheduleService.generateSchedule(command.competitionId, periods,
-                                    getAllBrackets(command.competitionId),
+                            val competitorNumbersByCategoryIds = jooqRepository.getCompetitorNumbersByCategoryIds(com.competitionId)
+                            val schedule = scheduleService.generateSchedule(com.competitionId, periods,
+                                    getAllBrackets(com.competitionId),
                                     compProps.timeZone,
                                     competitorNumbersByCategoryIds) { fightDescriptionDao.findById(it) }
                             val newFights = schedule.periods?.flatMap { period ->
@@ -274,7 +274,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                             listOf(createErrorEvent("Categories $missingCategories are unknown"))
                         }
                     } else {
-                        listOf(createErrorEvent("could not find competition with ID: ${command.competitionId}"))
+                        listOf(createErrorEvent("could not find competition with ID: ${com.competitionId}"))
                     }
                 }
                 CommandType.UPDATE_COMPETITION_PROPERTIES_COMMAND -> {
