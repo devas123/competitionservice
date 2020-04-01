@@ -81,7 +81,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                     ?: throw IllegalStateException("No fights found for stage ${p.propagateToStageId}")
 
             val competitorIdsToFightIds = fightsGenerateService
-                    .distributeCompetitors(propagatedCompetitors, propagatedStageFights, stage.bracketType, stage.inputDescriptor.distributionType)
+                    .distributeCompetitors(propagatedCompetitors, propagatedStageFights, stage.bracketType)
                     .fold(mapOf<String, String>()) { acc, f ->
                         val newPairs = f.scores?.mapNotNull { it.competitorId?.let { c -> c to f.id } }?.toMap()
                                 ?: emptyMap()

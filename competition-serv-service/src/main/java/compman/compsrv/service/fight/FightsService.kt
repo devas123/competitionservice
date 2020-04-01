@@ -239,14 +239,6 @@ abstract class FightsService {
                     when (classifier) {
                         SelectorClassifier.FIRST_N_PLACES -> listOf(firstNPlaces(it.applyToStageId, it.selectorValue.first().toInt()))
                         SelectorClassifier.LAST_N_PLACES -> listOf(lastNPlaces(it.applyToStageId, it.selectorValue.first().toInt()))
-                        SelectorClassifier.WINNER_OF_FIGHT -> it.selectorValue.map { sv -> winnerOfFight(it.applyToStageId, sv) }
-                        SelectorClassifier.LOSER_OF_FIGHT -> it.selectorValue.map { sv -> loserOfFight(it.applyToStageId, sv) }
-                        SelectorClassifier.PASSED_TO_ROUND -> if (it.selectorValue.size != 2) {
-                            logger.warn("Passed to round selector has invalid value size (should be 2 but ${it.selectorValue.size})")
-                            emptyList()
-                        } else {
-                            listOf(passedToRound(it.applyToStageId, it.selectorValue[0].toInt(), StageRoundType.valueOf(it.selectorValue[1])))
-                        }
                         SelectorClassifier.MANUAL -> listOf(manual(it.applyToStageId, it.selectorValue.toList()))
                     }
                 }.orEmpty()
@@ -275,7 +267,7 @@ abstract class FightsService {
     abstract fun generateStageFights(competitionId: String, categoryId: String, stage: StageDescriptorDTO,
                                      compssize: Int, duration: BigDecimal, competitors: List<CompetitorDTO>, outputSize: Int): List<FightDescriptionDTO>
 
-    abstract fun distributeCompetitors(competitors: List<CompetitorDTO>, fights: List<FightDescriptionDTO>, bracketType: BracketType, distributionType: DistributionType = DistributionType.RANDOM): List<FightDescriptionDTO>
+    abstract fun distributeCompetitors(competitors: List<CompetitorDTO>, fights: List<FightDescriptionDTO>, bracketType: BracketType): List<FightDescriptionDTO>
     abstract fun buildStageResults(bracketType: BracketType,
                                    stageStatus: StageStatus,
                                    fights: List<FightDescriptionDTO>,

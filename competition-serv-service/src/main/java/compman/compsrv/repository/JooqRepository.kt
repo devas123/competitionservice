@@ -368,6 +368,8 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
             stageType = stage.stageType?.ordinal
             waitForPrevious = stage.waitForPrevious
             stageStatus = stage.stageStatus?.ordinal
+            forceManualAssignment = stage.stageResultDescriptor?.isForceManualAssignment
+            outputSize = stage.stageResultDescriptor?.outputSize
         }
     }).execute()
 

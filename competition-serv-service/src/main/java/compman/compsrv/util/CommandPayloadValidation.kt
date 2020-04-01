@@ -17,6 +17,7 @@ sealed class PayloadValidationError(msg: String, failedOn: String) : ErrorEventP
     data class FieldMissing(val fieldName: String, val on: String) : PayloadValidationError("Did not contain $fieldName", on)
     data class PayloadNull(val on: String) : PayloadValidationError("Payload is null", on)
     data class GenericError(val message: String, val on: String) : PayloadValidationError(message, on)
+    data class UnexpectedException(val throwable: Throwable, val on: String) : PayloadValidationError(throwable.localizedMessage, on)
     data class NotValid(val value: Any, val reasons: Nel<PayloadValidationError>, val on: String) : PayloadValidationError("$value is not valid: ${reasons.toList().joinToString(", ")}", on)
 }
 

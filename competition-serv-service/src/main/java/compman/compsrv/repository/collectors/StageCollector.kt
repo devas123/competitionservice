@@ -77,6 +77,9 @@ class StageCollector : Collector<Record, StageDescriptorAccumulator, StageDescri
 
             t.stageResults.stageResultDescriptor.id = u[StageDescriptor.STAGE_DESCRIPTOR.ID]
             t.stageResults.stageResultDescriptor.name = u[StageDescriptor.STAGE_DESCRIPTOR.NAME] + " Results"
+            t.stageResults.stageResultDescriptor.isForceManualAssignment = u[StageDescriptor.STAGE_DESCRIPTOR.FORCE_MANUAL_ASSIGNMENT]
+            t.stageResults.stageResultDescriptor.outputSize = u[StageDescriptor.STAGE_DESCRIPTOR.OUTPUT_SIZE]
+
             if (t.stageResults.competitorResults.none {
                         it.competitorId == u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.COMPETITOR_ID]
                                 && it.stageId == u[CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID]

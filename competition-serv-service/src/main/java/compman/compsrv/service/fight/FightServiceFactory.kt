@@ -19,8 +19,8 @@ class FightServiceFactory(private val fightServices: List<FightsService>) {
         return findService(stage.bracketType).generateStageFights(competitionId, categoryId, stage, compssize, duration, competitors, outputSize)
     }
 
-    fun distributeCompetitors(competitors: List<CompetitorDTO>, fights: List<FightDescriptionDTO>, bracketType: BracketType, distributionType: DistributionType): List<FightDescriptionDTO> {
-        return findService(bracketType).distributeCompetitors(competitors, fights, bracketType, distributionType)
+    fun distributeCompetitors(competitors: List<CompetitorDTO>, fights: List<FightDescriptionDTO>, bracketType: BracketType): List<FightDescriptionDTO> {
+        return findService(bracketType).distributeCompetitors(competitors, fights, bracketType)
     }
 
     fun buildStageResults(bracketType: BracketType, stageStatus: StageStatus, fights: List<FightDescriptionDTO>, stageId: String, competitionId: String, pointsAssignmentDescriptors: List<FightResultOptionDTO>): List<CompetitorStageResultDTO> {

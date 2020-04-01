@@ -232,7 +232,7 @@ class BracketsGenerateService : FightsService() {
     }
 
 
-    override fun distributeCompetitors(competitors: List<CompetitorDTO>, fights: List<FightDescriptionDTO>, bracketType: BracketType, distributionType: DistributionType): List<FightDescriptionDTO> {
+    override fun distributeCompetitors(competitors: List<CompetitorDTO>, fights: List<FightDescriptionDTO>, bracketType: BracketType): List<FightDescriptionDTO> {
         when (bracketType) {
             BracketType.SINGLE_ELIMINATION, BracketType.DOUBLE_ELIMINATION -> {
                 val firstRoundFights = fights.filter { it.round == 0 && it.roundType != StageRoundType.LOSER_BRACKETS }

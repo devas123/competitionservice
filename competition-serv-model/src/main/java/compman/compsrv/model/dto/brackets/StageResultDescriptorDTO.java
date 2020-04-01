@@ -13,6 +13,7 @@ public class StageResultDescriptorDTO {
     private String id;
     private String name;
     private boolean forceManualAssignment;
+    private Integer outputSize;
     private FightResultOptionDTO[] fightResultOptions;
     private CompetitorStageResultDTO[] competitorResults;
     private AdditionalGroupSortingDescriptorDTO[] additionalGroupSortingDescriptors;

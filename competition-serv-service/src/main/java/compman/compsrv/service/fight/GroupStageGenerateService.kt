@@ -38,15 +38,17 @@ class GroupStageGenerateService : FightsService() {
             throw IllegalArgumentException("Group descriptors are empty (${stage.groupDescriptors?.size}) or total groups size (${stage.groupDescriptors.fold(0) { acc, gr -> acc + gr.size }}) does not match the competitors (${comps.size}) size")
         }
 
-        return stage.groupDescriptors.fold(0 to emptyList<FightDescriptionDTO>()) { acc, groupDescriptorDTO ->
+        val fights = stage.groupDescriptors.fold(0 to emptyList<FightDescriptionDTO>()) { acc, groupDescriptorDTO ->
             (acc.first + groupDescriptorDTO.size) to (acc.second + createGroupFights(competitionId, categoryId, stage.id, groupDescriptorDTO.id, duration,
                     comps.subList(acc.first, acc.first + groupDescriptorDTO.size)))
         }.second
+
+        return validateFights(fights)
     }
 
     private fun createCompscore(competitor: CompetitorDTO, order: Int): CompScoreDTO {
         return if (!competitor.isPlaceholder) {
-             CompScoreDTO()
+            CompScoreDTO()
                     .setCompetitorId(competitor.id)
                     .setOrder(order)
                     .setScore(ScoreDTO().setPoints(0).setPenalties(0).setAdvantages(0))
@@ -71,8 +73,32 @@ class GroupStageGenerateService : FightsService() {
                 }
     }
 
-    override fun distributeCompetitors(competitors: List<CompetitorDTO>, fights: List<FightDescriptionDTO>, bracketType: BracketType, distributionType: DistributionType): List<FightDescriptionDTO> {
-        throw NotImplementedError("Competitors are distributed during the fights creation")
+    override fun distributeCompetitors(competitors: List<CompetitorDTO>, fights: List<FightDescriptionDTO>, bracketType: BracketType): List<FightDescriptionDTO> {
+        validateFights(fights)
+        val placeholders = fights.flatMap { f -> f.scores.map { it.placeholderId } }.distinct()
+        val fightsWithDistributedCompetitors = competitors.foldIndexed(fights) { index, acc, competitor ->
+            if (index < placeholders.size) {
+                val placeholderId = placeholders[index]
+                acc.map { f ->
+                    f.setScores(f.scores.map { s ->
+                        if (s.placeholderId == placeholderId) {
+                            s.setCompetitorId(competitor.id)
+                        } else {
+                            s
+                        }
+                    }.toTypedArray())
+                }
+            } else {
+                acc
+            }
+        }
+        return validateFights(fightsWithDistributedCompetitors)
+    }
+
+    private fun validateFights(fights: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
+        assert(fights.all { it.scores?.size == 2 }) { "Some fights do not have scores. Something is wrong." }
+        assert(fights.all { it.scores.all { scoreDTO -> !scoreDTO.placeholderId.isNullOrBlank() || !scoreDTO.competitorId.isNullOrBlank() } }) { "Not all fights have placeholders or real competitors assigned." }
+        return fights
     }
 
     override fun buildStageResults(bracketType: BracketType, stageStatus: StageStatus,
