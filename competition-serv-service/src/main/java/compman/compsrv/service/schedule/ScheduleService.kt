@@ -103,7 +103,9 @@ class ScheduleService {
                                                 .setId(IDGenerator
                                                         .scheduleEntryId(competitionId, period.id, i, scheduleEntryDTO.entryType))
                                                 .setOrder(i)
-                                                .setInvalidFightIds(scheduleEntryDTO.fightIds?.filter { invalidFightIds.contains(it) }?.toTypedArray())
+                                                .setInvalidFightIds(scheduleEntryDTO.fightIds?.filter { invalidFightIds.contains(it.someId) }
+                                                        ?.mapNotNull { it.someId }
+                                                        ?.distinct()?.toTypedArray())
                                     }.toTypedArray())
                             .setMats(fightsByMats.b.filter { it.periodId == period.id }.mapIndexed { i, container ->
                                 MatDescriptionDTO()

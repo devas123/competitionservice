@@ -143,7 +143,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                                             .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(f.fightId))
                                 }
                     } +
-                    per.scheduleEntries.mapIndexed { _, sch ->
+                    per.scheduleEntries.map { sch ->
                         create.insertInto(ScheduleEntry.SCHEDULE_ENTRY,
                                 ScheduleEntry.SCHEDULE_ENTRY.ID,
                                 ScheduleEntry.SCHEDULE_ENTRY.PERIOD_ID,
@@ -181,7 +181,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                                     create.update(FightDescription.FIGHT_DESCRIPTION)
                                             .set(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID, sch.id)
                                             .set(FightDescription.FIGHT_DESCRIPTION.INVALID, false)
-                                            .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fid))
+                                            .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fid.someId))
                                 } +
                                 sch.invalidFightIds?.map { fid ->
                                     create.update(FightDescription.FIGHT_DESCRIPTION)
