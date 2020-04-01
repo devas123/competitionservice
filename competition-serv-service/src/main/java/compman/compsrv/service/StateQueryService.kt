@@ -11,9 +11,8 @@ import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
-import compman.compsrv.model.dto.schedule.SchedulePropertiesDTO
-import compman.compsrv.repository.JooqQueries
-import compman.compsrv.service.fight.BracketsGenerateService
+import compman.compsrv.repository.JooqQueryProvider
+import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.copy
 import io.scalecube.net.Address
@@ -28,21 +27,18 @@ import org.springframework.web.client.RestClientResponseException
 import org.springframework.web.client.RestTemplate
 import java.nio.charset.StandardCharsets
 import java.time.Duration
+import java.util.*
 import javax.transaction.Transactional
 import kotlin.math.max
 
 @Component
 class StateQueryService(private val clusterSession: ClusterSession,
                         restTemplateBuilder: RestTemplateBuilder,
-                        private val periodDao: SchedulePeriodDao,
-                        private val jooq: JooqQueries,
+                        private val jooq: JooqRepository,
+                        private val jooqQueryProvider: JooqQueryProvider,
                         private val registrationInfoDao: RegistrationInfoDao,
-                        private val fightStartTimesDao: FightStartTimesDao,
                         private val staffDao: CompetitionPropertiesStaffIdsDao,
                         private val promoCodeDao: PromoCodeDao,
-                        private val matScheduleContainerDao: MatScheduleContainerDao,
-                        private val scheduleEntriesDao: ScheduleEntriesDao,
-                        private val periodPropertiesDao: SchedulePeriodPropertiesDao,
                         private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
                         private val matDescriptionCrudRepository: MatDescriptionDao,
                         private val competitorCrudRepository: CompetitorDao) {
@@ -51,13 +47,14 @@ class StateQueryService(private val clusterSession: ClusterSession,
         private val log = LoggerFactory.getLogger(StateQueryService::class.java)
     }
 
+    private val timeout = Duration.ofSeconds(1)
     private val restTemplate = restTemplateBuilder
             .setConnectTimeout(Duration.ofSeconds(3))
             .setReadTimeout(Duration.ofSeconds(10)).build()
 
     private fun getLocalCompetitors(competitionId: String, categoryId: String?, searchString: String?, pageSize: Int, page: Int): PageResponse<CompetitorDTO> {
         val pageNumber = max(page - 1, 0)
-        val fromJoinedTables = jooq.competitorsQuery(competitionId)
+        val fromJoinedTables = jooqQueryProvider.competitorsQuery(competitionId)
         val count = jooq.competitorsCount(competitionId, categoryId)
 
         val prefetch = if (!searchString.isNullOrBlank()) {
@@ -65,30 +62,32 @@ class StateQueryService(private val clusterSession: ClusterSession,
                 fromJoinedTables
                         .and(Competitor.COMPETITOR.FIRST_NAME.like(searchString).or(Competitor.COMPETITOR.LAST_NAME.like(searchString)))
                         .orderBy(Competitor.COMPETITOR.FIRST_NAME, Competitor.COMPETITOR.LAST_NAME)
-                        .limit(pageSize)
             } else {
                 fromJoinedTables
                         .and(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.equal(categoryId))
                         .and(Competitor.COMPETITOR.FIRST_NAME.like(searchString)
                                 .or(Competitor.COMPETITOR.LAST_NAME.like(searchString)))
                         .orderBy(Competitor.COMPETITOR.FIRST_NAME, Competitor.COMPETITOR.LAST_NAME)
-                        .limit(pageSize)
             }
         } else {
             if (categoryId.isNullOrBlank()) {
                 fromJoinedTables
                         .orderBy(Competitor.COMPETITOR.FIRST_NAME, Competitor.COMPETITOR.LAST_NAME)
-                        .limit(pageSize)
-                        .offset(pageNumber * pageSize)
             } else {
                 fromJoinedTables
                         .and(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.equal(categoryId))
                         .orderBy(Competitor.COMPETITOR.FIRST_NAME, Competitor.COMPETITOR.LAST_NAME)
-                        .limit(pageSize)
-                        .offset(pageNumber * pageSize)
             }
         }
-        val competitors = prefetch.fetch { rec ->
+
+        val limited = if (pageSize > 0) {
+            prefetch.limit(pageSize)
+                    .offset(pageNumber * pageSize)
+        } else {
+            prefetch
+        }
+
+        val competitors = limited.fetch { rec ->
             jooq.mapToCompetitor(rec, competitionId)
         }
                 .groupBy { it.id }
@@ -153,7 +152,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
                 {
                     log.info("Getting competition properties id $competitionId")
 
-                    val joinedColumnsFlat = jooq.getRegistrationGroupPeriodsQuery(competitionId)
+                    val joinedColumnsFlat = jooqQueryProvider.getRegistrationGroupPeriodsQuery(competitionId)
                             .fetchSize(200)
                             .fetch()
 
@@ -247,24 +246,12 @@ class StateQueryService(private val clusterSession: ClusterSession,
         })
     }
 
-    fun getSchedule(competitionId: String?): ScheduleDTO? {
+    fun getSchedule(competitionId: String): ScheduleDTO? {
         return localOrRemote(competitionId,
                 {
                     ScheduleDTO()
                             .setId(competitionId)
-                            .setPeriods(periodDao.fetchByCompetitionId(competitionId).map { p ->
-                                p.toDTO(scheduleEntriesDao.fetchByPeriodId(p.id)?.map { it.toDTO() }?.toTypedArray()!!,
-                                        matScheduleContainerDao.fetchByPeriodId(p.id).map { mat ->
-                                            mat.toDTO(fightStartTimesDao.fetchByMatScheduleId(mat.id).map {
-                                                it.toDTO(mat.id)
-                                            }.toTypedArray())
-                                        }.toTypedArray())
-                            }.toTypedArray())
-                            .setScheduleProperties(SchedulePropertiesDTO()
-                                    .setCompetitionId(competitionId)
-                                    .setPeriodPropertiesList(periodPropertiesDao.fetchByCompetitionId(competitionId).map {
-                                        it.toDTO(jooq.getCategoryIdsForSchedulePeriodProperties(competitionId!!, it.id).collectList().block()?.toTypedArray())
-                                    }.toTypedArray()))
+                            .setPeriods(jooq.fetchPeriodsByCompetitionId(competitionId).collectList().block(timeout)?.toTypedArray())
                 },
                 { _, restTemplate, urlPrefix ->
                     restTemplate.getForObject("$urlPrefix/api/v1/store/schedule?competitionId=$competitionId", ScheduleDTO::class.java)
@@ -275,7 +262,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
     fun getCategoryState(competitionId: String, categoryId: String): CategoryStateDTO? {
         log.info("Getting state for category $categoryId")
         return localOrRemote(competitionId, {
-            jooq.fetchCategoryStateByCompetitionIdAndCategoryId(competitionId, categoryId).block()
+            jooq.fetchCategoryStateByCompetitionIdAndCategoryId(competitionId, categoryId).block(timeout)
         },
                 { _, restTemplate, urlPrefix ->
                     restTemplate.getForObject("$urlPrefix/api/v1/store/categorystate?competitionId=$competitionId&categoryId=$categoryId", CategoryStateDTO::class.java)
@@ -286,11 +273,11 @@ class StateQueryService(private val clusterSession: ClusterSession,
     fun getMats(competitionId: String, periodId: String): List<MatStateDTO>? {
         log.info("Getting mats for competition $competitionId and period $periodId")
         return localOrRemote(competitionId, {
-            val mats = matDescriptionCrudRepository.fetchByDashboardPeriodId(periodId)
-           mats?.map { mat ->
+            val mats = matDescriptionCrudRepository.fetchByPeriodId(periodId)
+            mats?.map { mat ->
                 val matDescrDto = mat.toDTO()
                 val topFiveFights = jooq.topMatFights(5, competitionId, mat.id, FightsService.notFinishedStatuses)
-                        .collectList().block() ?: emptyList()
+                        .collectList().block(timeout).orEmpty()
                 MatStateDTO()
                         .setMatDescription(matDescrDto)
                         .setNumberOfFights(jooq.fightsCountByMatId(competitionId, mat.id!!))
@@ -299,7 +286,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
         },
                 { _, restTemplate, urlPrefix ->
                     restTemplate.getForObject("$urlPrefix/api/v1/store/mats?competitionId=$competitionId&periodId=$periodId", Array<MatStateDTO>::class.java)?.toList()
-                            ?: emptyList()
+                            .orEmpty()
                 })
     }
 
@@ -307,10 +294,10 @@ class StateQueryService(private val clusterSession: ClusterSession,
         log.info("Getting competitors for competition $competitionId and mat $matId")
         return localOrRemote(competitionId, {
             jooq.topMatFights(15, competitionId, matId, FightsService.notFinishedStatuses)
-                    .collectList().block()
+                    .collectList().block(timeout)
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/matfights?competitionId=$competitionId&matId=$matId&maxResults=$maxResults", Array<FightDescriptionDTO>::class.java)?.toList()
-                    ?: emptyList()
+                    .orEmpty()
         })
     }
 
@@ -318,7 +305,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
     fun getStageFights(competitionId: String, stageId: String): Array<FightDescriptionDTO>? {
         log.info("Getting competitors for stage $stageId")
         return localOrRemote(competitionId, {
-           jooq.fetchFightsByStageId(competitionId, stageId).collectList().block()?.toTypedArray()
+            jooq.fetchFightsByStageId(competitionId, stageId).collectList().block(timeout)?.toTypedArray()
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/stagefights?competitionId=$competitionId&stageId=$stageId", Array<FightDescriptionDTO>::class.java)
         })
@@ -329,7 +316,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
     fun getStages(competitionId: String, categoryId: String): Array<StageDescriptorDTO>? {
         log.info("Getting stages for $categoryId")
         return localOrRemote(competitionId, {
-           jooq.fetchStagesForCategory(competitionId, categoryId).collectList().block()?.toTypedArray()
+            jooq.fetchStagesForCategory(competitionId, categoryId).collectList().block(timeout)?.toTypedArray()
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/stages?competitionId=$competitionId&categoryId=$categoryId", Array<StageDescriptorDTO>::class.java)
         })
@@ -339,7 +326,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getCategories(competitionId: String): Array<CategoryStateDTO> {
         return localOrRemote(competitionId, {
-            jooq.fetchCategoryStatesByCompetitionId(competitionId).collectList().block()?.toTypedArray()
+            jooq.fetchCategoryStatesByCompetitionId(competitionId).collectList().block(timeout)?.toTypedArray()
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/categories?competitionId=$competitionId", Array<CategoryStateDTO>::class.java)
         }) ?: emptyArray()
@@ -347,12 +334,24 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getDashboardState(competitionId: String): CompetitionDashboardStateDTO? {
         return localOrRemote(competitionId, {
-            val periods = jooq.fetchDashboardPeriodsByCompeititonId(competitionId).collectList().block()?.toTypedArray()
+            val periods = jooq.fetchPeriodsByCompetitionId(competitionId).collectList().block()?.toTypedArray()
             CompetitionDashboardStateDTO()
                     .setCompetitionId(competitionId)
                     .setPeriods(periods)
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/dashboardstate?competitionId=$competitionId", CompetitionDashboardStateDTO::class.java)
         })
+    }
+
+    @SuppressWarnings("UNCHECKED")
+    fun getFightIdsByCategoryIds(competitionId: String): Map<String, Array<String>> {
+        return localOrRemote(competitionId, {
+            val categoryIds = jooq.getCategoryIdsForCompetition(competitionId).collectList().block(timeout).orEmpty()
+            categoryIds.map { id ->
+                id to (jooq.getFightIdsForCategory(id).collectList().block()?.toTypedArray() ?: emptyArray())
+            }.toMap()
+        }, { _, restTemplate, urlPrefix ->
+            restTemplate.getForObject("$urlPrefix/api/v1/store/fightsbycategories?competitionId=$competitionId", LinkedHashMap::class.java) as LinkedHashMap<String, Array<String>>
+        }) ?: emptyMap()
     }
 }

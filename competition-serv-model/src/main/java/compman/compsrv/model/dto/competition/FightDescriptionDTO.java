@@ -26,6 +26,7 @@ public class FightDescriptionDTO {
     private ParentFightReferenceDTO parentId2;
     private BigDecimal duration;
     private Integer round;
+    private Boolean invalid;
     private StageRoundType roundType;
     private FightStatus status;
     private FightResultDTO fightResult;

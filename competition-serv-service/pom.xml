@@ -12,7 +12,7 @@
     <artifactId>competition-serv-service</artifactId>
 
     <properties>
-        <scalecube.version>2.4.10-RC9</scalecube.version>
+        <scalecube.version>2.4.10</scalecube.version>
         <!-- Properties are prefixed with flyway. -->
         <flyway.user>postgres</flyway.user>
         <flyway.password>admin</flyway.password>
@@ -105,7 +105,19 @@
         </dependency>
         <dependency>
             <groupId>io.arrow-kt</groupId>
-            <artifactId>arrow-core</artifactId>
+            <artifactId>arrow-free-data</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.arrow-kt</groupId>
+            <artifactId>arrow-syntax</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.arrow-kt</groupId>
+            <artifactId>arrow-optics</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.arrow-kt</groupId>
+            <artifactId>arrow-mtl</artifactId>
         </dependency>
         <dependency>
             <groupId>io.arrow-kt</groupId>

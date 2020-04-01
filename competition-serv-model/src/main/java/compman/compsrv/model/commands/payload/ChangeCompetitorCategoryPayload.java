@@ -7,7 +7,7 @@ import java.io.Serializable;
 
 @Data
 @NoArgsConstructor
-public class ChangeCompetitorCategoryPayload implements Serializable {
+public class ChangeCompetitorCategoryPayload implements Serializable, Payload {
     private String newCategoryId;
     private String oldCategoryId;
     private String fighterId;

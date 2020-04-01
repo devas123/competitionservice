@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.kafka.serde.CommandDeserializer
 import compman.compsrv.kafka.serde.CommandSerializer
 import compman.compsrv.kafka.serde.EventSerializer
+import compman.compsrv.kafka.streams.transformer.CommandExecutor
 import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.commands.CommandDTO
@@ -122,7 +123,7 @@ class KafkaStreamsConfiguration {
     fun container(cf: ConsumerFactory<String, CommandDTO>,
                   kafkaProps: KafkaProperties,
                   trm: ChainedKafkaTransactionManager<Any, Any>,
-                  commandListener: CommandListener): ConcurrentMessageListenerContainer<String, CommandDTO> {
+                  commandExecutor: CommandExecutor): ConcurrentMessageListenerContainer<String, CommandDTO> {
         val props = ContainerProperties(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME)
         val consumerProps = kafkaProps.buildConsumerProperties()
         consumerProps[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
@@ -130,7 +131,7 @@ class KafkaStreamsConfiguration {
         props.kafkaConsumerProperties = Properties().apply { putAll(consumerProps) }
         props.groupId = kafkaProps.consumer.groupId
         props.transactionManager = trm
-        props.messageListener = commandListener
+        props.messageListener = commandExecutor
         return ConcurrentMessageListenerContainer(cf, props).apply {
             concurrency = Runtime.getRuntime().availableProcessors()
             this.setAfterRollbackProcessor(DefaultAfterRollbackProcessor(FixedBackOff(0L, 2L)))
@@ -142,7 +143,8 @@ class KafkaStreamsConfiguration {
             configurer: ConcurrentKafkaListenerContainerFactoryConfigurer,
             trm: ChainedKafkaTransactionManager<Any, Any>,
             kafkaConsumerFactory: ConsumerFactory<String, CommandDTO>): ConcurrentKafkaListenerContainerFactory<Any, Any> {
-        val factory: ConcurrentKafkaListenerContainerFactory<Any, Any> = ConcurrentKafkaListenerContainerFactory<Any, Any>()
+        val factory: ConcurrentKafkaListenerContainerFactory<Any, Any> = ConcurrentKafkaListenerContainerFactory()
+        @Suppress("UNCHECKED_CAST")
         configurer.configure(factory, kafkaConsumerFactory as ConsumerFactory<Any, Any>)
         factory.containerProperties.transactionManager = trm
         return factory

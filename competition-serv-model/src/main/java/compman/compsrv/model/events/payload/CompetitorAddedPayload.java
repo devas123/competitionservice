@@ -1,5 +1,6 @@
 package compman.compsrv.model.events.payload;
 
+import compman.compsrv.model.commands.payload.Payload;
 import compman.compsrv.model.dto.competition.CompetitorDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -10,7 +11,7 @@ import java.io.Serializable;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class CompetitorAddedPayload implements Serializable {
+public class CompetitorAddedPayload implements Serializable, Payload {
 
     private CompetitorDTO fighter;
 }

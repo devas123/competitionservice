@@ -1,5 +1,6 @@
 package compman.compsrv.model.events.payload;
 
+import compman.compsrv.model.commands.payload.Payload;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,7 +13,7 @@ import java.time.Instant;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-public class DashboardFightOrderChange implements Serializable {
+public class DashboardFightOrderChange implements Serializable, Payload {
     private String fightId;
     private String newMatId;
     private Integer newOrderOnMat;

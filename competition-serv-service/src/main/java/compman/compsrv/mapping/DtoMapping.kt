@@ -1,48 +1,22 @@
 package compman.compsrv.mapping
 
 import com.compmanager.compservice.jooq.tables.pojos.*
+import com.compmanager.compservice.jooq.tables.records.CompScoreRecord
 import com.compmanager.model.payment.RegistrationStatus
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.*
 import compman.compsrv.util.IDGenerator
+import java.sql.Timestamp
 
-fun SchedulePeriodProperties.toDTO(categories: Array<String>?): PeriodPropertiesDTO = PeriodPropertiesDTO()
+
+fun SchedulePeriod.toDTO(scheduleEntries: Array<ScheduleEntryDTO>, mats: Array<MatDescriptionDTO>): PeriodDTO = PeriodDTO()
         .setId(id)
         .setName(name)
+        .setScheduleEntries(scheduleEntries)
         .setStartTime(startTime?.toInstant())
-        .setNumberOfMats(numberOfMats)
-        .setTimeBetweenFights(timeBetweenFights)
-        .setRiskPercent(riskPercent)
-        .setCategories(categories)
-
-
-fun ScheduleEntries.toDTO(): ScheduleEntryDTO = ScheduleEntryDTO()
-        .setCategoryId(categoryId)
-        .setStartTime(startTime?.toInstant())
-        .setNumberOfFights(numberOfFights)
-        .setFightDuration(fightDuration)
-
-fun SchedulePeriod.toDTO(scheduleEntries: Array<ScheduleEntryDTO>, fightsByMats: Array<MatScheduleContainerDTO>): PeriodDTO = PeriodDTO()
-        .setId(id)
-        .setName(name)
-        .setSchedule(scheduleEntries)
-        .setStartTime(startTime?.toInstant())
-        .setNumberOfMats(numberOfMats)
-        .setFightsByMats(fightsByMats)
-
-
-fun MatScheduleContainer.toDTO(fights: Array<FightStartTimePairDTO>): MatScheduleContainerDTO = MatScheduleContainerDTO()
-        .setTotalFights(totalFights)
-        .setId(id)
-        .setFights(fights)
-
-fun FightStartTimes.toDTO(matId: String?): FightStartTimePairDTO = FightStartTimePairDTO()
-        .setFightId(fightId)
-        .setFightNumber(fightNumber)
-        .setStartTime(startTime?.toInstant())
-        .setMatId(matId)
+        .setMats(mats)
 
 
 fun CategoryRestriction.toDTO(): CategoryRestrictionDTO = CategoryRestrictionDTO().setMaxValue(maxValue).setMinValue(minValue).setName(name).setType(CategoryRestrictionType.values()[type])
@@ -78,11 +52,11 @@ fun PromoCode.toDTO(): PromoCodeDTO = PromoCodeDTO()
         .setStartAt(startAt.toInstant())
         .setExpireAt(expireAt.toInstant())
 
-fun CompScore.toDTO(getCompetitor: (id: String) -> CompetitorDTO): CompScoreDTO = CompScoreDTO().setScore(ScoreDTO()
+fun CompScore.toDTO(): CompScoreDTO = CompScoreDTO().setScore(ScoreDTO()
         .setPoints(points)
         .setAdvantages(advantages)
         .setPenalties(penalties))
-        .setCompetitor(getCompetitor(compscoreCompetitorId))
+        .setCompetitorId(compscoreCompetitorId)
 
 fun CompetitionProperties.toDTO(staffIds: Array<String>?, promoCodes: Array<PromoCodeDTO>?, getRegistrationInfo: (id: String) -> RegistrationInfoDTO?): CompetitionPropertiesDTO =
         CompetitionPropertiesDTO()
@@ -102,14 +76,7 @@ fun CompetitionProperties.toDTO(staffIds: Array<String>?, promoCodes: Array<Prom
                 .setCreationTimestamp(creationTimestamp)
                 .setStatus(CompetitionStatus.values()[status])
 
-fun DashboardPeriod.toDTO(mats: Array<MatDescriptionDTO>): DashboardPeriodDTO = DashboardPeriodDTO()
-        .setId(id)
-        .setName(name)
-        .setMats(mats)
-        .setStartTime(startTime?.toInstant())
-        .setIsActive(isActive)
-
-fun MatDescription.toDTO(): MatDescriptionDTO = MatDescriptionDTO().setId(id).setName(name).setDashboardPeriodId(dashboardPeriodId)
+fun MatDescription.toDTO(): MatDescriptionDTO = MatDescriptionDTO().setId(id).setName(name).setPeriodId(periodId).setMatOrder(matOrder)
 
 fun Competitor.toDTO(categories: Array<String>): CompetitorDTO = CompetitorDTO()
         .setId(id)
@@ -136,7 +103,7 @@ fun StageInputDescriptor.toDTO(selectors: Array<CompetitorSelectorDTO>): StageIn
         .setDistributionType(DistributionType.values()[distributionType])
         .setNumberOfCompetitors(numberOfCompetitors).setSelectors(selectors)
 
-fun CompetitorStageResult.toDTO(): CompetitorResultDTO = CompetitorResultDTO()
+fun CompetitorStageResult.toDTO(): CompetitorStageResultDTO = CompetitorStageResultDTO()
         .setStageId(stageId)
         .setPoints(points)
         .setGroupId(groupId)
@@ -147,30 +114,54 @@ fun CompetitorStageResult.toDTO(): CompetitorResultDTO = CompetitorResultDTO()
 fun CompetitorSelector.toDTO(selectorValue: Array<String>) = CompetitorSelectorDTO(id, applyToStageId, LogicalOperator.values()[logicalOperator],
         SelectorClassifier.values()[classifier], OperatorType.values()[operator], selectorValue)
 
-fun StageDescriptor.toDTO(inputDescriptor: StageInputDescriptorDTO,
-                          pointsAssignments: Array<PointsAssignmentDescriptorDTO>,
-                          stageResultDescriptor: StageResultDescriptorDTO,
-                          groupDescriptors: Array<GroupDescriptorDTO>,
-                          numberOfFights: Int): StageDescriptorDTO = StageDescriptorDTO()
+
+
+
+fun FightResultOption.toDTO(): FightResultOptionDTO = FightResultOptionDTO()
         .setId(id)
-        .setBracketType(BracketType.values()[bracketType])
-        .setCompetitionId(competitionId)
-        .setInputDescriptor(inputDescriptor)
-        .setName(name)
-        .setStageOrder(stageOrder)
-        .setPointsAssignments(pointsAssignments)
-        .setStageResultDescriptor(stageResultDescriptor)
-        .setStageStatus(StageStatus.values()[stageStatus])
-        .setWaitForPrevious(waitForPrevious)
-        .setStageType(StageType.values()[stageType])
-        .setHasThirdPlaceFight(hasThirdPlaceFight)
-        .setCategoryId(categoryId)
-        .setNumberOfFights(numberOfFights)
-        .setGroupDescriptors(groupDescriptors)
+        .setDescription(description)
+        .setShortName(shortName)
+        .setDraw(draw)
+        .setWinnerAdditionalPoints(winnerAdditionalPoints)
+        .setLoserAdditionalPoints(loserAdditionalPoints)
+        .setWinnerPoints(winnerPoints)
+        .setLoserPoints(loserPoints)
 
 
+fun CompScoreDTO.toRecord(order: Int, fightId: String): CompScoreRecord =
+        CompScoreRecord().also {
+            it.compScoreOrder = order
+            it.advantages = this.score?.advantages
+            it.points = this.score?.points
+            it.penalties = this.score?.penalties
+            it.placeholderId = this.placeholderId
+            it.compscoreCompetitorId = this.competitorId
+            it.compscoreFightDescriptionId = fightId
+        }
 
-fun PointsAssignmentDescriptor.toDTO() = PointsAssignmentDescriptorDTO(id,
-        CompetitorResultType.values()[classifier],
-        points,
-        additionalPoints)
+fun FightDescriptionDTO.toPojo(): FightDescription =
+        FightDescription().also {
+            it.id = this.id
+            it.categoryId = this.categoryId
+            it.reason = this.fightResult?.reason
+            it.winnerId = this.fightResult?.winnerId
+            it.resultType = this.fightResult?.resultTypeId
+            it.duration = this.duration
+            it.winFight = this.winFight
+            it.loseFight = this.loseFight
+            it.matId = this.mat?.id
+            it.numberOnMat = this.numberOnMat
+            it.numberInRound = this.numberInRound
+            it.parent_1FightId = this.parentId1?.fightId
+            it.parent_2FightId = this.parentId2?.fightId
+            it.parent_1ReferenceType = this.parentId1?.referenceType?.ordinal
+            it.parent_2ReferenceType = this.parentId2?.referenceType?.ordinal
+            it.startTime = this.startTime?.let { Timestamp.from(it) }
+            it.fightName = this.fightName
+            it.stageId = this.stageId
+            it.status = this.status?.ordinal
+            it.round = this.round
+            it.roundType = this.roundType?.ordinal
+            it.groupId = this.groupId
+            it.invalid = this.invalid
+        }

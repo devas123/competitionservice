@@ -13,4 +13,5 @@ public class ScoreDTO {
     private Integer points;
     private Integer advantages;
     private Integer penalties;
+    private PointGroupDTO[] pointGroups;
 }

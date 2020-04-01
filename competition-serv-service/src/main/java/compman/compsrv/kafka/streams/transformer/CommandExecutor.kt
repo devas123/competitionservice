@@ -1,13 +1,12 @@
-package compman.compsrv.config
+package compman.compsrv.kafka.streams.transformer
 
 import compman.compsrv.cluster.ClusterSession
-import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
-import compman.compsrv.repository.JooqQueries
+import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.CommandCache
 import org.apache.kafka.clients.consumer.Consumer
 import org.apache.kafka.clients.consumer.ConsumerRecord
@@ -21,9 +20,9 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 @Component
-class CommandListener(private val commandTransformer: CompetitionCommandTransformer,
+class CommandExecutor(private val commandTransformer: CompetitionCommandTransformer,
                       private val template: KafkaTemplate<String, EventDTO>,
-                      private val jooqQueries: JooqQueries,
+                      private val jooqRepository: JooqRepository,
                       private val clusterSession: ClusterSession,
                       private val commandCache: CommandCache) : AcknowledgingConsumerAwareMessageListener<String, CommandDTO> {
     companion object {
@@ -47,7 +46,7 @@ class CommandListener(private val commandTransformer: CompetitionCommandTransfor
                 }
             }
             val startSaving = System.currentTimeMillis()
-            jooqQueries.saveEvents(filteredEvents)
+            jooqRepository.saveEvents(filteredEvents)
             log.info("Events saved: took ${Duration.ofMillis(System.currentTimeMillis() - startSaving)}")
             log.info("Executing post-processing.")
             filteredEvents.asSequence().forEach {

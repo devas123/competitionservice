@@ -5,15 +5,19 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
+import java.math.BigDecimal;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-public class CompetitorResultDTO {
+public class CompetitorStageResultDTO {
     private String competitorId;
-    private Integer points;
+    private BigDecimal points;
     private Integer round;
+    private StageRoundType roundType;
     private Integer place;
     private String stageId;
     private String groupId;
+    private Boolean conflicting;
 }

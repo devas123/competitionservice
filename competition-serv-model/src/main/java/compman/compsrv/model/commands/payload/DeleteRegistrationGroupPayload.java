@@ -11,7 +11,7 @@ import java.io.Serializable;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-public class DeleteRegistrationGroupPayload implements Serializable {
+public class DeleteRegistrationGroupPayload implements Serializable, Payload {
     private String periodId;
     private String groupId;
 }

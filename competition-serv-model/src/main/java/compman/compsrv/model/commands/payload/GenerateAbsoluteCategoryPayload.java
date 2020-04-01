@@ -9,7 +9,7 @@ import java.io.Serializable;
 
 @Data
 @NoArgsConstructor
-public class GenerateAbsoluteCategoryPayload implements Serializable {
+public class GenerateAbsoluteCategoryPayload implements Serializable, Payload {
     private CompetitorDTO[] competitors;
     private CategoryDescriptorDTO category;
     private String competitionId;

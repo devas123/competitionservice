@@ -7,6 +7,6 @@ import java.io.Serializable;
 
 @Data
 @NoArgsConstructor
-public class RemoveCompetitorPayload implements Serializable {
+public class RemoveCompetitorPayload implements Serializable, Payload {
     private String competitorId;
 }

@@ -8,6 +8,6 @@ import java.io.Serializable;
 
 @Data
 @NoArgsConstructor
-public class CreateCompetitionPayload implements Serializable {
+public class CreateCompetitionPayload implements Serializable, Payload {
     private CompetitionPropertiesDTO properties;
 }

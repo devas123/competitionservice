@@ -17,20 +17,47 @@ import java.math.BigDecimal
 class GroupStageGenerateService : FightsService() {
     override fun supportedBracketTypes(): List<BracketType> = listOf(BracketType.MULTIPLE_GROUPS, BracketType.GROUP)
 
-    override fun generateStageFights(competitionId: String, categoryId: String,
+    override fun generateStageFights(competitionId: String,
+                                     categoryId: String,
                                      stage: StageDescriptorDTO,
                                      compssize: Int,
                                      duration: BigDecimal,
                                      competitors: List<CompetitorDTO>,
                                      outputSize: Int): List<FightDescriptionDTO> {
-        if (stage.groupDescriptors.isNullOrEmpty() || stage.groupDescriptors.fold(0) { acc, gr -> acc + gr.size } != competitors.size) {
-            throw IllegalArgumentException("Group descriptors are empty or total groups size is less than competitors size")
+        val comps = when (stage.stageOrder) {
+            0 -> competitors
+            else -> {
+                if (stage.inputDescriptor.numberOfCompetitors <= competitors.size) {
+                    competitors.take(stage.inputDescriptor.numberOfCompetitors)
+                } else {
+                    competitors + generatePlaceholderCompetitorsForGroup(stage.inputDescriptor.numberOfCompetitors - competitors.size)
+                }
+            }
+        }
+        if (stage.groupDescriptors.isNullOrEmpty() || stage.groupDescriptors.fold(0) { acc, gr -> acc + gr.size } != comps.size) {
+            throw IllegalArgumentException("Group descriptors are empty (${stage.groupDescriptors?.size}) or total groups size (${stage.groupDescriptors.fold(0) { acc, gr -> acc + gr.size }}) does not match the competitors (${comps.size}) size")
         }
 
-        return stage.groupDescriptors.fold(0 to emptyList<FightDescriptionDTO>()) { acc, groupDescriptorDTO ->
+        val fights = stage.groupDescriptors.fold(0 to emptyList<FightDescriptionDTO>()) { acc, groupDescriptorDTO ->
             (acc.first + groupDescriptorDTO.size) to (acc.second + createGroupFights(competitionId, categoryId, stage.id, groupDescriptorDTO.id, duration,
-                    competitors.subList(acc.first, groupDescriptorDTO.size)))
+                    comps.subList(acc.first, acc.first + groupDescriptorDTO.size)))
         }.second
+
+        return validateFights(fights)
+    }
+
+    private fun createCompscore(competitor: CompetitorDTO, order: Int): CompScoreDTO {
+        return if (!competitor.isPlaceholder) {
+            CompScoreDTO()
+                    .setCompetitorId(competitor.id)
+                    .setOrder(order)
+                    .setScore(ScoreDTO().setPoints(0).setPenalties(0).setAdvantages(0))
+        } else {
+            CompScoreDTO()
+                    .setPlaceholderId(competitor.id)
+                    .setOrder(order)
+                    .setScore(ScoreDTO().setPoints(0).setPenalties(0).setAdvantages(0))
+        }
     }
 
     private fun createGroupFights(competitionId: String, categoryId: String, stageId: String, groupId: String, duration: BigDecimal, competitors: List<CompetitorDTO>): List<FightDescriptionDTO> {
@@ -38,58 +65,80 @@ class GroupStageGenerateService : FightsService() {
                 .fix()
         return combined.filter { it.a.id != it.b.id }.distinctBy { sortedSetOf(it.a.id, it.b.id).joinToString() }
                 .mapIndexed { ind, comps ->
-                    fightDescription(competitionId, categoryId, stageId, 0, StageRoundType.GROUP, ind, duration, "Round 0 fight $ind")
+                    fightDescription(competitionId, categoryId, stageId, 0, StageRoundType.GROUP, ind, duration, "Round 0 fight $ind", groupId)
                             .setScores(arrayOf(
-                                    CompScoreDTO()
-                                            .setCompetitor(comps.a)
-                                            .setOrder(0)
-                                            .setScore(ScoreDTO().setPoints(0).setPenalties(0).setAdvantages(0)),
-                                    CompScoreDTO()
-                                            .setCompetitor(comps.b)
-                                            .setOrder(1)
-                                            .setScore(ScoreDTO().setPoints(0).setPenalties(0).setAdvantages(0))))
-                            .setGroupId(groupId)
+                                    createCompscore(comps.a, 0),
+                                    createCompscore(comps.b, 1)
+                            ))
                 }
     }
 
-    override fun distributeCompetitors(competitors: List<CompetitorDTO>, fights: List<FightDescriptionDTO>, bracketType: BracketType, distributionType: DistributionType): List<FightDescriptionDTO> {
-        throw NotImplementedError("Competitors are distributed during the fights creation")
+    override fun distributeCompetitors(competitors: List<CompetitorDTO>, fights: List<FightDescriptionDTO>, bracketType: BracketType): List<FightDescriptionDTO> {
+        validateFights(fights)
+        val placeholders = fights.flatMap { f -> f.scores.map { it.placeholderId } }.distinct()
+        val fightsWithDistributedCompetitors = competitors.foldIndexed(fights) { index, acc, competitor ->
+            if (index < placeholders.size) {
+                val placeholderId = placeholders[index]
+                acc.map { f ->
+                    f.setScores(f.scores.map { s ->
+                        if (s.placeholderId == placeholderId) {
+                            s.setCompetitorId(competitor.id)
+                        } else {
+                            s
+                        }
+                    }.toTypedArray())
+                }
+            } else {
+                acc
+            }
+        }
+        return validateFights(fightsWithDistributedCompetitors)
+    }
+
+    private fun validateFights(fights: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
+        assert(fights.all { it.scores?.size == 2 }) { "Some fights do not have scores. Something is wrong." }
+        assert(fights.all { it.scores.all { scoreDTO -> !scoreDTO.placeholderId.isNullOrBlank() || !scoreDTO.competitorId.isNullOrBlank() } }) { "Not all fights have placeholders or real competitors assigned." }
+        return fights
     }
 
     override fun buildStageResults(bracketType: BracketType, stageStatus: StageStatus,
                                    fights: List<FightDescriptionDTO>, stageId: String,
                                    competitionId: String,
-                                   pointsAssignmentDescriptors: List<PointsAssignmentDescriptorDTO>): List<CompetitorResultDTO> {
+                                   pointsAssignmentDescriptors: List<FightResultOptionDTO>): List<CompetitorStageResultDTO> {
         return when (stageStatus) {
             StageStatus.FINISHED -> {
                 val competitorPointsMap = mutableMapOf<String, Tuple3<BigDecimal, BigDecimal, String>>()
 
                 fights.forEach { fight ->
-                    val pointsDescriptor = pointsAssignmentDescriptors.find { p -> p.classifier == fight.fightResult.resultType }
-                    when(pointsDescriptor?.classifier) {
-                        CompetitorResultType.DRAW, CompetitorResultType.BOTH_DQ -> {
-                            val loser = fight.scores.firstOrNull { sc -> sc.competitor?.id != fight.fightResult.winnerId }
-                            loser?.competitor?.id?.let {
-                                competitorPointsMap.compute(it) { _, u ->
-                                    val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
-                                    Tuple3(basis.a + (pointsDescriptor.points
-                                            ?: BigDecimal.ZERO), basis.b + (pointsDescriptor.additionalPoints
-                                            ?: BigDecimal.ZERO), basis.c)
+                    val pointsDescriptor = pointsAssignmentDescriptors.find { p -> p.id == fight.fightResult.resultTypeId }
+                    when (pointsDescriptor?.isDraw) {
+                        true -> {
+                            fight.scores.forEach { sc ->
+                                sc.competitorId?.let {
+                                    competitorPointsMap.compute(it) { _, u ->
+                                        val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
+                                        Tuple3(basis.a + (pointsDescriptor.winnerPoints
+                                                ?: BigDecimal.ZERO), basis.b + (pointsDescriptor.winnerAdditionalPoints
+                                                ?: BigDecimal.ZERO), basis.c)
+                                    }
                                 }
-                            }
-                            competitorPointsMap.compute(fight.fightResult.winnerId) { _, u ->
-                                val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
-                                Tuple3(basis.a + (pointsDescriptor.points
-                                        ?: BigDecimal.ZERO), basis.b + (pointsDescriptor.additionalPoints
-                                        ?: BigDecimal.ZERO), basis.c)
                             }
                         }
                         else -> {
                             competitorPointsMap.compute(fight.fightResult.winnerId) { _, u ->
                                 val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
-                                Tuple3(basis.a + (pointsDescriptor?.points
-                                        ?: BigDecimal.ZERO), basis.b + (pointsDescriptor?.additionalPoints
+                                Tuple3(basis.a + (pointsDescriptor?.winnerPoints
+                                        ?: BigDecimal.ZERO), basis.b + (pointsDescriptor?.winnerAdditionalPoints
                                         ?: BigDecimal.ZERO), basis.c)
+                            }
+
+                            fight.scores.find { it.competitorId != fight.fightResult.winnerId }?.competitorId?.let {
+                                competitorPointsMap.compute(it) { _, u ->
+                                    val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
+                                    Tuple3(basis.a + (pointsDescriptor?.winnerPoints
+                                            ?: BigDecimal.ZERO), basis.b + (pointsDescriptor?.winnerAdditionalPoints
+                                            ?: BigDecimal.ZERO), basis.c)
+                                }
                             }
                         }
                     }
@@ -97,11 +146,11 @@ class GroupStageGenerateService : FightsService() {
                 competitorPointsMap.toList()
                         .sortedByDescending { pair -> pair.second.a + pair.second.b.divide(BigDecimal.valueOf(100000)) }
                         .mapIndexed { i, e ->
-                            CompetitorResultDTO()
+                            CompetitorStageResultDTO()
                                     .setRound(0)
                                     .setGroupId(e.second.c)
                                     .setCompetitorId(e.first)
-                                    .setPoints(e.second.a.toInt())
+                                    .setPoints(e.second.a)
                                     .setPlace(i)
                                     .setStageId(stageId)
                         }

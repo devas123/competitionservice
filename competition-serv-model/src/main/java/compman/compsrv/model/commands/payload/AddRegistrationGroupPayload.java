@@ -12,7 +12,7 @@ import java.io.Serializable;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-public class AddRegistrationGroupPayload implements Serializable {
+public class AddRegistrationGroupPayload implements Serializable, Payload {
     private String periodId;
     private RegistrationGroupDTO[] groups;
 }

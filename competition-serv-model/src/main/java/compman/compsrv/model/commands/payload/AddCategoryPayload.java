@@ -12,6 +12,6 @@ import java.io.Serializable;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-public class AddCategoryPayload implements Serializable {
+public class AddCategoryPayload implements Serializable, Payload {
     private CategoryDescriptorDTO category;
 }

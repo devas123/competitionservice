@@ -11,7 +11,7 @@ import java.io.Serializable;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-public class DashboardFightOrderChangePayload implements Serializable {
+public class DashboardFightOrderChangePayload implements Serializable, Payload {
     private String fightId;
     private String currentMatId;
     private String newMatId;

@@ -1,5 +1,6 @@
 package compman.compsrv.model.events.payload;
 
+import compman.compsrv.model.commands.payload.Payload;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,7 +13,7 @@ import java.io.Serializable;
 @NoArgsConstructor
 @Accessors(chain = true
 )
-public class CompetitionInfoPayload implements Serializable {
+public class CompetitionInfoPayload implements Serializable, Payload {
     private String competitionId;
     private String memberId;
     private String host;

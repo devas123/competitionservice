@@ -10,8 +10,8 @@ import java.util.*
 class CategoryGeneratorService {
     companion object {
         val bjj: CategoryRestrictionDTO = CategoryRestrictionDTO().setId(UUID.randomUUID().toString()).setType(CategoryRestrictionType.Value).setName("Sport").setValue("BJJ")
-        private fun weightRestriction(maxValue: String, minValue: String = "0", alias: String = ""): CategoryRestrictionDTO = CategoryRestrictionDTO()
-                .setId(IDGenerator.hashString("Weight/$minValue/$maxValue"))
+        private fun weightRestriction(alias: String = "", maxValue: String, minValue: String = "0"): CategoryRestrictionDTO = CategoryRestrictionDTO()
+                .setId(IDGenerator.hashString("Weight/$minValue/$maxValue/$alias"))
                 .setType(CategoryRestrictionType.Range)
                 .setName("Weight")
                 .setMaxValue(maxValue)
@@ -20,7 +20,7 @@ class CategoryGeneratorService {
                 .setUnit("kg")
 
         private fun ageRestriction(alias: String = "", minValue: String, maxValue: String = minValue): CategoryRestrictionDTO = CategoryRestrictionDTO()
-                .setId(IDGenerator.hashString("Age/$minValue/$maxValue"))
+                .setId(IDGenerator.hashString("Age/$minValue/$maxValue/$alias"))
                 .setType(CategoryRestrictionType.Range)
                 .setName("Age")
                 .setMaxValue(maxValue)
@@ -119,7 +119,7 @@ class CategoryGeneratorService {
 
     fun createDefaultBjjCategories(competitionId: String): List<CategoryDescriptorDTO> {
 
-   /*     fun createMaleAdultBeltWeights(duration: Long, belt: CategoryRestrictionDTO) = listOf(
+        fun createMaleAdultBeltWeights(duration: Long, belt: CategoryRestrictionDTO) = listOf(
                 createCategory(duration, bjj, adult, male, admrooster, belt),
                 createCategory(duration, bjj, adult, male, admlightFeather, belt),
                 createCategory(duration, bjj, adult, male, admfeather, belt),
@@ -141,8 +141,8 @@ class CategoryGeneratorService {
         )
 
         val maleAdult = createMaleAdultBeltWeights(5, white) + createMaleAdultBeltWeights(6, blue) + createMaleAdultBeltWeights(7, purple) + createMaleAdultBeltWeights(8, brown) + createMaleAdultBeltWeights(10, black)
-        val femaleAdult = createFemaleAdultBeltWeights(5, white) + createFemaleAdultBeltWeights(6, blue) + createFemaleAdultBeltWeights(7, purple) + createFemaleAdultBeltWeights(8, brown) + createFemaleAdultBeltWeights(10, black)*/
+        val femaleAdult = createFemaleAdultBeltWeights(5, white) + createFemaleAdultBeltWeights(6, blue) + createFemaleAdultBeltWeights(7, purple) + createFemaleAdultBeltWeights(8, brown) + createFemaleAdultBeltWeights(10, black)
 
-        return Collections.emptyList()
+        return maleAdult + femaleAdult
     }
 }
