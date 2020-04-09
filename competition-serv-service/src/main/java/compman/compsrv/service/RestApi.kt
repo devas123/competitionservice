@@ -33,6 +33,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
 
     @RequestMapping(path = ["/command/{competitionId}", "/command"], method = [RequestMethod.POST])
     fun sendCommand(@RequestBody command: CommandDTO, @PathVariable competitionId: String?): ResponseEntity<CommonResponse> {
+        log.info("COMMAND ASYNC: $command")
         return  kotlin.runCatching {
             val response = commandProducer.sendCommandAsync(command, competitionId)
             ResponseEntity(response, HttpStatus.resolve(response.status) ?: HttpStatus.OK)
@@ -43,6 +44,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
 
     @RequestMapping(path = ["/commandsync/{competitionId}", "/commandsync"], method = [RequestMethod.POST])
     fun sendCommandSync(@RequestBody command: CommandDTO, @PathVariable competitionId: String?): ResponseEntity<Array<EventDTO>> {
+        log.info("COMMAND SYNC: $command")
         return ResponseEntity(commandProducer.sendCommandSync(command, competitionId), HttpStatus.OK)
     }
 

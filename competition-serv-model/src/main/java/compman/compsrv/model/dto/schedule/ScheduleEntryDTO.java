@@ -15,7 +15,7 @@ import java.time.Instant;
 public class ScheduleEntryDTO {
     private String id;
     private String[] categoryIds;
-    private String[] fightIds;
+    private MatIdAndSomeId[] fightIds;
     private String matId;
     private String periodId;
     private String description;

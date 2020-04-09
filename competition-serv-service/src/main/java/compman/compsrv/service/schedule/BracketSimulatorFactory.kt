@@ -12,7 +12,7 @@ class BracketSimulatorFactory {
                 BracketType.SINGLE_ELIMINATION, BracketType.CHAVE_DE_3 -> SingleEliminationSimulator(stageId, categoryId, fights,
                         competitorsNumber == 3)
                 BracketType.DOUBLE_ELIMINATION -> DoubleEliminationSimulator(stageId, categoryId, fights)
-                BracketType.GROUP, BracketType.MULTIPLE_GROUPS -> GroupSimulator(stageId, categoryId, fights)
+                BracketType.GROUP -> GroupSimulator(stageId, categoryId, fights)
                 else -> TODO()
             }
 }

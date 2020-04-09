@@ -128,9 +128,9 @@ fun FightResultOption.toDTO(): FightResultOptionDTO = FightResultOptionDTO()
         .setLoserPoints(loserPoints)
 
 
-fun CompScoreDTO.toRecord(order: Int, fightId: String): CompScoreRecord =
+fun CompScoreDTO.toRecord(fightId: String): CompScoreRecord =
         CompScoreRecord().also {
-            it.compScoreOrder = order
+            it.compScoreOrder = this.order
             it.advantages = this.score?.advantages
             it.points = this.score?.points
             it.penalties = this.score?.penalties

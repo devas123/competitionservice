@@ -4,10 +4,7 @@ import arrow.core.Tuple3
 import arrow.core.Tuple4
 import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.dto.schedule.ScheduleEntryDTO
-import compman.compsrv.model.dto.schedule.ScheduleEntryType
-import compman.compsrv.model.dto.schedule.ScheduleRequirementDTO
-import compman.compsrv.model.dto.schedule.ScheduleRequirementType
+import compman.compsrv.model.dto.schedule.*
 import compman.compsrv.util.IDGenerator
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -101,7 +98,7 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
     private fun internalMatById2(fightsByMats: List<InternalMatScheduleContainer>) = { matId: String -> fightsByMats.first { it.id == matId } }
 
     private fun fightNotRegistered(fightId: String, schedule: List<ScheduleEntryDTO>) =
-            schedule.none { it.fightIds?.contains(fightId) == true }
+            schedule.none { entry -> entry.fightIds?.any { it.someId == fightId } == true }
 
     private fun findRequirementForFight(f: FightDescription) =
             this.scheduleRequirements
@@ -137,7 +134,7 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
     }
 
     private fun eightyPercentOfDurationInMillis(duration: BigDecimal): Long {
-        return duration.multiply(BigDecimal.valueOf(0.8 * 60000000)).toLong()
+        return duration.multiply(BigDecimal.valueOf(0.8 * 60000)).toLong()
     }
 
     private fun fightsAreDispatchedOrCanBeDispatched(fightIds: List<String>, schedule: List<ScheduleEntryDTO>, currentTime: Instant): Boolean {
@@ -220,7 +217,7 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
                 log.info("Dispatching fight ${f.id} -> ${f.round}. to entry ${entryDTO.id}")
                 val newSchedule = updateScheduleEntry(entryDTO.apply {
                     categoryIds = ((categoryIds ?: emptyArray()) + f.categoryId).distinct().toTypedArray()
-                    fightIds = ((fightIds ?: emptyArray()) + f.id).distinct().toTypedArray()
+                    fightIds = ((fightIds ?: emptyArray()) + MatIdAndSomeId(mat.id, f.id)).distinct().toTypedArray()
                     startTime = startTime ?: mat.currentTime
                     numberOfFights = (numberOfFights ?: 0) + 1
                 })
@@ -372,7 +369,7 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
             InternalMatScheduleContainer(
                     timeZone = timeZone,
                     name = mat.name,
-                    id = mat.id ?: IDGenerator.createMatId(mat.periodId, i),
+                    id = mat.id ?: IDGenerator.createMatId(mat.periodId),
                     fights = emptyList(),
                     currentTime = initDate.toInstant(),
                     totalFights = 0,
@@ -441,7 +438,7 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
             }.toMutableList()
             val a = (t.scheduleEntries + u.scheduleEntries).groupBy { it.id }.mapValues { e ->
                 //Categories, fights, requirements
-                val cfr = e.value.fold(Tuple3(emptyList<String>(), emptyList<String>(), emptyList<String>())) { acc, schedEntry ->
+                val cfr = e.value.fold(Tuple3(emptyList<String>(), emptyList<MatIdAndSomeId>(), emptyList<String>())) { acc, schedEntry ->
                     Tuple3((acc.a + schedEntry.categoryIds.orEmpty()).distinct(),
                             (acc.b + schedEntry.fightIds.orEmpty()).distinct(),
                             (acc.c + schedEntry.requirementIds.orEmpty()).distinct())

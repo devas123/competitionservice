@@ -154,7 +154,12 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
 
     private fun applyCompetitorMovedEvent(event: EventDTO): List<EventDTO> {
         val payload = getPayloadAs(event.payload, FightEditorChangesAppliedPayload::class.java)
-        jooqRepository.updateFightsStatusAndCompScores(payload?.changes.orEmpty())
+        val removals = payload?.removedFighids.orEmpty()
+        val updates = payload?.updates.orEmpty()
+        val newFights = payload?.newFights.orEmpty()
+        jooqRepository.deleteFightsByIds(removals.toList())
+        jooqRepository.saveFights(newFights.toList())
+        jooqRepository.updateFightsStatusAndCompScores(updates.toList())
         return listOf(event)
     }
 

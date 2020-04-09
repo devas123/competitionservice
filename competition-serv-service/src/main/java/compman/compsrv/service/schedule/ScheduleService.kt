@@ -69,7 +69,7 @@ class ScheduleService {
             periodDTO.scheduleRequirements?.map { it.setPeriodId(periodDTO.id) }.orEmpty()
         }.mapIndexed { index, it ->
             it.setId(it.id
-                    ?: IDGenerator.scheduleRequirementId(competitionId, it.periodId, index, it.entryType))
+                    ?: IDGenerator.scheduleRequirementId(competitionId, it.periodId, it.entryType))
         }.sortedBy { it.entryOrder }
 
         val flatFights = enrichedScheduleRequirements.flatMap { it.fightIds?.toList().orEmpty() }
@@ -101,9 +101,11 @@ class ScheduleService {
                                     .mapIndexed { i, scheduleEntryDTO ->
                                         scheduleEntryDTO
                                                 .setId(IDGenerator
-                                                        .scheduleEntryId(competitionId, period.id, i, scheduleEntryDTO.entryType))
+                                                        .scheduleEntryId(competitionId, period.id))
                                                 .setOrder(i)
-                                                .setInvalidFightIds(scheduleEntryDTO.fightIds?.filter { invalidFightIds.contains(it) }?.toTypedArray())
+                                                .setInvalidFightIds(scheduleEntryDTO.fightIds?.filter { invalidFightIds.contains(it.someId) }
+                                                        ?.mapNotNull { it.someId }
+                                                        ?.distinct()?.toTypedArray())
                                     }.toTypedArray())
                             .setMats(fightsByMats.b.filter { it.periodId == period.id }.mapIndexed { i, container ->
                                 MatDescriptionDTO()

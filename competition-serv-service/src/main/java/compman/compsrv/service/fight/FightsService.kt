@@ -31,9 +31,10 @@ abstract class FightsService {
         private val names = arrayOf("Vasya", "Kolya", "Petya", "Sasha", "Vanya", "Semen", "Grisha", "Kot", "Evgen", "Prohor", "Evgrat", "Stas", "Andrey", "Marina")
         private val surnames = arrayOf("Vasin", "Kolin", "Petin", "Sashin", "Vanin", "Senin", "Grishin", "Kotov", "Evgenov", "Prohorov", "Evgratov", "Stasov", "Andreev", "Marinin")
         private val validChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".toCharArray()
+        fun createEmptyScore(): ScoreDTO = ScoreDTO().setAdvantages(0).setPenalties(0).setPoints(0).setPointGroups(emptyArray())
 
-        fun updateFights(updates: List<FightDescriptionDTO>, target: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
-            return target.map { f -> updates.firstOrNull { it.id == f.id } ?: f }
+        fun upsertFights(updates: List<FightDescriptionDTO>, target: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
+            return target.map { f -> updates.firstOrNull { it.id == f.id } ?: f } + updates.filter { f -> target.none { tf -> tf.id == f.id } }
         }
 
         fun markUncompletableFights(dirtyFights: List<FightDescriptionDTO>, getFightById: (id: String) -> FightDescriptionDTO?): List<FightDescriptionDTO> {
@@ -205,28 +206,31 @@ abstract class FightsService {
             }
         }
 
+        fun fightDescription(competitionId: String, categoryId: String, stageId: String, round: Int, roundType: StageRoundType, numberInRound: Int, duration: BigDecimal, fightName: String?, groupId: String?): FightDescriptionDTO {
+            return FightDescriptionDTO()
+                    .setId(createFightId(competitionId, categoryId, stageId, round, numberInRound, roundType, groupId))
+                    .setCategoryId(categoryId)
+                    .setRound(round)
+                    .setNumberInRound(numberInRound)
+                    .setCompetitionId(competitionId)
+                    .setDuration(duration)
+                    .setRoundType(roundType)
+                    .setStageId(stageId)
+                    .setFightName(fightName)
+                    .setStatus(FightStatus.PENDING)
+                    .setPriority(0)
+                    .setGroupId(groupId)
+        }
+
+        private fun createFightId(competitionId: String, categoryId: String?, stageId: String, round: Int, number: Int, roundType: StageRoundType?, groupId: String?) = IDGenerator.fightId(stageId, groupId)
+
+
+
         val logger: Logger = LoggerFactory.getLogger(FightsService::class.java)
 
     }
 
     protected val log = logger
-
-    private fun createFightId(competitionId: String, categoryId: String?, stageId: String, round: Int, number: Int, roundType: StageRoundType?, groupId: String?) = IDGenerator.fightId(competitionId, categoryId, stageId, round, number, roundType, groupId)
-    protected fun fightDescription(competitionId: String, categoryId: String, stageId: String, round: Int, roundType: StageRoundType, numberInRound: Int, duration: BigDecimal, fightName: String?, groupId: String?): FightDescriptionDTO {
-        return FightDescriptionDTO()
-                .setId(createFightId(competitionId, categoryId, stageId, round, numberInRound, roundType, groupId))
-                .setCategoryId(categoryId)
-                .setRound(round)
-                .setNumberInRound(numberInRound)
-                .setCompetitionId(competitionId)
-                .setDuration(duration)
-                .setRoundType(roundType)
-                .setStageId(stageId)
-                .setFightName(fightName)
-                .setStatus(FightStatus.PENDING)
-                .setPriority(0)
-                .setGroupId(groupId)
-    }
 
     fun applyStageInputDescriptorToResultsAndFights(descriptor: StageInputDescriptorDTO,
                                                     previousStageId: String,

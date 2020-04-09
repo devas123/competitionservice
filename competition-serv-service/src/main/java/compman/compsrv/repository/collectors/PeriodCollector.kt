@@ -16,8 +16,8 @@ class ScheduleEntryAccumulator(private val scheduleEntry: ScheduleEntryDTO) {
     fun getId(): String = scheduleEntry.id
     val invalidFightIds = mutableSetOf<String>()
     val categoryIds = mutableSetOf<String>()
-    val fightIds = mutableSetOf<String>()
-    fun getScheduleEntry() = scheduleEntry.setInvalidFightIds(invalidFightIds.toTypedArray()).setCategoryIds(categoryIds.toTypedArray()).setFightIds(fightIds.toTypedArray())
+    val fightIds = mutableSetOf<MatIdAndSomeId>()
+    fun getScheduleEntry(): ScheduleEntryDTO = scheduleEntry.setInvalidFightIds(invalidFightIds.toTypedArray()).setCategoryIds(categoryIds.toTypedArray()).setFightIds(fightIds.toTypedArray())
 }
 
 class ScheduleRequirementAccumulator(private val scheduleRequirementDTO: ScheduleRequirementDTO) {
@@ -146,9 +146,10 @@ class PeriodCollector(private val periodId: String) : Collector<Record,
                     t.scheduleEntryAccumulators.add(ScheduleEntryAccumulator(scheduleEntryDTO(u)))
                 }
                 val updatable = t.scheduleEntryAccumulators.first { tc -> tc.getId() == u[ScheduleEntry.SCHEDULE_ENTRY.ID] }
+                val matId = u[FightDescription.FIGHT_DESCRIPTION.MAT_ID]
                 if (!u[FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID].isNullOrBlank()) {
                     val id = u[FightDescription.FIGHT_DESCRIPTION.ID]
-                    updatable.fightIds.add(id)
+                    updatable.fightIds.add(MatIdAndSomeId(matId, id))
                     if (u[FightDescription.FIGHT_DESCRIPTION.INVALID].orFalse()) {
                         updatable.invalidFightIds.add(id)
                     }

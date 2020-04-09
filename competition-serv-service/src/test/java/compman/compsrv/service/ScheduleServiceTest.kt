@@ -46,7 +46,7 @@ class ScheduleServiceTest {
         val fightStartTimes = schedule.periods.flatMap { it.mats.flatMap { dto -> dto.fightStartTimes.toList() } }
         val fightIdsInSchedule = schedule.periods.flatMap { it.scheduleEntries.flatMap { dto -> dto.fightIds.toList() } }
         assertTrue(flatFights.fold(true) { acc, f -> acc && fightStartTimes.any { it.fightId == f.id } })
-        assertTrue(flatFights.fold(true) { acc, f -> acc && fightIdsInSchedule.contains(f.id) })
+        assertTrue(flatFights.fold(true) { acc, f -> acc && fightIdsInSchedule.any { it.someId == f.id } })
         assertEquals(categories.size, schedule.periods.flatMap { it.scheduleEntries.flatMap { scheduleEntryDTO -> scheduleEntryDTO.categoryIds.toList() } }.distinct().size)
         assertTrue(schedule.periods.all {
             it.scheduleRequirements.all { sr ->

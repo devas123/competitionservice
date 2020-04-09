@@ -1,17 +1,13 @@
 package compman.compsrv.util
 
 import com.google.common.hash.Hashing
-import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
 import compman.compsrv.model.dto.competition.CategoryRestrictionDTO
-import compman.compsrv.model.dto.schedule.ScheduleEntryType
 import compman.compsrv.model.dto.schedule.ScheduleRequirementType
 import java.util.*
-import kotlin.random.Random
 
 object IDGenerator {
     private const val SALT = "zhenekpenek"
-    private val random = Random(System.currentTimeMillis())
     fun uid() = "${UUID.randomUUID()}-${System.currentTimeMillis()}"
     fun restrictionId(restriction: CategoryRestrictionDTO) = restriction.id
             ?: hashString("${restriction.name}/${restriction.minValue}/${restriction.maxValue}")
@@ -23,14 +19,14 @@ object IDGenerator {
     }/${category.fightDuration}")
 
     fun hashString(str: String) = Hashing.sha256().hashBytes("$SALT$str".toByteArray(Charsets.UTF_8)).toString()
-    fun fightId(competitionId: String, categoryId: String?, stageId: String, rount: Int, number: Int, roundType: StageRoundType?, groupId: String? = "") = hashString("$competitionId-$categoryId-$rount-$number-$stageId-$roundType-$groupId")
-    fun stageId(competitionId: String, categoryId: String?, stageName: String?, stageOrder: Int) = hashString("$competitionId-$categoryId-$stageName-$stageOrder")
+    fun fightId(stageId: String, groupId: String? = "") = hashString("$stageId-$groupId-${UUID.randomUUID()}")
+    fun stageId(competitionId: String, categoryId: String) = hashString("$competitionId-$categoryId-${UUID.randomUUID()}")
     fun compResultId(competitorId: String, stageId: String, competitionId: String): String = hashString(competitorId + stageId + competitionId)
-    fun createPeriodId(competitionId: String) = hashString("$competitionId-period-${UUID.randomUUID()}")
-    fun createMatId(periodId: String, matNumber: Int) = hashString("$periodId-mat-$matNumber")
-    fun scheduleEntryId(competitionId: String, periodId: String, index: Int, entryType: ScheduleEntryType): String =         hashString("$competitionId-$periodId-scheduleEntry-${entryType}-$index")
-    fun scheduleRequirementId(competitionId: String, periodId: String, index: Int, entryType: ScheduleRequirementType): String =         hashString("$competitionId-$periodId-scheduleRequirement-${entryType}-$index")
-    fun groupId(competitionId: String, categoryId: String, stageId: String, index: Int): String =
-            hashString("$competitionId/$categoryId/$stageId/group/$index")
+    fun createPeriodId(competitionId: String) = hashString("$competitionId-${UUID.randomUUID()}")
+    fun createMatId(periodId: String) = hashString("$periodId-${UUID.randomUUID()}")
+    fun scheduleEntryId(competitionId: String, periodId: String): String = hashString("$competitionId-$periodId-${UUID.randomUUID()}")
+    fun scheduleRequirementId(competitionId: String, periodId: String, entryType: ScheduleRequirementType): String = hashString("$competitionId-$periodId-${entryType}-${UUID.randomUUID()}")
+    fun groupId(stageId: String): String =
+            hashString("$stageId/${UUID.randomUUID()}")
 
 }
