@@ -10,11 +10,11 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
-import compman.compsrv.model.dto.brackets.StageStatus
-import compman.compsrv.model.dto.brackets.StageType
+import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.CategoryRestrictionDTO
 import compman.compsrv.model.dto.competition.CategoryStateDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
+import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
@@ -23,6 +23,8 @@ import compman.compsrv.repository.JooqQueryProvider
 import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.service.fight.FightsService
+import compman.compsrv.service.fight.FightsService.Companion.createEmptyScore
+import compman.compsrv.service.fight.GroupStageGenerateService
 import compman.compsrv.util.*
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
@@ -42,6 +44,18 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                                            private val jooqQueryProvider: JooqQueryProvider,
                                            private val jooqMappers: JooqMappers
 ) : AbstractCommandProcessor(mapper, validators) {
+
+    companion object {
+        val changePriority = GroupChangeType.values().associate {
+            it to when (it) {
+                GroupChangeType.REMOVE -> 0
+                GroupChangeType.ADD -> 1
+                else -> Int.MAX_VALUE
+            }
+        }.withDefault { Int.MAX_VALUE }
+    }
+
+
     private val commandsToHandlers: Map<CommandType, (command: CommandDTO) -> List<EventDTO>> = setOf(CommandType.ADD_COMPETITOR_COMMAND to ::doAddCompetitor,
             CommandType.REMOVE_COMPETITOR_COMMAND to ::doRemoveCompetitor,
             CommandType.ADD_CATEGORY_COMMAND to ::processAddCategoryCommandDTO,
@@ -106,14 +120,48 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         return executeValidated(com, FightEditorApplyChangesPayload::class.java) { payload, command ->
             if (categoryCrudRepository.existsById(command.categoryId)) {
                 val competitionProperties = competitionPropertiesCrudRepository.findById(command.competitionId)
-                if (competitionProperties.schedulePublished && competitionProperties.bracketsPublished) {
-                    val updatedChanges = payload.fights.map { f ->
-                        f.setScores(f.scores.filter { s -> !s.competitorId.isNullOrBlank() || !s.placeholderId.isNullOrBlank() }.toTypedArray())
-                    }.toTypedArray()
+                val stage = jooq.fetchStageById(command.competitionId, payload.stageId).block(Duration.ofMillis(300))!!
+                val bracketsType = stage.bracketType
+                if (!competitionProperties.schedulePublished && !competitionProperties.bracketsPublished) {
                     val allStageFights = jooq.fetchFightsByStageId(command.competitionId, payload.stageId).collectList().block(Duration.ofMillis(300)).orEmpty()
-                    val stageFights = FightsService.updateFights(updatedChanges.toList(), allStageFights)
-                            .let { fights -> FightsService.markUncompletableFights(fights) { id -> allStageFights.firstOrNull { it.id == id } } }
-                    listOf(createEvent(command, EventType.FIGHTS_EDITOR_CHANGE_APPLIED, FightEditorChangesAppliedPayload(stageFights.toTypedArray())))
+                    val stageFights =  when (bracketsType) {
+                        BracketType.GROUP -> {
+                            val fightsByGroupId = allStageFights.groupBy { it.groupId!! }
+                            val competitorChangesByGroupId = payload.competitorGroupChanges.groupBy { it.groupId }
+                            val groups = stage.groupDescriptors
+                            groups.flatMap { gr ->
+                                val groupChanges = competitorChangesByGroupId[gr.id].orEmpty()
+                                val groupFights = fightsByGroupId[gr.id].orEmpty()
+                                groupChanges.sortedBy { changePriority[it.changeType] }.fold(groupFights) { acc, ch ->
+                                    when (ch.changeType!!) {
+                                        GroupChangeType.ADD -> {
+                                            createUpdatesWithAddedCompetitor(acc, ch, payload.stageId, command.competitionId, command.categoryId)
+                                        }
+                                        GroupChangeType.REMOVE -> {
+                                            createUpdatesWithRemovedCompetitor(acc, ch, gr)
+                                        }
+                                    }
+                                }
+                            }.filterNotNull().sortedBy { it.numberInRound }.mapIndexed { i, fightDescriptionDTO -> fightDescriptionDTO.setNumberInRound(i) }
+                        }
+                        else -> {
+                            FightsService.upsertFights(payload.fights.map { f ->
+                                f.setScores(f.scores.filter { s -> !s.competitorId.isNullOrBlank() || !s.placeholderId.isNullOrBlank() }.toTypedArray())
+                            }, allStageFights)
+                        }
+                    }
+                    val markedStageFights = stageFights
+                            .let { fights -> FightsService.markUncompletableFights(fights) { id ->
+                                allStageFights.firstOrNull { it.id == id } ?: stageFights.firstOrNull { it.id == id } }
+                            }
+
+                    listOf(createEvent(command, EventType.FIGHTS_EDITOR_CHANGE_APPLIED,
+                            FightEditorChangesAppliedPayload()
+                                    .setRemovedFighids(allStageFights.filter { asf -> markedStageFights.none { msf -> asf.id == msf.id } }
+                                            .map { it.id }.toTypedArray())
+                                    .setUpdates(markedStageFights.filter { allStageFights.any { asf -> asf.id == it.id } }
+                                            .toTypedArray())
+                                    .setNewFights(markedStageFights.filter { allStageFights.none { asf -> asf.id == it.id } }.toTypedArray())))
                 } else {
                     listOf(createErrorEvent(command, "Competition schedule or brackets are published."))
                 }
@@ -121,6 +169,72 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                 listOf(createErrorEvent(command, "Category does not exist."))
             }
         }
+    }
+
+
+    private fun createUpdatesWithRemovedCompetitor(groupFights: List<FightDescriptionDTO>, ch: CompetitorGroupChange, groupDescriptorDTO: GroupDescriptorDTO): List<FightDescriptionDTO> {
+        val actualGroupSize = groupFights.flatMap { it.scores.orEmpty().toList() }.distinctBy { it.competitorId ?: it.placeholderId }.size
+        return if (actualGroupSize <= groupDescriptorDTO.size) {
+            groupFights.map {
+                it.setScores(it.scores?.map { sc ->
+                    if (sc.competitorId == ch.competitorId) {
+                        sc.setCompetitorId(null).setScore(createEmptyScore())
+                    } else {
+                        sc
+                    }
+                }?.toTypedArray())
+            }
+        } else {
+            groupFights.filter {
+                it.scores?.none { sc -> sc.competitorId == ch.competitorId } ?: true
+            }
+        }
+    }
+
+
+    private fun createUpdatesWithAddedCompetitor(groupFights: List<FightDescriptionDTO>, ch: CompetitorGroupChange, stageId: String,
+                                                 competitionId: String, categoryId: String): List<FightDescriptionDTO> {
+        if (groupFights.any { f -> f.scores.any { it.competitorId == ch.competitorId } }) {
+            log.info("Group already contains fights for competitor ${ch.competitorId}. Assuming the competitor is already added to the group.")
+            return groupFights
+        }
+        //find placeholder in existing fights.
+        val flatScores = groupFights.flatMap { it.scores.orEmpty().toList() }
+        val placeholderId = flatScores
+                .find { it.competitorId.isNullOrBlank() && !it.placeholderId.isNullOrBlank() }?.placeholderId
+        val result =  if (!placeholderId.isNullOrBlank()) {
+            log.info("Found placeholder: $placeholderId")
+            groupFights.map { fight ->
+                fight.setScores(fight.scores?.map {
+                    if (it.placeholderId == placeholderId) {
+                        log.info("Updating fight with compscores: ${it.competitorId}/${it.placeholderId}, setting competitorId to ${ch.competitorId}")
+                        it.setCompetitorId(ch.competitorId)
+                    } else {
+                        it
+                    }
+                }?.toTypedArray())
+            }
+        } else {
+            log.info("Did not find placeholder, creating new fight.")
+            val groupCompetitors = flatScores.map { it.competitorId }.distinct()
+            val newCompetitorPairs = GroupStageGenerateService.createPairs(groupCompetitors, listOf(ch.competitorId))
+                    .filter { it.a != it.b }.distinctBy { sortedSetOf(it.a, it.b).joinToString() }
+            val startIndex = (groupFights.maxBy { it.numberInRound }?.numberInRound
+                    ?: 0) + 1
+            val duration = groupFights.first().duration
+            val newPlaceholderId = (flatScores.map { it.competitorId to it.placeholderId } + (ch.competitorId to "placeholder-${UUID.randomUUID()}")).toMap()
+            val newFights = newCompetitorPairs.mapIndexed { index, tuple2 ->
+                FightsService.fightDescription(competitionId, categoryId,
+                        stageId, 0,
+                        StageRoundType.GROUP, startIndex + index,
+                        duration, "Round 0 fight ${startIndex + index}", ch.groupId)
+                        .setScores(arrayOf(
+                                GroupStageGenerateService.createCompscore(tuple2.a, newPlaceholderId[tuple2.a], 0),
+                                GroupStageGenerateService.createCompscore(tuple2.b, newPlaceholderId[tuple2.b], 1)))
+            }
+            groupFights + newFights
+        }
+        return result
     }
 
     private fun createErrorEvent(command: CommandDTO, errorStr: String) = mapper.createErrorEvent(command, errorStr)
@@ -134,7 +248,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                     val duration = categoryCrudRepository.findById(command.categoryId).fightDuration!!
                     val stages = payload.stageDescriptors.sortedBy { it.stageOrder }
                     val stageIdMap = stages
-                            .map { stage -> stage.id!! to IDGenerator.stageId(command.competitionId, command.categoryId, stage.name, stage.stageOrder) }
+                            .map { stage -> stage.id!! to IDGenerator.stageId(command.competitionId, command.categoryId!!) }
                             .toMap()
                     val updatedStages = stages.map { stage ->
                         val outputSize = when (stage.stageType) {
@@ -142,21 +256,24 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                             else -> 0
                         }
                         val stageId = stageIdMap[stage.id] ?: error("Stage id not found.")
-                        val groupDescr = stage.groupDescriptors?.mapIndexed { index, it ->
-                            it.setId(IDGenerator.groupId(command.competitionId, command.categoryId, stageId, index))
+                        val groupDescr = stage.groupDescriptors?.map {  it ->
+                            it.setId(IDGenerator.groupId(stageId))
                         }?.toTypedArray()
                         val inputDescriptor = stage.inputDescriptor?.setId(stageId)?.setSelectors(stage.inputDescriptor
                                 ?.selectors
-                                ?.mapIndexed { index, sel -> sel.setId("$stageId-s-$index")
-                                        .setApplyToStageId(stageIdMap[sel.applyToStageId]) }?.toTypedArray())
+                                ?.mapIndexed { index, sel ->
+                                    sel.setId("$stageId-s-$index")
+                                            .setApplyToStageId(stageIdMap[sel.applyToStageId])
+                                }?.toTypedArray())
                         val resultDescriptor = stage.stageResultDescriptor
                                 .setId(stageId)
-                                .setFightResultOptions(stage.stageResultDescriptor?.fightResultOptions?.map { it
-                                        .setId(IDGenerator.hashString("$stageId-${UUID.randomUUID()}"))
-                                        .setLoserAdditionalPoints(it.loserAdditionalPoints ?: BigDecimal.ZERO)
-                                        .setLoserPoints(it.loserPoints ?:BigDecimal.ZERO)
-                                        .setWinnerAdditionalPoints(it.winnerAdditionalPoints ?: BigDecimal.ZERO)
-                                        .setWinnerPoints(it.winnerAdditionalPoints ?: BigDecimal.ZERO)
+                                .setFightResultOptions(stage.stageResultDescriptor?.fightResultOptions?.map {
+                                    it
+                                            .setId(IDGenerator.hashString("$stageId-${UUID.randomUUID()}"))
+                                            .setLoserAdditionalPoints(it.loserAdditionalPoints ?: BigDecimal.ZERO)
+                                            .setLoserPoints(it.loserPoints ?: BigDecimal.ZERO)
+                                            .setWinnerAdditionalPoints(it.winnerAdditionalPoints ?: BigDecimal.ZERO)
+                                            .setWinnerPoints(it.winnerAdditionalPoints ?: BigDecimal.ZERO)
                                 }?.toTypedArray())
                         val stageWithIds = stage
                                 .setCategoryId(command.categoryId)

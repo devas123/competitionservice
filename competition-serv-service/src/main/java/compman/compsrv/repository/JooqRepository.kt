@@ -733,10 +733,10 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 }
     }
 
-    fun updateFightsStatusAndCompScores(orEmpty: Array<out FightDescriptionDTO>) {
+    fun updateFightsStatusAndCompScores(updates: List<FightDescriptionDTO>) {
         create.batch(
-                listOf(create.deleteFrom(CompScore.COMP_SCORE).where(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.`in`(orEmpty.map { it.id }))) +
-                        orEmpty.flatMap { it.scores?.mapIndexedNotNull { ind, s -> s.toRecord(ind, it.id) }.orEmpty() }.map { csr ->
+                listOf(create.deleteFrom(CompScore.COMP_SCORE).where(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.`in`(updates.map { it.id }))) +
+                        updates.flatMap { it.scores?.map { s -> s.toRecord(it.id) }.orEmpty() }.map { csr ->
                             create.insertInto(CompScore.COMP_SCORE, *csr.fields())
                                     .values(csr.value1(),
                                             csr.value2(),
@@ -748,8 +748,15 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                                     .onDuplicateKeyUpdate()
                                     .set(csr)
                         } +
-        orEmpty.map { f -> create.update(FightDescription.FIGHT_DESCRIPTION)
-                .set(FightDescription.FIGHT_DESCRIPTION.STATUS, f.status?.ordinal)
-                .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(f.id))}).execute()
+                        updates.map { f ->
+                            create.update(FightDescription.FIGHT_DESCRIPTION)
+                                    .set(FightDescription.FIGHT_DESCRIPTION.STATUS, f.status?.ordinal)
+                                    .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(f.id))
+                        }).execute()
+    }
+
+    fun deleteFightsByIds(ids: List<String>) {
+        create.batch(listOf(create.deleteFrom(FightDescription.FIGHT_DESCRIPTION).where(FightDescription.FIGHT_DESCRIPTION.ID.`in`(ids))) +
+                create.deleteFrom(CompScore.COMP_SCORE).where(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.`in`(ids))).execute()
     }
 }

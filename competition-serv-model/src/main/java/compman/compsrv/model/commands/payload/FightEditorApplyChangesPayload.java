@@ -5,11 +5,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.util.Timer;
 
 @Data
 @NoArgsConstructor
 public class FightEditorApplyChangesPayload implements Serializable, Payload {
     private String stageId;
     private FightDescriptionDTO[] fights;
+    private CompetitorGroupChange[] competitorGroupChanges;
 }

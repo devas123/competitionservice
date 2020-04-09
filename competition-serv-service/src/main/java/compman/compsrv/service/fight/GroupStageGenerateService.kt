@@ -9,13 +9,53 @@ import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.CompScoreDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
-import compman.compsrv.model.dto.competition.ScoreDTO
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 
 @Component
 class GroupStageGenerateService : FightsService() {
-    override fun supportedBracketTypes(): List<BracketType> = listOf(BracketType.MULTIPLE_GROUPS, BracketType.GROUP)
+
+    companion object {
+
+
+
+        fun createCompscore(competitorId: String?, placeHolderId: String?, order: Int): CompScoreDTO {
+            return CompScoreDTO()
+                    .setCompetitorId(competitorId)
+                    .setPlaceholderId(placeHolderId)
+                    .setOrder(order)
+                    .setScore(createEmptyScore())
+
+        }
+
+        private fun getCompetitorId(competitor: CompetitorDTO): String? = if (competitor.isPlaceholder) null else competitor.id
+        private fun getPlaceHolderId(competitor: CompetitorDTO): String? = if (competitor.isPlaceholder) competitor.id else "placeholder-${competitor.id}"
+
+        private fun createGroupFights(competitionId: String, categoryId: String, stageId: String, groupId: String, duration: BigDecimal, competitors: List<CompetitorDTO>): List<FightDescriptionDTO> {
+            val combined = createPairs(competitors)
+            return combined.filter { it.a.id != it.b.id }.distinctBy { sortedSetOf(it.a.id, it.b.id).joinToString() }
+                    .mapIndexed { ind, comps ->
+                        fightDescription(competitionId = competitionId,
+                                categoryId = categoryId,
+                                stageId = stageId, round =  0,
+                                roundType = StageRoundType.GROUP,
+                                numberInRound = ind,
+                                duration = duration, fightName = "Round 0 fight $ind",
+                                groupId = groupId)
+                                .setScores(arrayOf(
+                                        createCompscore(getCompetitorId(comps.a), getPlaceHolderId(comps.a), 0),
+                                        createCompscore(getCompetitorId(comps.b), getPlaceHolderId(comps.b), 1)
+                                ))
+                    }
+        }
+
+        fun <T> createPairs(competitors: List<T>, competitors2: List<T> = competitors) =
+                ListK.semigroupal().run { competitors.k() * competitors2.k() }
+                        .fix()
+
+    }
+
+    override fun supportedBracketTypes(): List<BracketType> = listOf(BracketType.GROUP)
 
     override fun generateStageFights(competitionId: String,
                                      categoryId: String,
@@ -46,32 +86,6 @@ class GroupStageGenerateService : FightsService() {
         return validateFights(fights)
     }
 
-    private fun createCompscore(competitor: CompetitorDTO, order: Int): CompScoreDTO {
-        return if (!competitor.isPlaceholder) {
-            CompScoreDTO()
-                    .setCompetitorId(competitor.id)
-                    .setOrder(order)
-                    .setScore(ScoreDTO().setPoints(0).setPenalties(0).setAdvantages(0))
-        } else {
-            CompScoreDTO()
-                    .setPlaceholderId(competitor.id)
-                    .setOrder(order)
-                    .setScore(ScoreDTO().setPoints(0).setPenalties(0).setAdvantages(0))
-        }
-    }
-
-    private fun createGroupFights(competitionId: String, categoryId: String, stageId: String, groupId: String, duration: BigDecimal, competitors: List<CompetitorDTO>): List<FightDescriptionDTO> {
-        val combined = ListK.semigroupal().run { competitors.k() * competitors.k() }
-                .fix()
-        return combined.filter { it.a.id != it.b.id }.distinctBy { sortedSetOf(it.a.id, it.b.id).joinToString() }
-                .mapIndexed { ind, comps ->
-                    fightDescription(competitionId, categoryId, stageId, 0, StageRoundType.GROUP, ind, duration, "Round 0 fight $ind", groupId)
-                            .setScores(arrayOf(
-                                    createCompscore(comps.a, 0),
-                                    createCompscore(comps.b, 1)
-                            ))
-                }
-    }
 
     override fun distributeCompetitors(competitors: List<CompetitorDTO>, fights: List<FightDescriptionDTO>, bracketType: BracketType): List<FightDescriptionDTO> {
         validateFights(fights)

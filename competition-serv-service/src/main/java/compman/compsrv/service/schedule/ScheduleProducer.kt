@@ -369,7 +369,7 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
             InternalMatScheduleContainer(
                     timeZone = timeZone,
                     name = mat.name,
-                    id = mat.id ?: IDGenerator.createMatId(mat.periodId, i),
+                    id = mat.id ?: IDGenerator.createMatId(mat.periodId),
                     fights = emptyList(),
                     currentTime = initDate.toInstant(),
                     totalFights = 0,

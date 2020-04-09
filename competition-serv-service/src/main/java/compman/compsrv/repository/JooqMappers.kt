@@ -54,7 +54,9 @@ class JooqMappers {
                                     .setAdvantages(it[CompScore.COMP_SCORE.ADVANTAGES])
                                     .setPoints(it[CompScore.COMP_SCORE.POINTS]))
                             .setPlaceholderId(it[CompScore.COMP_SCORE.PLACEHOLDER_ID])
-                    arrayOf(cs.setCompetitorId(it[CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID]))
+                            .setOrder(it[CompScore.COMP_SCORE.COMP_SCORE_ORDER])
+                            .setCompetitorId(it[CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID])
+                    arrayOf(cs)
                 } else {
                     emptyArray()
                 }
