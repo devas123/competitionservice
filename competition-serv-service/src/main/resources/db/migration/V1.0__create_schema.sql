@@ -323,9 +323,6 @@ create table compservice.schedule_entry
     period_id      varchar(255) not null
         constraint fkafy2hinwcl6a1ugke2uctic0w
             references compservice.schedule_period on delete cascade,
-    mat_id         varchar(255)
-        constraint schedule_entries_mat_id_fkey
-            references compservice.mat_description,
     duration       numeric(19, 2),
     entry_type     integer      not null,
     start_time     timestamp    not null,
@@ -335,7 +332,7 @@ create table compservice.schedule_entry
     name           varchar(255),
     color          varchar(255),
     constraint schedule_unique_period_mat_order
-        unique (period_id, mat_id, schedule_order, entry_type)
+        unique (period_id, schedule_order, entry_type)
 );
 
 create table compservice.schedule_requirement
@@ -395,7 +392,7 @@ create table compservice.fight_description
     priority                integer      not null,
     round                   integer,
     round_type              integer,
-    status                  integer,
+    status                  integer not null,
     start_time              timestamp,
     win_fight               varchar(255),
     stage_id                varchar(255)

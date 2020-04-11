@@ -7,6 +7,7 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
+import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
@@ -59,14 +60,15 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
                 competitionId, categoryId)
     }
 
+
     @RequestMapping("/store/mats", method = [RequestMethod.GET])
-    fun getMats(@RequestParam("competitionId") competitionId: String, @RequestParam("periodId") periodId: String): List<MatStateDTO> {
+    fun getMats(@RequestParam("competitionId") competitionId: String, @RequestParam("periodId") periodId: String): List<MatDescriptionDTO> {
         return stateQueryService.getMats(competitionId, periodId)?.toList().orEmpty()
     }
 
     @RequestMapping("/store/matfights", method = [RequestMethod.GET])
-    fun getMatFights(@RequestParam("competitionId") competitionId: String, @RequestParam("matId") matId: String, @RequestParam("maxResults") maxResults: Int): List<FightDescriptionDTO> {
-        return stateQueryService.getMatFights(competitionId, matId, maxResults)?.toList().orEmpty()
+    fun getMatFightsWithCompetitors(@RequestParam("competitionId") competitionId: String, @RequestParam("matId") matId: String, @RequestParam("maxResults") maxResults: Long?): FightsWithCompetitors? {
+        return stateQueryService.getMatFights(competitionId, matId, maxResults ?: 100L)
     }
 
     @RequestMapping("/store/stagefights", method = [RequestMethod.GET])

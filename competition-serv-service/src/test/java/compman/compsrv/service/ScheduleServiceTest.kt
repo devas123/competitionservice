@@ -1,6 +1,7 @@
 package compman.compsrv.service
 
 import compman.compsrv.mapping.toPojo
+import compman.compsrv.model.dto.schedule.ScheduleEntryDTO
 import compman.compsrv.service.fight.BracketsGenerateService
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.service.schedule.ScheduleService
@@ -16,6 +17,8 @@ class ScheduleServiceTest {
 
 
     private val testDataGenerationUtils = TestDataGenerationUtils(fightsGenerateService)
+
+    private fun getMatIds(e: ScheduleEntryDTO): List<String> = e.fightIds.map { it.matId }.distinct()
 
     @Test
     fun testScheduleGeneration() {
@@ -41,9 +44,9 @@ class ScheduleServiceTest {
 
         assertNotNull(schedule)
         assertNotNull(schedule.periods)
-        assertEquals(flatFights.size, schedule.periods.flatMap { it.mats.flatMap { descriptionDTO -> descriptionDTO.fightStartTimes.toList() } }.size)
+        assertEquals(flatFights.size, schedule.mats.flatMap { descriptionDTO -> descriptionDTO.fightStartTimes.toList() }.size)
         assertEquals(flatFights.size, schedule.periods.flatMap { it.scheduleEntries.flatMap { entryDTO -> entryDTO.fightIds.toList() } }.distinct().size)
-        val fightStartTimes = schedule.periods.flatMap { it.mats.flatMap { dto -> dto.fightStartTimes.toList() } }
+        val fightStartTimes = schedule.mats.flatMap { descriptionDTO -> descriptionDTO.fightStartTimes.toList() }
         val fightIdsInSchedule = schedule.periods.flatMap { it.scheduleEntries.flatMap { dto -> dto.fightIds.toList() } }
         assertTrue(flatFights.fold(true) { acc, f -> acc && fightStartTimes.any { it.fightId == f.id } })
         assertTrue(flatFights.fold(true) { acc, f -> acc && fightIdsInSchedule.any { it.someId == f.id } })
@@ -60,10 +63,11 @@ class ScheduleServiceTest {
         })
         println("Periods: ")
         schedule.periods.forEach {
+            val mats = schedule.mats.filter { mat -> mat.id == it.id }
             println("\n==== \n==== \n====")
             println("${it.id} -> ${it.name}")
-            println("------------------ MATS: ${it.mats?.size} --------------")
-            it.mats.forEach { mat ->
+            println("------------------ MATS: ${mats.size} --------------")
+            mats.forEach { mat ->
                 println("${mat.id} -> ${mat.fightStartTimes?.size} -> \n${mat.fightStartTimes?.joinToString(separator = "\n") { f -> "${f.fightId} -> ${f.startTime} -> ${f.numberOnMat}" }}")
             }
             println("------------------ SCHEDULE REQUIREMENTS ${it.scheduleRequirements?.size} -----------------")
@@ -72,7 +76,7 @@ class ScheduleServiceTest {
             }
             println("------------------ SCHEDULE ENTRIES ${it.scheduleEntries?.size} -----------------")
             it.scheduleEntries.forEach { e ->
-                println("${e.id} /  start =  ${e.startTime} / end =  ${e.endTime} / categories: ${e.categoryIds?.distinct()?.size}  / mat = ${e.matId} / fights: ${e.fightIds?.distinct()?.size}")
+                println("${e.id} /  start =  ${e.startTime} / end =  ${e.endTime} / categories: ${e.categoryIds?.distinct()?.size}  / mats = ${getMatIds(e)} / fights: ${e.fightIds?.distinct()?.size}")
             }
         }
     }

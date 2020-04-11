@@ -7,11 +7,13 @@ import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
 import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
+import compman.compsrv.model.dto.schedule.PeriodDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.dto.schedule.ScheduleRequirementDTO
 import org.jooq.*
 import org.jooq.impl.DSL
 import org.springframework.stereotype.Component
+import java.math.BigDecimal
 import java.sql.Timestamp
 
 @Component
@@ -63,25 +65,39 @@ class JooqQueryProvider(private val create: DSLContext) {
             create.selectFrom(FightDescription.FIGHT_DESCRIPTION
                     .join(CompScore.COMP_SCORE, JoinType.LEFT_OUTER_JOIN)
                     .on(FightDescription.FIGHT_DESCRIPTION.ID.eq(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID))
-                    .join(Competitor.COMPETITOR, JoinType.LEFT_OUTER_JOIN)
-                    .on(Competitor.COMPETITOR.ID.eq(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID))
                     .join(MatDescription.MAT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
                     .on(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(MatDescription.MAT_DESCRIPTION.ID)))
                     .where(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId))
 
-    fun topMatFightsQuery(limit: Int = 100, competitionId: String, matId: String, statuses: Iterable<FightStatus>): SelectLimitPercentStep<Record> = fightsQuery(competitionId)
-            .and(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId))
-            .and(FightDescription.FIGHT_DESCRIPTION.STATUS.`in`(statuses.map { it.ordinal }))
-            .and(Competitor.COMPETITOR.FIRST_NAME.isNotNull)
-            .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT, FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND)
-            .limit(limit)
+    fun topMatFightsQuery(competitionId: String, matId: String, statuses: Iterable<FightStatus>): SelectSeekStep2<Record, Int, Int> {
+        return create.select(*(FightDescription.FIGHT_DESCRIPTION.fields()), *CompScore.COMP_SCORE.fields(),
+                *MatDescription.MAT_DESCRIPTION.fields())
+                .from(
+                        FightDescription.FIGHT_DESCRIPTION.join(CompScore.COMP_SCORE, JoinType.LEFT_OUTER_JOIN)
+                                .on(FightDescription.FIGHT_DESCRIPTION.ID.eq(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID))
+                                .join(MatDescription.MAT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
+                                .on(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(MatDescription.MAT_DESCRIPTION.ID)))
+                .where(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId))
+                .and(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId))
+                .and(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.isNotNull)
+                .and(create.selectCount()
+                        .from(CompScore.COMP_SCORE)
+                        .where(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.isNotNull)
+                        .and(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.eq(FightDescription.FIGHT_DESCRIPTION.ID)).asField<Int>().ge(2))
+                .and(FightDescription.FIGHT_DESCRIPTION.STATUS.`in`(statuses.map { it.ordinal }))
+                .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT,
+                        FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND)
+    }
 
-    fun competitorsQuery(competitionId: String): SelectConditionStep<Record> = create.selectFrom(Competitor.COMPETITOR
+    fun competitorsQueryBasic(): SelectWhereStep<CompetitorRecord> = create.selectFrom(Competitor.COMPETITOR)
+
+    fun competitorsQueryJoined(): SelectWhereStep<Record> = create.selectFrom(Competitor.COMPETITOR
             .join(CompetitorCategories.COMPETITOR_CATEGORIES, JoinType.JOIN)
             .on(Competitor.COMPETITOR.ID.equal(CompetitorCategories.COMPETITOR_CATEGORIES.COMPETITORS_ID))
             .join(CategoryDescriptor.CATEGORY_DESCRIPTOR)
             .on(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.equal(CompetitorCategories.COMPETITOR_CATEGORIES.CATEGORIES_ID)))
-            .where(Competitor.COMPETITOR.COMPETITION_ID.equal(competitionId))
+
+    fun competitorsQuery(competitionId: String): SelectConditionStep<Record> = competitorsQueryJoined().where(Competitor.COMPETITOR.COMPETITION_ID.equal(competitionId))
 
     fun getRegistrationGroupPeriodsQuery(competitionId: String): SelectConditionStep<Record> = create.selectFrom(RegistrationGroup.REGISTRATION_GROUP.join(RegGroupRegPeriod.REG_GROUP_REG_PERIOD, JoinType.LEFT_OUTER_JOIN)
             .on(RegistrationGroup.REGISTRATION_GROUP.ID.equal(RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_GROUP_ID))
@@ -101,105 +117,130 @@ class JooqQueryProvider(private val create: DSLContext) {
                     .values(fro.id, stageId, fro.winnerPoints, fro.winnerAdditionalPoints, fro.loserPoints,
                             fro.loserAdditionalPoints, fro.isDraw, fro.description, fro.shortName).onDuplicateKeyIgnore()
 
-    fun saveScheduleQuery(it: ScheduleDTO): List<RowCountQuery> {
-        return listOf(create.update(FightDescription.FIGHT_DESCRIPTION)
+    fun saveScheduleQuery(schedule: ScheduleDTO): List<RowCountQuery> {
+        return listOf(resetFightDescriptions(schedule),
+                create.deleteFrom(SchedulePeriod.SCHEDULE_PERIOD)
+                        .where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(schedule.id))) +
+                schedule.periods.map { per -> upsertSchedulePeriod(per, schedule.id) } +
+                saveMatsAndUpdateFightStartTimes(schedule) +
+                schedule.periods.flatMap { per ->
+                    insertPeriodsScheduleEntries(per) +
+                            connectEntriesAndCategoriesAndFights(per)
+                } +
+                saveScheduleRequirements(schedule) +
+                connectScheduleEntriesAndRequirements(schedule)
+    }
+
+    private fun connectScheduleEntriesAndRequirements(schedule: ScheduleDTO): List<InsertValuesStep2<ScheduleEntryScheduleRequirementRecord, String, String>> {
+        return schedule.periods?.flatMap { per -> per.scheduleEntries?.toList().orEmpty() }
+                ?.flatMap { e ->
+                    e.requirementIds?.map { req ->
+                        create.insertInto(ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT,
+                                ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT.SCHEDULE_ENTRY_ID,
+                                ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT.SCHEDULE_REQUIREMENT_ID)
+                                .values(e.id, req)
+                    }.orEmpty()
+                }.orEmpty()
+    }
+
+    private fun saveScheduleRequirements(schedule: ScheduleDTO) =
+            schedule.periods?.flatMap { per -> per.scheduleRequirements?.toList().orEmpty() }
+                    ?.flatMap { scheduleRequirementDTO -> saveScheduleRequirementsQuery(scheduleRequirementDTO) }.orEmpty()
+
+    private fun saveMatsAndUpdateFightStartTimes(schedule: ScheduleDTO): List<RowCountQuery> {
+        return schedule.mats.flatMap { ms ->
+            listOf(saveMatQuery(ms)) +
+                    ms.fightStartTimes.map { f ->
+                        create.update(FightDescription.FIGHT_DESCRIPTION)
+                                .set(FightDescription.FIGHT_DESCRIPTION.PERIOD, ms.periodId)
+                                .set(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT, f.numberOnMat)
+                                .set(FightDescription.FIGHT_DESCRIPTION.MAT_ID, f.matId)
+                                .set(FightDescription.FIGHT_DESCRIPTION.START_TIME, f.startTime?.toTimestamp())
+                                .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(f.fightId))
+                    }
+        }
+    }
+
+    private fun connectEntriesAndCategoriesAndFights(per: PeriodDTO): List<RowCountQuery> {
+        return per.scheduleEntries.flatMap { sch ->
+            listOf(create.deleteFrom(CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY)
+                    .where(CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.SCHEDULE_ENTRY_ID.eq(sch.id))) +
+                    sch.categoryIds.map { cat ->
+                        create.insertInto(CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY,
+                                CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.CATEGORY_ID,
+                                CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.SCHEDULE_ENTRY_ID)
+                                .values(cat, sch.id)
+                    } +
+                    sch.fightIds.map { fid ->
+                        create.update(FightDescription.FIGHT_DESCRIPTION)
+                                .set(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID, sch.id)
+                                .set(FightDescription.FIGHT_DESCRIPTION.INVALID, false)
+                                .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fid.someId))
+                    } +
+                    sch.invalidFightIds?.map { fid ->
+                        create.update(FightDescription.FIGHT_DESCRIPTION)
+                                .set(FightDescription.FIGHT_DESCRIPTION.INVALID, true)
+                                .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fid))
+                    }.orEmpty()
+        }
+    }
+
+    private fun insertPeriodsScheduleEntries(per: PeriodDTO): List<InsertValuesStep10<ScheduleEntryRecord, String, String, BigDecimal, Timestamp, Int, Timestamp, Int, String, String, String>> {
+        return per.scheduleEntries.map { sch ->
+            create.insertInto(ScheduleEntry.SCHEDULE_ENTRY,
+                    ScheduleEntry.SCHEDULE_ENTRY.ID,
+                    ScheduleEntry.SCHEDULE_ENTRY.PERIOD_ID,
+                    ScheduleEntry.SCHEDULE_ENTRY.DURATION,
+                    ScheduleEntry.SCHEDULE_ENTRY.START_TIME,
+                    ScheduleEntry.SCHEDULE_ENTRY.SCHEDULE_ORDER,
+                    ScheduleEntry.SCHEDULE_ENTRY.END_TIME,
+                    ScheduleEntry.SCHEDULE_ENTRY.ENTRY_TYPE,
+                    ScheduleEntry.SCHEDULE_ENTRY.DESCRIPTION,
+                    ScheduleEntry.SCHEDULE_ENTRY.NAME,
+                    ScheduleEntry.SCHEDULE_ENTRY.COLOR)
+                    .values(sch.id,
+                            per.id,
+                            sch.duration,
+                            sch.startTime?.toTimestamp(),
+                            sch.order,
+                            sch.endTime?.toTimestamp(),
+                            sch.entryType?.ordinal,
+                            sch.description,
+                            sch.name,
+                            sch.color)
+        }
+    }
+
+    private fun upsertSchedulePeriod(per: PeriodDTO, scheduleId: String): InsertOnDuplicateSetMoreStep<SchedulePeriodRecord> {
+        return create.insertInto(SchedulePeriod.SCHEDULE_PERIOD,
+                SchedulePeriod.SCHEDULE_PERIOD.ID,
+                SchedulePeriod.SCHEDULE_PERIOD.NAME,
+                SchedulePeriod.SCHEDULE_PERIOD.START_TIME,
+                SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID,
+                SchedulePeriod.SCHEDULE_PERIOD.IS_ACTIVE,
+                SchedulePeriod.SCHEDULE_PERIOD.END_TIME,
+                SchedulePeriod.SCHEDULE_PERIOD.RISK_PERCENT,
+                SchedulePeriod.SCHEDULE_PERIOD.TIME_BETWEEN_FIGHTS
+        )
+                .values(per.id, per.name, per.startTime?.toTimestamp(), scheduleId, per.isActive, per.endTime?.toTimestamp(),
+                        per.riskPercent, per.timeBetweenFights).onDuplicateKeyUpdate()
+                .set(SchedulePeriod.SCHEDULE_PERIOD.END_TIME, per.endTime?.toTimestamp())
+                .set(SchedulePeriod.SCHEDULE_PERIOD.START_TIME, per.startTime?.toTimestamp())
+                .set(SchedulePeriod.SCHEDULE_PERIOD.NAME, per.name)
+                .set(SchedulePeriod.SCHEDULE_PERIOD.RISK_PERCENT, per.riskPercent)
+                .set(SchedulePeriod.SCHEDULE_PERIOD.TIME_BETWEEN_FIGHTS, per.timeBetweenFights)
+                .set(SchedulePeriod.SCHEDULE_PERIOD.IS_ACTIVE, per.isActive)
+    }
+
+    private fun resetFightDescriptions(schedule: ScheduleDTO): UpdateConditionStep<FightDescriptionRecord> {
+        return create.update(FightDescription.FIGHT_DESCRIPTION)
                 .set(FightDescription.FIGHT_DESCRIPTION.PERIOD, null as String?)
                 .set(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID, null as String?)
                 .set(FightDescription.FIGHT_DESCRIPTION.MAT_ID, null as String?)
                 .set(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT, null as Int?)
                 .set(FightDescription.FIGHT_DESCRIPTION.INVALID, null as Boolean?)
                 .set(FightDescription.FIGHT_DESCRIPTION.START_TIME, null as Timestamp?)
-                .where(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(it.id)),
-                create.deleteFrom(SchedulePeriod.SCHEDULE_PERIOD)
-                        .where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(it.id))) + it.periods.flatMap { per ->
-            listOf(
-                    create.insertInto(SchedulePeriod.SCHEDULE_PERIOD,
-                    SchedulePeriod.SCHEDULE_PERIOD.ID,
-                    SchedulePeriod.SCHEDULE_PERIOD.NAME,
-                    SchedulePeriod.SCHEDULE_PERIOD.START_TIME,
-                    SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID,
-                    SchedulePeriod.SCHEDULE_PERIOD.IS_ACTIVE,
-                    SchedulePeriod.SCHEDULE_PERIOD.END_TIME,
-                    SchedulePeriod.SCHEDULE_PERIOD.RISK_PERCENT,
-                    SchedulePeriod.SCHEDULE_PERIOD.TIME_BETWEEN_FIGHTS
-            )
-                    .values(per.id, per.name, per.startTime?.toTimestamp(), it.id, per.isActive, per.endTime?.toTimestamp(),
-                            per.riskPercent, per.timeBetweenFights).onDuplicateKeyUpdate()
-                    .set(SchedulePeriod.SCHEDULE_PERIOD.END_TIME, per.endTime?.toTimestamp())
-                    .set(SchedulePeriod.SCHEDULE_PERIOD.START_TIME, per.startTime?.toTimestamp())
-                    .set(SchedulePeriod.SCHEDULE_PERIOD.NAME, per.name)
-                    .set(SchedulePeriod.SCHEDULE_PERIOD.RISK_PERCENT, per.riskPercent)
-                    .set(SchedulePeriod.SCHEDULE_PERIOD.TIME_BETWEEN_FIGHTS, per.timeBetweenFights)
-                    .set(SchedulePeriod.SCHEDULE_PERIOD.IS_ACTIVE, per.isActive)
-                    ) +
-                    per.mats.flatMap { ms ->
-                        listOf(saveMatQuery(ms)) +
-                                ms.fightStartTimes.map { f ->
-                                    create.update(FightDescription.FIGHT_DESCRIPTION)
-                                            .set(FightDescription.FIGHT_DESCRIPTION.PERIOD, per.id)
-                                            .set(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT, f.numberOnMat)
-                                            .set(FightDescription.FIGHT_DESCRIPTION.MAT_ID, f.matId)
-                                            .set(FightDescription.FIGHT_DESCRIPTION.START_TIME, f.startTime?.toTimestamp())
-                                            .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(f.fightId))
-                                }
-                    } +
-                    per.scheduleEntries.map { sch ->
-                        create.insertInto(ScheduleEntry.SCHEDULE_ENTRY,
-                                ScheduleEntry.SCHEDULE_ENTRY.ID,
-                                ScheduleEntry.SCHEDULE_ENTRY.PERIOD_ID,
-                                ScheduleEntry.SCHEDULE_ENTRY.DURATION,
-                                ScheduleEntry.SCHEDULE_ENTRY.START_TIME,
-                                ScheduleEntry.SCHEDULE_ENTRY.SCHEDULE_ORDER,
-                                ScheduleEntry.SCHEDULE_ENTRY.END_TIME,
-                                ScheduleEntry.SCHEDULE_ENTRY.ENTRY_TYPE,
-                                ScheduleEntry.SCHEDULE_ENTRY.DESCRIPTION,
-                                ScheduleEntry.SCHEDULE_ENTRY.NAME,
-                                ScheduleEntry.SCHEDULE_ENTRY.COLOR,
-                                ScheduleEntry.SCHEDULE_ENTRY.MAT_ID)
-                                .values(sch.id,
-                                        per.id,
-                                        sch.duration,
-                                        sch.startTime?.toTimestamp(),
-                                        sch.order,
-                                        sch.endTime?.toTimestamp(),
-                                        sch.entryType?.ordinal,
-                                        sch.description,
-                                        sch.name,
-                                        sch.color,
-                                        sch.matId)
-                    } +
-                    per.scheduleEntries.flatMap { sch ->
-                        listOf(create.deleteFrom(CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY)
-                                .where(CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.SCHEDULE_ENTRY_ID.eq(sch.id))) +
-                                sch.categoryIds.map { cat ->
-                                    create.insertInto(CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY,
-                                            CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.CATEGORY_ID,
-                                            CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.SCHEDULE_ENTRY_ID)
-                                            .values(cat, sch.id)
-                                } +
-                                sch.fightIds.map { fid ->
-                                    create.update(FightDescription.FIGHT_DESCRIPTION)
-                                            .set(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID, sch.id)
-                                            .set(FightDescription.FIGHT_DESCRIPTION.INVALID, false)
-                                            .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fid.someId))
-                                } +
-                                sch.invalidFightIds?.map { fid ->
-                                    create.update(FightDescription.FIGHT_DESCRIPTION)
-                                            .set(FightDescription.FIGHT_DESCRIPTION.INVALID, true)
-                                            .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fid))
-                                }.orEmpty()
-                    }
-        } + it.periods?.flatMap { per -> per.scheduleRequirements?.toList().orEmpty() }
-                ?.flatMap { scheduleRequirementDTO -> saveScheduleRequirementsQuery(scheduleRequirementDTO) }.orEmpty() +
-                it.periods?.flatMap { per -> per.scheduleEntries?.toList().orEmpty() }
-                        ?.flatMap { e ->
-                            e.requirementIds?.map { req ->
-                                create.insertInto(ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT,
-                                        ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT.SCHEDULE_ENTRY_ID,
-                                        ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT.SCHEDULE_REQUIREMENT_ID)
-                                        .values(e.id, req)
-                            }.orEmpty()
-                        }.orEmpty()
+                .where(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(schedule.id))
     }
 
     fun saveMatQuery(mat: MatDescriptionDTO): InsertReturningStep<MatDescriptionRecord> =
@@ -267,6 +308,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                 .where(StageDescriptor.STAGE_DESCRIPTOR.COMPETITION_ID.eq(competitionId))
                 .and(StageDescriptor.STAGE_DESCRIPTOR.CATEGORY_ID.eq(categoryId))
     }
+
     fun selectStagesByCompetitionIdQuery(competitionId: String): SelectSeekStep1<Record, Int> {
         return stageJoinQuery()
                 .where(StageDescriptor.STAGE_DESCRIPTOR.COMPETITION_ID.eq(competitionId))
@@ -330,11 +372,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                 .join(CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY, JoinType.LEFT_OUTER_JOIN)
                 .on(CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.SCHEDULE_ENTRY_ID.eq(ScheduleEntry.SCHEDULE_ENTRY.ID))
                 .join(FightDescription.FIGHT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
-                .on(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID.eq(ScheduleEntry.SCHEDULE_ENTRY.ID))
-                .join(MatDescription.MAT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
-                .on(SchedulePeriod.SCHEDULE_PERIOD.ID.eq(MatDescription.MAT_DESCRIPTION.PERIOD_ID)))
+                .on(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID.eq(ScheduleEntry.SCHEDULE_ENTRY.ID)))
                 .where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(competitionId))
     }
-
-
 }

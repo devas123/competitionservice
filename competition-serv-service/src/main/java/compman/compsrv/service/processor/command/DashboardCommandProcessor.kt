@@ -181,7 +181,6 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
     }
 
     private fun changeFightOrder(command: CommandDTO): List<EventDTO> {
-
         return executeValidated(command, DashboardFightOrderChangePayload::class.java) { payload, _ ->
             val newOrderOnMat = max(payload.newOrderOnMat, 0)
             val fight = fightCrudRepository.findById(payload.fightId)!!
@@ -248,7 +247,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                             }.getOrElse { fight.startTime?.toInstant()!! }
                             val currentFightOrderChange = DashboardFightOrderChange().setFightId(fight.id).setNewMatId(payload.newMatId).setNewOrderOnMat(newOrderOnMat).setNewStartTime(newStartTimeOfTheCurrentFight)
                             val allChanges = (fightOrderChangesCurrentMat + currentFightOrderChange).distinctBy { it.fightId }
-                            listOf(mapper.createEvent(command, EventType.DASHBOARD_FIGHT_ORDER_CHANGED, DashboardFightOrderChangedPayload(periodId, allChanges.toTypedArray())))
+                            allChanges.chunked(50).map { chunk -> mapper.createEvent(command, EventType.DASHBOARD_FIGHT_ORDER_CHANGED, DashboardFightOrderChangedPayload(periodId, chunk.toTypedArray())) }
                         } else {
                             listOf(mapper.createErrorEvent(command, "The new position of the fight is equal to the current."))
                         }

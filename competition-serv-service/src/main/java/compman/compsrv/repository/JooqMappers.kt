@@ -6,6 +6,7 @@ import compman.compsrv.model.dto.brackets.ParentFightReferenceDTO
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
+import compman.compsrv.model.dto.schedule.FightStartTimePairDTO
 import compman.compsrv.repository.collectors.PeriodCollector
 import compman.compsrv.repository.collectors.StageCollector
 import org.jooq.Record
@@ -18,6 +19,35 @@ import java.util.stream.Collector
 
 @Component
 class JooqMappers {
+
+    fun hasFightStartTime(u: Record): Boolean {
+        return (!u[FightDescription.FIGHT_DESCRIPTION.ID].isNullOrBlank()
+                && !u[FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID].isNullOrBlank() &&
+                u[FightDescription.FIGHT_DESCRIPTION.START_TIME] != null
+                && u[FightDescription.FIGHT_DESCRIPTION.MAT_ID] == u[MatDescription.MAT_DESCRIPTION.ID])
+    }
+
+    fun matDescriptionDTO(u: Record): MatDescriptionDTO {
+        return MatDescriptionDTO().setId(u[MatDescription.MAT_DESCRIPTION.ID])
+                .setMatOrder(u[MatDescription.MAT_DESCRIPTION.MAT_ORDER])
+                .setPeriodId(u[MatDescription.MAT_DESCRIPTION.PERIOD_ID])
+                .setName(u[MatDescription.MAT_DESCRIPTION.NAME])
+                .setFightStartTimes(emptyArray())
+    }
+
+    fun fightStartTimePairDTO(u: Record): FightStartTimePairDTO {
+        return FightStartTimePairDTO()
+                .setFightId(u[FightDescription.FIGHT_DESCRIPTION.ID])
+                .setMatId(u[FightDescription.FIGHT_DESCRIPTION.MAT_ID])
+                .setFightCategoryId(u[FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID])
+                .setPeriodId(u[FightDescription.FIGHT_DESCRIPTION.PERIOD])
+                .setStartTime(u[FightDescription.FIGHT_DESCRIPTION.START_TIME]?.toInstant())
+                .setNumberOnMat(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT])
+                .setInvalid(u[FightDescription.FIGHT_DESCRIPTION.INVALID])
+    }
+
+
+
     fun periodCollector(rec: GroupedFlux<String, Record>) = PeriodCollector(rec.key()!!)
 
     fun stageCollector() = StageCollector()

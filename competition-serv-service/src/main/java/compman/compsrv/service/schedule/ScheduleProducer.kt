@@ -157,6 +157,10 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
         val internalMatById = internalMatById2(matContainers)
         if (fightNotRegistered(f.id, schedule)) {
             val requirementForFight = findRequirementForFight(f)
+            val periodId = requirementForFight?.periodId
+            val defaultMat = matContainers.find { it.fights.isEmpty() && (periodId.isNullOrBlank() || it.periodId == periodId) }
+                    ?: matContainers.filter { periodId.isNullOrBlank() || it.periodId == periodId }
+                            .minBy { a -> a.currentTime.toEpochMilli() }!!
             val entryDTO = when {
                 requirementForFight?.fightIds?.contains(f.id) == true || requirementForFight?.categoryIds?.contains(f.categoryId) == true -> {
                     val e = scheduleEntryFromRequirement(requirementForFight, schedule)
@@ -165,15 +169,11 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
                 }
                 else -> {
                     log.warn("Neither fight category ${f.categoryId} nor fight itself ${f.id} was dispatched. Placing it to random mat.")
-                    val defaultMat = matContainers.find { it.fights.isEmpty() }
-                            ?: matContainers.minBy { a -> a.currentTime.toEpochMilli() }!!
                     schedule.firstOrNull { it.categoryIds?.contains(f.categoryId) == true && it.requirementIds.isNullOrEmpty() }
                             ?: emptyScheduleEntry(defaultMat)
                 }
             }
-            val defaultMat = matContainers.find { it.fights.isEmpty() && it.periodId == entryDTO.periodId }
-                    ?: matContainers.filter { it.periodId == entryDTO.periodId }.minBy { a -> a.currentTime.toEpochMilli() }!!
-            val mat = entryDTO.matId?.let { internalMatById(it) } ?: defaultMat
+            val mat = requirementForFight?.matId?.let { internalMatById(it) } ?: defaultMat
             val allFightParents = ScheduleService.getAllFightsParents(f, getFight)
             if (!fightsAreDispatchedOrCanBeDispatched(allFightParents, schedule, mat.currentTime) && !lastRun) {
                 log.warn("Fight $f cannot be dispatched because it's parent fights $allFightParents have incorrect order.")
@@ -270,9 +270,8 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
     private fun createPauseEntry(pauseReq: ScheduleRequirementDTO, startTime: Instant, endTime: Instant, pauseType: ScheduleEntryType): ScheduleEntryDTO {
         return ScheduleEntryDTO().apply {
             id = pauseReq.id
-            this.matId = pauseReq.matId!!
             categoryIds = emptyArray()
-            fightIds = emptyArray()
+            fightIds = arrayOf(MatIdAndSomeId().setSomeId(pauseReq.id).setMatId(pauseReq.matId!!))
             periodId = pauseReq.periodId
             this.startTime = startTime
             numberOfFights = 0
@@ -281,7 +280,6 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
             duration = pauseReq.durationMinutes
             requirementIds = arrayOf(pauseReq.id)
         }
-
     }
 
     private fun createFixedPauseEntry(fixedPause: ScheduleRequirementDTO, endTime: Instant) = createPauseEntry(fixedPause, fixedPause.startTime, endTime, ScheduleEntryType.FIXED_PAUSE)
@@ -328,7 +326,6 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
                 ?: ScheduleEntryDTO()
                         .setId(requirement.id + "-entry")
                         .setPeriodId(requirement.periodId)
-                        .setMatId(requirement.matId)
                         .setEntryType(ScheduleEntryType.FIGHTS_GROUP)
                         .setFightIds(emptyArray())
                         .setCategoryIds(emptyArray())

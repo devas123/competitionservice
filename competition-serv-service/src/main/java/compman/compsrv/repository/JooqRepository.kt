@@ -7,6 +7,7 @@ import com.compmanager.model.payment.RegistrationStatus
 import compman.compsrv.mapping.toRecord
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
+import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.FightStartTimePairDTO
 import compman.compsrv.model.dto.schedule.PeriodDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
@@ -153,10 +154,10 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                     .fetch(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID, String::class.java).orEmpty()
 
 
-    fun topMatFights(limit: Int = 100, competitionId: String, matId: String, statuses: Iterable<FightStatus>): Flux<FightDescriptionDTO> {
+    fun topMatFights(limit: Long = 100, competitionId: String, matId: String, statuses: Iterable<FightStatus>): Flux<FightDescriptionDTO> {
         val queryResultsFlux =
-                Flux.from(queryProvider.topMatFightsQuery(limit, competitionId, matId, statuses))
-        return fightsMapping(queryResultsFlux)
+                Flux.from(queryProvider.topMatFightsQuery(competitionId = competitionId, matId = matId, statuses = statuses))
+        return fightsMapping(queryResultsFlux).limitRequest(limit)
     }
 
     fun fightsMapping(queryResultsFlux: Flux<Record>, filterEmptyFights: Boolean = false): Flux<FightDescriptionDTO> = queryResultsFlux.groupBy { rec -> rec[FightDescription.FIGHT_DESCRIPTION.ID] }
@@ -626,6 +627,13 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                         .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(it.a))
             }).execute()
 
+    fun fetchFightStartTimesByMat(matId: String) =
+            Flux.from(create.selectFrom(FightDescription.FIGHT_DESCRIPTION).where(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId)))
+                    .map { r -> jooqMappers.fightStartTimePairDTO(r) }
+
+    fun fetchFightStartTimesCountByMat(matId: String) =
+            create.fetchCount(FightDescription.FIGHT_DESCRIPTION, FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId))
+
 
     fun fetchPeriodsByCompetitionId(competitionId: String): Flux<PeriodDTO> = Flux.from(
             queryProvider.selectPeriodsQuery(competitionId)
@@ -758,5 +766,32 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
     fun deleteFightsByIds(ids: List<String>) {
         create.batch(listOf(create.deleteFrom(FightDescription.FIGHT_DESCRIPTION).where(FightDescription.FIGHT_DESCRIPTION.ID.`in`(ids))) +
                 create.deleteFrom(CompScore.COMP_SCORE).where(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.`in`(ids))).execute()
+    }
+
+    fun fetchMatsByCompetitionIdAndPeriodId(competitionId: String, periodId: String, getFightStartTimes: Boolean = false) = fetchMatsByCompetitionId(competitionId, getFightStartTimes).filter { it.periodId == periodId }
+
+    fun fetchMatsByCompetitionId(competitionId: String, getFightStartTimes: Boolean = false): Flux<MatDescriptionDTO> {
+        return Flux.from(create.selectFrom(SchedulePeriod.SCHEDULE_PERIOD.join(MatDescription.MAT_DESCRIPTION)
+                .on(SchedulePeriod.SCHEDULE_PERIOD.ID.eq(MatDescription.MAT_DESCRIPTION.PERIOD_ID))).where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(competitionId)))
+                .map { rec ->
+                    MatDescriptionDTO()
+                            .setName(rec[MatDescription.MAT_DESCRIPTION.NAME])
+                            .setMatOrder(rec[MatDescription.MAT_DESCRIPTION.MAT_ORDER])
+                            .setPeriodId(rec[MatDescription.MAT_DESCRIPTION.PERIOD_ID])
+                            .setId(rec[MatDescription.MAT_DESCRIPTION.ID])
+                }
+                .distinct { it.id }
+                .flatMap { mat ->
+                    if (getFightStartTimes) {
+                        fetchFightStartTimesByMat(mat.id).collectList().map { mat.setNumberOfFights(it?.size ?: 0).setFightStartTimes(it?.toTypedArray()) }
+                    } else {
+                        Mono.just(mat.setNumberOfFights(fetchFightStartTimesCountByMat(mat.id)))
+                    }
+                }
+    }
+
+    fun fetchCompetitorsByIds(competitorIds: List<String>, competitionId: String): Flux<CompetitorDTO> {
+        return Flux.from(queryProvider.competitorsQueryBasic().where(Competitor.COMPETITOR.ID.`in`(competitorIds)))
+                .map { u -> mapToCompetitor(u, competitionId) }
     }
 }
