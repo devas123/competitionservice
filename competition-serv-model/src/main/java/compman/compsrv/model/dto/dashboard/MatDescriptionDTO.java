@@ -13,5 +13,6 @@ public class MatDescriptionDTO {
     private String name;
     private String periodId;
     private Integer matOrder;
+    private Integer numberOfFights;
     private FightStartTimePairDTO[] fightStartTimes;
 }

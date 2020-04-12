@@ -243,9 +243,10 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                     }
                 }
                 CommandType.GENERATE_SCHEDULE_COMMAND -> executeValidated(command, GenerateSchedulePayload::class.java) { payload, com ->
-                    val periods = payload.periods?.map {
-                        it.setId(it.id ?: IDGenerator.createPeriodId(com.competitionId))
-                    }
+                    val periods = payload.periods?.toList()
+                    val mats = payload.mats?.map {
+                        it.setId(it.id ?: IDGenerator.createMatId(it.periodId))
+                    }!!
                     val compProps = competitionPropertiesCrudRepository.findById(com.competitionId)
                     val categories = periods?.flatMap {
                         it.scheduleEntries?.toList().orEmpty()
@@ -260,12 +261,12 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                     if (compProps != null && !compProps.schedulePublished && !periods.isNullOrEmpty()) {
                         if (missingCategories.isNullOrEmpty()) {
                             val competitorNumbersByCategoryIds = jooqRepository.getCompetitorNumbersByCategoryIds(com.competitionId)
-                            val schedule = scheduleService.generateSchedule(com.competitionId, periods,
+                            val schedule = scheduleService.generateSchedule(com.competitionId, periods, mats,
                                     getAllBrackets(com.competitionId),
                                     compProps.timeZone,
                                     competitorNumbersByCategoryIds) { fightDescriptionDao.findById(it) }
-                            val newFights = schedule.periods?.flatMap { period ->
-                                period.mats?.flatMap { it.fightStartTimes.map { f -> f.setPeriodId(period.id) } }
+                            val newFights = schedule.mats?.flatMap { mat ->
+                                mat.fightStartTimes.map { f -> f.setPeriodId(mat.periodId) }
                                         .orEmpty()
                             }?.toTypedArray()
                             val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(newFights)

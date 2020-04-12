@@ -5,6 +5,7 @@ import compman.compsrv.model.dto.brackets.GroupSortDirection;
 import compman.compsrv.model.dto.brackets.GroupSortSpecifier;
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO;
 import compman.compsrv.model.dto.competition.*;
+import compman.compsrv.model.dto.dashboard.MatDescriptionDTO;
 import compman.compsrv.model.dto.schedule.PeriodDTO;
 import compman.compsrv.model.dto.schedule.ScheduleDTO;
 import compman.compsrv.repository.JooqMappers;
@@ -172,13 +173,15 @@ public class JooqTests {
             jooqRepository.saveFights(fights.stream().flatMap(p -> p.getSecond().stream()).collect(Collectors.toList()));
             jooqRepository.saveSchedule(schedule);
             List<PeriodDTO> periods = jooqRepository.fetchPeriodsByCompetitionId(competitionId).collectList().block();
+            List<MatDescriptionDTO> mats = jooqRepository.fetchMatsByCompetitionId(competitionId, true).collectList().block();
 
             Assert.assertNotNull(periods);
+            Assert.assertNotNull(mats);
             Assert.assertEquals(schedule.getPeriods().length, periods.size());
+            Assert.assertEquals(schedule.getMats().length, mats.size());
             for (PeriodDTO period : schedule.getPeriods()) {
                 Assert.assertEquals(1, periods.stream().filter(p -> Objects.equals(p.getId(), period.getId()))
                         .peek(p -> {
-                            Assert.assertEquals(period.getMats().length, p.getMats().length);
                             Assert.assertEquals(period.getScheduleEntries().length, p.getScheduleEntries().length);
                             Assert.assertEquals(period.getScheduleRequirements().length, p.getScheduleRequirements().length);
                             Assert.assertEquals(period.getEndTime(), p.getEndTime());

@@ -21,7 +21,6 @@ public class PeriodDTO {
     private Instant startTime;
     private Instant endTime;
     private Boolean isActive;
-    private MatDescriptionDTO[] mats;
     private Integer timeBetweenFights;
     private BigDecimal riskPercent;
 }

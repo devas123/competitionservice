@@ -11,12 +11,12 @@ import compman.compsrv.util.IDGenerator
 import java.sql.Timestamp
 
 
-fun SchedulePeriod.toDTO(scheduleEntries: Array<ScheduleEntryDTO>, mats: Array<MatDescriptionDTO>): PeriodDTO = PeriodDTO()
+fun SchedulePeriod.toDTO(scheduleEntries: Array<ScheduleEntryDTO>): PeriodDTO = PeriodDTO()
         .setId(id)
         .setName(name)
         .setScheduleEntries(scheduleEntries)
         .setStartTime(startTime?.toInstant())
-        .setMats(mats)
+
 
 
 fun CategoryRestriction.toDTO(): CategoryRestrictionDTO = CategoryRestrictionDTO().setMaxValue(maxValue).setMinValue(minValue).setName(name).setType(CategoryRestrictionType.values()[type])

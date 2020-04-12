@@ -42,10 +42,10 @@ class ScheduleService {
     /**
      * @param stages - Flux<pair<Tuple3<StageId, CategoryId, BracketType>, fights>>
      */
-    fun generateSchedule(competitionId: String, periods: List<PeriodDTO>, stages: Flux<StageGraph>, timeZone: String,
+    fun generateSchedule(competitionId: String, periods: List<PeriodDTO>, mats: List<MatDescriptionDTO>, stages: Flux<StageGraph>, timeZone: String,
                          categoryCompetitorNumbers: Map<String, Int>, getFight: (fightId: String) -> FightDescription?): ScheduleDTO {
         if (!periods.isNullOrEmpty()) {
-            return doGenerateSchedule(competitionId, stages, periods, timeZone, getFight)
+            return doGenerateSchedule(competitionId, stages, periods, mats, timeZone, getFight)
         } else {
             throw ServiceException("Periods are not specified!")
         }
@@ -54,6 +54,7 @@ class ScheduleService {
     private fun doGenerateSchedule(competitionId: String,
                                    stages: Flux<StageGraph>,
                                    periods: List<PeriodDTO>,
+                                   mats: List<MatDescriptionDTO>,
                                    timeZone: String,
                                    getFight: (fightId: String) -> FightDescription?): ScheduleDTO {
         val periodsWithIds = periods.map { periodDTO ->
@@ -76,7 +77,7 @@ class ScheduleService {
         assert(flatFights.distinct().size == flatFights.size)
 
         val composer = ScheduleProducer(startTime = periods.map { p -> p.id!! to p.startTime!! }.toMap(),
-                mats = periods.flatMap { it.mats?.toList().orEmpty() },
+                mats = mats,
                 req = enrichedScheduleRequirements,
                 brackets = stages,
                 timeBetweenFights = periods.map { p -> p.id!! to BigDecimal(p.timeBetweenFights) }.toMap(),
@@ -89,6 +90,22 @@ class ScheduleService {
 
         return ScheduleDTO()
                 .setId(competitionId)
+                .setMats(fightsByMats.b.mapIndexed { i, container ->
+                    MatDescriptionDTO()
+                            .setId(container.id)
+                            .setPeriodId(container.periodId)
+                            .setName(container.name)
+                            .setMatOrder(container.matOrder ?: i)
+                            .setFightStartTimes(container.fights.map {
+                                FightStartTimePairDTO()
+                                        .setStartTime(it.startTime)
+                                        .setNumberOnMat(it.fightNumber)
+                                        .setFightId(it.fight.id)
+                                        .setPeriodId(it.periodId)
+                                        .setFightCategoryId(it.fight.categoryId)
+                                        .setMatId(it.matId)
+                            }.toTypedArray())
+                }.toTypedArray())
                 .setPeriods(periods.mapNotNull { period ->
                     PeriodDTO()
                             .setId(period.id)
@@ -107,22 +124,6 @@ class ScheduleService {
                                                         ?.mapNotNull { it.someId }
                                                         ?.distinct()?.toTypedArray())
                                     }.toTypedArray())
-                            .setMats(fightsByMats.b.filter { it.periodId == period.id }.mapIndexed { i, container ->
-                                MatDescriptionDTO()
-                                        .setId(container.id)
-                                        .setPeriodId(container.periodId)
-                                        .setName(container.name)
-                                        .setMatOrder(container.matOrder ?: i)
-                                        .setFightStartTimes(container.fights.map {
-                                            FightStartTimePairDTO()
-                                                    .setStartTime(it.startTime)
-                                                    .setNumberOnMat(it.fightNumber)
-                                                    .setFightId(it.fight.id)
-                                                    .setPeriodId(it.periodId)
-                                                    .setFightCategoryId(it.fight.categoryId)
-                                                    .setMatId(it.matId)
-                                        }.toTypedArray())
-                            }.toTypedArray())
                             .setStartTime(period.startTime)
                             .setName(period.name)
                 }.toTypedArray())
