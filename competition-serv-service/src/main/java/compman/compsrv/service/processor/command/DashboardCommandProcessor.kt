@@ -1,8 +1,5 @@
 package compman.compsrv.service.processor.command
 
-import arrow.core.Option
-import arrow.core.getOrElse
-import arrow.core.orElse
 import com.compmanager.compservice.jooq.tables.daos.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.mapping.toDTO
@@ -29,8 +26,6 @@ import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.time.Duration
 import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.sign
 
 @Component
 class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptionDao,
@@ -190,68 +185,14 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                     listOf(mapper.createErrorEvent(command, "Cannot move fight that is finished or in progress."))
                 }
                 else -> {
-                    if (payload.newMatId != payload.currentMatId) {
-                        log.info("Moving fight $fight to the new mat: ${payload.newMatId}.")
-                        //all the fights after current on the current mat -> number - 1
-                        val fightsToMoveOnCurrentMat = jooqRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStatusNotInOrderByNumberOnMat(payload.currentMatId,
-                                command.competitionId, fight.numberOnMat!! + 1, FightsService.unMovableFightStatuses)
-                                .collectList().block()
-                        val fightOrderChangesCurrentMat = fightsToMoveOnCurrentMat?.map {
-                            DashboardFightOrderChange().setFightId(it.id).setNewMatId(it.matId).setNewOrderOnMat(it.numberOnMat!! - 1)
-                                    .setNewStartTime(it.startTime?.toInstant()!!.minus(Duration.ofMinutes(fight.duration!!.toLong())))
-                        }.orEmpty()
-
-                        //fights on the new mat:
-                        //all the fights after current -> number + 1
-                        val fightsToMoveOnTheNewMat = jooqRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStatusNotInOrderByNumberOnMat(payload.newMatId,
-                                command.competitionId, newOrderOnMat, FightsService.unMovableFightStatuses).collectList().block()
-
-                        val fightOrderChangesNewMat = fightsToMoveOnTheNewMat?.map {
-                            DashboardFightOrderChange().setFightId(it.id).setNewMatId(it.matId).setNewOrderOnMat(it.numberOnMat!! + 1)
-                                    .setNewStartTime(it.startTime?.toInstant()!!.plus(Duration.ofMinutes(fight.duration!!.toLong())))
-                        }.orEmpty()
-                        val newStartTimeOfTheCurrentFight = Option.fromNullable(fightOrderChangesNewMat).flatMap { Option.fromNullable(it.firstOrNull()) }.map { f -> f.newStartTime!! }
-                                .orElse {
-                                    Option.fromNullable(jooqRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatLessThanAndStatusNotInOrderByNumberOnMatDesc(payload.newMatId,
-                                            command.competitionId, newOrderOnMat, FightsService.unMovableFightStatuses).collectList().block()?.toList()).map { it.firstOrNull() }
-                                            .map { f -> f?.startTime?.toInstant()!! }
-                                }
-                                .fold({ fight.startTime?.toInstant()!! }, { it })
-                        val currentFightOrderChange = DashboardFightOrderChange().setFightId(fight.id).setNewMatId(payload.newMatId).setNewOrderOnMat(newOrderOnMat).setNewStartTime(newStartTimeOfTheCurrentFight)
-
-                        val allChanges = (fightOrderChangesNewMat + fightOrderChangesCurrentMat + currentFightOrderChange).distinctBy { it.fightId }
-                        log.info("Full list of changes: $allChanges")
-                        listOf(mapper.createEvent(command, EventType.DASHBOARD_FIGHT_ORDER_CHANGED, DashboardFightOrderChangedPayload(periodId, allChanges.toTypedArray())))
-                    } else {
-                        if (fight.numberOnMat!! != newOrderOnMat) {
-                            val sign = sign((fight.numberOnMat!! - newOrderOnMat).toDouble()).toInt()
-                            val start = min(fight.numberOnMat!!, newOrderOnMat) + (1 - sign) / 2
-                            val end = max(fight.numberOnMat!!, newOrderOnMat) - (1 + sign) / 2
-                            val fightsToMoveOnCurrentMat = jooqRepository.findDistinctByMatIdAndCompetitionIdAndNumberOnMatBetweenAndStatusNotInOrderByNumberOnMat(payload.newMatId,
-                                    command.competitionId, start, end, FightsService.unMovableFightStatuses).collectList().block()
-                            val fightOrderChangesCurrentMat = fightsToMoveOnCurrentMat?.map {
-                                val newStartTime = if (sign > 0) {
-                                    it.startTime?.toInstant()!!.plus(Duration.ofMinutes(fight.duration!!.toLong()))
-                                } else {
-                                    it.startTime?.toInstant()!!.minus(Duration.ofMinutes(fight.duration!!.toLong()))
-                                }
-                                DashboardFightOrderChange().setFightId(it.id).setNewMatId(payload.newMatId).setNewOrderOnMat(it.numberOnMat!! + sign).setNewStartTime(newStartTime)
-                            }.orEmpty()
-
-                            val newStartTimeOfTheCurrentFight = Option.fromNullable(fightOrderChangesCurrentMat.lastOrNull()).map { it.newStartTime }.map {
-                                if (sign > 0) {
-                                    it.minus(Duration.ofMinutes(fight.duration!!.toLong()))
-                                } else {
-                                    it.plus(Duration.ofMinutes(fight.duration!!.toLong()))
-                                }
-                            }.getOrElse { fight.startTime?.toInstant()!! }
-                            val currentFightOrderChange = DashboardFightOrderChange().setFightId(fight.id).setNewMatId(payload.newMatId).setNewOrderOnMat(newOrderOnMat).setNewStartTime(newStartTimeOfTheCurrentFight)
-                            val allChanges = (fightOrderChangesCurrentMat + currentFightOrderChange).distinctBy { it.fightId }
-                            allChanges.chunked(50).map { chunk -> mapper.createEvent(command, EventType.DASHBOARD_FIGHT_ORDER_CHANGED, DashboardFightOrderChangedPayload(periodId, chunk.toTypedArray())) }
-                        } else {
-                            listOf(mapper.createErrorEvent(command, "The new position of the fight is equal to the current."))
-                        }
-                    }
+                    listOf(mapper.createEvent(command, EventType.DASHBOARD_FIGHT_ORDER_CHANGED, DashboardFightOrderChangedPayload()
+                            .setFightId(fight.id)
+                            .setNewOrderOnMat(newOrderOnMat)
+                            .setPeriodId(periodId)
+                            .setFightDuration(fight.duration)
+                            .setCurrentMatId(fight.matId)
+                            .setCurrentOrderOnMat(fight.numberOnMat)
+                            .setNewMatId(payload.newMatId)))
                 }
             }
         }

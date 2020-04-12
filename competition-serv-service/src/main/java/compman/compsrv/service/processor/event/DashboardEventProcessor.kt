@@ -22,6 +22,8 @@ import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.util.PayloadValidator
 import compman.compsrv.util.getPayloadAs
 import org.springframework.stereotype.Component
+import kotlin.math.max
+import kotlin.math.min
 
 @Component
 class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
@@ -64,14 +66,23 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
                 }
             }
             EventType.DASHBOARD_FIGHT_ORDER_CHANGED -> {
-                val payload = mapper.getPayloadAs(event, DashboardFightOrderChangedPayload::class.java)
-                if (payload != null && !payload.changedFights.isNullOrEmpty()) {
-                    jooqRepository.batchUpdateStartTimeAndMatAndNumberOnMatById(payload.changedFights.map { cf ->
-                        Tuple4(cf.fightId, cf.newStartTime, cf.newMatId, cf.newOrderOnMat)
-                    })
-                    listOf(event)
-                } else {
-                    throw EventApplyingException("Change fights are empty. $payload", event)
+                executeValidated(event, DashboardFightOrderChangedPayload::class.java) { payload, e ->
+                    if (payload.newMatId != payload.currentMatId) {
+                        //if mats are different
+                        //first reduce numbers on the current mat
+                        jooqRepository.batchUpdateStartTimeAndNumberFromTo(payload.fightId, payload.currentMatId, false, payload.fightDuration, payload.currentOrderOnMat)
+                        //increase numbers on the new mat after the fight
+                        jooqRepository.batchUpdateStartTimeAndNumberFromTo(payload.fightId, payload.newMatId, true, payload.fightDuration, payload.newOrderOnMat)
+                        //update fight
+                        jooqRepository.updateFightMatAndNumberOnMat(payload.fightId, payload.newMatId, payload.newOrderOnMat)
+                    } else {
+                        //mats are the same
+                        //first reduce numbers on the current mat
+                        jooqRepository.batchUpdateStartTimeAndNumberFromTo(payload.fightId, payload.currentMatId, payload.currentOrderOnMat > payload.newOrderOnMat,
+                                payload.fightDuration, min(payload.currentOrderOnMat, payload.newOrderOnMat), max(payload.currentOrderOnMat, payload.newOrderOnMat))
+                        //update fight
+                        jooqRepository.updateFightMatAndNumberOnMat(payload.fightId, payload.newMatId, payload.newOrderOnMat)
+                    }
                 }
             }
             EventType.DASHBOARD_FIGHT_RESULT_SET -> {

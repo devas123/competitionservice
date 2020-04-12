@@ -227,7 +227,7 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
                                 fights = mat.fights +
                                         InternalFightStartTime(
                                                 fight = f,
-                                                fightNumber = mat.totalFights + 1,
+                                                fightNumber = mat.totalFights,
                                                 startTime = mat.currentTime,
                                                 matId = mat.id,
                                                 periodId = mat.periodId),
@@ -428,7 +428,7 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
                             val newFights = (mat.fights + scheduleContainer.fights.filter { f -> mat.fights.none { it.fight.id == f.fight.id } })
                                     .sortedBy { fightStartTime -> fightStartTime.startTime }
                                     .mapIndexed { ind, f ->
-                                        f.copy(fightNumber = ind + 1)
+                                        f.copy(fightNumber = ind)
                                     }
                             mat.copy(fights = newFights, totalFights = newFights.size)
                         } ?: mat

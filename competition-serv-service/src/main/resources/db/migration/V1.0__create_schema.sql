@@ -401,7 +401,6 @@ create table compservice.fight_description
     group_id                varchar(255)
         constraint fight_description_group_descriptor_fkey
             references compservice.group_descriptor on delete cascade,
-    fight_order             integer,
     invalid                 boolean,
     schedule_entry_id       varchar(255)
         constraint fight_description_schedule_entry_fkey

@@ -1,6 +1,5 @@
 package compman.compsrv.repository
 
-import arrow.core.Tuple4
 import com.compmanager.compservice.jooq.tables.*
 import com.compmanager.compservice.jooq.tables.records.*
 import com.compmanager.model.payment.RegistrationStatus
@@ -13,10 +12,14 @@ import compman.compsrv.model.dto.schedule.PeriodDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
 import org.jooq.*
+import org.jooq.impl.DSL
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Repository
 import reactor.core.publisher.Flux
 import reactor.core.publisher.GroupedFlux
 import reactor.core.publisher.Mono
+import java.math.BigDecimal
 import java.sql.Timestamp
 import java.time.Instant
 
@@ -24,6 +27,10 @@ fun Instant.toTimestamp(): Timestamp = Timestamp.from(this)
 
 @Repository
 class JooqRepository(private val create: DSLContext, private val queryProvider: JooqQueryProvider, private val jooqMappers: JooqMappers) {
+
+    companion object {
+        private val log: Logger = LoggerFactory.getLogger(JooqRepository::class.java)
+    }
 
     fun getCompetitorNumbersByCategoryIds(competitionId: String): Map<String, Int> = queryProvider.competitorNumbersByCategoryIdsQuery(competitionId)
             .fetch { rec ->
@@ -168,11 +175,9 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                         || (f.scores?.size == 2 && (f.scores?.all { it.competitorId != null } == true))
             }
 
-    fun findDistinctByMatIdAndCompetitionIdAndNumberOnMatGreaterThanEqualAndStatusNotInOrderByNumberOnMat(matId: String, competitionId: String, minNumberOnMat: Int,
-                                                                                                          fightStatuses: List<FightStatus>): Flux<com.compmanager.compservice.jooq.tables.pojos.FightDescription> {
+    fun fetchFightsByMatIdAndStatusNotInAndOrderGeq(matId: String, competitionId: String, minNumberOnMat: Int): Flux<com.compmanager.compservice.jooq.tables.pojos.FightDescription> {
         return Flux.from(fightDescriptionByMatIdCompetitionIdQuery(matId, competitionId)
                 .and(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.greaterOrEqual(minNumberOnMat))
-                .and(FightDescription.FIGHT_DESCRIPTION.STATUS.`in`(fightStatuses.map { it.ordinal }))
                 .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.asc()))
                 .distinct { it.id }
                 .map { fightDescription(it) }
@@ -618,16 +623,42 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                         .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(it.fightId))
             }).execute()
 
-    fun batchUpdateStartTimeAndMatAndNumberOnMatById(updates: List<Tuple4<String, Instant, String, Int>>): IntArray =
-            create.batch(updates.map {
-                create.update(FightDescription.FIGHT_DESCRIPTION)
-                        .set(FightDescription.FIGHT_DESCRIPTION.MAT_ID, it.c)
-                        .set(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT, it.d)
-                        .set(FightDescription.FIGHT_DESCRIPTION.START_TIME, it.b.toTimestamp())
-                        .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(it.a))
-            }).execute()
 
-    fun fetchFightStartTimesByMat(matId: String) =
+    fun updateFightMatAndNumberOnMat(fightId: String, newMatId: String, newMatOrder: Int) {
+        create.update(FightDescription.FIGHT_DESCRIPTION)
+                .set(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT, newMatOrder)
+                .set(FightDescription.FIGHT_DESCRIPTION.MAT_ID, newMatId)
+                .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fightId))
+                .execute()
+    }
+
+    fun batchUpdateStartTimeAndNumberFromTo(excludeFight: String, matId: String, increase: Boolean,  duration: BigDecimal, fromNumber: Int, toNumber: Int = Int.MAX_VALUE): Int {
+        val matNumberOperation = if (increase) {
+            FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.plus(1)
+        } else {
+            FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.minus(1)
+        }
+        val startTimeOperation = if (increase) {
+            DSL.timestampAdd(FightDescription.FIGHT_DESCRIPTION.START_TIME, duration, DatePart.MINUTE)
+        } else {
+            DSL.timestampSub(FightDescription.FIGHT_DESCRIPTION.START_TIME, duration, DatePart.MINUTE)
+        }
+
+        val query = create.update(FightDescription.FIGHT_DESCRIPTION)
+                .set(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT, matNumberOperation)
+                .set(FightDescription.FIGHT_DESCRIPTION.START_TIME, startTimeOperation)
+                .where(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId))
+                .and(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.isNotNull)
+                .and(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.ge(fromNumber))
+                .and(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.le(toNumber))
+                .and(FightDescription.FIGHT_DESCRIPTION.ID.notEqual(excludeFight))
+
+        log.info(query.sql)
+
+        return query.execute()
+    }
+
+    fun fetchFightStartTimesByMat(matId: String): Flux<FightStartTimePairDTO> =
             Flux.from(create.selectFrom(FightDescription.FIGHT_DESCRIPTION).where(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId)))
                     .map { r -> jooqMappers.fightStartTimePairDTO(r) }
 
@@ -734,7 +765,6 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                         this.winFight = it.winFight
                         this.stageId = it.stageId
                         this.groupId = it.groupId
-                        this.fightOrder = it.fightOrder
                         this.invalid = it.invalid
                         this.scheduleEntryId = it.scheduleEntryId
                     }
@@ -783,7 +813,9 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 .distinct { it.id }
                 .flatMap { mat ->
                     if (getFightStartTimes) {
-                        fetchFightStartTimesByMat(mat.id).collectList().map { mat.setNumberOfFights(it?.size ?: 0).setFightStartTimes(it?.toTypedArray()) }
+                        fetchFightStartTimesByMat(mat.id).collectList().map {
+                            mat.setNumberOfFights(it?.size ?: 0).setFightStartTimes(it?.toTypedArray())
+                        }
                     } else {
                         Mono.just(mat.setNumberOfFights(fetchFightStartTimesCountByMat(mat.id)))
                     }
