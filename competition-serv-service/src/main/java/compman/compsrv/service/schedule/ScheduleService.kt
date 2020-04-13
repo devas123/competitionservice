@@ -68,7 +68,7 @@ class ScheduleService {
             // we will dynamically create a 'default' schedule group for the remaining fights
             // later if we move the schedule groups we will have to re-calculate the whole schedule again to avoid inconsistencies.
             periodDTO.scheduleRequirements?.map { it.setPeriodId(periodDTO.id) }.orEmpty()
-        }.mapIndexed { index, it ->
+        }.mapIndexed { _, it ->
             it.setId(it.id
                     ?: IDGenerator.scheduleRequirementId(competitionId, it.periodId, it.entryType))
         }.sortedBy { it.entryOrder }

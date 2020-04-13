@@ -371,7 +371,7 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
                     currentTime = initDate.toInstant(),
                     totalFights = 0,
                     pending = LinkedHashSet(),
-                    matOrder = mat.matOrder,
+                    matOrder = mat.matOrder ?: i,
                     periodId = mat.periodId, invalid = LinkedHashSet())
         }.toMutableList()
 

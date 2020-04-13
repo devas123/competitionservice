@@ -208,7 +208,7 @@ abstract class FightsService {
 
         fun fightDescription(competitionId: String, categoryId: String, stageId: String, round: Int, roundType: StageRoundType, numberInRound: Int, duration: BigDecimal, fightName: String?, groupId: String?): FightDescriptionDTO {
             return FightDescriptionDTO()
-                    .setId(createFightId(competitionId, categoryId, stageId, round, numberInRound, roundType, groupId))
+                    .setId(createFightId(stageId, groupId))
                     .setCategoryId(categoryId)
                     .setRound(round)
                     .setNumberInRound(numberInRound)
@@ -222,7 +222,7 @@ abstract class FightsService {
                     .setGroupId(groupId)
         }
 
-        private fun createFightId(competitionId: String, categoryId: String?, stageId: String, round: Int, number: Int, roundType: StageRoundType?, groupId: String?) = IDGenerator.fightId(stageId, groupId)
+        private fun createFightId(stageId: String, groupId: String?) = IDGenerator.fightId(stageId, groupId)
 
 
 

@@ -66,7 +66,7 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
                 }
             }
             EventType.DASHBOARD_FIGHT_ORDER_CHANGED -> {
-                executeValidated(event, DashboardFightOrderChangedPayload::class.java) { payload, e ->
+                executeValidated(event, DashboardFightOrderChangedPayload::class.java) { payload, _ ->
                     if (payload.newMatId != payload.currentMatId) {
                         //if mats are different
                         //first reduce numbers on the current mat
