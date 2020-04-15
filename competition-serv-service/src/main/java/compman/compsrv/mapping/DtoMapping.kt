@@ -57,6 +57,15 @@ fun CompScore.toDTO(): CompScoreDTO = CompScoreDTO().setScore(ScoreDTO()
         .setAdvantages(advantages)
         .setPenalties(penalties))
         .setCompetitorId(compscoreCompetitorId)
+fun FightResultOption.toDTO(): FightResultOptionDTO =
+        FightResultOptionDTO().setShortName(shortName)
+                .setDescription(description)
+                .setDraw(draw)
+                .setId(id)
+                .setLoserAdditionalPoints(loserAdditionalPoints)
+                .setLoserPoints(loserPoints)
+                .setWinnerAdditionalPoints(winnerAdditionalPoints)
+                .setWinnerPoints(winnerPoints)
 
 fun CompetitionProperties.toDTO(staffIds: Array<String>?, promoCodes: Array<PromoCodeDTO>?, getRegistrationInfo: (id: String) -> RegistrationInfoDTO?): CompetitionPropertiesDTO =
         CompetitionPropertiesDTO()
@@ -113,19 +122,6 @@ fun CompetitorStageResult.toDTO(): CompetitorStageResultDTO = CompetitorStageRes
 
 fun CompetitorSelector.toDTO(selectorValue: Array<String>) = CompetitorSelectorDTO(id, applyToStageId, LogicalOperator.values()[logicalOperator],
         SelectorClassifier.values()[classifier], OperatorType.values()[operator], selectorValue)
-
-
-
-
-fun FightResultOption.toDTO(): FightResultOptionDTO = FightResultOptionDTO()
-        .setId(id)
-        .setDescription(description)
-        .setShortName(shortName)
-        .setDraw(draw)
-        .setWinnerAdditionalPoints(winnerAdditionalPoints)
-        .setLoserAdditionalPoints(loserAdditionalPoints)
-        .setWinnerPoints(winnerPoints)
-        .setLoserPoints(loserPoints)
 
 
 fun CompScoreDTO.toRecord(fightId: String): CompScoreRecord =

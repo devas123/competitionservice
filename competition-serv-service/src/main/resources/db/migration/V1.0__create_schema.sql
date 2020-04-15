@@ -372,7 +372,9 @@ create table compservice.fight_description
             references compservice.competition_properties on delete cascade,
     duration                numeric(19, 2),
     fight_name              varchar(255),
-    winner_id               varchar(255),
+    winner_id               varchar(255)
+        constraint fight_description_winner_id_fkey
+            references compservice.competitor,
     reason                  varchar(255),
     result_type             varchar(255)
         constraint fight_description_fight_output_fkey references compservice.fight_result_option,
@@ -392,7 +394,7 @@ create table compservice.fight_description
     priority                integer      not null,
     round                   integer,
     round_type              integer,
-    status                  integer not null,
+    status                  integer      not null,
     start_time              timestamp,
     win_fight               varchar(255),
     stage_id                varchar(255)

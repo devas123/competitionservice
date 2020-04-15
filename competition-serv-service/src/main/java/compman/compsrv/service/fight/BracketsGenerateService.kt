@@ -1,6 +1,7 @@
 package compman.compsrv.service.fight
 
 import arrow.core.Tuple3
+import arrow.core.Tuple4
 import arrow.core.extensions.list.foldable.nonEmpty
 import arrow.core.extensions.list.zip.zipWith
 import com.google.common.math.DoubleMath
@@ -35,7 +36,7 @@ class BracketsGenerateService : FightsService() {
                 roundType,
                 index,
                 duration,
-                "Round $currentRound, fight #${index + 1}", null)
+                "Round ${currentRound + 1}, fight #${index + 1}", null)
     }
 
 
@@ -219,15 +220,31 @@ class BracketsGenerateService : FightsService() {
             }
         }
 
-        val filteredUncompletableFights = markUncompletableFights(assignedFights) { id ->
+        val markedUncompletableFights = markUncompletableFights(assignedFights) { id ->
             assignedFights.first { fight -> fight.id == id }
         }
 
 
-        return if (stage.stageType == StageType.PRELIMINARY) {
-            filterPreliminaryFights(outputSize, filteredUncompletableFights, stage.bracketType)
+        val filteredFights = if (stage.stageType == StageType.PRELIMINARY) {
+            filterPreliminaryFights(outputSize, markedUncompletableFights, stage.bracketType)
         } else {
-            filteredUncompletableFights
+            markedUncompletableFights
+        }
+
+        fun <T> T?.nullIfFalse(condition: Boolean) = if (condition) { this } else { null }
+
+        return filteredFights.map { f ->
+            if (f.winFight != null || f.loseFight != null || f.parentId1?.fightId != null || f.parentId2?.fightId != null) {
+                val fightExistence = filteredFights.fold(Tuple4(a = false, b = false, c = false, d = false)) { acc, fg ->
+                    Tuple4((acc.a || fg.id == f.winFight), (acc.b || fg.id == f.loseFight), acc.c || fg.id == f.parentId1?.fightId, acc.d || fg.id == f.parentId2?.fightId)
+                }
+                f.setWinFight(f.winFight.nullIfFalse(fightExistence.a))
+                        .setLoseFight(f.loseFight.nullIfFalse(fightExistence.b))
+                        .setParentId1(f.parentId1.nullIfFalse(fightExistence.c))
+                        .setParentId1(f.parentId2.nullIfFalse(fightExistence.d))
+            } else {
+                f
+            }
         }
     }
 

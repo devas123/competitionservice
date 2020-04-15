@@ -54,12 +54,16 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                         CategoryRestriction.CATEGORY_RESTRICTION.MIN_VALUE,
                         CategoryRestriction.CATEGORY_RESTRICTION.MAX_VALUE,
                         CategoryRestriction.CATEGORY_RESTRICTION.UNIT).into(CategoryRestrictionDTO::class.java)
-        return CategoryDescriptorDTO()
-                .setId(categoryFlatResults.getValue(0, CategoryDescriptor.CATEGORY_DESCRIPTOR.ID))
-                .setRegistrationOpen(categoryFlatResults.getValue(0, CategoryDescriptor.CATEGORY_DESCRIPTOR.REGISTRATION_OPEN))
-                .setFightDuration(categoryFlatResults.getValue(0, CategoryDescriptor.CATEGORY_DESCRIPTOR.FIGHT_DURATION))
-                .setRestrictions(categoryRestrictions?.toTypedArray())
-                .setName(categoryFlatResults.getValue(0, CategoryDescriptor.CATEGORY_DESCRIPTOR.NAME))
+        if (categoryFlatResults.isNotEmpty) {
+            return CategoryDescriptorDTO()
+                    .setId(categoryFlatResults.getValue(0, CategoryDescriptor.CATEGORY_DESCRIPTOR.ID))
+                    .setRegistrationOpen(categoryFlatResults.getValue(0, CategoryDescriptor.CATEGORY_DESCRIPTOR.REGISTRATION_OPEN))
+                    .setFightDuration(categoryFlatResults.getValue(0, CategoryDescriptor.CATEGORY_DESCRIPTOR.FIGHT_DURATION))
+                    .setRestrictions(categoryRestrictions?.toTypedArray())
+                    .setName(categoryFlatResults.getValue(0, CategoryDescriptor.CATEGORY_DESCRIPTOR.NAME))
+        } else {
+            error("No category for competitionId $competitionId and category $categoryId")
+        }
     }
 
     fun fightsCountByCategoryId(competitionId: String, categoryId: String) = create.fetchCount(FightDescription.FIGHT_DESCRIPTION, FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID.eq(categoryId).and(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId)))
@@ -73,7 +77,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                             FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND.asc())))
 
     fun findFightByCompetitionIdAndId(competitionId: String, fightId: String): Mono<FightDescriptionDTO> = fightsMapping(Flux.from(queryProvider.fightsQuery(competitionId)
-            .and(FightDescription.FIGHT_DESCRIPTION.ID.eq(fightId)))).last()
+            .and(FightDescription.FIGHT_DESCRIPTION.ID.eq(fightId)))).publishNext().switchIfEmpty(Mono.empty())
 
     fun getCategoryIdsForCompetition(competitionId: String): Flux<String> =
             Flux.from(create.select(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID).from(CategoryDescriptor.CATEGORY_DESCRIPTOR).where(CategoryDescriptor.CATEGORY_DESCRIPTOR.COMPETITION_ID.eq(competitionId)))
@@ -164,7 +168,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
     fun topMatFights(limit: Long = 100, competitionId: String, matId: String, statuses: Iterable<FightStatus>): Flux<FightDescriptionDTO> {
         val queryResultsFlux =
                 Flux.from(queryProvider.topMatFightsQuery(competitionId = competitionId, matId = matId, statuses = statuses))
-        return fightsMapping(queryResultsFlux).limitRequest(limit)
+        return fightsMapping(queryResultsFlux).filter { f -> statuses.contains(f.status) }.limitRequest(limit)
     }
 
     fun fightsMapping(queryResultsFlux: Flux<Record>, filterEmptyFights: Boolean = false): Flux<FightDescriptionDTO> = queryResultsFlux.groupBy { rec -> rec[FightDescription.FIGHT_DESCRIPTION.ID] }
@@ -174,14 +178,6 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 !filterEmptyFights
                         || (f.scores?.size == 2 && (f.scores?.all { it.competitorId != null } == true))
             }
-
-    fun fetchFightsByMatIdAndStatusNotInAndOrderGeq(matId: String, competitionId: String, minNumberOnMat: Int): Flux<com.compmanager.compservice.jooq.tables.pojos.FightDescription> {
-        return Flux.from(fightDescriptionByMatIdCompetitionIdQuery(matId, competitionId)
-                .and(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.greaterOrEqual(minNumberOnMat))
-                .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.asc()))
-                .distinct { it.id }
-                .map { fightDescription(it) }
-    }
 
     private fun fightDescriptionByMatIdCompetitionIdQuery(matId: String, competitionId: String): SelectConditionStep<FightDescriptionRecord> {
         return create.selectFrom(FightDescription.FIGHT_DESCRIPTION)
@@ -632,7 +628,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 .execute()
     }
 
-    fun batchUpdateStartTimeAndNumberFromTo(excludeFight: String, matId: String, increase: Boolean,  duration: BigDecimal, fromNumber: Int, toNumber: Int = Int.MAX_VALUE): Int {
+    fun batchUpdateStartTimeAndNumberFromTo(excludeFight: String, matId: String, increase: Boolean, duration: BigDecimal, fromNumber: Int, toNumber: Int = Int.MAX_VALUE): Int {
         val matNumberOperation = if (increase) {
             FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.plus(1)
         } else {
@@ -825,5 +821,24 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
     fun fetchCompetitorsByIds(competitorIds: List<String>, competitionId: String): Flux<CompetitorDTO> {
         return Flux.from(queryProvider.competitorsQueryBasic().where(Competitor.COMPETITOR.ID.`in`(competitorIds)))
                 .map { u -> mapToCompetitor(u, competitionId) }
+    }
+
+    fun saveCompScores(map: List<CompScoreRecord>) {
+        create.batch(map.map { csr -> create.insertInto(CompScore.COMP_SCORE).columns(*csr.fields())
+                .values(csr.value1(),
+                        csr.value2(),
+                        csr.value3(),
+                        csr.value4(),
+                        csr.value5(),
+                        csr.value6(),
+                        csr.value7())
+                .onDuplicateKeyUpdate()
+                .set(csr.field1(), csr.value1())
+                .set(csr.field2(), csr.value2())
+                .set(csr.field3(), csr.value3())
+                .set(csr.field5(), csr.value5())
+                .set(csr.field6(), csr.value6())
+                .set(csr.field7(), csr.value7())
+        }).execute()
     }
 }

@@ -110,13 +110,15 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
 
     private fun setCompScores(fightId: String, compScores: Array<CompScoreDTO>) {
         val existingScores = compScoreCrudRepository.fetchByCompscoreFightDescriptionId(fightId)
-        if (existingScores.size < 2) {
+        val existingFreeScores = existingScores.filter { !it.compscoreCompetitorId.isNullOrBlank() }
+        if (existingFreeScores.size < 2) {
             val scores = compScores.filter { cs -> existingScores.none { it.compscoreCompetitorId == cs.competitorId } }
+            val firstFreeSlot = (0..existingScores.size).first { existingFreeScores.none {  cs -> cs.compScoreOrder == it } }
             if (!compScores.isNullOrEmpty()) {
-                compScoreCrudRepository.insert(
+                jooqRepository.saveCompScores(
                         scores.map { compScore ->
-                            CompScore(compScore.score.advantages, compScore.score.penalties, compScore.score.points,
-                                    compScore.placeholderId, compScore.competitorId, fightId, compScore.order)
+                            CompScoreRecord(compScore.score.advantages, compScore.score.penalties, compScore.score.points,
+                                    compScore.placeholderId, compScore.competitorId, fightId, firstFreeSlot)
                         })
             }
         } else {

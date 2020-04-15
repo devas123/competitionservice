@@ -23,6 +23,8 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
               private val clusterInfoService: ClusterInfoService,
               private val commandProducer: CommandProducer) {
 
+    fun String?.isNullOrEmptyOrUndefined() = this.isNullOrEmpty() || this == "null" || this == "undefined"
+
     companion object {
         private val log = LoggerFactory.getLogger(RestApi::class.java)
     }
@@ -99,6 +101,14 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
             return null
         }
         return stateQueryService.getCompetitor(competitionId, fighterId)
+    }
+    @RequestMapping("/store/fightresultoptions", method = [RequestMethod.GET])
+    fun getFightResultOptions(@RequestParam("competitionId") competitionId: String,
+                      @RequestParam("fightId") fightId: String): Array<FightResultOptionDTO>? {
+        if (competitionId.isNullOrEmptyOrUndefined() || fightId.isNullOrEmptyOrUndefined()) {
+            return null
+        }
+        return stateQueryService.getFightResultOptions(competitionId, fightId)
     }
 
     @RequestMapping("/store/comprops", method = [RequestMethod.GET])

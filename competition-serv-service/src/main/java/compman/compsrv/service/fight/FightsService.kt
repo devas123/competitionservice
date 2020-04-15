@@ -9,7 +9,6 @@ import compman.compsrv.model.dto.competition.*
 import compman.compsrv.service.fight.dsl.*
 import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.copy
-import compman.compsrv.util.pushCompetitor
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.math.BigDecimal
@@ -34,10 +33,13 @@ abstract class FightsService {
         fun createEmptyScore(): ScoreDTO = ScoreDTO().setAdvantages(0).setPenalties(0).setPoints(0).setPointGroups(emptyArray())
 
         fun upsertFights(updates: List<FightDescriptionDTO>, target: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
-            return target.map { f -> updates.firstOrNull { it.id == f.id } ?: f } + updates.filter { f -> target.none { tf -> tf.id == f.id } }
+            return target.map { f ->
+                updates.firstOrNull { it.id == f.id } ?: f
+            } + updates.filter { f -> target.none { tf -> tf.id == f.id } }
         }
 
         fun markUncompletableFights(dirtyFights: List<FightDescriptionDTO>, getFightById: (id: String) -> FightDescriptionDTO?): List<FightDescriptionDTO> {
+            log.info("Mark uncompletable fights.")
             val fights = dirtyFights.map {
                 if (it.status == FightStatus.UNCOMPLETABLE) {
                     it.setStatus(FightStatus.PENDING)
@@ -45,30 +47,20 @@ abstract class FightsService {
                     it
                 }
             }
-            val firstRoundFights = fights.filter { it.id != null && !checkIfFightCanBePacked(it.id!!, getFightById) }
-            return firstRoundFights.fold(fights) { acc, fightDescription ->
-                val updatedFight = fightDescription.copy(status = FightStatus.UNCOMPLETABLE,
-                        fightResult = FightResultDTO(fightDescription.scores?.firstOrNull()?.competitorId, null, "BYE"))
-                val winFightId = fightDescription.winFight
-                val updates = if (!winFightId.isNullOrBlank()) {
-                    //find win fight
-                    val winfight = acc.firstOrNull { it.id == winFightId }
-                    fightDescription.scores?.firstOrNull()?.competitorId?.let {
-                        winfight?.let { wf -> listOf(updatedFight, wf.pushCompetitor(it)) }
-                    } ?: listOf(updatedFight)
-                } else {
-                    listOf(updatedFight)
-                }
-                acc.map { f ->
-                    val updF = updates.firstOrNull { it.id == f.id }
-                    updF ?: f
-                }
+            val firstRoundUncompletableFightsFights = fights.filter { it.id != null && !checkIfFightIsPackedOrCanBePackedEventually(it.id!!, getFightById) }
+                    .map { fightDescription ->
+                        fightDescription.copy(status = FightStatus.UNCOMPLETABLE,
+                                fightResult = FightResultDTO(fightDescription.scores?.firstOrNull()?.competitorId, null, "BYE"))
+                    }
+            return fights.map { f ->
+                val updF = firstRoundUncompletableFightsFights.firstOrNull { it.id == f.id }
+                updF ?: f
             }
         }
 
 
         fun filterPreliminaryFights(outputSize: Int, fights: List<FightDescriptionDTO>, bracketType: BracketType): List<FightDescriptionDTO> {
-            logger.info("Filtering fights: $outputSize, fights size: ${fights.size}, brackets type: $bracketType")
+            log.info("Filtering fights: $outputSize, fights size: ${fights.size}, brackets type: $bracketType")
             val result = when (bracketType) {
                 BracketType.SINGLE_ELIMINATION -> {
                     if (outputSize == 3) {
@@ -87,7 +79,7 @@ abstract class FightsService {
                 }
                 else -> TODO("Brackets type $bracketType is not supported as a preliminary stage.")
             }
-            logger.info("Filtered fights: $outputSize, result size: ${result.size}, brackets type: $bracketType")
+            log.info("Filtered fights: $outputSize, result size: ${result.size}, brackets type: $bracketType")
             return result
         }
 
@@ -140,6 +132,7 @@ abstract class FightsService {
                                                     referenceType: FightReferenceType,
                                                     getFight: (id: String) -> FightDescriptionDTO?): Boolean {
             val fight = getFight(fightId)
+            log.info("Check if can produce reference: $fight")
             val parentFights = listOf(fight?.parentId1?.referenceType to fight?.parentId1?.fightId?.let { getFight(it) },
                     fight?.parentId2?.referenceType to fight?.parentId2?.fightId?.let { getFight(it) }).filter { it.first != null && it.second != null }
 
@@ -172,6 +165,8 @@ abstract class FightsService {
         }
 
         private fun canProduceReferenceToChild(it: Pair<FightReferenceType?, FightDescriptionDTO?>, child: FightDescriptionDTO?, getFight: (id: String) -> FightDescriptionDTO?): Boolean {
+            log.info("Check if can produce reference to a child: $it")
+
             return ((it.second?.scores?.all { sc ->
                 child?.scores.orEmpty().none { compScore ->
                     compScore.competitorId == sc.competitorId
@@ -180,28 +175,27 @@ abstract class FightsService {
                     && checkIfFightCanProduceReference(it.second?.id!!, it.first!!, getFight))
         }
 
-        fun checkIfFightCanBePacked(fightId: String, getFight: (id: String) -> FightDescriptionDTO?): Boolean {
+        private fun Array<CompScoreDTO>.withCompetitors() = this.filterNot { it.competitorId.isNullOrBlank() }
+
+        fun checkIfFightIsPackedOrCanBePackedEventually(fightId: String, getFight: (id: String) -> FightDescriptionDTO?): Boolean {
             val fight = getFight(fightId)
+            val effectiveScores = fight?.scores?.withCompetitors() ?: emptyList()
             return when {
-                fight?.scores.isNullOrEmpty() -> {
-                    false
-                }
-                fight?.scores!!.size >= 2 -> {
+                effectiveScores.size >= 2 -> {
                     true
                 }
                 else -> {
-                    listOfNotNull(fight.parentId1, fight.parentId2)
+                    listOfNotNull(fight?.parentId1, fight?.parentId2)
                             .map { it.referenceType to it.fightId?.let { id -> getFight(id) } }
                             .filter { it.first != null && it.second != null }
                             .filter {
-                                it.second!!.scores!!.none { sc ->
-                                    fight.scores!!.any { fsc ->
+                                it.second!!.scores?.none { sc ->
+                                    effectiveScores.any { fsc ->
                                         fsc.competitorId == sc.competitorId
                                     }
-                                }
+                                } != false
                             }
-                            .filter { checkIfFightCanProduceReference(it.second?.id!!, it.first!!, getFight) }
-                            .size + (fight.scores?.size ?: 0) >= 2
+                            .filter { checkIfFightCanProduceReference(it.second?.id!!, it.first!!, getFight) }.size + effectiveScores.size >= 2
                 }
             }
         }
@@ -220,17 +214,15 @@ abstract class FightsService {
                     .setStatus(FightStatus.PENDING)
                     .setPriority(0)
                     .setGroupId(groupId)
+                    .setFightName("Round ${round + 1} fight ${numberInRound + 1}")
         }
 
         private fun createFightId(stageId: String, groupId: String?) = IDGenerator.fightId(stageId, groupId)
 
 
-
-        val logger: Logger = LoggerFactory.getLogger(FightsService::class.java)
+        val log: Logger = LoggerFactory.getLogger(FightsService::class.java)
 
     }
-
-    protected val log = logger
 
     fun applyStageInputDescriptorToResultsAndFights(descriptor: StageInputDescriptorDTO,
                                                     previousStageId: String,
@@ -250,8 +242,8 @@ abstract class FightsService {
         } else {
             firstNPlaces(previousStageId, descriptor.numberOfCompetitors!!)
         }
-        logger.info("The following selectors will be used to find competitors that pass to the next stage: ")
-        program.log(logger)
+        log.info("The following selectors will be used to find competitors that pass to the next stage: ")
+        program.log(log)
         return program.failFast(stageResults, fights, fightResultOptions).map { it.distinct() }
                 .flatMap {
                     if (it.size != descriptor.numberOfCompetitors) {
@@ -260,7 +252,7 @@ abstract class FightsService {
                         Either.right(it)
                     }
                 }.fold({
-                    logger.error("Error while fight result selectors: $it")
+                    log.error("Error while fight result selectors: $it")
                     emptyList()
                 }, { it.toList() })
     }

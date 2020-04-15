@@ -7,6 +7,7 @@ import com.compmanager.compservice.jooq.tables.daos.*
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.mapping.toDTO
 import compman.compsrv.model.PageResponse
+import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
@@ -40,6 +41,8 @@ class StateQueryService(private val clusterSession: ClusterSession,
                         private val staffDao: CompetitionPropertiesStaffIdsDao,
                         private val promoCodeDao: PromoCodeDao,
                         private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
+                        private val fightResultOptionDao: FightResultOptionDao,
+                        private val fightDescriptionDao: FightDescriptionDao,
                         private val competitorCrudRepository: CompetitorDao) {
 
     companion object {
@@ -134,6 +137,14 @@ class StateQueryService(private val clusterSession: ClusterSession,
     },
             { _, restTemplate, urlPrefix ->
                 restTemplate.getForObject("$urlPrefix/api/v1/store/competitor?competitionId=$competitionId&fighterId=$fighterId", CompetitorDTO::class.java)
+            })
+
+    fun getFightResultOptions(competitionId: String, fightId: String) = localOrRemote(competitionId, {
+        val fight = fightDescriptionDao.findById(fightId)
+        fight?.let { fightResultOptionDao.fetchByStageId(it.stageId)?.map{  fr -> fr.toDTO() } }?.toTypedArray()
+    },
+            { _, restTemplate, urlPrefix ->
+                restTemplate.getForObject("$urlPrefix/api/v1/store/fightresultoptions?competitionId=$competitionId&fightId=$fightId", Array<FightResultOptionDTO>::class.java)
             })
 
 

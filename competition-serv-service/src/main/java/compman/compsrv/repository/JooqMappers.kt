@@ -135,6 +135,7 @@ class JooqMappers {
                     .setStageId(u[FightDescription.FIGHT_DESCRIPTION.STAGE_ID])
                     .setGroupId(u[FightDescription.FIGHT_DESCRIPTION.GROUP_ID])
                     .setRound(u[FightDescription.FIGHT_DESCRIPTION.ROUND])
+                    .setStatus(u[FightDescription.FIGHT_DESCRIPTION.STATUS]?.let { FightStatus.values()[it]} )
                     .setRoundType(u[FightDescription.FIGHT_DESCRIPTION.ROUND_TYPE]?.let { StageRoundType.values()[it] })
                     .setNumberOnMat(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT]).setScores(compScore)
 
