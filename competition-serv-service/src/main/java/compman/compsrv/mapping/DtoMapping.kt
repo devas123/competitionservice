@@ -131,6 +131,8 @@ fun CompScoreDTO.toRecord(fightId: String): CompScoreRecord =
             it.points = this.score?.points
             it.penalties = this.score?.penalties
             it.placeholderId = this.placeholderId
+            it.parentFightId = this.parentFightId
+            it.parentReferenceType = this.parentReferenceType?.ordinal
             it.compscoreCompetitorId = this.competitorId
             it.compscoreFightDescriptionId = fightId
         }
@@ -148,11 +150,7 @@ fun FightDescriptionDTO.toPojo(): FightDescription =
             it.matId = this.mat?.id
             it.numberOnMat = this.numberOnMat
             it.numberInRound = this.numberInRound
-            it.parent_1FightId = this.parentId1?.fightId
-            it.parent_2FightId = this.parentId2?.fightId
-            it.parent_1ReferenceType = this.parentId1?.referenceType?.ordinal
-            it.parent_2ReferenceType = this.parentId2?.referenceType?.ordinal
-            it.startTime = this.startTime?.let { Timestamp.from(it) }
+            it.startTime = this.startTime?.let { instant -> Timestamp.from(instant) }
             it.fightName = this.fightName
             it.stageId = this.stageId
             it.status = this.status?.ordinal
@@ -161,3 +159,17 @@ fun FightDescriptionDTO.toPojo(): FightDescription =
             it.groupId = this.groupId
             it.invalid = this.invalid
         }
+
+fun CompScoreDTO.toPojo(fightId: String): CompScore {
+    return CompScore().also {cs ->
+        cs.placeholderId = this.placeholderId
+        cs.advantages = this.score?.advantages
+        cs.compScoreOrder = this.order
+        cs.compscoreCompetitorId = this.competitorId
+        cs.compscoreFightDescriptionId = fightId
+        cs.parentFightId = this.parentFightId
+        cs.parentReferenceType = this.parentReferenceType?.ordinal
+        cs.penalties = this.score?.penalties
+        cs.points = this.score?.points
+    }
+}

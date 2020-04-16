@@ -1,5 +1,6 @@
 package compman.compsrv.service.schedule
 
+import com.compmanager.compservice.jooq.tables.pojos.CompScore
 import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import com.compmanager.service.ServiceException
 import compman.compsrv.model.dto.competition.FightStatus
@@ -17,25 +18,25 @@ import java.time.Duration
 class ScheduleService {
 
     companion object {
-        fun obsoleteFight(f: FightDescription, threeCompetitorCategory: Boolean = false): Boolean {
+        fun obsoleteFight(f: FightDescription, cs: List<CompScore>, threeCompetitorCategory: Boolean = false): Boolean {
             if (threeCompetitorCategory) {
                 return false
             }
-            if ((f.parent_1FightId != null) || (f.parent_2FightId != null)) return false
+            if (cs.any { !it.parentFightId.isNullOrBlank() }) return false
             return f.status == FightStatus.UNCOMPLETABLE.ordinal || f.status == FightStatus.WALKOVER.ordinal
         }
 
-        fun getAllFightsParents(f: FightDescription, getFight: (fightId: String) -> FightDescription?): List<String> {
+        fun getAllFightsParents(fightScores: List<CompScore>, getScoresForFight: (fightId: String) -> List<CompScore>?): List<String> {
             tailrec fun loop(result: List<String>, parentIds: List<String>): List<String> {
                 return if (parentIds.isEmpty()) {
                     result
                 } else {
                     loop(result + parentIds, parentIds.flatMap {
-                        getFight(it)?.let { pf -> listOfNotNull(pf.parent_1FightId, pf.parent_2FightId) }.orEmpty()
+                        getScoresForFight(it)?.mapNotNull { compScore -> compScore.parentFightId }.orEmpty()
                     })
                 }
             }
-            return loop(emptyList(), listOfNotNull(f.parent_1FightId, f.parent_2FightId))
+            return loop(emptyList(), fightScores.mapNotNull { it.parentFightId })
         }
     }
 
@@ -43,7 +44,7 @@ class ScheduleService {
      * @param stages - Flux<pair<Tuple3<StageId, CategoryId, BracketType>, fights>>
      */
     fun generateSchedule(competitionId: String, periods: List<PeriodDTO>, mats: List<MatDescriptionDTO>, stages: Flux<StageGraph>, timeZone: String,
-                         categoryCompetitorNumbers: Map<String, Int>, getFight: (fightId: String) -> FightDescription?): ScheduleDTO {
+                         categoryCompetitorNumbers: Map<String, Int>, getFight: (fightId: String) -> List<CompScore>?): ScheduleDTO {
         if (!periods.isNullOrEmpty()) {
             return doGenerateSchedule(competitionId, stages, periods, mats, timeZone, getFight)
         } else {
@@ -56,7 +57,7 @@ class ScheduleService {
                                    periods: List<PeriodDTO>,
                                    mats: List<MatDescriptionDTO>,
                                    timeZone: String,
-                                   getFight: (fightId: String) -> FightDescription?): ScheduleDTO {
+                                   getFight: (fightId: String) -> List<CompScore>?): ScheduleDTO {
         val periodsWithIds = periods.map { periodDTO ->
             val id = periodDTO.id ?: IDGenerator.createPeriodId(competitionId)
             periodDTO.setId(id)
@@ -83,7 +84,7 @@ class ScheduleService {
                 timeBetweenFights = periods.map { p -> p.id!! to BigDecimal(p.timeBetweenFights) }.toMap(),
                 riskFactor = periods.map { p -> p.id!! to p.riskPercent }.toMap(),
                 timeZone = timeZone,
-                getFight = getFight)
+                getFightScores = getFight)
 
         val fightsByMats = composer.simulate().block(Duration.ofMillis(500)) ?: error("Generated schedule is null")
         val invalidFightIds = fightsByMats.c

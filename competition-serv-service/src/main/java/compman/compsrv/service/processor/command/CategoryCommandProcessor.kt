@@ -7,14 +7,12 @@ import com.compmanager.compservice.jooq.tables.daos.CompetitionPropertiesDao
 import com.compmanager.compservice.jooq.tables.daos.CompetitorDao
 import com.compmanager.compservice.jooq.tables.daos.StageDescriptorDao
 import com.fasterxml.jackson.databind.ObjectMapper
+import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
 import compman.compsrv.model.dto.brackets.*
-import compman.compsrv.model.dto.competition.CategoryRestrictionDTO
-import compman.compsrv.model.dto.competition.CategoryStateDTO
-import compman.compsrv.model.dto.competition.CompetitorDTO
-import compman.compsrv.model.dto.competition.FightDescriptionDTO
+import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
@@ -115,6 +113,15 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         }
     }
 
+    tailrec fun clearAffectedFights(fights: List<FightDescriptionDTO>, changedIds: Set<String>): List<FightDescriptionDTO> {
+        return if (changedIds.isEmpty()) {
+            fights
+        } else {
+            val affectedFights = fights.filter { fg -> fg.scores?.any { s -> changedIds.contains(s.parentFightId) } == true }
+            clearAffectedFights(fights.map { f -> f.setScores(f.scores?.applyConditionalUpdate({ changedIds.contains(it.parentFightId) }, { it.setCompetitorId(null) })) }, affectedFights.map { it.id }.toSet())
+        }
+    }
+
 
     private fun doApplyFightsEditorChanges(com: CommandDTO): List<EventDTO> {
         return executeValidated(com, FightEditorApplyChangesPayload::class.java) { payload, command ->
@@ -124,7 +131,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                 val bracketsType = stage.bracketType
                 if (!competitionProperties.schedulePublished && !competitionProperties.bracketsPublished) {
                     val allStageFights = jooq.fetchFightsByStageId(command.competitionId, payload.stageId).collectList().block(Duration.ofMillis(300)).orEmpty()
-                    val stageFights =  when (bracketsType) {
+                    val stageFights = when (bracketsType) {
                         BracketType.GROUP -> {
                             val fightsByGroupId = allStageFights.groupBy { it.groupId!! }
                             val competitorChangesByGroupId = payload.competitorGroupChanges.groupBy { it.groupId }
@@ -145,15 +152,35 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                             }.filterNotNull().sortedBy { it.numberInRound }.mapIndexed { i, fightDescriptionDTO -> fightDescriptionDTO.setNumberInRound(i) }
                         }
                         else -> {
-                            FightsService.upsertFights(payload.fights.map { f ->
-                                f.setScores(f.scores.filter { s -> !s.competitorId.isNullOrBlank() || !s.placeholderId.isNullOrBlank() }.toTypedArray())
-                            }, allStageFights)
+                            allStageFights.map { f ->
+                                payload.bracketsChanges.find { change -> change.fightId == f.id }?.let { change ->
+                                    if (change.competitors.isNullOrEmpty()) {
+                                        f.setScores(emptyArray())
+                                    } else {
+                                        val scores = f.scores.orEmpty()
+                                        f.setScores(change.competitors.map { cmpId ->
+                                            scores.find { s -> s.competitorId == cmpId }
+                                                    ?: scores.find { s -> s.competitorId.isNullOrBlank() }?.setCompetitorId(cmpId)
+                                                    ?: CompScoreDTO()
+                                                            .setCompetitorId(cmpId)
+                                                            .setScore(ScoreDTO(0, 0, 0, emptyArray()))
+                                                            .setOrder(getMinUnusedOrder(scores))
+                                        }.toTypedArray())
+                                    }
+                                } ?: f
+                            }
                         }
                     }
-                    val markedStageFights = stageFights
-                            .let { fights -> FightsService.markUncompletableFights(fights) { id ->
-                                allStageFights.firstOrNull { it.id == id } ?: stageFights.firstOrNull { it.id == id } }
-                            }
+
+                    val dirtyStageFights = stageFights.applyConditionalUpdate({ it.status == FightStatus.UNCOMPLETABLE }, { it.setStatus(FightStatus.PENDING) })
+
+                    val clearedStageFights = clearAffectedFights(dirtyStageFights, payload.bracketsChanges.map { it.fightId }.toSet())
+
+                    val markedStageFights = FightsService.markAndProcessUncompletableFights(clearedStageFights) { id ->
+                        (allStageFights.firstOrNull { it.id == id }
+                                ?: stageFights.firstOrNull { it.id == id })?.scores?.map { it.toPojo(id) }
+                    }
+
 
                     listOf(createEvent(command, EventType.FIGHTS_EDITOR_CHANGE_APPLIED,
                             FightEditorChangesAppliedPayload()
@@ -171,9 +198,19 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         }
     }
 
+    private fun getMinUnusedOrder(scores: Array<out CompScoreDTO>?): Int {
+        return if (scores.isNullOrEmpty()) {
+            0
+        } else {
+            (0..scores.size).first { i -> scores.none { s -> s.order == i } }
+        }
+    }
+
 
     private fun createUpdatesWithRemovedCompetitor(groupFights: List<FightDescriptionDTO>, ch: CompetitorGroupChange, groupDescriptorDTO: GroupDescriptorDTO): List<FightDescriptionDTO> {
-        val actualGroupSize = groupFights.flatMap { it.scores.orEmpty().toList() }.distinctBy { it.competitorId ?: it.placeholderId }.size
+        val actualGroupSize = groupFights.flatMap { it.scores.orEmpty().toList() }.distinctBy {
+            it.competitorId ?: it.placeholderId
+        }.size
         return if (actualGroupSize <= groupDescriptorDTO.size) {
             groupFights.map {
                 it.setScores(it.scores?.map { sc ->
@@ -202,7 +239,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         val flatScores = groupFights.flatMap { it.scores.orEmpty().toList() }
         val placeholderId = flatScores
                 .find { it.competitorId.isNullOrBlank() && !it.placeholderId.isNullOrBlank() }?.placeholderId
-        val result =  if (!placeholderId.isNullOrBlank()) {
+        val result = if (!placeholderId.isNullOrBlank()) {
             log.info("Found placeholder: $placeholderId")
             groupFights.map { fight ->
                 fight.setScores(fight.scores?.map {
@@ -256,7 +293,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                             else -> 0
                         }
                         val stageId = stageIdMap[stage.id] ?: error("Stage id not found.")
-                        val groupDescr = stage.groupDescriptors?.map {  it ->
+                        val groupDescr = stage.groupDescriptors?.map { it ->
                             it.setId(IDGenerator.groupId(stageId))
                         }?.toTypedArray()
                         val inputDescriptor = stage.inputDescriptor?.setId(stageId)?.setSelectors(stage.inputDescriptor

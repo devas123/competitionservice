@@ -174,14 +174,16 @@ class TestDataGenerationUtils(private val fightsGenerateService: FightsService) 
                                 .setEntryOrder(2)
 
                 )))
+        val getCompScores = { id: String -> stagesToFights.flatMap { it.second }.firstOrNull { it.id == id }?.scores?.map { it.toPojo(id) }.orEmpty() }
+
         val stageGraph = stagesToFights.map {
             Tuple3(it.first, it.second.first().categoryId, BracketType.SINGLE_ELIMINATION) to it.second.map { f ->
                 f.toPojo()
             }
         }.map { pp ->
-            StageGraph(pp.first.a.categoryId, listOf(pp.first.a), pp.second, BracketSimulatorFactory())
+            StageGraph(pp.first.a.categoryId, listOf(pp.first.a), pp.second, BracketSimulatorFactory(), getCompScores)
         }
 
-        return scheduleService.generateSchedule(competitionId, periods, mats.toList(), Flux.fromIterable(stageGraph), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap()) { id -> stagesToFights.flatMap { it.second }.firstOrNull { it.id == id }?.toPojo() }
+        return scheduleService.generateSchedule(competitionId, periods, mats.toList(), Flux.fromIterable(stageGraph), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap(), getCompScores)
     }
 }

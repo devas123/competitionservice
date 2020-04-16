@@ -32,14 +32,14 @@ class ScheduleServiceTest {
             val competitors = FightsService.generateRandomCompetitorsForCategory(competitorNumbers, competitorNumbers, it.second, competitionId)
             val stage = testDataGenerationUtils.createSingleEliminationStage(competitionId, it.second.id, it.first, competitorNumbers)
             stage to testDataGenerationUtils.generateFilledFights(competitionId, it.second, stage, competitors, BigDecimal.valueOf(fightDuration))
-        }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f.toPojo()) }) }
-        val flatFights = fights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f.toPojo()) }
+        }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }) }
+        val flatFights = fights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }
 
         val schedule = testDataGenerationUtils.generateSchedule(categories, fights, competitionId, competitorNumbers)
 
         println("Fights: ")
         fights.forEach {
-            println("${it.first} -> ${it.second.filter { dto -> !ScheduleService.obsoleteFight(dto.toPojo()) }.size}")
+            println("${it.first} -> ${it.second.filter { dto -> !ScheduleService.obsoleteFight(dto.toPojo(), dto.scores.map { it.toPojo(dto.id) }) }.size}")
         }
 
         assertNotNull(schedule)

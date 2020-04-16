@@ -260,10 +260,6 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 loseFight = fight.loseFight
                 categoryId = fight.categoryId
                 competitionId = fight.competitionId
-                parent_1FightId = fight.parentId1?.fightId
-                parent_1ReferenceType = fight.parentId1?.referenceType?.ordinal
-                parent_2FightId = fight.parentId2?.fightId
-                parent_2ReferenceType = fight.parentId2?.referenceType?.ordinal
                 duration = fight.duration
                 status = fight.status?.ordinal
                 winnerId = fight.fightResult?.winnerId
@@ -285,6 +281,8 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 advantages = cs.score?.advantages
                 points = cs.score?.points
                 penalties = cs.score?.penalties
+                parentFightId = cs.parentFightId
+                parentReferenceType = cs.parentReferenceType?.ordinal
                 compscoreFightDescriptionId = fightId
                 compScoreOrder = cs.order
                 compscoreCompetitorId = cs.competitorId
@@ -481,8 +479,10 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                         CompScore.COMP_SCORE.PENALTIES,
                         CompScore.COMP_SCORE.ADVANTAGES,
                         CompScore.COMP_SCORE.COMP_SCORE_ORDER,
+                        CompScore.COMP_SCORE.PARENT_FIGHT_ID,
+                        CompScore.COMP_SCORE.PARENT_REFERENCE_TYPE,
                         CompScore.COMP_SCORE.PLACEHOLDER_ID).values(value.competitorId, fightId, value.score.points, value.score.penalties,
-                        value.score.advantages, index, value.placeholderId)
+                        value.score.advantages, index, value.parentFightId, value.parentReferenceType?.ordinal, value.placeholderId)
         ).execute()
     }
 
@@ -748,10 +748,6 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                         this.matId = it.matId
                         this.numberInRound = it.numberInRound
                         this.numberOnMat = it.numberOnMat
-                        this.parent_1FightId = it.parent_1FightId
-                        this.parent_1ReferenceType = it.parent_1ReferenceType
-                        this.parent_2FightId = it.parent_2FightId
-                        this.parent_2ReferenceType = it.parent_2ReferenceType
                         this.period = it.period
                         this.priority = it.priority
                         this.round = it.round
@@ -778,9 +774,11 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                                             csr.value4(),
                                             csr.value5(),
                                             csr.value6(),
-                                            csr.value7())
+                                            csr.value7(),
+                                            csr.value8(),
+                                            csr.value9())
                                     .onDuplicateKeyUpdate()
-                                    .set(csr)
+                                    .set(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID, csr.compscoreCompetitorId)
                         } +
                         updates.map { f ->
                             create.update(FightDescription.FIGHT_DESCRIPTION)
@@ -831,13 +829,13 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                         csr.value4(),
                         csr.value5(),
                         csr.value6(),
-                        csr.value7())
+                        csr.value7(),
+                        csr.value8(),
+                        csr.value9())
                 .onDuplicateKeyUpdate()
                 .set(csr.field1(), csr.value1())
                 .set(csr.field2(), csr.value2())
                 .set(csr.field3(), csr.value3())
-                .set(csr.field5(), csr.value5())
-                .set(csr.field6(), csr.value6())
                 .set(csr.field7(), csr.value7())
         }).execute()
     }

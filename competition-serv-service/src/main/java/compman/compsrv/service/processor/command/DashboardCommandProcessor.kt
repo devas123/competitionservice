@@ -9,17 +9,19 @@ import compman.compsrv.model.commands.payload.DashboardFightOrderChangePayload
 import compman.compsrv.model.commands.payload.PropagateCompetitorsPayload
 import compman.compsrv.model.commands.payload.SetFightResultPayload
 import compman.compsrv.model.dto.brackets.BracketType
+import compman.compsrv.model.dto.brackets.FightReferenceType
 import compman.compsrv.model.dto.brackets.StageStatus
-import compman.compsrv.model.dto.competition.CompScoreDTO
 import compman.compsrv.model.dto.competition.FightStatus
-import compman.compsrv.model.dto.competition.ScoreDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.service.fight.FightsService
-import compman.compsrv.util.*
+import compman.compsrv.util.PayloadValidator
+import compman.compsrv.util.copy
+import compman.compsrv.util.createErrorEvent
+import compman.compsrv.util.createEvent
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
@@ -34,6 +36,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                                 private val fightResultOptionDao: FightResultOptionDao,
                                 private val competitorStageResultDao: CompetitorStageResultDao,
                                 private val competitorDao: CompetitorDao,
+                                private val compScoreDao: CompScoreDao,
                                 private val stageDescriptorCrudRepository: StageDescriptorDao,
                                 validators: List<PayloadValidator>,
                                 mapper: ObjectMapper) : AbstractCommandProcessor(mapper, validators) {
@@ -77,83 +80,60 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
 
             val competitorIdsToFightIds = fightsGenerateService
                     .distributeCompetitors(propagatedCompetitors, propagatedStageFights, stage.bracketType)
-                    .fold(mapOf<String, String>()) { acc, f ->
-                        val newPairs = f.scores?.mapNotNull { it.competitorId?.let { c -> c to f.id } }?.toMap()
-                                ?: emptyMap()
+                    .fold(emptyList<CompetitorAssignmentDescriptor>()) { acc, f ->
+                        val newPairs = f.scores?.mapNotNull {
+                            it.competitorId?.let { c ->
+                                CompetitorAssignmentDescriptor().setCompetitorId(c)
+                                        .setToFightId(f.id)
+                            }
+                        }.orEmpty()
                         acc + newPairs
                     }
             listOf(mapper.createEvent(com, EventType.COMPETITORS_PROPAGATED_TO_STAGE, CompetitorsPropagatedToStagePayload()
                     .setStageId(p.propagateToStageId)
-                    .setCompetitorIdToFightId(competitorIdsToFightIds)))
+                    .setPropagations(competitorIdsToFightIds)))
         }
     }
 
 
     private fun setFightResult(com: CommandDTO): List<EventDTO> {
-        fun moveFightersToSiblings(command: CommandDTO, fightIds: List<String?>, winnerId: String, compScores: Array<CompScoreDTO>, isSibling: Boolean = false): List<EventDTO> {
-            fun createCompScoresWithWinner(winner: Boolean) = arrayOf(compScores.first { (winner && it.competitorId == winnerId) || (!winner && it.competitorId != winnerId) }
-                    .setScore(ScoreDTO().setAdvantages(0).setPenalties(0).setPoints(0)))
-
-            val loser = compScores.first { it.competitorId != winnerId }.competitorId
-            val ids = fightIds.mapIndexed { index, id -> id to (index == 0) }.filter { !it.first.isNullOrBlank() }
-            return ids.flatMap { idAndWinFight ->
-                val id = idAndWinFight.first
-                val winner = idAndWinFight.second
-                val idToSet = if (winner) {
-                    winnerId
-                } else {
-                    loser
-                }
-                if (!id.isNullOrBlank() && fightCrudRepository.existsById(id)) {
-                    val processedFight = fightCrudRepository.findById(id)!!
-                    val fightResultSetAndWinnerMovedForward = if (isSibling) {
-                        listOf(mapper.createEvent(command, EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED, FightCompetitorsAssignedPayload()
-                                .setFightId(id)
-                                .setCompscores(createCompScoresWithWinner(winner))))
-                    } else {
-                        listOf(mapper.createEvent(command, EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED, FightCompetitorsAssignedPayload().setFightId(id)
-                                .setCompscores(compScores.filter {
-                                    if (winner) {
-                                        it.competitorId == winnerId
-                                    } else {
-                                        it.competitorId != winnerId
-                                    }
-                                }.map {
-                                    it
-                                            .setScore(ScoreDTO()
-                                                    .setAdvantages(0)
-                                                    .setPenalties(0)
-                                                    .setPoints(0))
-                                }.toTypedArray())))
-                    }
-                    fightResultSetAndWinnerMovedForward +
-                            if (!checkIfFightCanBePacked(id, command.competitionId) && (!processedFight.winFight.isNullOrBlank() || !processedFight.loseFight.isNullOrBlank())) {
-                                moveFightersToSiblings(command, listOf(processedFight.winFight, processedFight.loseFight), idToSet, compScores, true)
-                            } else {
-                                emptyList()
-                            }
-                } else {
-                    emptyList()
-                }
-            }
-        }
-
         return executeValidated(com, SetFightResultPayload::class.java) { payload, command ->
             val result = emptyList<EventDTO>()
-            val updatedFightIds = mutableSetOf<String>()
+            val finishedFights = mutableSetOf<String>()
+            val stageId = fightCrudRepository.findById(payload.fightId)?.stageId ?: error("Did not find stage id for fight ${payload.fightId}")
 
-            val fight = jooqRepository.findFightByCompetitionIdAndId(command.competitionId, payload.fightId).block()!!
+            val stageFights = jooqRepository.fetchFightsByStageId(command.competitionId, stageId).collectList().block()!!
+            val fight = stageFights.find { f -> f.id == payload.fightId } ?: error("No fight with id ${payload.fightId} found")
+            val winnerId = payload.fightResult?.winnerId
+
+            fun getIdToProceed(ref: FightReferenceType): String? {
+                return when (ref) {
+                    FightReferenceType.WINNER ->
+                        winnerId
+                    FightReferenceType.LOSER ->
+                        payload.scores?.find { s -> s.competitorId != winnerId }?.competitorId
+                }
+            }
 
             val fightUpdates = result +
-                    if (!payload.fightResult?.winnerId.isNullOrBlank()) {
-                        updatedFightIds.add(payload.fightId)
-                        listOf(mapper.createEvent(command, EventType.DASHBOARD_FIGHT_RESULT_SET, payload)) +
-                                moveFightersToSiblings(command, listOf(fight.winFight, fight.loseFight), payload.fightResult.winnerId, payload.scores)
+                    if (!winnerId.isNullOrBlank()) {
+                        val assignments = mutableListOf<EventDTO>()
+                        FightReferenceType.values().forEach { ref ->
+                            getIdToProceed(ref)?.let {
+                                FightsService.moveFighterToSiblings(it, payload.fightId, ref, stageFights) { fromFightId, toFightId, competitorId ->
+                                    assignments.add(mapper.createEvent(command, EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED, FightCompetitorsAssignedPayload()
+                                            .setAssignments(arrayOf(CompetitorAssignmentDescriptor().setFromFightId(fromFightId).setToFightId(toFightId).setCompetitorId(competitorId)
+                                                    .setReferenceType(ref)))))
+                                }
+                            }
+                        }
+                        finishedFights.add(payload.fightId)
+                        listOf(mapper.createEvent(command, EventType.DASHBOARD_FIGHT_RESULT_SET, payload)) + assignments
                     } else {
                         emptyList()
                     }
 
-            fightUpdates + if (checkIfAllStageFightsFinished(command.competitionId, fight.stageId, updatedFightIds)) {
+            fightUpdates + if (checkIfAllStageFightsFinished(command.competitionId, fight.stageId, finishedFights)) {
                 val stage = stageDescriptorCrudRepository.findById(fight.stageId!!)
                 val fightsWithResult = jooqRepository.fetchFightsByStageId(command.competitionId, stage.id!!).map { fd ->
                     if (fd.id == payload.fightId) {
@@ -165,7 +145,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                 val fightResultOptions = fightResultOptionDao.fetchByStageId(fight.stageId)?.map { it.toDTO() }
                         .orEmpty()
                 val stageResults = fightsGenerateService.buildStageResults(BracketType.values()[stage.bracketType], StageStatus.FINISHED,
-                        fightsWithResult.orEmpty(), stage.id!!, stage.competitionId, fightResultOptions)
+                        fightsWithResult, stage.id!!, stage.competitionId, fightResultOptions)
                 listOf(mapper.createEvent(command, EventType.DASHBOARD_STAGE_RESULT_SET,
                         StageResultSetPayload()
                                 .setStageId(stage.id)
@@ -204,7 +184,4 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                 .all { it.status == FightStatus.FINISHED || it.status == FightStatus.WALKOVER || it.status == FightStatus.UNCOMPLETABLE || additionalFinishedFightIds.contains(it.id) }.block()
     }
             ?: false
-
-    fun checkIfFightCanBePacked(fightId: String, competitionId: String) = FightsService
-            .checkIfFightIsPackedOrCanBePackedEventually(fightId) { jooqRepository.findFightByCompetitionIdAndId(competitionId, it).block() ?: error("No fight for id $it and competitionId $competitionId") }
 }

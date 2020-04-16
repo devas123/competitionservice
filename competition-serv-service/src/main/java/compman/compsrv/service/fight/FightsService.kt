@@ -1,7 +1,9 @@
 package compman.compsrv.service.fight
 
 import arrow.core.Either
+import arrow.core.Tuple3
 import arrow.core.flatMap
+import com.compmanager.compservice.jooq.tables.pojos.CompScore
 import com.compmanager.model.payment.RegistrationStatus
 import com.google.common.math.DoubleMath
 import compman.compsrv.model.dto.brackets.*
@@ -32,30 +34,58 @@ abstract class FightsService {
         private val validChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".toCharArray()
         fun createEmptyScore(): ScoreDTO = ScoreDTO().setAdvantages(0).setPenalties(0).setPoints(0).setPointGroups(emptyArray())
 
-        fun upsertFights(updates: List<FightDescriptionDTO>, target: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
-            return target.map { f ->
-                updates.firstOrNull { it.id == f.id } ?: f
-            } + updates.filter { f -> target.none { tf -> tf.id == f.id } }
-        }
-
-        fun markUncompletableFights(dirtyFights: List<FightDescriptionDTO>, getFightById: (id: String) -> FightDescriptionDTO?): List<FightDescriptionDTO> {
-            log.info("Mark uncompletable fights.")
-            val fights = dirtyFights.map {
-                if (it.status == FightStatus.UNCOMPLETABLE) {
-                    it.setStatus(FightStatus.PENDING)
+        tailrec fun moveFighterToSiblings(competitorId: String, fromFightId: String, referenceType: FightReferenceType, fights: List<FightDescriptionDTO>,
+                                          callback: (from: String, to: String, competitorId: String) -> Unit = { _, _, _ -> }): List<FightDescriptionDTO> {
+            log.info("Moving fighter $competitorId to siblings for fight: $fromFightId, $referenceType")
+            val fight = fights.first { it.id == fromFightId }
+            assert(fight.scores.any { it.competitorId == competitorId }) { "Competitor $competitorId is not participating in fight $fight" }
+            val toFightId = if (referenceType == FightReferenceType.LOSER) {
+                fight.loseFight
+            } else {
+                fight.winFight
+            } ?: fights.find { fg -> fg.scores?.any { s -> s.parentFightId == fromFightId && s.parentReferenceType == referenceType } == true }?.id
+            if (toFightId.isNullOrBlank()) {
+                log.info("Fight $fromFightId has no references of type $referenceType. Stopping.")
+                return fights
+            }
+            val toFight = fights.first { it.id == toFightId }
+            assert(toFight.scores.any { it.parentFightId == fight.id }) { "Fight $fight has no reference to $toFight" }
+            val updatedFights = fights.map {
+                if (it.id == toFightId) {
+                    log.info("Updating fight $it with reference $referenceType and from fight $fromFightId ")
+                    val newScores = it.scores.map { score ->
+                        if (score.parentFightId == fromFightId && score.parentReferenceType == referenceType) {
+                            score.setCompetitorId(competitorId)
+                        } else {
+                            score
+                        }
+                    }.toTypedArray()
+                    kotlin.runCatching { callback(fromFightId, it.id, competitorId) }.fold({}, { e -> log.warn("Callback has thrown an error", e) })
+                    it.copy(scores = newScores)
                 } else {
                     it
                 }
             }
-            val firstRoundUncompletableFightsFights = fights.filter { it.id != null && !checkIfFightIsPackedOrCanBePackedEventually(it.id!!, getFightById) }
+            return if (toFight.status !== FightStatus.UNCOMPLETABLE) {
+                updatedFights
+            } else {
+                moveFighterToSiblings(competitorId, toFight.id, FightReferenceType.WINNER, updatedFights, callback)
+            }
+        }
+
+        fun markAndProcessUncompletableFights(fights: List<FightDescriptionDTO>, getFightScoresById: (id: String) -> List<CompScore>?): List<FightDescriptionDTO> {
+            log.info("Mark uncompletable fights.")
+            val uncompletableFights = fights.filter { it.id != null && !checkIfFightIsPackedOrCanBePackedEventually(it.id!!, getFightScoresById) }
                     .map { fightDescription ->
                         fightDescription.copy(status = FightStatus.UNCOMPLETABLE,
                                 fightResult = FightResultDTO(fightDescription.scores?.firstOrNull()?.competitorId, null, "BYE"))
                     }
-            return fights.map { f ->
-                val updF = firstRoundUncompletableFightsFights.firstOrNull { it.id == f.id }
+            val markedFights = fights.map { f ->
+                val updF = uncompletableFights.firstOrNull { it.id == f.id }
                 updF ?: f
             }
+            return uncompletableFights.flatMap { it.scores.map { s -> Tuple3(s.competitorId, it.id, FightReferenceType.WINNER) } }.filter { !it.a.isNullOrBlank() }
+                    .fold(markedFights) { acc, tuple3 -> moveFighterToSiblings(tuple3.a, tuple3.b, tuple3.c, acc) }
         }
 
 
@@ -130,31 +160,30 @@ abstract class FightsService {
 
         private fun checkIfFightCanProduceReference(fightId: String,
                                                     referenceType: FightReferenceType,
-                                                    getFight: (id: String) -> FightDescriptionDTO?): Boolean {
-            val fight = getFight(fightId)
-            log.info("Check if can produce reference: $fight")
-            val parentFights = listOf(fight?.parentId1?.referenceType to fight?.parentId1?.fightId?.let { getFight(it) },
-                    fight?.parentId2?.referenceType to fight?.parentId2?.fightId?.let { getFight(it) }).filter { it.first != null && it.second != null }
-
+                                                    getFightScores: (id: String) -> List<CompScore>?): Boolean {
+            val fightScores = getFightScores(fightId)
+            log.info("Check if can produce reference: $fightScores")
+            val parentFights = fightScores
+                    ?.map { it.parentReferenceType?.let { r -> FightReferenceType.values()[r] } to it.parentFightId }.orEmpty()
+                    .filter { it.first != null && !it.second.isNullOrBlank() }
             when {
-                fight?.scores.isNullOrEmpty() -> {
+                fightScores?.withCompetitors().isNullOrEmpty() -> {
                     return when (referenceType) {
                         FightReferenceType.WINNER -> {
-                            parentFights.any { canProduceReferenceToChild(it, fight, getFight) }
+                            parentFights.any { checkIfFightCanProduceReference(it.second, it.first!!, getFightScores) }
                         }
                         FightReferenceType.LOSER -> {
-                            parentFights.size >= 2 && parentFights.all { canProduceReferenceToChild(it, fight, getFight) }
+                            parentFights.filter { checkIfFightCanProduceReference(it.second, it.first!!, getFightScores) }.size >= 2
                         }
                     }
-
                 }
-                fight?.scores!!.size == 1 -> {
+                fightScores?.withCompetitors()?.size == 1 -> {
                     return when (referenceType) {
                         FightReferenceType.WINNER -> {
                             true
                         }
                         FightReferenceType.LOSER -> {
-                            parentFights.isNotEmpty() && parentFights.any { canProduceReferenceToChild(it, fight, getFight) }
+                            parentFights.any { checkIfFightCanProduceReference(it.second, it.first!!, getFightScores) }
                         }
                     }
                 }
@@ -164,38 +193,17 @@ abstract class FightsService {
             }
         }
 
-        private fun canProduceReferenceToChild(it: Pair<FightReferenceType?, FightDescriptionDTO?>, child: FightDescriptionDTO?, getFight: (id: String) -> FightDescriptionDTO?): Boolean {
-            log.info("Check if can produce reference to a child: $it")
+        private fun List<CompScore>.withCompetitors() = this.filterNot { it.compscoreCompetitorId.isNullOrBlank() }
 
-            return ((it.second?.scores?.all { sc ->
-                child?.scores.orEmpty().none { compScore ->
-                    compScore.competitorId == sc.competitorId
-                }
-            } == true)
-                    && checkIfFightCanProduceReference(it.second?.id!!, it.first!!, getFight))
-        }
-
-        private fun Array<CompScoreDTO>.withCompetitors() = this.filterNot { it.competitorId.isNullOrBlank() }
-
-        fun checkIfFightIsPackedOrCanBePackedEventually(fightId: String, getFight: (id: String) -> FightDescriptionDTO?): Boolean {
-            val fight = getFight(fightId)
-            val effectiveScores = fight?.scores?.withCompetitors() ?: emptyList()
-            return when {
-                effectiveScores.size >= 2 -> {
-                    true
-                }
-                else -> {
-                    listOfNotNull(fight?.parentId1, fight?.parentId2)
-                            .map { it.referenceType to it.fightId?.let { id -> getFight(id) } }
-                            .filter { it.first != null && it.second != null }
-                            .filter {
-                                it.second!!.scores?.none { sc ->
-                                    effectiveScores.any { fsc ->
-                                        fsc.competitorId == sc.competitorId
-                                    }
-                                } != false
-                            }
-                            .filter { checkIfFightCanProduceReference(it.second?.id!!, it.first!!, getFight) }.size + effectiveScores.size >= 2
+        private fun checkIfFightIsPackedOrCanBePackedEventually(fightId: String, getFightScores: (id: String) -> List<CompScore>?): Boolean {
+            val scores = getFightScores(fightId).orEmpty()
+            return scores.size >= 2 && scores.fold(true) { acc, sc ->
+                acc && when {
+                    !sc.compscoreCompetitorId.isNullOrBlank() -> true
+                    !sc.parentFightId.isNullOrBlank() && sc.parentReferenceType != null -> {
+                        checkIfFightCanProduceReference(sc.parentFightId, FightReferenceType.values()[sc.parentReferenceType], getFightScores)
+                    }
+                    else -> false
                 }
             }
         }

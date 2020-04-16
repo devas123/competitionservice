@@ -1,13 +1,14 @@
 package compman.compsrv.service.fight
 
 import arrow.core.Tuple3
-import arrow.core.Tuple4
 import arrow.core.extensions.list.foldable.nonEmpty
 import arrow.core.extensions.list.zip.zipWith
 import com.google.common.math.DoubleMath
 import com.google.common.math.IntMath
 import com.google.common.math.LongMath
+import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.dto.brackets.*
+import compman.compsrv.model.dto.competition.CompScoreDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.util.copy
@@ -37,6 +38,35 @@ class BracketsGenerateService : FightsService() {
                 index,
                 duration,
                 "Round ${currentRound + 1}, fight #${index + 1}", null)
+    }
+
+    fun createScores(ids: List<String>, refTypes: List<FightReferenceType>): Array<CompScoreDTO> {
+        assert(ids.size == refTypes.size || refTypes.size == 1) { "The sizes of ids and refTypes should match, or there should be exactly one refType." }
+        return if (ids.size == refTypes.size) {
+            ids.zip(refTypes).mapIndexed{ i, p ->
+                CompScoreDTO().setParentReferenceType(p.second)
+                        .setParentFightId(p.first).setOrder(i)
+            }.toTypedArray()
+        } else {
+            ids.mapIndexed{ i, p ->
+                CompScoreDTO().setParentReferenceType(refTypes.first())
+                        .setParentFightId(p).setOrder(i)
+            }.toTypedArray()
+        }
+    }
+
+    val connectWinWin = { it: Tuple3<FightDescriptionDTO, FightDescriptionDTO, FightDescriptionDTO> ->
+        Tuple3(it.a.copy(winFight = it.c.id), it.b.copy(winFight = it.c.id),
+                it.c.copy(scores = createScores(listOf(it.a.id, it.b.id), listOf(FightReferenceType.WINNER))))
+    }
+
+    val connectLoseLose = { it: Tuple3<FightDescriptionDTO, FightDescriptionDTO, FightDescriptionDTO> ->
+        Tuple3(it.a.copy(loseFight = it.c.id), it.b.copy(loseFight = it.c.id),
+                it.c.copy(scores = createScores(listOf(it.a.id, it.b.id), listOf(FightReferenceType.LOSER))))
+    }
+    val connectLoseWin = { it: Tuple3<FightDescriptionDTO, FightDescriptionDTO, FightDescriptionDTO> ->
+        Tuple3(it.a.copy(loseFight = it.c.id), it.b.copy(winFight = it.c.id),
+                it.c.copy(scores = createScores(listOf(it.a.id, it.b.id), listOf(FightReferenceType.LOSER, FightReferenceType.WINNER))))
     }
 
 
@@ -69,9 +99,7 @@ class BracketsGenerateService : FightsService() {
             } else {
                 //we need to assign parent ids to the newly generated fights
                 log.trace("This is not the first round.")
-                val connectedFights = createConnectedTripletsFrom(previousRoundFights, currentRoundFights) {
-                    Tuple3(it.a.copy(winFight = it.c.id), it.b.copy(winFight = it.c.id), it.c.copy(parentId1 = ParentFightReferenceDTO(FightReferenceType.WINNER, it.a.id), parentId2 = ParentFightReferenceDTO(FightReferenceType.WINNER, it.b.id)))
-                }
+                val connectedFights = createConnectedTripletsFrom(previousRoundFights, currentRoundFights, connectWinWin)
                 return if (currentRound == totalRounds - 1) {
                     log.trace("This is the final round.")
                     assert(connectedFights.size == 1) { "Connected fights size is not 1 in the last round, but (${connectedFights.size})." }
@@ -97,8 +125,9 @@ class BracketsGenerateService : FightsService() {
     fun generateLoserBracketAndGrandFinalForWinnerBracket(competitionId: String, categoryId: String, stageId: String, winnerFightsAndGrandFinal: List<FightDescriptionDTO>, duration: BigDecimal, hasLoserGrandFinal: Boolean = false): List<FightDescriptionDTO> {
         assert(winnerFightsAndGrandFinal.count { it.roundType == StageRoundType.GRAND_FINAL && it.round != null } == 1)
         assert(winnerFightsAndGrandFinal.filter { it.roundType != StageRoundType.GRAND_FINAL }.all { it.roundType == StageRoundType.WINNER_BRACKETS && it.round != null }) { "Winner brackets fights contain not winner-brackets round types." }
-        assert(winnerFightsAndGrandFinal.none { it.parentId2?.referenceType == FightReferenceType.LOSER }) { "Winner brackets fights contain contain references from loser brackets." }
-        val winnerFights = winnerFightsAndGrandFinal.filter { it.roundType != StageRoundType.GRAND_FINAL } + winnerFightsAndGrandFinal.first { it.roundType == StageRoundType.GRAND_FINAL }.copy(roundType = StageRoundType.WINNER_BRACKETS)
+        assert(winnerFightsAndGrandFinal.none { it.scores?.any { dto -> dto.parentReferenceType == FightReferenceType.LOSER } == true }) { "Winner brackets fights contain contain references from loser brackets." }
+        val winnerFights = winnerFightsAndGrandFinal.filter { it.roundType != StageRoundType.GRAND_FINAL } +
+                winnerFightsAndGrandFinal.first { it.roundType == StageRoundType.GRAND_FINAL }.copy(roundType = StageRoundType.WINNER_BRACKETS)
         val totalWinnerRounds = winnerFights.maxBy { it.round!! }?.round!! + 1
         val grandFinal = fightDescription(competitionId, categoryId, stageId, totalWinnerRounds, StageRoundType.GRAND_FINAL, 0, duration, GRAND_FINAL, null)
         val totalLoserRounds = 2 * (totalWinnerRounds - 1)
@@ -125,31 +154,25 @@ class BracketsGenerateService : FightsService() {
             val connectedFights = if (currentLoserRound == 0) {
                 //this is the first loser brackets round
                 //we take the first round of the winner brackets and connect them via loserFights to the generated fights
-                createConnectedTripletsFrom(firstWinnerRoundFights, currentLoserRoundFights) {
-                    Tuple3(it.a.copy(loseFight = it.c.id), it.b.copy(loseFight = it.c.id), it.c.copy(parentId1 = ParentFightReferenceDTO(FightReferenceType.LOSER, it.a.id), parentId2 = ParentFightReferenceDTO(FightReferenceType.LOSER, it.b.id)))
-                }
+                createConnectedTripletsFrom(firstWinnerRoundFights, currentLoserRoundFights, connectLoseLose)
             } else {
                 if (currentLoserRound % 2 == 0) {
                     //it means there will be no competitors falling from the upper bracket.
-                    createConnectedTripletsFrom(previousLoserRoundFights, currentLoserRoundFights) {
-                        Tuple3(it.a.copy(winFight = it.c.id), it.b.copy(winFight = it.c.id), it.c.copy(parentId1 = ParentFightReferenceDTO(FightReferenceType.WINNER, it.a.id), parentId2 = ParentFightReferenceDTO(FightReferenceType.WINNER, it.b.id)))
-                    }
+                    createConnectedTripletsFrom(previousLoserRoundFights, currentLoserRoundFights, connectWinWin)
                 } else {
                     //we need to merge the winners of fights from the previous loser rounds
                     //and the losers of the fights from the previous winner round
                     val winnerRoundFights = winnerFights.filter { it.round == currentWinnerRound }
                     assert(winnerRoundFights.size == previousLoserRoundFights.size)
                     val allFights = (winnerRoundFights + previousLoserRoundFights).sortedBy { it.numberInRound * 10 + it.roundType?.ordinal!! }
-                    createConnectedTripletsFrom(allFights, currentLoserRoundFights) {
-                        Tuple3(it.a.copy(loseFight = it.c.id), it.b.copy(winFight = it.c.id), it.c.copy(parentId1 = ParentFightReferenceDTO(FightReferenceType.LOSER, it.a.id), parentId2 = ParentFightReferenceDTO(FightReferenceType.WINNER, it.b.id)))
-                    }
+                    createConnectedTripletsFrom(allFights, currentLoserRoundFights, connectLoseWin)
                 }
             }
             return if (currentLoserRound == totalLoserRounds - 1) {
                 assert(connectedFights.size == 1) { "Connected fights size is not 1 in the last round, but (${connectedFights.size})." }
                 val lastTuple = connectedFights[0]
                 val connectedGrandFinal =
-                        grandFinal.copy(parentId1 = ParentFightReferenceDTO(FightReferenceType.WINNER, lastTuple.a.id), parentId2 = ParentFightReferenceDTO(FightReferenceType.WINNER, lastTuple.c.id))
+                        grandFinal.copy(scores = createScores(listOf(lastTuple.a.id, lastTuple.c.id), listOf(FightReferenceType.WINNER)))
                 result + lastTuple.a.copy(winFight = connectedGrandFinal.id) + lastTuple.b + lastTuple.c.copy(winFight = connectedGrandFinal.id) + connectedGrandFinal
             } else {
                 createLoserFightNodes(result + connectedFights.flatMap { listOf(it.a, it.b) },
@@ -163,11 +186,11 @@ class BracketsGenerateService : FightsService() {
     }
 
     fun createConnectedTripletsFrom(previousRoundFights: List<FightDescriptionDTO>, currentRoundFights: List<FightDescriptionDTO>, connectFun: (tuple: Tuple3<FightDescriptionDTO, FightDescriptionDTO, FightDescriptionDTO>) -> Tuple3<FightDescriptionDTO, FightDescriptionDTO, FightDescriptionDTO>): List<Tuple3<FightDescriptionDTO, FightDescriptionDTO, FightDescriptionDTO>> {
-        val firstWinnerRoundFightsOdd = previousRoundFights.filterIndexed { index, _ -> index % 2 == 0 }
-        val firstWinnerRoundFightsEven = previousRoundFights.filterIndexed { index, _ -> index % 2 == 1 }
-        val firstWinnerRoundFightsPairs = firstWinnerRoundFightsOdd.zip(firstWinnerRoundFightsEven)
-        assert(firstWinnerRoundFightsPairs.size == currentRoundFights.size) { "Something is wrong, first winner round should have exactly twice as much fights (${previousRoundFights.size} as the first loser round (${currentRoundFights.size})." }
-        return mergeAll(firstWinnerRoundFightsPairs, currentRoundFights).map(connectFun)
+        val previousRoundFightsOdd = previousRoundFights.filterIndexed { index, _ -> index % 2 == 0 }
+        val previousRoundFightsEven = previousRoundFights.filterIndexed { index, _ -> index % 2 == 1 }
+        val previousRoundFightsInPairs = previousRoundFightsOdd.zip(previousRoundFightsEven)
+        assert(previousRoundFightsInPairs.size == currentRoundFights.size) { "Something is wrong, previous round should have exactly twice as much fights (${previousRoundFights.size}) as the connected round (${currentRoundFights.size})." }
+        return mergeAll(previousRoundFightsInPairs, currentRoundFights).map(connectFun)
     }
 
     fun generateThirdPlaceFightForOlympicSystem(competitionId: String, categoryId: String, stageId: String, winnerFights: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
@@ -181,7 +204,7 @@ class BracketsGenerateService : FightsService() {
         assert(semiFinalFights.size == 2) { "There should be exactly two semifinal fights, but there are ${winnerFights.count { it.round == semiFinal }}" }
         val thirdPlaceFight = fightDescription(competitionId, categoryId, stageId, semiFinal + 1, StageRoundType.THIRD_PLACE_FIGHT, 0, semiFinalFights[0].duration!!, THIRD_PLACE_FIGHT, null)
         val updatedFights = listOf(semiFinalFights[0].copy(loseFight = thirdPlaceFight.id), semiFinalFights[1].copy(loseFight = thirdPlaceFight.id),
-                thirdPlaceFight.copy(parentId1 = ParentFightReferenceDTO(FightReferenceType.LOSER, semiFinalFights[0].id), parentId2 = ParentFightReferenceDTO(FightReferenceType.LOSER, semiFinalFights[1].id)))
+                thirdPlaceFight.copy(scores = createScores(semiFinalFights.map { f -> f.id }, listOf(FightReferenceType.LOSER))))
         return winnerFights.map {
             when (it.id) {
                 updatedFights[0].id -> updatedFights[0]
@@ -220,31 +243,15 @@ class BracketsGenerateService : FightsService() {
             }
         }
 
-        val markedUncompletableFights = markUncompletableFights(assignedFights) { id ->
-            assignedFights.first { fight -> fight.id == id }
+        val markedUncompletableFights = markAndProcessUncompletableFights(assignedFights) { id ->
+            assignedFights.first { fight -> fight.id == id }.scores?.map { it.toPojo(id) }
         }
 
 
-        val filteredFights = if (stage.stageType == StageType.PRELIMINARY) {
+        return if (stage.stageType == StageType.PRELIMINARY) {
             filterPreliminaryFights(outputSize, markedUncompletableFights, stage.bracketType)
         } else {
             markedUncompletableFights
-        }
-
-        fun <T> T?.nullIfFalse(condition: Boolean) = if (condition) { this } else { null }
-
-        return filteredFights.map { f ->
-            if (f.winFight != null || f.loseFight != null || f.parentId1?.fightId != null || f.parentId2?.fightId != null) {
-                val fightExistence = filteredFights.fold(Tuple4(a = false, b = false, c = false, d = false)) { acc, fg ->
-                    Tuple4((acc.a || fg.id == f.winFight), (acc.b || fg.id == f.loseFight), acc.c || fg.id == f.parentId1?.fightId, acc.d || fg.id == f.parentId2?.fightId)
-                }
-                f.setWinFight(f.winFight.nullIfFalse(fightExistence.a))
-                        .setLoseFight(f.loseFight.nullIfFalse(fightExistence.b))
-                        .setParentId1(f.parentId1.nullIfFalse(fightExistence.c))
-                        .setParentId1(f.parentId2.nullIfFalse(fightExistence.d))
-            } else {
-                f
-            }
         }
     }
 

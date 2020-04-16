@@ -1,5 +1,6 @@
 package compman.compsrv.service.schedule
 
+import com.compmanager.compservice.jooq.tables.pojos.CompScore
 import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import compman.compsrv.model.dto.brackets.StageRoundType
 import org.slf4j.Logger
@@ -12,7 +13,7 @@ interface IBracketSimulator {
     val categoryId: String
 }
 
-class SingleEliminationSimulator(val stageId: String, override val categoryId: String, fights: List<FightDescription>, threeCompetitorCategory: Boolean) : IBracketSimulator {
+class SingleEliminationSimulator(val stageId: String, val getFightScores: (id: String) -> List<CompScore>, override val categoryId: String, fights: List<FightDescription>, threeCompetitorCategory: Boolean) : IBracketSimulator {
     private val fightsByRounds: MutableList<List<FightDescription>>
     override val stageIds = setOf(stageId)
 
@@ -20,7 +21,7 @@ class SingleEliminationSimulator(val stageId: String, override val categoryId: S
         fightsByRounds = if (fights.isNotEmpty()) {
             fights
                     .asSequence()
-                    .filter { it.round != null && !ScheduleService.obsoleteFight(it, threeCompetitorCategory) }
+                    .filter { it.round != null && !ScheduleService.obsoleteFight(it, getFightScores(it.id), threeCompetitorCategory) }
                     .groupBy { it.round ?: 0 }
                     .toList()
                     .sortedBy { it.first }
@@ -42,7 +43,7 @@ class SingleEliminationSimulator(val stageId: String, override val categoryId: S
     }
 }
 
-class DoubleEliminationSimulator(val stageId: String, override val categoryId: String, fights: List<FightDescription>) : IBracketSimulator {
+class DoubleEliminationSimulator(val stageId: String, val getFightScores: (id: String) -> List<CompScore>, override val categoryId: String, fights: List<FightDescription>) : IBracketSimulator {
     private var fightsByBracketTypeAndRounds: List<List<FightDescription>>
     override val stageIds = setOf(stageId)
 
@@ -55,7 +56,7 @@ class DoubleEliminationSimulator(val stageId: String, override val categoryId: S
         fightsByBracketTypeAndRounds = if (fights.isNotEmpty()) {
             fights
                     .asSequence()
-                    .filter { it.round != null && !ScheduleService.obsoleteFight(it) }
+                    .filter { it.round != null && !ScheduleService.obsoleteFight(it, getFightScores(it.id)) }
                     .groupBy { it.round ?: 0 }
                     .toList()
                     .sortedBy { it.first }

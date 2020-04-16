@@ -2,6 +2,7 @@ package compman.compsrv.service.schedule
 
 import arrow.core.Tuple3
 import arrow.core.Tuple4
+import com.compmanager.compservice.jooq.tables.pojos.CompScore
 import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.*
@@ -77,7 +78,7 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
                        val timeBetweenFights: Map<String, BigDecimal>,
                        riskFactor: Map<String, BigDecimal>,
                        val timeZone: String,
-                       val getFight: (fightId: String) -> FightDescription?) : Collector<List<IBracketSimulator>, ScheduleAccumulator, Tuple4<List<ScheduleEntryDTO>,
+                       val getFightScores: (fightId: String) -> List<CompScore>?) : Collector<List<IBracketSimulator>, ScheduleAccumulator, Tuple4<List<ScheduleEntryDTO>,
         List<InternalMatScheduleContainer>,
         List<FightDescription>,
         Set<String>>> {
@@ -174,7 +175,7 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
                 }
             }
             val mat = requirementForFight?.matId?.let { internalMatById(it) } ?: defaultMat
-            val allFightParents = ScheduleService.getAllFightsParents(f, getFight)
+            val allFightParents = ScheduleService.getAllFightsParents(getFightScores(f.id).orEmpty(), getFightScores)
             if (!fightsAreDispatchedOrCanBeDispatched(allFightParents, schedule, mat.currentTime) && !lastRun) {
                 log.warn("Fight $f cannot be dispatched because it's parent fights $allFightParents have incorrect order.")
                 return schedule to updateMatInCollection(mat.copy(pending = LinkedHashSet(mat.pending + f.withOrder(requirementForFight?.entryOrder)), invalid = LinkedHashSet(mat.invalid + f)))

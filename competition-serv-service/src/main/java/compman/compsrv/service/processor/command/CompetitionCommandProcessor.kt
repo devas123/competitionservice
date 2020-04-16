@@ -37,6 +37,7 @@ import java.time.ZoneId
 @Component
 class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val clusterSession: ClusterSession,
+                                  private val compScoreDao: CompScoreDao,
                                   private val categoryCrudRepository: CategoryDescriptorDao,
                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
                                   private val fightDescriptionDao: FightDescriptionDao,
@@ -77,7 +78,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                         it.fold(emptyList<StageDescriptorDTO>() to emptyList<FightDescription>()) { acc, pair ->
                             (acc.first + pair.first) to (acc.second + pair.second?.toList().orEmpty())
                         }
-                    }.map { pr -> StageGraph(grfl.key()!!, pr.first, pr.second, bracketSimulatorFactory) }
+                    }.map { pr -> StageGraph(grfl.key()!!, pr.first, pr.second, bracketSimulatorFactory) { id -> compScoreDao.fetchByCompscoreFightDescriptionId(id) } }
                 }
     }
 
@@ -264,7 +265,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                             val schedule = scheduleService.generateSchedule(com.competitionId, periods, mats,
                                     getAllBrackets(com.competitionId),
                                     compProps.timeZone,
-                                    competitorNumbersByCategoryIds) { fightDescriptionDao.findById(it) }
+                                    competitorNumbersByCategoryIds) { compScoreDao.fetchByCompscoreFightDescriptionId(it) }
                             val newFights = schedule.mats?.flatMap { mat ->
                                 mat.fightStartTimes.map { f -> f.setPeriodId(mat.periodId) }
                                         .orEmpty()

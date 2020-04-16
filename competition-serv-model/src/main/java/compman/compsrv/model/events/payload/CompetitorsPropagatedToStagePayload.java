@@ -6,12 +6,12 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
 import java.io.Serializable;
-import java.util.Map;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
 @Accessors(chain = true)
 public class CompetitorsPropagatedToStagePayload implements Serializable, Payload {
     private String stageId;
-    private Map<String, String> competitorIdToFightId;
+    private List<CompetitorAssignmentDescriptor> propagations;
 }

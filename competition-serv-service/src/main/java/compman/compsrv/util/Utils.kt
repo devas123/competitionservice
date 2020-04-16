@@ -11,6 +11,13 @@ private fun parseDate(date: Any?, default: Instant?) = if (date != null && !date
     default
 }
 
+fun <T> List<T>.applyConditionalUpdate(condition: (T) -> Boolean, update: (T) -> T): List<T> {
+    return this.map { if (condition(it)) { update(it) } else { it } }
+}
+inline fun <reified T> Array<out T>.applyConditionalUpdate(condition: (T) -> Boolean, update: (T) -> T): Array<out T> {
+    return this.map { if (condition(it)) { update(it) } else { it } }.toTypedArray()
+}
+
 fun Boolean?.orFalse() = this == true
 
 fun getId(name: String) = IDGenerator.hashString(name)

@@ -2,7 +2,6 @@ package compman.compsrv.repository
 
 import com.compmanager.compservice.jooq.tables.*
 import compman.compsrv.model.dto.brackets.FightReferenceType
-import compman.compsrv.model.dto.brackets.ParentFightReferenceDTO
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
@@ -47,7 +46,6 @@ class JooqMappers {
     }
 
 
-
     fun periodCollector(rec: GroupedFlux<String, Record>) = PeriodCollector(rec.key()!!)
 
     fun stageCollector() = StageCollector()
@@ -86,6 +84,8 @@ class JooqMappers {
                             .setPlaceholderId(it[CompScore.COMP_SCORE.PLACEHOLDER_ID])
                             .setOrder(it[CompScore.COMP_SCORE.COMP_SCORE_ORDER])
                             .setCompetitorId(it[CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID])
+                            .setParentReferenceType(it[CompScore.COMP_SCORE.PARENT_REFERENCE_TYPE]?.let { k -> FightReferenceType.values()[k] })
+                            .setParentFightId(it[CompScore.COMP_SCORE.PARENT_FIGHT_ID])
                     arrayOf(cs)
                 } else {
                     emptyArray()
@@ -125,17 +125,11 @@ class JooqMappers {
                     .setMat(MatDescriptionDTO()
                             .setId(u[FightDescription.FIGHT_DESCRIPTION.MAT_ID])
                             .setName(u[MatDescription.MAT_DESCRIPTION.NAME]))
-                    .setParentId1(ParentFightReferenceDTO()
-                            .setFightId(u[FightDescription.FIGHT_DESCRIPTION.PARENT_1_FIGHT_ID])
-                            .setReferenceType(u[FightDescription.FIGHT_DESCRIPTION.PARENT_1_REFERENCE_TYPE]?.let { FightReferenceType.values()[it] }))
-                    .setParentId2(ParentFightReferenceDTO()
-                            .setFightId(u[FightDescription.FIGHT_DESCRIPTION.PARENT_2_FIGHT_ID])
-                            .setReferenceType(u[FightDescription.FIGHT_DESCRIPTION.PARENT_2_REFERENCE_TYPE]?.let { FightReferenceType.values()[it] }))
                     .setNumberInRound(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND])
                     .setStageId(u[FightDescription.FIGHT_DESCRIPTION.STAGE_ID])
                     .setGroupId(u[FightDescription.FIGHT_DESCRIPTION.GROUP_ID])
                     .setRound(u[FightDescription.FIGHT_DESCRIPTION.ROUND])
-                    .setStatus(u[FightDescription.FIGHT_DESCRIPTION.STATUS]?.let { FightStatus.values()[it]} )
+                    .setStatus(u[FightDescription.FIGHT_DESCRIPTION.STATUS]?.let { FightStatus.values()[it] })
                     .setRoundType(u[FightDescription.FIGHT_DESCRIPTION.ROUND_TYPE]?.let { StageRoundType.values()[it] })
                     .setNumberOnMat(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT]).setScores(compScore)
 

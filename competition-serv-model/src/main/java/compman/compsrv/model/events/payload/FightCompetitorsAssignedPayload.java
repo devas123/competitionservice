@@ -14,6 +14,5 @@ import java.io.Serializable;
 @AllArgsConstructor
 @Accessors(chain = true)
 public class FightCompetitorsAssignedPayload implements Serializable, Payload {
-    private String fightId;
-    private CompScoreDTO[] compscores;
+    private CompetitorAssignmentDescriptor[] assignments;
 }

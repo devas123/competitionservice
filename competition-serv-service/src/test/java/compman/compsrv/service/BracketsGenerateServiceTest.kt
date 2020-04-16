@@ -1,9 +1,12 @@
 package compman.compsrv.service
 
+import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.dto.brackets.BracketType
+import compman.compsrv.model.dto.brackets.FightReferenceType
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
+import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.service.fight.BracketsGenerateService
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.pushCompetitor
@@ -40,16 +43,17 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
         assertEquals(2, fights.filter { it.round == 4 }.size)
         assertEquals(1, fights.filter { it.round == 5 }.size)
         assertTrue(fights.filter { it.round == 5 }.all { it.roundType == StageRoundType.GRAND_FINAL })
-        assertTrue { fights.filter { it.round == 0 }.none { it.parentId1 != null || it.parentId2 != null } }
-        assertTrue { fights.filter { it.round != 0 }.none { it.parentId1 == null || it.parentId2 == null } }
+        assertTrue { fights.filter { it.round == 0 }.none { f -> f.scores?.any { it.parentFightId != null } == true } }
+        assertTrue { fights.filter { it.round != 0 }.none { f -> f.scores?.any { it.parentFightId == null } == true } }
         assertTrue { fights.filter { it.round == 5 }.none { it.winFight != null } }
         assertTrue { fights.filter { it.round != 5 }.none { it.winFight == null } }
+        checkWinnerFightsLaws(fights, 32)
     }
 
     @Test
     fun testGenerateEmptyDoubleEliminationFights() {
         val fights = generateEmptyWinnerFights(14)
-        checkWinnerFightsLaws(fights,8)
+        checkWinnerFightsLaws(fights, 8)
         val doubleEliminationBracketFights = fightsGenerateService.generateLoserBracketAndGrandFinalForWinnerBracket(competitionId, categoryId, stageId, fights, duration, true)
         log.info("${doubleEliminationBracketFights.size}")
         log.info(doubleEliminationBracketFights.joinToString("\n"))
@@ -69,10 +73,41 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
     }
 
     @Test
-    fun testDistributeCompetitors() {
+    fun testDistributeCompetitorsWinnerFights() {
         val fights = generateEmptyWinnerFights(14)
         val competitors = FightsService.generateRandomCompetitorsForCategory(14, 20, category, competitionId)
         fightsGenerateService.distributeCompetitors(competitors, fights, BracketType.SINGLE_ELIMINATION)
+    }
+
+    private fun printFights(distr: List<FightDescriptionDTO>) {
+        log.info(distr.joinToString("\n") { "${it.roundType}-${it.round}-${it.numberInRound}-${it.status}-[${it.scores.joinToString { s -> s.competitorId ?: "_" }}]" })
+    }
+
+    @Test
+    fun testDistributeCompetitorsDoubleElimination() {
+        val fights = generateEmptyWinnerFights(14)
+        val competitors = FightsService.generateRandomCompetitorsForCategory(14, 20, category, competitionId)
+        checkWinnerFightsLaws(fights, 8)
+        val doubleEliminationBracketFights = fightsGenerateService.generateLoserBracketAndGrandFinalForWinnerBracket(competitionId, categoryId, stageId, fights, duration, true)
+        log.info("${doubleEliminationBracketFights.size}")
+        log.info(doubleEliminationBracketFights.joinToString("\n"))
+        checkDoubleEliminationLaws(doubleEliminationBracketFights, 8)
+        val distr = fightsGenerateService.distributeCompetitors(competitors, doubleEliminationBracketFights, BracketType.DOUBLE_ELIMINATION)
+        printFights(distr)
+        val marked = FightsService.markAndProcessUncompletableFights(distr) { id -> distr.find { it.id == id }?.scores?.map { it.toPojo(id) } }
+        printFights(marked)
+        marked.forEach { markedFight ->
+            if (markedFight.status == FightStatus.UNCOMPLETABLE && markedFight.scores?.any { s -> !s.competitorId.isNullOrBlank() } == true && !markedFight.winFight.isNullOrBlank()) {
+                assertTrue(marked.find { f -> f.id == markedFight.winFight }?.scores
+                        ?.any { s ->
+                            markedFight.scores
+                                    ?.any { isc -> isc.competitorId == s.competitorId } != false
+                                    && s.parentFightId == markedFight.id
+                                    && s.parentReferenceType == FightReferenceType.WINNER
+                        } != false
+                , "Fight ${markedFight.id} is uncompletable and has a competitor, but this competitor was not propagated to ${markedFight.winFight}. ")
+            }
+        }
     }
 
     @Test
@@ -83,7 +118,7 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
         fun processBracketsRound(roundFights: List<FightDescriptionDTO>): List<Pair<FightDescriptionDTO, String?>> = roundFights.map { generateFightResult(it) }
         fun fillNextRound(previousRoundResult: List<Pair<FightDescriptionDTO, String?>>, nextRoundFights: List<FightDescriptionDTO>): List<FightDescriptionDTO> {
             return previousRoundResult.fold(nextRoundFights) { acc, pf ->
-                val updatedFight = pf.second?.let { acc.first { f -> f.id == pf.first.winFight }.pushCompetitor(it) }
+                val updatedFight = pf.second?.let { acc.first { f -> f.id == pf.first.winFight }.pushCompetitor(it, pf.first.id) }
                         ?: acc.first { f -> f.id == pf.first.winFight }
                 acc.map { if (it.id == updatedFight.id) updatedFight else it }
             }
@@ -96,7 +131,7 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
             } else {
                 processBracketsRound(fillNextRound(acc.first, pair.second))
             }
-            processedFights to (acc.second + processedFights.map {it.first})
+            processedFights to (acc.second + processedFights.map { it.first })
         }.second
         val results = fightsGenerateService.buildStageResults(BracketType.SINGLE_ELIMINATION, StageStatus.FINISHED, filledFights, "asasdasd", competitionId, emptyList())
         assertEquals(14, results.size)
@@ -105,4 +140,5 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
         assertEquals(2, results.filter { it.round == 2 }.size)
         assertEquals(2, results.filter { it.round == 3 }.size)
     }
+
 }

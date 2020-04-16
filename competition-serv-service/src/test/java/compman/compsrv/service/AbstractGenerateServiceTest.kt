@@ -1,10 +1,14 @@
 package compman.compsrv.service
 
+import arrow.core.Tuple3
+import arrow.core.Tuple4
+import compman.compsrv.model.dto.brackets.FightReferenceType
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.competition.FightResultDTO
 import compman.compsrv.util.copy
+import org.slf4j.LoggerFactory
 import org.testcontainers.shaded.com.google.common.math.DoubleMath
 import java.math.BigDecimal
 import java.util.*
@@ -17,6 +21,7 @@ import kotlin.test.assertTrue
 
 open class AbstractGenerateServiceTest {
     companion object {
+        private val log = LoggerFactory.getLogger(AbstractGenerateServiceTest::class.java)
         val fightResultOptions = FightResultOptionDTO.values.map { it.setId(UUID.randomUUID().toString()) }
         fun generateFightResult(fight: FightDescriptionDTO): Pair<FightDescriptionDTO, String?> {
             val scores = fight.scores?.toList()
@@ -34,14 +39,59 @@ open class AbstractGenerateServiceTest {
             return fight.copy(fightResult = competitor?.let { FightResultDTO(it, fightResultOptions[Random.nextInt(3)].id, "bla bla bla") }) to competitor
         }
 
+        private fun checkFightConnectionLaws(fights: List<FightDescriptionDTO>) {
+            fights.filter { it.roundType == StageRoundType.WINNER_BRACKETS && it.round == 0 }.forEach { f ->
+                assertTrue("Fight ${f.id} has parent references but it shouldn't") { f.scores?.any { s -> !s.parentFightId.isNullOrBlank() } != true }
+            }
+            fights.filter { it.roundType == StageRoundType.WINNER_BRACKETS && it.round > 0 }.forEach { f ->
+                assertTrue("Fight ${f.id} from winner brackets and round ${f.round} has no parent references but it should") { f.scores?.all { s -> !s.parentFightId.isNullOrBlank() } == true }
+            }
+            fights.filter { it.roundType == StageRoundType.LOSER_BRACKETS }.forEach { f ->
+                assertTrue("Fight ${f.id} from loser brackets and round ${f.round} has no parent references but it should") { f.scores?.all { s -> !s.parentFightId.isNullOrBlank() } == true }
+            }
+            val allFightsHaveValidConnections = fights.fold(emptyList<Tuple4<String, String, FightReferenceType, Int>>()) { acc, f ->
+                var res = acc
+                if (f.winFight
+                                ?.let { wf ->
+                                    fights.count { fc ->
+                                        fc.id == wf &&
+                                                fc.scores?.any { s -> s.parentFightId == f.id && s.parentReferenceType == FightReferenceType.WINNER } == true
+                                    } == 1
+                                } == false ) {
+                    res = res + Tuple4(f.id, f.winFight, FightReferenceType.WINNER, fights.count { fc ->
+                        fc.id == f.winFight &&
+                                fc.scores?.any { s -> s.parentFightId == f.id && s.parentReferenceType == FightReferenceType.WINNER } == true
+                    })
+                }
+                if (f.loseFight
+                                ?.let { wf ->
+                                    fights.count { fc ->
+                                        fc.id == wf &&
+                                                fc.scores?.any { s -> s.parentFightId == f.id && s.parentReferenceType == FightReferenceType.LOSER } == true
+                                    } == 1
+                                } == false ) {
+                    res = res + Tuple4(f.id, f.loseFight, FightReferenceType.LOSER, fights.count { fc ->
+                        fc.id == f.loseFight &&
+                                fc.scores?.any { s -> s.parentFightId == f.id && s.parentReferenceType == FightReferenceType.LOSER } == true
+                    })
+                }
+                res
+            }
+            assertEquals(0, allFightsHaveValidConnections.size,
+                    "Fights do not have valid connections. Invalid fights are: ${allFightsHaveValidConnections.joinToString ("\n") { 
+                        "id: ${it.a} / ref: ${it.b} / type: ${it.c} / numberOfConn: ${it.d}" 
+                    }}")
+        }
+
         fun checkWinnerFightsLaws(fights: List<FightDescriptionDTO>, firstRoundSize: Int) {
             assertTrue(DoubleMath.isPowerOfTwo(firstRoundSize.toDouble()))
+            checkFightConnectionLaws(fights)
             val lastRound = DoubleMath.log2(firstRoundSize.toDouble()).toInt() + 1
             val totalSize = (0 until lastRound).fold(0) { acc, n -> acc + 2.toDouble().pow(n.toDouble()).toInt() }
             assertEquals(totalSize, fights.size)
             (lastRound - 1 downTo 0).forEachIndexed { i, n -> assertEquals(2.toDouble().pow(n.toDouble()).toInt(), fights.filter { it.round == i }.size) }
-            assertTrue { fights.filter { it.round == 0 }.none { it.parentId1 != null || it.parentId2 != null } }
-            assertTrue { fights.filter { it.round != 0 }.none { it.parentId1 == null || it.parentId2 == null } }
+            assertTrue { fights.filter { it.round == 0 }.none { f -> f.scores?.any { it.parentFightId != null } == true } }
+            assertTrue { fights.filter { it.round != 0 }.none { f -> f.scores?.any { it.parentFightId == null } == true } }
             assertTrue { fights.filter { it.round == lastRound - 1 }.none { it.winFight != null } }
             assertTrue { fights.filter { it.round != lastRound - 1 }.none { it.winFight == null } }
         }
@@ -49,6 +99,7 @@ open class AbstractGenerateServiceTest {
         fun checkDoubleEliminationLaws(doubleEliminationBracketFights: List<FightDescriptionDTO>, firstWinnerRoundSize: Int) {
             assertTrue(DoubleMath.isPowerOfTwo(firstWinnerRoundSize.toDouble()))
             assertTrue(firstWinnerRoundSize > 1)
+            checkFightConnectionLaws(doubleEliminationBracketFights)
             doubleEliminationBracketFights.forEach {
                 assertNotNull(it.roundType)
                 assertNotNull(it.round)

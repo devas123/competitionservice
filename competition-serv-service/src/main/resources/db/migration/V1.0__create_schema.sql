@@ -361,50 +361,46 @@ create table compservice.schedule_requirement
 
 create table compservice.fight_description
 (
-    id                      varchar(255) not null
+    id                varchar(255) not null
         constraint fight_description_pkey
             primary key,
-    category_id             varchar(255)
+    category_id       varchar(255)
         constraint fight_description_category_id_fkey
             references compservice.category_descriptor on delete cascade,
-    competition_id          varchar(255)
+    competition_id    varchar(255)
         constraint fight_description_competition_id_fkey
             references compservice.competition_properties on delete cascade,
-    duration                numeric(19, 2),
-    fight_name              varchar(255),
-    winner_id               varchar(255)
+    duration          numeric(19, 2),
+    fight_name        varchar(255),
+    winner_id         varchar(255)
         constraint fight_description_winner_id_fkey
             references compservice.competitor,
-    reason                  varchar(255),
-    result_type             varchar(255)
+    reason            varchar(255),
+    result_type       varchar(255)
         constraint fight_description_fight_output_fkey references compservice.fight_result_option,
-    lose_fight              varchar(255),
-    mat_id                  varchar(255)
+    lose_fight        varchar(255),
+    mat_id            varchar(255)
         constraint fight_description_mat_description_fkey
             references compservice.mat_description,
-    number_in_round         integer      not null,
-    number_on_mat           integer,
-    parent_1_fight_id       varchar(255),
-    parent_1_reference_type integer,
-    parent_2_fight_id       varchar(255),
-    parent_2_reference_type integer,
-    period                  varchar(255)
+    number_in_round   integer      not null,
+    number_on_mat     integer,
+    period            varchar(255)
         constraint fight_description_schedule_period
             references compservice.schedule_period,
-    priority                integer      not null,
-    round                   integer,
-    round_type              integer,
-    status                  integer      not null,
-    start_time              timestamp,
-    win_fight               varchar(255),
-    stage_id                varchar(255)
+    priority          integer      not null,
+    round             integer,
+    round_type        integer,
+    status            integer      not null,
+    start_time        timestamp,
+    win_fight         varchar(255),
+    stage_id          varchar(255)
         constraint fk83j4njug11q161thma55h5b6a
             references compservice.stage_descriptor on delete cascade,
-    group_id                varchar(255)
+    group_id          varchar(255)
         constraint fight_description_group_descriptor_fkey
             references compservice.group_descriptor on delete cascade,
-    invalid                 boolean,
-    schedule_entry_id       varchar(255)
+    invalid           boolean,
+    schedule_entry_id varchar(255)
         constraint fight_description_schedule_entry_fkey
             references compservice.schedule_entry
 );
@@ -458,6 +454,9 @@ create table compservice.comp_score
     penalties                      integer,
     points                         integer,
     placeholder_id                 varchar(255),
+    parent_fight_id                varchar(255) constraint compscore_parent_fight_fk
+        references compservice.fight_description on delete cascade,
+    parent_reference_type          integer,
     compscore_competitor_id        varchar(255)
         constraint fkiuy2929idw7lx296op7w8govx
             references compservice.competitor on delete cascade,
