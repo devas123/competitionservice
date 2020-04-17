@@ -839,4 +839,11 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 .set(csr.field7(), csr.value7())
         }).execute()
     }
+
+    fun updateStageStatus(stageId: String, status: StageStatus) {
+        create.update(StageDescriptor.STAGE_DESCRIPTOR)
+                .set(StageDescriptor.STAGE_DESCRIPTOR.STAGE_STATUS, status.ordinal)
+                .where(StageDescriptor.STAGE_DESCRIPTOR.ID.eq(stageId))
+                .execute()
+    }
 }

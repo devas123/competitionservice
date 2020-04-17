@@ -1,22 +1,16 @@
 package compman.compsrv.service.processor.event
 
 import com.compmanager.compservice.jooq.tables.daos.CompScoreDao
-import com.compmanager.compservice.jooq.tables.daos.CompetitorDao
-import com.compmanager.compservice.jooq.tables.daos.FightDescriptionDao
-import com.compmanager.compservice.jooq.tables.pojos.CompScore
 import com.compmanager.compservice.jooq.tables.records.CompScoreRecord
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.commands.payload.SetFightResultPayload
+import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
-import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.JooqRepository
-import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.util.PayloadValidator
-import compman.compsrv.util.getPayloadAs
 import org.springframework.stereotype.Component
 import java.util.*
 import kotlin.math.max
@@ -24,10 +18,7 @@ import kotlin.math.min
 
 @Component
 class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
-                              private val fightDescriptionDao: FightDescriptionDao,
                               private val jooqRepository: JooqRepository,
-                              private val fightsService: FightServiceFactory,
-                              private val competitorDao: CompetitorDao,
                               validators: List<PayloadValidator>,
                               mapper: ObjectMapper) : AbstractEventProcessor(mapper, validators) {
     override fun affectedEvents(): Set<EventType> {
@@ -55,12 +46,9 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
                 }
             }
             EventType.DASHBOARD_STAGE_RESULT_SET -> {
-                val payload = mapper.getPayloadAs(event, StageResultSetPayload::class.java)
-                if (payload != null && !payload.stageId.isNullOrBlank() && !payload.results.isNullOrEmpty()) {
+                executeValidated(event, StageResultSetPayload::class.java) { payload, _ ->
                     jooqRepository.saveCompetitorResults(payload.results.toList())
-                    listOf(event)
-                } else {
-                    throw EventApplyingException("stage ID is not provided.", event)
+                    jooqRepository.updateStageStatus(payload.stageId, StageStatus.FINISHED)
                 }
             }
             EventType.DASHBOARD_FIGHT_ORDER_CHANGED -> {
@@ -84,23 +72,14 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
                 }
             }
             EventType.DASHBOARD_FIGHT_RESULT_SET -> {
-                val payload = mapper.getPayloadAs(event, SetFightResultPayload::class.java)
-                if (payload != null && !payload.fightId.isNullOrBlank() && payload.fightResult != null && !payload.scores.isNullOrEmpty()) {
+                executeValidated(event, SetFightResultPayload::class.java) { payload, _ ->
                     jooqRepository.updateFightResult(payload.fightId!!, payload.scores.toList(), payload.fightResult, FightStatus.FINISHED)
-                    listOf(event)
-                } else {
-                    throw EventApplyingException("Not enough information in the payload. $payload", event)
                 }
             }
             EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED -> {
-                val payload = mapper.getPayloadAs(event, FightCompetitorsAssignedPayload::class.java)
-                if (payload != null && !payload.assignments.isNullOrEmpty()) {
+                executeValidated(event, FightCompetitorsAssignedPayload::class.java) { payload, _ ->
                     setCompScores(payload.assignments!!)
-                    listOf(event)
-                } else {
-                    throw EventApplyingException("Not enough information in the payload. $payload", event)
                 }
-
             }
             else -> emptyList()
         }
@@ -109,7 +88,8 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
     private fun setCompScores(assignments: Array<CompetitorAssignmentDescriptor>) {
         val existingScores = compScoreCrudRepository.fetchByCompscoreFightDescriptionId(*assignments.map { it.toFightId }.toTypedArray())
         val newScores = assignments.map { a ->
-            val targetScore = existingScores.find { it.parentFightId == a.fromFightId } ?: error("No target score for ${a.fromFightId}")
+            val targetScore = existingScores.find { it.parentFightId == a.fromFightId }
+                    ?: error("No target score for ${a.fromFightId}")
             CompScoreRecord(
                     targetScore.advantages ?: 0,
                     targetScore.penalties ?: 0,
