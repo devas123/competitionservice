@@ -3,6 +3,7 @@ package compman.compsrv.util
 import compman.compsrv.model.dto.competition.AcademyDTO
 import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
+import java.math.BigDecimal
 import java.time.Instant
 
 private fun parseDate(date: Any?, default: Instant?) = if (date != null && !date.toString().isBlank()) {
@@ -17,6 +18,9 @@ fun <T> List<T>.applyConditionalUpdate(condition: (T) -> Boolean, update: (T) ->
 inline fun <reified T> Array<out T>.applyConditionalUpdate(condition: (T) -> Boolean, update: (T) -> T): Array<out T> {
     return this.map { if (condition(it)) { update(it) } else { it } }.toTypedArray()
 }
+
+fun BigDecimal?.orZero() = this ?: BigDecimal.ZERO
+
 
 fun Boolean?.orFalse() = this == true
 

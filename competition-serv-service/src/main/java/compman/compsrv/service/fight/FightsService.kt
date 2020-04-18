@@ -281,5 +281,5 @@ abstract class FightsService {
                                    fights: List<FightDescriptionDTO>,
                                    stageId: String,
                                    competitionId: String,
-                                   pointsAssignmentDescriptors: List<FightResultOptionDTO>): List<CompetitorStageResultDTO>
+                                   fightResultOptions: List<FightResultOptionDTO>): List<CompetitorStageResultDTO>
 }
