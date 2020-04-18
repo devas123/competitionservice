@@ -86,7 +86,7 @@ class GroupGenerateServiceTest : AbstractGenerateServiceTest() {
         val compsSize = 5
         val sf = generateGroupFights(compsSize)
         val fightsWithResult = sf.second.map { generateFightResult(it).first }
-        val results = fightsGenerateService.buildStageResults(sf.first.bracketType, StageStatus.FINISHED, fightsWithResult, sf.first.id, competitionId,
+        val results = fightsGenerateService.buildStageResults(sf.first.bracketType, StageStatus.FINISHED, StageType.FINAL, fightsWithResult, sf.first.id, competitionId,
                 fightResultOptions)
         assertNotNull(results)
         assertEquals(compsSize, results.size, "${results.map { "${it.competitorId}-${it.place}" }}")

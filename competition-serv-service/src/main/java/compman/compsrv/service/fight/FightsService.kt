@@ -5,11 +5,12 @@ import arrow.core.Tuple3
 import arrow.core.flatMap
 import com.compmanager.compservice.jooq.tables.pojos.CompScore
 import com.compmanager.model.payment.RegistrationStatus
-import com.google.common.math.DoubleMath
+import com.google.common.math.LongMath
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.service.fight.dsl.*
 import compman.compsrv.util.IDGenerator
+import compman.compsrv.util.applyConditionalUpdate
 import compman.compsrv.util.copy
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -37,18 +38,21 @@ abstract class FightsService {
         tailrec fun moveFighterToSiblings(competitorId: String, fromFightId: String, referenceType: FightReferenceType, fights: List<FightDescriptionDTO>,
                                           callback: (from: String, to: String, competitorId: String) -> Unit = { _, _, _ -> }): List<FightDescriptionDTO> {
             log.info("Moving fighter $competitorId to siblings for fight: $fromFightId, $referenceType")
-            val fight = fights.first { it.id == fromFightId }
+            val fight = fights.find { it.id == fromFightId }
+                    ?: error("Did not find fight, from which we are taking the competitor, with id $fromFightId")
             assert(fight.scores.any { it.competitorId == competitorId }) { "Competitor $competitorId is not participating in fight $fight" }
             val toFightId = if (referenceType == FightReferenceType.LOSER) {
                 fight.loseFight
             } else {
                 fight.winFight
-            } ?: fights.find { fg -> fg.scores?.any { s -> s.parentFightId == fromFightId && s.parentReferenceType == referenceType } == true }?.id
+            }
+                    ?: fights.find { fg -> fg.scores?.any { s -> s.parentFightId == fromFightId && s.parentReferenceType == referenceType } == true }?.id
             if (toFightId.isNullOrBlank()) {
                 log.info("Fight $fromFightId has no references of type $referenceType. Stopping.")
                 return fights
             }
-            val toFight = fights.first { it.id == toFightId }
+            val toFight = fights.find { it.id == toFightId }
+                    ?: error("Did not find fight, to which the competitor proceeds, with id $toFightId")
             assert(toFight.scores.any { it.parentFightId == fight.id }) { "Fight $fight has no reference to $toFight" }
             val updatedFights = fights.map {
                 if (it.id == toFightId) {
@@ -73,19 +77,22 @@ abstract class FightsService {
             }
         }
 
-        fun markAndProcessUncompletableFights(fights: List<FightDescriptionDTO>, getFightScoresById: (id: String) -> List<CompScore>?): List<FightDescriptionDTO> {
-            log.info("Mark uncompletable fights.")
-            val uncompletableFights = fights.filter { it.id != null && !checkIfFightIsPackedOrCanBePackedEventually(it.id!!, getFightScoresById) }
-                    .map { fightDescription ->
-                        fightDescription.copy(status = FightStatus.UNCOMPLETABLE,
-                                fightResult = FightResultDTO(fightDescription.scores?.firstOrNull()?.competitorId, null, "BYE"))
-                    }
-            val markedFights = fights.map { f ->
-                val updF = uncompletableFights.firstOrNull { it.id == f.id }
-                updF ?: f
+        fun markAndProcessUncompletableFights(fights: List<FightDescriptionDTO>, stageStatus: StageStatus, getFightScoresById: (id: String) -> List<CompScore>?): List<FightDescriptionDTO> {
+            if (stageStatus == StageStatus.APPROVED || stageStatus == StageStatus.WAITING_FOR_APPROVAL) {
+                log.info("Mark uncompletable fights.")
+                val uncompletableFights = fights.filter { it.id != null && !checkIfFightIsPackedOrCanBePackedEventually(it.id!!, getFightScoresById) }
+                        .map { fightDescription ->
+                            fightDescription.copy(status = FightStatus.UNCOMPLETABLE,
+                                    fightResult = FightResultDTO(fightDescription.scores?.firstOrNull()?.competitorId, null, "BYE"))
+                        }
+                val markedFights = fights.map { f ->
+                    val updF = uncompletableFights.firstOrNull { it.id == f.id }
+                    updF ?: f
+                }
+                return uncompletableFights.flatMap { it.scores?.map { s -> Tuple3(s.competitorId, it.id, FightReferenceType.WINNER) }.orEmpty() }.filter { !it.a.isNullOrBlank() }
+                        .fold(markedFights) { acc, tuple3 -> moveFighterToSiblings(tuple3.a, tuple3.b, tuple3.c, acc) }
             }
-            return uncompletableFights.flatMap { it.scores.map { s -> Tuple3(s.competitorId, it.id, FightReferenceType.WINNER) } }.filter { !it.a.isNullOrBlank() }
-                    .fold(markedFights) { acc, tuple3 -> moveFighterToSiblings(tuple3.a, tuple3.b, tuple3.c, acc) }
+            return fights
         }
 
 
@@ -93,24 +100,20 @@ abstract class FightsService {
             log.info("Filtering fights: $outputSize, fights size: ${fights.size}, brackets type: $bracketType")
             val result = when (bracketType) {
                 BracketType.SINGLE_ELIMINATION -> {
-                    if (outputSize == 3) {
-                        val thirdPlaceFight = fights.firstOrNull { it.roundType == StageRoundType.THIRD_PLACE_FIGHT }
-                        assert(thirdPlaceFight != null) { "There is no fight for third place, but the output of the stage is 3, cannot calculate." }
-                        val grandFinal = fights.firstOrNull { it.roundType == StageRoundType.GRAND_FINAL }
-                        fights.filter { it.id != grandFinal?.id }
-                    } else {
-                        assert(DoubleMath.isPowerOfTwo(outputSize.toDouble())) { "Output for single elimination brackets must be power of two, but it is $outputSize" }
-                        val roundsToReturn = fights.asSequence().groupBy { it.round!! }.map { entry -> entry.key to entry.value.size }.filter { it.second * 2 > outputSize }.map { it.first }
-                        fights.filter { roundsToReturn.contains(it.round) }
-                    }
+                    val ceiling = LongMath.ceilingPowerOfTwo(outputSize.toLong())
+                    val roundsToReturn = fights.asSequence().groupBy { it.round!! }.map { entry -> entry.key to entry.value.size }.filter { it.second * 2 > ceiling }.map { it.first }
+                    val lastRound = roundsToReturn.max() ?: 0
+                    fights.filter { roundsToReturn.contains(it.round) }
                 }
                 BracketType.GROUP -> {
                     fights
                 }
-                else -> TODO("Brackets type $bracketType is not supported as a preliminary stage.")
+                else -> TODO("Brackets type $bracketType is not supported as a preliminary stage yet.")
             }
             log.info("Filtered fights: $outputSize, result size: ${result.size}, brackets type: $bracketType")
             return result
+                    .applyConditionalUpdate({ !it.winFight.isNullOrBlank() && !result.any { r -> r.id == it.winFight } }, { it.setWinFight(null) })
+                    .applyConditionalUpdate({ !it.loseFight.isNullOrBlank() && !result.any { r -> r.id == it.loseFight } }, { it.setLoseFight(null) })
         }
 
 
@@ -274,6 +277,7 @@ abstract class FightsService {
     abstract fun distributeCompetitors(competitors: List<CompetitorDTO>, fights: List<FightDescriptionDTO>, bracketType: BracketType): List<FightDescriptionDTO>
     abstract fun buildStageResults(bracketType: BracketType,
                                    stageStatus: StageStatus,
+                                   stageType: StageType,
                                    fights: List<FightDescriptionDTO>,
                                    stageId: String,
                                    competitionId: String,

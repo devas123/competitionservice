@@ -13,6 +13,7 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.JooqRepository
+import compman.compsrv.util.PayloadValidator
 import compman.compsrv.util.getPayloadFromString
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -35,13 +36,13 @@ fun CompetitorDTO.toCompetitor() =
         }
 
 @Component
-class CategoryEventProcessor(private val mapper: ObjectMapper,
+class CategoryEventProcessor(mapper: ObjectMapper,
+                             validators: List<PayloadValidator>,
                              private val competitionPropertiesDao: CompetitionPropertiesDao,
-                             private val compScoreDao: CompScoreDao,
                              private val categoryDescriptorCrudRepository: CategoryDescriptorDao,
                              private val competitorCrudRepository: CompetitorDao,
                              private val jooqRepository: JooqRepository,
-                             private val stageDescriptorCrudRepository: StageDescriptorDao) : IEventProcessor {
+                             private val stageDescriptorCrudRepository: StageDescriptorDao) : AbstractEventProcessor(mapper, validators) {
     override fun affectedEvents(): Set<EventType> {
         return setOf(
                 EventType.COMPETITOR_ADDED,
@@ -52,6 +53,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
                 EventType.FIGHTS_ADDED_TO_STAGE,
                 EventType.FIGHTS_START_TIME_UPDATED,
                 EventType.CATEGORY_DELETED,
+                EventType.STAGE_STATUS_UPDATED,
                 EventType.CATEGORY_BRACKETS_DROPPED,
                 EventType.CATEGORY_ADDED,
                 EventType.CATEGORY_REGISTRATION_STATUS_CHANGED,
@@ -60,6 +62,7 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
 
     override fun applyEvent(event: EventDTO): List<EventDTO> {
         when (event.type) {
+            EventType.STAGE_STATUS_UPDATED -> appluStageStatusUpdated(event)
             EventType.CATEGORY_REGISTRATION_STATUS_CHANGED -> applyCategoryRegistrationStatusChanged(event)
             EventType.COMPETITOR_ADDED -> applyCompetitorAddedEvent(event)
             EventType.COMPETITOR_REMOVED -> applyCompetitorRemovedEvent(event)
@@ -77,6 +80,10 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
             }
         }
         return listOf(event)
+    }
+
+    private fun appluStageStatusUpdated(event: EventDTO) = executeValidated(event, StageStatusUpdatedPayload::class.java) { payload, _ ->
+        jooqRepository.updateStageStatus(payload.stageId, payload.status)
     }
 
     private fun applyFightsAddedToStage(event: EventDTO): List<EventDTO> {
@@ -215,8 +222,6 @@ class CategoryEventProcessor(private val mapper: ObjectMapper,
             throw EventApplyingException("Category ID is null.", event)
         }
     }
-
-    private val log = LoggerFactory.getLogger(CategoryEventProcessor::class.java)
 
     private inline fun <reified T : Payload> getPayloadAs(payload: String?, clazz: Class<T>): T? = mapper.getPayloadFromString(payload, clazz)
 }

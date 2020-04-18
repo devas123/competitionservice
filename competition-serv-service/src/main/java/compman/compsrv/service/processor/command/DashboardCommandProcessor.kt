@@ -11,6 +11,7 @@ import compman.compsrv.model.commands.payload.SetFightResultPayload
 import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.dto.brackets.FightReferenceType
 import compman.compsrv.model.dto.brackets.StageStatus
+import compman.compsrv.model.dto.brackets.StageType
 import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
@@ -144,7 +145,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                 }.collectList().block().orEmpty()
                 val fightResultOptions = fightResultOptionDao.fetchByStageId(fight.stageId)?.map { it.toDTO() }
                         .orEmpty()
-                val stageResults = fightsGenerateService.buildStageResults(BracketType.values()[stage.bracketType], StageStatus.FINISHED,
+                val stageResults = fightsGenerateService.buildStageResults(BracketType.values()[stage.bracketType], StageStatus.FINISHED, StageType.values()[stage.stageType],
                         fightsWithResult, stage.id!!, stage.competitionId, fightResultOptions)
                 listOf(mapper.createEvent(command, EventType.DASHBOARD_STAGE_RESULT_SET,
                         StageResultSetPayload()

@@ -1,10 +1,7 @@
 package compman.compsrv.service
 
 import compman.compsrv.mapping.toPojo
-import compman.compsrv.model.dto.brackets.BracketType
-import compman.compsrv.model.dto.brackets.FightReferenceType
-import compman.compsrv.model.dto.brackets.StageRoundType
-import compman.compsrv.model.dto.brackets.StageStatus
+import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.service.fight.BracketsGenerateService
@@ -94,7 +91,7 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
         checkDoubleEliminationLaws(doubleEliminationBracketFights, 8)
         val distr = fightsGenerateService.distributeCompetitors(competitors, doubleEliminationBracketFights, BracketType.DOUBLE_ELIMINATION)
         printFights(distr)
-        val marked = FightsService.markAndProcessUncompletableFights(distr) { id -> distr.find { it.id == id }?.scores?.map { it.toPojo(id) } }
+        val marked = FightsService.markAndProcessUncompletableFights(distr, StageStatus.APPROVED) { id -> distr.find { it.id == id }?.scores?.map { it.toPojo(id) } }
         printFights(marked)
         marked.forEach { markedFight ->
             if (markedFight.status == FightStatus.UNCOMPLETABLE && markedFight.scores?.any { s -> !s.competitorId.isNullOrBlank() } == true && !markedFight.winFight.isNullOrBlank()) {
@@ -133,7 +130,7 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
             }
             processedFights to (acc.second + processedFights.map { it.first })
         }.second
-        val results = fightsGenerateService.buildStageResults(BracketType.SINGLE_ELIMINATION, StageStatus.FINISHED, filledFights, "asasdasd", competitionId, emptyList())
+        val results = fightsGenerateService.buildStageResults(BracketType.SINGLE_ELIMINATION, StageStatus.FINISHED, StageType.FINAL, filledFights, "asasdasd", competitionId, emptyList())
         assertEquals(14, results.size)
         assertEquals(6, results.filter { it.round == 0 }.size)
         assertEquals(4, results.filter { it.round == 1 }.size)

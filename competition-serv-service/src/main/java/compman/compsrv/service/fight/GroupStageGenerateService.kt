@@ -116,6 +116,7 @@ class GroupStageGenerateService : FightsService() {
     }
 
     override fun buildStageResults(bracketType: BracketType, stageStatus: StageStatus,
+                                   stageType: StageType,
                                    fights: List<FightDescriptionDTO>, stageId: String,
                                    competitionId: String,
                                    pointsAssignmentDescriptors: List<FightResultOptionDTO>): List<CompetitorStageResultDTO> {
