@@ -35,6 +35,9 @@ abstract class FightsService {
         private val validChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".toCharArray()
         fun createEmptyScore(): ScoreDTO = ScoreDTO().setAdvantages(0).setPenalties(0).setPoints(0).setPointGroups(emptyArray())
 
+        fun getWinnerId(fight: FightDescriptionDTO) = fight.fightResult?.winnerId
+        fun getLoserId(fight: FightDescriptionDTO) = fight.fightResult?.winnerId?.let { wid -> fight.scores?.find { it.competitorId != wid} }?.competitorId
+
         tailrec fun moveFighterToSiblings(competitorId: String, fromFightId: String, referenceType: FightReferenceType, fights: List<FightDescriptionDTO>,
                                           callback: (from: String, to: String, competitorId: String) -> Unit = { _, _, _ -> }): List<FightDescriptionDTO> {
             log.info("Moving fighter $competitorId to siblings for fight: $fromFightId, $referenceType")
@@ -52,11 +55,11 @@ abstract class FightsService {
                 return fights
             }
             val toFight = fights.find { it.id == toFightId }
-                    ?: error("Did not find fight, to which the competitor proceeds, with id $toFightId")
+                    ?: error("Did not find fight, to which the competitor proceeds, with id $toFightId and reference $referenceType")
             assert(toFight.scores.any { it.parentFightId == fight.id }) { "Fight $fight has no reference to $toFight" }
             val updatedFights = fights.map {
                 if (it.id == toFightId) {
-                    log.info("Updating fight $it with reference $referenceType and from fight $fromFightId ")
+                    log.info("Updating fight ${it.id} with competitorId $competitorId, reference $referenceType, and from fight $fromFightId ")
                     val newScores = it.scores.map { score ->
                         if (score.parentFightId == fromFightId && score.parentReferenceType == referenceType) {
                             score.setCompetitorId(competitorId)
@@ -70,7 +73,7 @@ abstract class FightsService {
                     it
                 }
             }
-            return if (toFight.status !== FightStatus.UNCOMPLETABLE) {
+            return if (toFight.status != FightStatus.UNCOMPLETABLE) {
                 updatedFights
             } else {
                 moveFighterToSiblings(competitorId, toFight.id, FightReferenceType.WINNER, updatedFights, callback)
@@ -83,7 +86,7 @@ abstract class FightsService {
                 val uncompletableFights = fights.filter { it.id != null && !checkIfFightIsPackedOrCanBePackedEventually(it.id!!, getFightScoresById) }
                         .map { fightDescription ->
                             fightDescription.copy(status = FightStatus.UNCOMPLETABLE,
-                                    fightResult = FightResultDTO(fightDescription.scores?.firstOrNull()?.competitorId, null, "BYE"))
+                                    fightResult = fightDescription.fightResult ?: fightDescription.scores?.firstOrNull{ !it.competitorId.isNullOrBlank() }?.competitorId?.let { FightResultDTO(it, FightResultOptionDTO.WALKOVER.id, "BYE") })
                         }
                 val markedFights = fights.map { f ->
                     val updF = uncompletableFights.firstOrNull { it.id == f.id }

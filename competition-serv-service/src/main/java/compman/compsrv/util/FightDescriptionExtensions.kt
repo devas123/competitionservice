@@ -67,7 +67,9 @@ fun FightDescriptionDTO.pushCompetitor(competitorId: String, fromFight: String? 
     when {
         localScores.size < 2 -> {
             localScores.add(CompScoreDTO().setCompetitorId(competitorId).setScore(ScoreDTO()).setOrder(localScores.size))
-            return copy(scores = localScores.toTypedArray())
+            return copy(scores = localScores.sortedBy {
+                it.order ?: 0
+            }.mapIndexed { ind, cs -> cs.setOrder(ind) }.toTypedArray())
         }
         localScores.any { it.parentFightId.isNullOrBlank() && it.competitorId.isNullOrBlank() } -> {
             val score = localScores.first { it.competitorId.isNullOrBlank() && it.parentFightId.isNullOrBlank() }

@@ -159,7 +159,7 @@ class GroupStageGenerateService : FightsService() {
                                     .setGroupId(e.second.c)
                                     .setCompetitorId(e.first)
                                     .setPoints(e.second.a)
-                                    .setPlace(i)
+                                    .setPlace(i + 1)
                                     .setStageId(stageId)
                         }
             }

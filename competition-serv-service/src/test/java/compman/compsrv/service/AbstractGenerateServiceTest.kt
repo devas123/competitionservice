@@ -1,6 +1,5 @@
 package compman.compsrv.service
 
-import arrow.core.Tuple3
 import arrow.core.Tuple4
 import compman.compsrv.model.dto.brackets.FightReferenceType
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
@@ -24,8 +23,8 @@ open class AbstractGenerateServiceTest {
         private val log = LoggerFactory.getLogger(AbstractGenerateServiceTest::class.java)
         val fightResultOptions = FightResultOptionDTO.values.map { it.setId(UUID.randomUUID().toString()) }
         fun generateFightResult(fight: FightDescriptionDTO): Pair<FightDescriptionDTO, String?> {
-            val scores = fight.scores?.toList()
-            val competitor = when (scores?.size) {
+            val scores = fight.scores?.filter { !it.competitorId.isNullOrBlank() }?.toList()
+            val competitor = fight.fightResult?.winnerId ?: when (scores?.size) {
                 2 -> {
                     scores[Random.nextInt(2)].competitorId
                 }
@@ -36,7 +35,8 @@ open class AbstractGenerateServiceTest {
                     null
                 }
             }
-            return fight.copy(fightResult = competitor?.let { FightResultDTO(it, fightResultOptions[Random.nextInt(3)].id, "bla bla bla") }) to competitor
+            return fight.copy(fightResult = fight.fightResult
+                    ?: competitor?.let { FightResultDTO(it, fightResultOptions[Random.nextInt(3)].id, "bla bla bla") }) to competitor
         }
 
         private fun checkFightConnectionLaws(fights: List<FightDescriptionDTO>) {
@@ -57,7 +57,7 @@ open class AbstractGenerateServiceTest {
                                         fc.id == wf &&
                                                 fc.scores?.any { s -> s.parentFightId == f.id && s.parentReferenceType == FightReferenceType.WINNER } == true
                                     } == 1
-                                } == false ) {
+                                } == false) {
                     res = res + Tuple4(f.id, f.winFight, FightReferenceType.WINNER, fights.count { fc ->
                         fc.id == f.winFight &&
                                 fc.scores?.any { s -> s.parentFightId == f.id && s.parentReferenceType == FightReferenceType.WINNER } == true
@@ -69,7 +69,7 @@ open class AbstractGenerateServiceTest {
                                         fc.id == wf &&
                                                 fc.scores?.any { s -> s.parentFightId == f.id && s.parentReferenceType == FightReferenceType.LOSER } == true
                                     } == 1
-                                } == false ) {
+                                } == false) {
                     res = res + Tuple4(f.id, f.loseFight, FightReferenceType.LOSER, fights.count { fc ->
                         fc.id == f.loseFight &&
                                 fc.scores?.any { s -> s.parentFightId == f.id && s.parentReferenceType == FightReferenceType.LOSER } == true
@@ -78,8 +78,8 @@ open class AbstractGenerateServiceTest {
                 res
             }
             assertEquals(0, allFightsHaveValidConnections.size,
-                    "Fights do not have valid connections. Invalid fights are: ${allFightsHaveValidConnections.joinToString ("\n") { 
-                        "id: ${it.a} / ref: ${it.b} / type: ${it.c} / numberOfConn: ${it.d}" 
+                    "Fights do not have valid connections. Invalid fights are: ${allFightsHaveValidConnections.joinToString("\n") {
+                        "id: ${it.a} / ref: ${it.b} / type: ${it.c} / numberOfConn: ${it.d}"
                     }}")
         }
 

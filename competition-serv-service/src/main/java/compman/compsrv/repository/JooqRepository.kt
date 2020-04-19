@@ -604,6 +604,26 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
         }
     }
 
+    fun deleteScheduleRequirementsByCompetitionId(competitionId: String) {
+        val periodIds = create.select(SchedulePeriod.SCHEDULE_PERIOD.ID)
+                .from(SchedulePeriod.SCHEDULE_PERIOD).where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(competitionId)).fetchSet { it.value1() }.orEmpty()
+        if (!periodIds.isNullOrEmpty()) {
+            val entryIds = create.select(ScheduleRequirement.SCHEDULE_REQUIREMENT.ID)
+                    .from(ScheduleRequirement.SCHEDULE_REQUIREMENT).where(ScheduleRequirement.SCHEDULE_REQUIREMENT.PERIOD_ID.`in`(periodIds))
+                    .fetchSet { it.value1() }.orEmpty()
+            create.batch(
+                    listOf(create.deleteFrom(ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION)
+                            .where(ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.REQUIREMENT_ID.`in`(entryIds)),
+                            create.deleteFrom(ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION)
+                                    .where(ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.REQUIREMENT_ID.`in`(entryIds)),
+                            create.deleteFrom(ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT)
+                                    .where(ScheduleEntryScheduleRequirement.SCHEDULE_ENTRY_SCHEDULE_REQUIREMENT.SCHEDULE_REQUIREMENT_ID.`in`(entryIds)),
+                            create.deleteFrom(ScheduleRequirement.SCHEDULE_REQUIREMENT)
+                                    .where(ScheduleRequirement.SCHEDULE_REQUIREMENT.PERIOD_ID.`in`(periodIds)))
+            ).execute()
+        }
+    }
+
     fun saveSchedule(schedule: ScheduleDTO?) = schedule?.let {
         create.batch(queryProvider.saveScheduleQuery(it)).execute()
     }
@@ -822,21 +842,22 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
     }
 
     fun saveCompScores(map: List<CompScoreRecord>) {
-        create.batch(map.map { csr -> create.insertInto(CompScore.COMP_SCORE).columns(*csr.fields())
-                .values(csr.value1(),
-                        csr.value2(),
-                        csr.value3(),
-                        csr.value4(),
-                        csr.value5(),
-                        csr.value6(),
-                        csr.value7(),
-                        csr.value8(),
-                        csr.value9())
-                .onDuplicateKeyUpdate()
-                .set(csr.field1(), csr.value1())
-                .set(csr.field2(), csr.value2())
-                .set(csr.field3(), csr.value3())
-                .set(csr.field7(), csr.value7())
+        create.batch(map.map { csr ->
+            create.insertInto(CompScore.COMP_SCORE).columns(*csr.fields())
+                    .values(csr.value1(),
+                            csr.value2(),
+                            csr.value3(),
+                            csr.value4(),
+                            csr.value5(),
+                            csr.value6(),
+                            csr.value7(),
+                            csr.value8(),
+                            csr.value9())
+                    .onDuplicateKeyUpdate()
+                    .set(csr.field1(), csr.value1())
+                    .set(csr.field2(), csr.value2())
+                    .set(csr.field3(), csr.value3())
+                    .set(csr.field7(), csr.value7())
         }).execute()
     }
 

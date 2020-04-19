@@ -122,6 +122,7 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
                 }
                 EventType.SCHEDULE_DROPPED -> {
                     jooqRepository.deleteScheduleEntriesByCompetitionId(event.competitionId)
+                    jooqRepository.deleteScheduleRequirementsByCompetitionId(event.competitionId)
                 }
                 EventType.SCHEDULE_GENERATED -> {
                     val scheduleGeneratedPayload = getPayloadAs(event.payload, ScheduleGeneratedPayload::class.java)

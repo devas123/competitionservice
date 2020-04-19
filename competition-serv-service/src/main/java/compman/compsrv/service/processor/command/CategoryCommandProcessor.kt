@@ -162,13 +162,13 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                                         f.setScores(emptyArray())
                                     } else {
                                         val scores = f.scores.orEmpty()
-                                        f.setScores(change.competitors.map { cmpId ->
+                                        f.setScores(change.competitors.mapIndexed { index, cmpId ->
                                             scores.find { s -> s.competitorId == cmpId }
                                                     ?: scores.find { s -> s.competitorId.isNullOrBlank() }?.setCompetitorId(cmpId)
                                                     ?: CompScoreDTO()
                                                             .setCompetitorId(cmpId)
                                                             .setScore(ScoreDTO(0, 0, 0, emptyArray()))
-                                                            .setOrder(getMinUnusedOrder(scores))
+                                                            .setOrder(getMinUnusedOrder(scores, index))
                                         }.toTypedArray())
                                     }
                                 } ?: f
@@ -202,11 +202,11 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         }
     }
 
-    private fun getMinUnusedOrder(scores: Array<out CompScoreDTO>?): Int {
+    private fun getMinUnusedOrder(scores: Array<out CompScoreDTO>?, index: Int = 0): Int {
         return if (scores.isNullOrEmpty()) {
             0
         } else {
-            (0..scores.size).first { i -> scores.none { s -> s.order == i } }
+            (0..scores.size + index).filter { i -> scores.none { s -> s.order == i } }[index]
         }
     }
 
