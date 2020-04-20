@@ -39,6 +39,15 @@ fun ObjectMapper.createEvent(command: CommandDTO, type: EventType, payload: Any?
                 .setType(type)
                 .setPayload(writeValueAsString(payload))
 
+fun ObjectMapper.createEffect(event: EventDTO, type: EventType, payload: Any?): EventDTO =
+        EventDTO()
+                .setCategoryId(event.categoryId)
+                .setCorrelationId(event.correlationId)
+                .setCompetitionId(event.competitionId)
+                .setMatId(event.matId)
+                .setType(type)
+                .setPayload(writeValueAsString(payload))
+
 inline fun <reified T: Payload> ObjectMapper.getPayloadAs(event: EventDTO , clazz: Class<T>): T? {
     return event.payload?.let {
         readValue(it, clazz)

@@ -35,7 +35,6 @@ class CompetitionStateService(
             val eventWithId = event.setId(event.id ?: IDGenerator.uid())
             if (isBatch || !duplicateCheck(event)) {
                 eventProcessors.filter { it.affectedEvents().contains(event.type) }.flatMap { it.applyEvent(eventWithId) }
-                listOf(eventWithId)
             } else {
                 listOf(createErrorEvent("Duplicate event: CorrelationId: ${eventWithId.correlationId}"))
             }

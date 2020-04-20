@@ -25,6 +25,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory
 import org.springframework.kafka.core.*
+import org.springframework.kafka.listener.AcknowledgingConsumerAwareMessageListener
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer
 import org.springframework.kafka.listener.ContainerProperties
 import org.springframework.kafka.listener.DefaultAfterRollbackProcessor
@@ -123,7 +124,7 @@ class KafkaStreamsConfiguration {
     fun container(cf: ConsumerFactory<String, CommandDTO>,
                   kafkaProps: KafkaProperties,
                   trm: ChainedKafkaTransactionManager<Any, Any>,
-                  commandExecutor: CommandExecutor): ConcurrentMessageListenerContainer<String, CommandDTO> {
+                  commandExecutor: AcknowledgingConsumerAwareMessageListener<String, CommandDTO>): ConcurrentMessageListenerContainer<String, CommandDTO> {
         val props = ContainerProperties(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME)
         val consumerProps = kafkaProps.buildConsumerProperties()
         consumerProps[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java

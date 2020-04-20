@@ -9,6 +9,7 @@ import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
+import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.JooqRepository
 import compman.compsrv.util.PayloadValidator
 import org.springframework.stereotype.Component
@@ -81,7 +82,8 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
                     setCompScores(payload.assignments!!)
                 }
             }
-            else -> emptyList()
+            else ->
+                throw EventApplyingException("No event handler for event ${event.type}", event)
         }
     }
 

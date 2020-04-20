@@ -9,12 +9,9 @@ import compman.compsrv.service.ICommandProcessingService
 import compman.compsrv.util.createErrorEvent
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
-import org.springframework.transaction.annotation.Propagation
-import org.springframework.transaction.annotation.Transactional
-import java.util.*
 
 abstract class AbstractCommandTransformer(
-        private val commandProcessingService: ICommandProcessingService<CommandDTO, EventDTO>,
+        private val executionService: ICommandProcessingService<CommandDTO, EventDTO>,
         private val mapper: ObjectMapper) {
 
 
@@ -22,11 +19,16 @@ abstract class AbstractCommandTransformer(
 
     abstract fun initState(id: String, correlationId: String?)
 
-    @Transactional(propagation = Propagation.REQUIRED)
     open fun transform(record: ConsumerRecord<String, CommandDTO>): List<EventDTO> {
         val command = record.value()
         val readOnlyKey = record.key()
-        fun createErrorEvent(message: String?) = listOf(mapper.createErrorEvent(command, message))
+        return commandExecutionLogic(command, readOnlyKey)
+    }
+
+    private fun createErrorEvent(command: CommandDTO, message: String?) = listOf(mapper.createErrorEvent(command, message))
+
+
+    private fun commandExecutionLogic(command: CommandDTO, readOnlyKey: String): List<EventDTO> {
         return try {
             if (command.type != CommandType.CREATE_COMPETITION_COMMAND && command.type != CommandType.DELETE_COMPETITION_COMMAND) {
                 initState(readOnlyKey, command.correlationId)
@@ -35,23 +37,37 @@ abstract class AbstractCommandTransformer(
             when {
                 validationErrors.isEmpty() -> {
                     log.info("Command validated: $command")
-                    val eventsToApply = commandProcessingService.process(command)
-                    if (eventsToApply.any { it.type == EventType.ERROR_EVENT }) {
-                        log.info("There were errors while processing the command. Returning error events.")
-                        eventsToApply.filter { it.type == EventType.ERROR_EVENT }
-                    } else {
-                        log.info("Applying generated events: ${eventsToApply.joinToString("\n")}")
-                        commandProcessingService.batchApply(eventsToApply)
-                    }
+                    val eventsToApply = executionService.process(command)
+                    eventLoop(emptyList(), eventsToApply)
                 }
                 else -> {
                     log.error("Command not valid: ${validationErrors.joinToString(separator = ",")}")
-                    createErrorEvent(validationErrors.joinToString(separator = ","))
+                    createErrorEvent(command, validationErrors.joinToString(separator = ","))
                 }
             }
         } catch (e: Throwable) {
             log.error("Exception while processing command: ", e)
-            createErrorEvent(e.message)
+            createErrorEvent(command, e.message)
+        }
+    }
+
+    private tailrec fun eventLoop(appliedEvents: List<EventDTO>, eventsToApply: List<EventDTO>): List<EventDTO> {
+        return when {
+            eventsToApply.isEmpty() -> appliedEvents
+            eventsToApply.any { it.type == EventType.ERROR_EVENT } -> {
+                log.info("There were errors while processing the command. Returning error events.")
+                appliedEvents + eventsToApply.filter { it.type == EventType.ERROR_EVENT }
+            }
+            else -> {
+                log.info("Applying generated events: ${eventsToApply.joinToString("\n")}")
+                val newEventsToApply = executionService.batchApply(eventsToApply)
+                if (newEventsToApply.any { it.type == EventType.ERROR_EVENT }) {
+                    log.info("There were errors while applying the events. Returning error events.")
+                    appliedEvents + newEventsToApply.filter { it.type == EventType.ERROR_EVENT }
+                } else {
+                    eventLoop(appliedEvents + eventsToApply, newEventsToApply)
+                }
+            }
         }
     }
 

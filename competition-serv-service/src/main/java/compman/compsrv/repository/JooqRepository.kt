@@ -11,6 +11,7 @@ import compman.compsrv.model.dto.schedule.FightStartTimePairDTO
 import compman.compsrv.model.dto.schedule.PeriodDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
+import compman.compsrv.util.toTimestamp
 import org.jooq.*
 import org.jooq.impl.DSL
 import org.slf4j.Logger
@@ -22,8 +23,6 @@ import reactor.core.publisher.Mono
 import java.math.BigDecimal
 import java.sql.Timestamp
 import java.time.Instant
-
-fun Instant.toTimestamp(): Timestamp = Timestamp.from(this)
 
 @Repository
 class JooqRepository(private val create: DSLContext, private val queryProvider: JooqQueryProvider, private val jooqMappers: JooqMappers) {
@@ -736,17 +735,17 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 .execute()
     }
 
-    fun updateCompetitionProperties(propertiesDTO: CompetitionPropertiesDTO) {
+    fun updateCompetitionProperties(propertiesDTO: com.compmanager.compservice.jooq.tables.pojos.CompetitionProperties) {
         create.update(CompetitionProperties.COMPETITION_PROPERTIES)
                 .set(CompetitionProperties.COMPETITION_PROPERTIES.BRACKETS_PUBLISHED, propertiesDTO.bracketsPublished)
                 .set(CompetitionProperties.COMPETITION_PROPERTIES.SCHEDULE_PUBLISHED, propertiesDTO.schedulePublished)
                 .set(CompetitionProperties.COMPETITION_PROPERTIES.EMAIL_NOTIFICATIONS_ENABLED, propertiesDTO.emailNotificationsEnabled)
                 .set(CompetitionProperties.COMPETITION_PROPERTIES.EMAIL_TEMPLATE, propertiesDTO.emailTemplate)
-                .set(CompetitionProperties.COMPETITION_PROPERTIES.START_DATE, propertiesDTO.startDate?.toTimestamp())
-                .set(CompetitionProperties.COMPETITION_PROPERTIES.END_DATE, propertiesDTO.endDate?.toTimestamp())
+                .set(CompetitionProperties.COMPETITION_PROPERTIES.START_DATE, propertiesDTO.startDate)
+                .set(CompetitionProperties.COMPETITION_PROPERTIES.END_DATE, propertiesDTO.endDate)
                 .set(CompetitionProperties.COMPETITION_PROPERTIES.TIME_ZONE, propertiesDTO.timeZone)
                 .set(CompetitionProperties.COMPETITION_PROPERTIES.COMPETITION_NAME, propertiesDTO.competitionName)
-                .set(CompetitionProperties.COMPETITION_PROPERTIES.STATUS, propertiesDTO.status?.ordinal)
+                .set(CompetitionProperties.COMPETITION_PROPERTIES.STATUS, propertiesDTO.status)
                 .where(CompetitionProperties.COMPETITION_PROPERTIES.ID.eq(propertiesDTO.id)).execute()
     }
 

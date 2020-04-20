@@ -15,6 +15,8 @@ import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.listener.AcknowledgingConsumerAwareMessageListener
 import org.springframework.kafka.support.Acknowledgment
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -29,6 +31,7 @@ class CommandExecutor(private val commandTransformer: CompetitionCommandTransfor
         private val log = LoggerFactory.getLogger("commandProcessingLog")
     }
 
+    @Transactional(propagation = Propagation.REQUIRED)
     fun handleMessage(m: ConsumerRecord<String, CommandDTO>, acknowledgment: Acknowledgment?, consumer: Consumer<*, *>?): List<EventDTO> {
         if (m.value() != null && m.key() != null) {
             val start = System.currentTimeMillis()

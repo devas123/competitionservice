@@ -105,7 +105,6 @@ abstract class FightsService {
                 BracketType.SINGLE_ELIMINATION -> {
                     val ceiling = LongMath.ceilingPowerOfTwo(outputSize.toLong())
                     val roundsToReturn = fights.asSequence().groupBy { it.round!! }.map { entry -> entry.key to entry.value.size }.filter { it.second * 2 > ceiling }.map { it.first }
-                    val lastRound = roundsToReturn.max() ?: 0
                     fights.filter { roundsToReturn.contains(it.round) }
                 }
                 BracketType.GROUP -> {

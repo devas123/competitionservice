@@ -11,6 +11,21 @@ import compman.compsrv.util.IDGenerator
 import java.sql.Timestamp
 
 
+fun CompetitorDTO.toPojo() =
+        Competitor().also { cmp ->
+            cmp.id = this.id
+            cmp.academyId = this.academy?.id
+            cmp.academyName = this.academy?.name
+            cmp.birthDate = this.birthDate?.let { Timestamp.from(it) }
+            cmp.email = this.email
+            cmp.firstName = this.firstName
+            cmp.lastName = this.lastName
+            cmp.competitionId = this.competitionId
+            cmp.promo = this.promo
+            cmp.registrationStatus = this.registrationStatus?.let { RegistrationStatus.valueOf(it).ordinal }
+            cmp.userId = this.userId
+        }
+
 fun SchedulePeriod.toDTO(scheduleEntries: Array<ScheduleEntryDTO>): PeriodDTO = PeriodDTO()
         .setId(id)
         .setName(name)

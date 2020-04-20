@@ -1,22 +1,37 @@
 package compman.compsrv.util
 
+import com.compmanager.compservice.jooq.tables.pojos.CompetitionProperties
 import compman.compsrv.model.dto.competition.AcademyDTO
 import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import java.math.BigDecimal
+import java.sql.Timestamp
 import java.time.Instant
 
-private fun parseDate(date: Any?, default: Instant?) = if (date != null && !date.toString().isBlank()) {
+private fun parseDate(date: Any?, default: Instant? = null) = if (date != null && !date.toString().isBlank()) {
     Instant.ofEpochMilli(date.toString().toLong())
 } else {
     default
 }
 
 fun <T> List<T>.applyConditionalUpdate(condition: (T) -> Boolean, update: (T) -> T): List<T> {
-    return this.map { if (condition(it)) { update(it) } else { it } }
+    return this.map {
+        if (condition(it)) {
+            update(it)
+        } else {
+            it
+        }
+    }
 }
+
 inline fun <reified T> Array<out T>.applyConditionalUpdate(condition: (T) -> Boolean, update: (T) -> T): Array<out T> {
-    return this.map { if (condition(it)) { update(it) } else { it } }.toTypedArray()
+    return this.map {
+        if (condition(it)) {
+            update(it)
+        } else {
+            it
+        }
+    }.toTypedArray()
 }
 
 fun BigDecimal?.orZero() = this ?: BigDecimal.ZERO
@@ -49,18 +64,25 @@ fun CompetitorDTO.copy(id: String? = this.id,
         .setRegistrationStatus(registrationStatus)
         .setPromo(promo)
 
-fun CompetitionPropertiesDTO.applyProperties(props: Map<String, Any?>?) = CompetitionPropertiesDTO().also {
-    if (props != null) {
-        bracketsPublished = props["bracketsPublished"] as? Boolean ?: this.bracketsPublished
-        startDate = parseDate(props["startDate"], this.startDate)
-        endDate = parseDate(props["endDate"], this.endDate)
-        emailNotificationsEnabled = props["emailNotificationsEnabled"] as? Boolean ?: this.emailNotificationsEnabled
-        competitionName = props["competitionName"] as String? ?: this.competitionName
-        emailTemplate = props["emailTemplate"] as? String ?: this.emailTemplate
-        schedulePublished = props["schedulePublished"] as? Boolean ?: this.schedulePublished
-        timeZone = props["timeZone"]?.toString() ?: this.timeZone
-    }
-}
+fun Instant.toTimestamp(): Timestamp = Timestamp.from(this)
+
+
+fun CompetitionProperties.applyProperties(props: Map<String, Any?>?) =
+        if (props != null) {
+            CompetitionProperties(this).also { cp ->
+                cp.bracketsPublished = props["bracketsPublished"] as? Boolean ?: this.bracketsPublished
+                cp.startDate = parseDate(props["startDate"])?.toTimestamp() ?: this.startDate
+                cp.endDate = parseDate(props["endDate"])?.toTimestamp() ?: this.endDate
+                cp.emailNotificationsEnabled = props["emailNotificationsEnabled"] as? Boolean
+                        ?: this.emailNotificationsEnabled
+                cp.competitionName = props["competitionName"] as String? ?: this.competitionName
+                cp.emailTemplate = props["emailTemplate"] as? String ?: this.emailTemplate
+                cp.schedulePublished = props["schedulePublished"] as? Boolean ?: this.schedulePublished
+                cp.timeZone = props["timeZone"]?.toString() ?: this.timeZone
+            }
+        } else {
+            this
+        }
 
 fun compNotEmpty(comp: CompetitorDTO?): Boolean {
     if (comp == null) return false

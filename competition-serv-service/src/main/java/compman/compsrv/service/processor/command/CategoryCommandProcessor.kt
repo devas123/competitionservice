@@ -305,16 +305,17 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                                     sel.setId("$stageId-s-$index")
                                             .setApplyToStageId(stageIdMap[sel.applyToStageId])
                                 }?.toTypedArray())
+                        val enrichedOptions = stage.stageResultDescriptor?.fightResultOptions.orEmpty().toList() + FightResultOptionDTO.WALKOVER
                         val resultDescriptor = stage.stageResultDescriptor
                                 .setId(stageId)
-                                .setFightResultOptions(stage.stageResultDescriptor?.fightResultOptions?.map {
+                                .setFightResultOptions(enrichedOptions.map {
                                     it
-                                            .setId(IDGenerator.hashString("$stageId-${UUID.randomUUID()}"))
+                                            .setId(it.id ?: IDGenerator.hashString("$stageId-${UUID.randomUUID()}"))
                                             .setLoserAdditionalPoints(it.loserAdditionalPoints ?: BigDecimal.ZERO)
                                             .setLoserPoints(it.loserPoints ?: BigDecimal.ZERO)
                                             .setWinnerAdditionalPoints(it.winnerAdditionalPoints ?: BigDecimal.ZERO)
                                             .setWinnerPoints(it.winnerAdditionalPoints ?: BigDecimal.ZERO)
-                                }?.toTypedArray())
+                                }.distinctBy { it.id }.toTypedArray())
                         val status = if (stage.stageOrder == 0) StageStatus.WAITING_FOR_APPROVAL else StageStatus.WAITING_FOR_COMPETITORS
                         val stageWithIds = stage
                                 .setCategoryId(command.categoryId)

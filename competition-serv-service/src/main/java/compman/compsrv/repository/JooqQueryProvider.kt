@@ -10,6 +10,7 @@ import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.PeriodDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.dto.schedule.ScheduleRequirementDTO
+import compman.compsrv.util.toTimestamp
 import org.jooq.*
 import org.jooq.impl.DSL
 import org.springframework.stereotype.Component
