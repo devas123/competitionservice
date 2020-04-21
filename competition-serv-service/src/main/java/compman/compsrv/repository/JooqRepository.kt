@@ -103,7 +103,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
             .setId(rec[Competitor.COMPETITOR.ID])
             .setCompetitionId(competitionId)
             .setAcademy(AcademyDTO(rec[Competitor.COMPETITOR.ACADEMY_ID], rec[Competitor.COMPETITOR.ACADEMY_NAME]))
-            .setRegistrationStatus(RegistrationStatus.values()[rec[Competitor.COMPETITOR.REGISTRATION_STATUS]].name)
+            .setRegistrationStatus(rec[Competitor.COMPETITOR.REGISTRATION_STATUS])
             .setBirthDate(rec[Competitor.COMPETITOR.BIRTH_DATE].toInstant())
             .setLastName(rec[Competitor.COMPETITOR.LAST_NAME])
             .setFirstName(rec[Competitor.COMPETITOR.FIRST_NAME])
@@ -199,7 +199,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                                                                                                       fightStatuses: List<FightStatus>): Flux<com.compmanager.compservice.jooq.tables.pojos.FightDescription> {
         return Flux.from(fightDescriptionByMatIdCompetitionIdQuery(matId, competitionId)
                 .and(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.lessThan(minNumberOnMat))
-                .and(FightDescription.FIGHT_DESCRIPTION.STATUS.notIn(fightStatuses.map { it.ordinal }))
+                .and(FightDescription.FIGHT_DESCRIPTION.STATUS.notIn(fightStatuses.map { it.name }))
                 .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.desc()))
                 .distinct { it.id }
                 .map { fightDescription(it) }
@@ -208,7 +208,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
     fun findDistinctByMatIdAndCompetitionIdAndNumberOnMatBetweenAndStatusNotInOrderByNumberOnMat(matId: String, competitionId: String, start: Int, end: Int, fightStatuses: List<FightStatus>): Flux<com.compmanager.compservice.jooq.tables.pojos.FightDescription> {
         return Flux.from(fightDescriptionByMatIdCompetitionIdQuery(matId, competitionId)
                 .and(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.between(start, end))
-                .and(FightDescription.FIGHT_DESCRIPTION.STATUS.notIn(fightStatuses.map { it.ordinal }))
+                .and(FightDescription.FIGHT_DESCRIPTION.STATUS.notIn(fightStatuses.map { it.name }))
                 .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.asc()))
                 .distinct { it.id }
                 .map { fightDescription(it) }
@@ -227,7 +227,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
     }
 
     fun saveEvents(events: List<EventDTO>): IntArray =
-            create.batchInsert(events.map { EventRecord(it.id, it.categoryId, it.competitionId, it.correlationId, it.matId, it.payload, it.type?.ordinal) }).execute()
+            create.batchInsert(events.map { EventRecord(it.id, it.categoryId, it.competitionId, it.correlationId, it.matId, it.payload, it.type?.name) }).execute()
 
     fun updateFightResult(fightId: String, compScores: List<CompScoreDTO>, fightResult: FightResultDTO, fightStatus: FightStatus) {
         create.batch(
@@ -243,7 +243,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                                 .set(FightDescription.FIGHT_DESCRIPTION.WINNER_ID, fightResult.winnerId)
                                 .set(FightDescription.FIGHT_DESCRIPTION.REASON, fightResult.reason)
                                 .set(FightDescription.FIGHT_DESCRIPTION.RESULT_TYPE, fightResult.resultTypeId)
-                                .set(FightDescription.FIGHT_DESCRIPTION.STATUS, fightStatus.ordinal)
+                                .set(FightDescription.FIGHT_DESCRIPTION.STATUS, fightStatus.name)
                                 .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fightId))
 
         ).execute()
@@ -254,13 +254,13 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 id = fight.id
                 fightName = fight.fightName
                 round = fight.round
-                roundType = fight.roundType?.ordinal
+                roundType = fight.roundType?.name
                 winFight = fight.winFight
                 loseFight = fight.loseFight
                 categoryId = fight.categoryId
                 competitionId = fight.competitionId
                 duration = fight.duration
-                status = fight.status?.ordinal
+                status = fight.status?.name
                 winnerId = fight.fightResult?.winnerId
                 reason = fight.fightResult?.reason
                 resultType = fight.fightResult?.resultTypeId
@@ -281,7 +281,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 points = cs.score?.points
                 penalties = cs.score?.penalties
                 parentFightId = cs.parentFightId
-                parentReferenceType = cs.parentReferenceType?.ordinal
+                parentReferenceType = cs.parentReferenceType?.name
                 compscoreFightDescriptionId = fightId
                 compScoreOrder = cs.order
                 compscoreCompetitorId = cs.competitorId
@@ -331,7 +331,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                     cmp.lastName = comp.lastName
                     cmp.competitionId = comp.competitionId
                     cmp.promo = comp.promo
-                    cmp.registrationStatus = comp.registrationStatus?.let { RegistrationStatus.valueOf(it).ordinal }
+                    cmp.registrationStatus = comp.registrationStatus
                     cmp.userId = comp.userId
                 }
             }).execute()
@@ -358,15 +358,15 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
     fun saveStages(stages: List<StageDescriptorDTO>): IntArray = create.batchInsert(stages.map { stage ->
         StageDescriptorRecord().apply {
             id = stage.id
-            bracketType = stage.bracketType?.ordinal
+            bracketType = stage.bracketType?.name
             categoryId = stage.categoryId
             competitionId = stage.competitionId
             hasThirdPlaceFight = stage.hasThirdPlaceFight
             name = stage.name
             stageOrder = stage.stageOrder
-            stageType = stage.stageType?.ordinal
+            stageType = stage.stageType?.name
             waitForPrevious = stage.waitForPrevious
-            stageStatus = stage.stageStatus?.ordinal
+            stageStatus = stage.stageStatus?.name
             forceManualAssignment = stage.stageResultDescriptor?.isForceManualAssignment
             outputSize = stage.stageResultDescriptor?.outputSize
         }
@@ -390,12 +390,12 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
             listOf(create.insertInto(StageInputDescriptor.STAGE_INPUT_DESCRIPTOR,
                     StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.ID, StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.DISTRIBUTION_TYPE,
                     StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.NUMBER_OF_COMPETITORS)
-                    .values(it.id, it.distributionType?.ordinal, it.numberOfCompetitors).onDuplicateKeyIgnore()) +
+                    .values(it.id, it.distributionType?.name, it.numberOfCompetitors).onDuplicateKeyIgnore()) +
                     (it.selectors?.flatMap { sel ->
                         listOf(create.insertInto(CompetitorSelector.COMPETITOR_SELECTOR, CompetitorSelector.COMPETITOR_SELECTOR.ID, CompetitorSelector.COMPETITOR_SELECTOR.APPLY_TO_STAGE_ID,
                                 CompetitorSelector.COMPETITOR_SELECTOR.CLASSIFIER, CompetitorSelector.COMPETITOR_SELECTOR.LOGICAL_OPERATOR,
                                 CompetitorSelector.COMPETITOR_SELECTOR.OPERATOR, CompetitorSelector.COMPETITOR_SELECTOR.STAGE_INPUT_ID)
-                                .values(sel.id, sel.applyToStageId, sel.classifier?.ordinal, sel.logicalOperator?.ordinal, sel.operator?.ordinal, it.id).onDuplicateKeyIgnore()) +
+                                .values(sel.id, sel.applyToStageId, sel.classifier?.name, sel.logicalOperator?.name, sel.operator?.name, it.id).onDuplicateKeyIgnore()) +
                                 (sel.selectorValue?.map { sv ->
                                     create.insertInto(CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE,
                                             CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE.SELECTOR_VALUE,
@@ -413,7 +413,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                     CompetitorStageResult.COMPETITOR_STAGE_RESULT.POINTS, CompetitorStageResult.COMPETITOR_STAGE_RESULT.ROUND,
                     CompetitorStageResult.COMPETITOR_STAGE_RESULT.COMPETITOR_ID, CompetitorStageResult.COMPETITOR_STAGE_RESULT.STAGE_ID,
                     CompetitorStageResult.COMPETITOR_STAGE_RESULT.CONFLICTING, CompetitorStageResult.COMPETITOR_STAGE_RESULT.ROUND_TYPE)
-                    .values(cr.groupId, cr.place, cr.points, cr.round, cr.competitorId, cr.stageId, cr.conflicting, cr.roundType?.ordinal)
+                    .values(cr.groupId, cr.place, cr.points, cr.round, cr.competitorId, cr.stageId, cr.conflicting, cr.roundType?.name)
                     .onDuplicateKeyIgnore()
 
 
@@ -449,7 +449,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 rec.field1(), rec.field2(), rec.field3(), rec.field4(), rec.field5())
                 .values(rec.value1(), rec.value2(), rec.value3(), rec.value4(), rec.value5())) +
                 c.restrictions.map {
-                    val restRow = CategoryRestrictionRecord(it.id, it.maxValue, it.minValue, it.name, it.type?.ordinal, it.value, it.alias, it.unit)
+                    val restRow = CategoryRestrictionRecord(it.id, it.maxValue, it.minValue, it.name, it.type?.name, it.value, it.alias, it.unit)
                     create.insertInto(CategoryRestriction.CATEGORY_RESTRICTION, restRow.field1(), restRow.field2(),
                             restRow.field3(), restRow.field4(), restRow.field5(), restRow.field6())
                             .values(restRow.value1(), restRow.value2(), restRow.value3(), restRow.value4(),
@@ -481,7 +481,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                         CompScore.COMP_SCORE.PARENT_FIGHT_ID,
                         CompScore.COMP_SCORE.PARENT_REFERENCE_TYPE,
                         CompScore.COMP_SCORE.PLACEHOLDER_ID).values(value.competitorId, fightId, value.score.points, value.score.penalties,
-                        value.score.advantages, index, value.parentFightId, value.parentReferenceType?.ordinal, value.placeholderId)
+                        value.score.advantages, index, value.parentFightId, value.parentReferenceType?.name, value.placeholderId)
         ).execute()
     }
 
@@ -730,7 +730,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
 
     fun updateCompetitionStatus(id: String, status: CompetitionStatus) {
         create.update(CompetitionProperties.COMPETITION_PROPERTIES)
-                .set(CompetitionProperties.COMPETITION_PROPERTIES.STATUS, status.ordinal)
+                .set(CompetitionProperties.COMPETITION_PROPERTIES.STATUS, status.name)
                 .where(CompetitionProperties.COMPETITION_PROPERTIES.ID.eq(id))
                 .execute()
     }
@@ -801,7 +801,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                         } +
                         updates.map { f ->
                             create.update(FightDescription.FIGHT_DESCRIPTION)
-                                    .set(FightDescription.FIGHT_DESCRIPTION.STATUS, f.status?.ordinal)
+                                    .set(FightDescription.FIGHT_DESCRIPTION.STATUS, f.status?.name)
                                     .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(f.id))
                         }).execute()
     }
@@ -862,7 +862,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
 
     fun updateStageStatus(stageId: String, status: StageStatus) {
         create.update(StageDescriptor.STAGE_DESCRIPTOR)
-                .set(StageDescriptor.STAGE_DESCRIPTOR.STAGE_STATUS, status.ordinal)
+                .set(StageDescriptor.STAGE_DESCRIPTOR.STAGE_STATUS, status.name)
                 .where(StageDescriptor.STAGE_DESCRIPTOR.ID.eq(stageId))
                 .execute()
     }

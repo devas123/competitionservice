@@ -84,6 +84,7 @@ class TestDataGenerationUtils(private val fightsGenerateService: FightsService) 
                 .setStageOrder(0)
                 .setStageStatus(StageStatus.APPROVED)
                 .setStageResultDescriptor(StageResultDescriptorDTO()
+                        .setFightResultOptions(FightResultOptionDTO.values.toTypedArray())
                         .setId(stageId))
                 .setInputDescriptor(StageInputDescriptorDTO().setId(stageId).setNumberOfCompetitors(numberOfCompetitors))
     }

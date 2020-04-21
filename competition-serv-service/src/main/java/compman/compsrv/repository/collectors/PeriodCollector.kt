@@ -38,7 +38,7 @@ class PeriodCollector(private val periodId: String) : Collector<Record,
     private fun scheduleEntryDTO(u: Record): ScheduleEntryDTO {
         return ScheduleEntryDTO()
                 .setOrder(u[ScheduleEntry.SCHEDULE_ENTRY.SCHEDULE_ORDER])
-                .setEntryType(u[ScheduleEntry.SCHEDULE_ENTRY.ENTRY_TYPE]?.let { ScheduleEntryType.values()[it] })
+                .setEntryType(u[ScheduleEntry.SCHEDULE_ENTRY.ENTRY_TYPE]?.let { ScheduleEntryType.valueOf(it) })
                 .setEndTime(u[ScheduleEntry.SCHEDULE_ENTRY.END_TIME]?.toInstant())
                 .setStartTime(u[ScheduleEntry.SCHEDULE_ENTRY.START_TIME]?.toInstant())
                 .setDescription(u[ScheduleEntry.SCHEDULE_ENTRY.DESCRIPTION])
@@ -51,7 +51,7 @@ class PeriodCollector(private val periodId: String) : Collector<Record,
 
     private fun scheduleRequirement(u: Record): ScheduleRequirementDTO {
         return ScheduleRequirementDTO()
-                .setEntryType(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_TYPE]?.let { ScheduleRequirementType.values()[it] })
+                .setEntryType(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_TYPE]?.let { ScheduleRequirementType.valueOf(it) })
                 .setEndTime(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.END_TIME]?.toInstant())
                 .setStartTime(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.START_TIME]?.toInstant())
                 .setMatId(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.MAT_ID])

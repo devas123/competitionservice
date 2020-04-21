@@ -145,7 +145,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                 }.collectList().block().orEmpty()
                 val fightResultOptions = fightResultOptionDao.fetchByStageId(fight.stageId)?.map { it.toDTO() }
                         .orEmpty()
-                val stageResults = fightsGenerateService.buildStageResults(BracketType.values()[stage.bracketType], StageStatus.FINISHED, StageType.values()[stage.stageType],
+                val stageResults = fightsGenerateService.buildStageResults(BracketType.valueOf(stage.bracketType), StageStatus.FINISHED, StageType.valueOf(stage.stageType),
                         fightsWithResult, stage.id!!, stage.competitionId, fightResultOptions)
                 listOf(mapper.createEvent(command, EventType.DASHBOARD_STAGE_RESULT_SET,
                         StageResultSetPayload()
@@ -163,7 +163,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
             val fight = fightCrudRepository.findById(payload.fightId)!!
             val periodId = fight.period
             when (fight.status) {
-                FightStatus.IN_PROGRESS.ordinal, FightStatus.FINISHED.ordinal -> {
+                FightStatus.IN_PROGRESS.name, FightStatus.FINISHED.name -> {
                     listOf(mapper.createErrorEvent(command, "Cannot move fight that is finished or in progress."))
                 }
                 else -> {

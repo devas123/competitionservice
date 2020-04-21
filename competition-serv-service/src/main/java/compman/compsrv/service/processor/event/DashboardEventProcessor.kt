@@ -98,7 +98,7 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
                     targetScore.points ?: 0,
                     targetScore.placeholderId ?: UUID.randomUUID().toString(),
                     targetScore.parentFightId ?: a.fromFightId,
-                    targetScore.parentReferenceType ?: a.referenceType?.ordinal,
+                    targetScore.parentReferenceType ?: a.referenceType?.name,
                     a.competitorId,
                     targetScore.compscoreFightDescriptionId ?: a.toFightId,
                     targetScore.compScoreOrder!!

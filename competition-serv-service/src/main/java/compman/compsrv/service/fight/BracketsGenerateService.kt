@@ -41,6 +41,15 @@ class BracketsGenerateService : FightsService() {
                 "Round ${currentRound + 1}, fight #${index + 1}", null)
     }
 
+    fun getPriority(roundType: StageRoundType?) = when (roundType) {
+        StageRoundType.GRAND_FINAL -> 0
+        StageRoundType.THIRD_PLACE_FIGHT -> 1
+        StageRoundType.WINNER_BRACKETS -> 2
+        StageRoundType.LOSER_BRACKETS -> 3
+        StageRoundType.GROUP -> 4
+        else -> Int.MAX_VALUE
+    }
+
     fun createScores(ids: List<String>, refTypes: List<FightReferenceType>): Array<CompScoreDTO> {
         assert(ids.size == refTypes.size || refTypes.size == 1) { "The sizes of ids and refTypes should match, or there should be exactly one refType." }
         return if (ids.size == refTypes.size) {
@@ -165,7 +174,7 @@ class BracketsGenerateService : FightsService() {
                     //and the losers of the fights from the previous winner round
                     val winnerRoundFights = winnerFights.filter { it.round == currentWinnerRound }
                     assert(winnerRoundFights.size == previousLoserRoundFights.size)
-                    val allFights = (winnerRoundFights + previousLoserRoundFights).sortedBy { it.numberInRound * 10 + it.roundType?.ordinal!! }
+                    val allFights = (winnerRoundFights + previousLoserRoundFights).sortedBy { it.numberInRound * 10 + getPriority(it.roundType) }
                     createConnectedTripletsFrom(allFights, currentLoserRoundFights, connectLoseWin)
                 }
             }
@@ -428,9 +437,9 @@ class BracketsGenerateService : FightsService() {
         val competitorIds = getCompetitorsSetFromFights(fights)
         val lastRound = getMaxRound(fights)
         val lastRoundFights = fights.filter { it.round == lastRound }
-        val lastRoundWinners = lastRoundFights.mapNotNull(FightsService.Companion::getWinnerId).toSet()
+        val lastRoundWinners = lastRoundFights.mapNotNull(Companion::getWinnerId).toSet()
         val lastRoundLosers = lastRoundFights
-                .mapNotNull(FightsService.Companion::getLoserId).toSet()
+                .mapNotNull(Companion::getLoserId).toSet()
 
         fun calculateLoserPlace(round: Int): Int {
             val diff = lastRound - round

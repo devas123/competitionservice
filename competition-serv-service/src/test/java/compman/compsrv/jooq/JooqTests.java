@@ -1,9 +1,6 @@
 package compman.compsrv.jooq;
 
-import compman.compsrv.model.dto.brackets.AdditionalGroupSortingDescriptorDTO;
-import compman.compsrv.model.dto.brackets.GroupSortDirection;
-import compman.compsrv.model.dto.brackets.GroupSortSpecifier;
-import compman.compsrv.model.dto.brackets.StageDescriptorDTO;
+import compman.compsrv.model.dto.brackets.*;
 import compman.compsrv.model.dto.competition.*;
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO;
 import compman.compsrv.model.dto.schedule.PeriodDTO;
@@ -154,7 +151,7 @@ public class JooqTests {
                     .setCategories(new CategoryStateDTO[]{})
                     .setId(competitionId)
                     .setProperties(competitionPropertiesDTO));
-            List<Pair<StageDescriptorDTO, List<FightDescriptionDTO>>> fights = categories.stream().map(cat -> {
+            List<Pair<StageDescriptorDTO, List<FightDescriptionDTO>>> stagesToFights = categories.stream().map(cat -> {
                 List<CompetitorDTO> competitors = FightsService.Companion.generateRandomCompetitorsForCategory(competitorNumbers, 10, cat.getSecond(), competitionId);
                 StageDescriptorDTO stage = testDataGenerationUtils.createSingleEliminationStage(competitionId, cat.getSecond().getId(), cat.getFirst(), competitorNumbers);
                 jooqRepository.saveCompetitors(competitors);
@@ -162,15 +159,16 @@ public class JooqTests {
                         stage, competitors, BigDecimal.valueOf(fightDuration)));
             })
                     .collect(Collectors.toList());
-            ScheduleDTO schedule = testDataGenerationUtils.generateSchedule(categories, fights, competitionId, competitorNumbers);
+            ScheduleDTO schedule = testDataGenerationUtils.generateSchedule(categories, stagesToFights, competitionId, competitorNumbers);
             categories.forEach(cat -> jooqRepository.saveCategoryDescriptor(cat.getSecond(), competitionId));
             List<StageDescriptorDTO> stages = new ArrayList<>();
-            for (Pair<StageDescriptorDTO, List<FightDescriptionDTO>> fight : fights) {
+            for (Pair<StageDescriptorDTO, List<FightDescriptionDTO>> fight : stagesToFights) {
                 StageDescriptorDTO first = fight.getFirst();
                 stages.add(first);
             }
             jooqRepository.saveStages(stages);
-            jooqRepository.saveFights(fights.stream().flatMap(p -> p.getSecond().stream()).collect(Collectors.toList()));
+            jooqRepository.saveResultDescriptors(stages.stream().map(s -> new Pair<>(s.getId(), s.getStageResultDescriptor())).collect(Collectors.toList()));
+            jooqRepository.saveFights(stagesToFights.stream().flatMap(p -> p.getSecond().stream()).collect(Collectors.toList()));
             jooqRepository.saveSchedule(schedule);
             List<PeriodDTO> periods = jooqRepository.fetchPeriodsByCompetitionId(competitionId).collectList().block();
             List<MatDescriptionDTO> mats = jooqRepository.fetchMatsByCompetitionId(competitionId, true).collectList().block();

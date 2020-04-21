@@ -54,7 +54,7 @@ class JooqMappers {
             Supplier { CategoryDescriptorDTO() }, BiConsumer<CategoryDescriptorDTO, Record> { t, it ->
         val restriction = CategoryRestrictionDTO()
                 .setId(it[CategoryRestriction.CATEGORY_RESTRICTION.ID])
-                .setType(it[CategoryRestriction.CATEGORY_RESTRICTION.TYPE]?.let { CategoryRestrictionType.values()[it] })
+                .setType(it[CategoryRestriction.CATEGORY_RESTRICTION.TYPE]?.let { CategoryRestrictionType.valueOf(it) })
                 .setName(it[CategoryRestriction.CATEGORY_RESTRICTION.NAME])
                 .setMinValue(it[CategoryRestriction.CATEGORY_RESTRICTION.MIN_VALUE])
                 .setMaxValue(it[CategoryRestriction.CATEGORY_RESTRICTION.MAX_VALUE])
@@ -84,7 +84,7 @@ class JooqMappers {
                             .setPlaceholderId(it[CompScore.COMP_SCORE.PLACEHOLDER_ID])
                             .setOrder(it[CompScore.COMP_SCORE.COMP_SCORE_ORDER])
                             .setCompetitorId(it[CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID])
-                            .setParentReferenceType(it[CompScore.COMP_SCORE.PARENT_REFERENCE_TYPE]?.let { k -> FightReferenceType.values()[k] })
+                            .setParentReferenceType(it[CompScore.COMP_SCORE.PARENT_REFERENCE_TYPE]?.let { k -> FightReferenceType.valueOf(k) })
                             .setParentFightId(it[CompScore.COMP_SCORE.PARENT_FIGHT_ID])
                     arrayOf(cs)
                 } else {
@@ -129,8 +129,8 @@ class JooqMappers {
                     .setStageId(u[FightDescription.FIGHT_DESCRIPTION.STAGE_ID])
                     .setGroupId(u[FightDescription.FIGHT_DESCRIPTION.GROUP_ID])
                     .setRound(u[FightDescription.FIGHT_DESCRIPTION.ROUND])
-                    .setStatus(u[FightDescription.FIGHT_DESCRIPTION.STATUS]?.let { FightStatus.values()[it] })
-                    .setRoundType(u[FightDescription.FIGHT_DESCRIPTION.ROUND_TYPE]?.let { StageRoundType.values()[it] })
+                    .setStatus(u[FightDescription.FIGHT_DESCRIPTION.STATUS]?.let { FightStatus.valueOf(it) })
+                    .setRoundType(u[FightDescription.FIGHT_DESCRIPTION.ROUND_TYPE]?.let { StageRoundType.valueOf(it) })
                     .setNumberOnMat(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT]).setScores(compScore)
 
 

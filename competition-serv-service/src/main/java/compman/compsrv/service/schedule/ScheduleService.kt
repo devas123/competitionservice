@@ -23,7 +23,7 @@ class ScheduleService {
                 return false
             }
             if (cs.any { !it.parentFightId.isNullOrBlank() }) return false
-            return f.status == FightStatus.UNCOMPLETABLE.ordinal || f.status == FightStatus.WALKOVER.ordinal
+            return f.status == FightStatus.UNCOMPLETABLE.name || f.status == FightStatus.WALKOVER.name
         }
 
         fun getAllFightsParents(fightScores: List<CompScore>, getScoresForFight: (fightId: String) -> List<CompScore>?): List<String> {

@@ -33,7 +33,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                 .groupBy(CompetitorCategories.COMPETITOR_CATEGORIES.CATEGORIES_ID)
     }
 
-    fun saveCompetitionPropertiesQuery(properties: CompetitionPropertiesDTO): InsertValuesStep12<CompetitionPropertiesRecord, String, String, Boolean, Boolean, Timestamp, Timestamp, Boolean, String, String, String, Int, Long> {
+    fun saveCompetitionPropertiesQuery(properties: CompetitionPropertiesDTO): InsertValuesStep12<CompetitionPropertiesRecord, String, String, Boolean, Boolean, Timestamp, Timestamp, Boolean, String, String, String, String, Long>? {
         return create.insertInto(CompetitionProperties.COMPETITION_PROPERTIES,
                 CompetitionProperties.COMPETITION_PROPERTIES.ID,
                 CompetitionProperties.COMPETITION_PROPERTIES.COMPETITION_NAME,
@@ -58,7 +58,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                         properties.emailTemplate,
                         properties.creatorId,
                         properties.timeZone,
-                        properties.status?.ordinal,
+                        properties.status?.name,
                         properties.creationTimestamp)
     }
 
@@ -85,7 +85,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                         .from(CompScore.COMP_SCORE)
                         .where(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.isNotNull)
                         .and(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.eq(FightDescription.FIGHT_DESCRIPTION.ID)).asField<Int>().ge(2))
-                .and(FightDescription.FIGHT_DESCRIPTION.STATUS.`in`(statuses.map { it.ordinal }))
+                .and(FightDescription.FIGHT_DESCRIPTION.STATUS.`in`(statuses.map { it.name }))
                 .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT,
                         FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND)
     }
@@ -186,7 +186,7 @@ class JooqQueryProvider(private val create: DSLContext) {
         }
     }
 
-    private fun insertPeriodsScheduleEntries(per: PeriodDTO): List<InsertValuesStep10<ScheduleEntryRecord, String, String, BigDecimal, Timestamp, Int, Timestamp, Int, String, String, String>> {
+    private fun insertPeriodsScheduleEntries(per: PeriodDTO): List<InsertValuesStep10<ScheduleEntryRecord, String, String, BigDecimal, Timestamp, Int, Timestamp, String, String, String, String>> {
         return per.scheduleEntries.map { sch ->
             create.insertInto(ScheduleEntry.SCHEDULE_ENTRY,
                     ScheduleEntry.SCHEDULE_ENTRY.ID,
@@ -205,7 +205,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                             sch.startTime?.toTimestamp(),
                             sch.order,
                             sch.endTime?.toTimestamp(),
-                            sch.entryType?.ordinal,
+                            sch.entryType?.name,
                             sch.description,
                             sch.name,
                             sch.color)
@@ -255,7 +255,7 @@ class JooqQueryProvider(private val create: DSLContext) {
             this.id = schedReqDTO.id
             this.matId = schedReqDTO.matId
             this.periodId = schedReqDTO.periodId
-            this.entryType = schedReqDTO.entryType?.ordinal
+            this.entryType = schedReqDTO.entryType?.name
             this.force = schedReqDTO.isForce
             this.startTime = schedReqDTO.startTime?.toTimestamp()
             this.endTime = schedReqDTO.endTime?.toTimestamp()
@@ -271,7 +271,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                 .onDuplicateKeyUpdate()
                 .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.COLOR, schedReqDTO.color)
                 .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_ORDER, schedReqDTO.entryOrder)
-                .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_TYPE, schedReqDTO.entryType?.ordinal)
+                .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_TYPE, schedReqDTO.entryType?.name)
                 .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.START_TIME, schedReqDTO.startTime?.toTimestamp())
                 .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.END_TIME, schedReqDTO.endTime?.toTimestamp())
                 .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.DURATION_MINUTES, schedReqDTO.durationMinutes)
@@ -299,7 +299,7 @@ class JooqQueryProvider(private val create: DSLContext) {
 
 
     fun saveAdditionalGroupSortingDescriptorQuery(stageId: String, agsd: AdditionalGroupSortingDescriptorDTO): InsertReturningStep<AdditionalGroupSortingDescriptorRecord> =
-            AdditionalGroupSortingDescriptorRecord(stageId, agsd.groupSortDirection?.ordinal, agsd.groupSortSpecifier?.ordinal).let {
+            AdditionalGroupSortingDescriptorRecord(stageId, agsd.groupSortDirection?.name, agsd.groupSortSpecifier?.name).let {
                 create.insertInto(AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR,
                         *it.fields()).values(it.value1(), it.value2(), it.value3()).onDuplicateKeyIgnore()
             }

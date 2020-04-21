@@ -22,7 +22,7 @@ fun CompetitorDTO.toPojo() =
             cmp.lastName = this.lastName
             cmp.competitionId = this.competitionId
             cmp.promo = this.promo
-            cmp.registrationStatus = this.registrationStatus?.let { RegistrationStatus.valueOf(it).ordinal }
+            cmp.registrationStatus = this.registrationStatus
             cmp.userId = this.userId
         }
 
@@ -34,7 +34,7 @@ fun SchedulePeriod.toDTO(scheduleEntries: Array<ScheduleEntryDTO>): PeriodDTO = 
 
 
 
-fun CategoryRestriction.toDTO(): CategoryRestrictionDTO = CategoryRestrictionDTO().setMaxValue(maxValue).setMinValue(minValue).setName(name).setType(CategoryRestrictionType.values()[type])
+fun CategoryRestriction.toDTO(): CategoryRestrictionDTO = CategoryRestrictionDTO().setMaxValue(maxValue).setMinValue(minValue).setName(name).setType(CategoryRestrictionType.valueOf(type))
         .setUnit(unit).apply {
             id = IDGenerator.restrictionId(this)
         }
@@ -98,7 +98,7 @@ fun CompetitionProperties.toDTO(staffIds: Array<String>?, promoCodes: Array<Prom
                 .setTimeZone(timeZone)
                 .setRegistrationInfo(getRegistrationInfo(id))
                 .setCreationTimestamp(creationTimestamp)
-                .setStatus(CompetitionStatus.values()[status])
+                .setStatus(CompetitionStatus.valueOf(status))
 
 fun MatDescription.toDTO(): MatDescriptionDTO = MatDescriptionDTO().setId(id).setName(name).setPeriodId(periodId).setMatOrder(matOrder)
 
@@ -112,7 +112,7 @@ fun Competitor.toDTO(categories: Array<String>): CompetitorDTO = CompetitorDTO()
         .setFirstName(firstName)
         .setLastName(lastName)
         .setPromo(promo)
-        .setRegistrationStatus(registrationStatus?.let { RegistrationStatus.values()[it].name })
+        .setRegistrationStatus(registrationStatus?.let { RegistrationStatus.valueOf(it).name })
         .setUserId(userId)
 
 fun CategoryDescriptor.toDTO(competitors: Array<String>, restrictions: Array<CategoryRestrictionDTO>): CategoryDescriptorDTO = CategoryDescriptorDTO()
@@ -124,7 +124,7 @@ fun CategoryDescriptor.toDTO(competitors: Array<String>, restrictions: Array<Cat
 
 fun StageInputDescriptor.toDTO(selectors: Array<CompetitorSelectorDTO>): StageInputDescriptorDTO = StageInputDescriptorDTO()
         .setId(id)
-        .setDistributionType(DistributionType.values()[distributionType])
+        .setDistributionType(DistributionType.valueOf(distributionType))
         .setNumberOfCompetitors(numberOfCompetitors).setSelectors(selectors)
 
 fun CompetitorStageResult.toDTO(): CompetitorStageResultDTO = CompetitorStageResultDTO()
@@ -135,8 +135,8 @@ fun CompetitorStageResult.toDTO(): CompetitorStageResultDTO = CompetitorStageRes
         .setRound(round)
         .setCompetitorId(competitorId)
 
-fun CompetitorSelector.toDTO(selectorValue: Array<String>) = CompetitorSelectorDTO(id, applyToStageId, LogicalOperator.values()[logicalOperator],
-        SelectorClassifier.values()[classifier], OperatorType.values()[operator], selectorValue)
+fun CompetitorSelector.toDTO(selectorValue: Array<String>) = CompetitorSelectorDTO(id, applyToStageId, LogicalOperator.valueOf(logicalOperator),
+        SelectorClassifier.valueOf(classifier), OperatorType.valueOf(`operator`), selectorValue)
 
 
 fun CompScoreDTO.toRecord(fightId: String): CompScoreRecord =
@@ -147,7 +147,7 @@ fun CompScoreDTO.toRecord(fightId: String): CompScoreRecord =
             it.penalties = this.score?.penalties
             it.placeholderId = this.placeholderId
             it.parentFightId = this.parentFightId
-            it.parentReferenceType = this.parentReferenceType?.ordinal
+            it.parentReferenceType = this.parentReferenceType?.name
             it.compscoreCompetitorId = this.competitorId
             it.compscoreFightDescriptionId = fightId
         }
@@ -168,9 +168,9 @@ fun FightDescriptionDTO.toPojo(): FightDescription =
             it.startTime = this.startTime?.let { instant -> Timestamp.from(instant) }
             it.fightName = this.fightName
             it.stageId = this.stageId
-            it.status = this.status?.ordinal
+            it.status = this.status?.name
             it.round = this.round
-            it.roundType = this.roundType?.ordinal
+            it.roundType = this.roundType?.name
             it.groupId = this.groupId
             it.invalid = this.invalid
         }
@@ -183,7 +183,7 @@ fun CompScoreDTO.toPojo(fightId: String): CompScore {
         cs.compscoreCompetitorId = this.competitorId
         cs.compscoreFightDescriptionId = fightId
         cs.parentFightId = this.parentFightId
-        cs.parentReferenceType = this.parentReferenceType?.ordinal
+        cs.parentReferenceType = this.parentReferenceType?.name
         cs.penalties = this.score?.penalties
         cs.points = this.score?.points
     }

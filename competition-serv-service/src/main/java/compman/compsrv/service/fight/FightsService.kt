@@ -169,7 +169,7 @@ abstract class FightsService {
             val fightScores = getFightScores(fightId)
             log.info("Check if can produce reference: $fightScores")
             val parentFights = fightScores
-                    ?.map { it.parentReferenceType?.let { r -> FightReferenceType.values()[r] } to it.parentFightId }.orEmpty()
+                    ?.map { it.parentReferenceType?.let { r -> FightReferenceType.valueOf(r) } to it.parentFightId }.orEmpty()
                     .filter { it.first != null && !it.second.isNullOrBlank() }
             when {
                 fightScores?.withCompetitors().isNullOrEmpty() -> {
@@ -206,7 +206,7 @@ abstract class FightsService {
                 acc && when {
                     !sc.compscoreCompetitorId.isNullOrBlank() -> true
                     !sc.parentFightId.isNullOrBlank() && sc.parentReferenceType != null -> {
-                        checkIfFightCanProduceReference(sc.parentFightId, FightReferenceType.values()[sc.parentReferenceType], getFightScores)
+                        checkIfFightCanProduceReference(sc.parentFightId, FightReferenceType.valueOf(sc.parentReferenceType), getFightScores)
                     }
                     else -> false
                 }

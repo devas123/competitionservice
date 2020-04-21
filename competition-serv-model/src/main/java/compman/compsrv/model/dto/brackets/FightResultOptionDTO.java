@@ -14,9 +14,17 @@ import java.util.List;
 @NoArgsConstructor
 @Accessors(chain = true)
 public class FightResultOptionDTO {
-   public static final FightResultOptionDTO WIN_POINTS = new FightResultOptionDTO().setId("_default_win_points").setWinnerPoints(BigDecimal.valueOf(3)).setWinnerAdditionalPoints(BigDecimal.valueOf(1)).setDescription("Win by points")
+   public static final FightResultOptionDTO WIN_POINTS = new FightResultOptionDTO()
+           .setId("_default_win_points")
+           .setWinnerPoints(BigDecimal.valueOf(3))
+           .setWinnerAdditionalPoints(BigDecimal.valueOf(1))
+           .setDescription("Win by points")
            .setShortName("Win points");
-   public static final FightResultOptionDTO WIN_SUBMISSION = new FightResultOptionDTO().setId("_default_win_submission").setWinnerPoints(BigDecimal.valueOf(3)).setWinnerAdditionalPoints(BigDecimal.valueOf(2)).setDescription("Win by submission")
+   public static final FightResultOptionDTO WIN_SUBMISSION = new FightResultOptionDTO()
+           .setId("_default_win_submission")
+           .setWinnerPoints(BigDecimal.valueOf(3))
+           .setWinnerAdditionalPoints(BigDecimal.valueOf(2))
+           .setDescription("Win by submission")
            .setShortName("Win submission");
    public static final FightResultOptionDTO WIN_DECISION = new FightResultOptionDTO().setId("_default_win_decision").setWinnerPoints(BigDecimal.valueOf(3)).setWinnerAdditionalPoints(BigDecimal.valueOf(0)).setDescription("Win by decision")
            .setShortName("Win decision");
@@ -56,7 +64,7 @@ public class FightResultOptionDTO {
     private String shortName;
     private boolean draw;
     private BigDecimal winnerPoints;
-    private BigDecimal winnerAdditionalPoints;
-    private BigDecimal loserPoints;
-    private BigDecimal loserAdditionalPoints;
+    private BigDecimal winnerAdditionalPoints = BigDecimal.ZERO;
+    private BigDecimal loserPoints = BigDecimal.ZERO;
+    private BigDecimal loserAdditionalPoints = BigDecimal.ZERO;
 }

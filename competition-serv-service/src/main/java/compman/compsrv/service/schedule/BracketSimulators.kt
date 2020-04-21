@@ -62,10 +62,10 @@ class DoubleEliminationSimulator(val stageId: String, val getFightScores: (id: S
                     .sortedBy { it.first }
                     .fold(emptyList()) { acc, pair ->
                         val byRoundType = pair.second.groupBy { it.roundType!! }.toList()
-                        acc + listOf(byRoundType.filter { it.first == StageRoundType.WINNER_BRACKETS.ordinal }.flatMap { it.second }) +
-                                listOf(byRoundType.filter { it.first == StageRoundType.LOSER_BRACKETS.ordinal }.flatMap { it.second }) +
-                                listOf(byRoundType.filter { it.first == StageRoundType.THIRD_PLACE_FIGHT.ordinal }.flatMap { it.second }) +
-                                listOf(byRoundType.filter { it.first == StageRoundType.GRAND_FINAL.ordinal }.flatMap { it.second })
+                        acc + listOf(byRoundType.filter { it.first == StageRoundType.WINNER_BRACKETS.name }.flatMap { it.second }) +
+                                listOf(byRoundType.filter { it.first == StageRoundType.LOSER_BRACKETS.name }.flatMap { it.second }) +
+                                listOf(byRoundType.filter { it.first == StageRoundType.THIRD_PLACE_FIGHT.name }.flatMap { it.second }) +
+                                listOf(byRoundType.filter { it.first == StageRoundType.GRAND_FINAL.name }.flatMap { it.second })
                     }
         } else {
             emptyList()

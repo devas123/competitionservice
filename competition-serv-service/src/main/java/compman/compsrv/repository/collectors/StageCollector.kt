@@ -56,14 +56,14 @@ class StageCollector : Collector<Record, StageDescriptorAccumulator, StageDescri
     override fun accumulator(): BiConsumer<StageDescriptorAccumulator, Record> {
         return BiConsumer { t, u ->
             t.stageDescriptorDTO.id = u[StageDescriptor.STAGE_DESCRIPTOR.ID]
-            t.stageDescriptorDTO.bracketType = BracketType.values()[u[StageDescriptor.STAGE_DESCRIPTOR.BRACKET_TYPE]]
+            t.stageDescriptorDTO.bracketType = BracketType.valueOf(u[StageDescriptor.STAGE_DESCRIPTOR.BRACKET_TYPE])
             t.stageDescriptorDTO.categoryId = u[StageDescriptor.STAGE_DESCRIPTOR.CATEGORY_ID]
             t.stageDescriptorDTO.competitionId = u[StageDescriptor.STAGE_DESCRIPTOR.COMPETITION_ID]
             t.stageDescriptorDTO.hasThirdPlaceFight = u[StageDescriptor.STAGE_DESCRIPTOR.HAS_THIRD_PLACE_FIGHT]
             t.stageDescriptorDTO.name = u[StageDescriptor.STAGE_DESCRIPTOR.NAME]
-            t.stageDescriptorDTO.stageType = StageType.values()[u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_TYPE]]
+            t.stageDescriptorDTO.stageType = StageType.valueOf(u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_TYPE])
             t.stageDescriptorDTO.stageOrder = u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_ORDER]
-            t.stageDescriptorDTO.stageStatus = u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_STATUS]?.let { StageStatus.values()[it] }
+            t.stageDescriptorDTO.stageStatus = u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_STATUS]?.let { StageStatus.valueOf(it) }
             t.stageDescriptorDTO.waitForPrevious = u[StageDescriptor.STAGE_DESCRIPTOR.WAIT_FOR_PREVIOUS]
 
             if (!u[FightResultOption.FIGHT_RESULT_OPTION.ID].isNullOrBlank()
@@ -91,28 +91,28 @@ class StageCollector : Collector<Record, StageDescriptorAccumulator, StageDescri
             if (!u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.STAGE_ID].isNullOrBlank()
                     && u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_SPECIFIER] != null &&
                     t.additionalGroupSorting.none {
-                        it.groupSortSpecifier?.ordinal == u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_SPECIFIER]
+                        it.groupSortSpecifier?.name == u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_SPECIFIER]
                     }) {
                 t.additionalGroupSorting.add(AdditionalGroupSortingDescriptorDTO()
                         .setGroupSortDirection(u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_DIRECTION]?.let {
-                            GroupSortDirection.values()[it]
+                            GroupSortDirection.valueOf(it)
                         })
                         .setGroupSortSpecifier(u[AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR.GROUP_SORT_SPECIFIER]?.let {
-                            GroupSortSpecifier.values()[it]
+                            GroupSortSpecifier.valueOf(it)
                         }))
             }
 
             t.stageInputs.inputDescriptor.id = u[StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.ID]
             t.stageInputs.inputDescriptor.numberOfCompetitors = u[StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.NUMBER_OF_COMPETITORS]
-            t.stageInputs.inputDescriptor.distributionType = u[StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.DISTRIBUTION_TYPE]?.let { DistributionType.values()[it] }
+            t.stageInputs.inputDescriptor.distributionType = u[StageInputDescriptor.STAGE_INPUT_DESCRIPTOR.DISTRIBUTION_TYPE]?.let { DistributionType.valueOf(it) }
             if (t.stageInputs.competitorSelectorAccumulators.none { it.competitorSelector.id == u[CompetitorSelector.COMPETITOR_SELECTOR.ID] }
                     && !u[CompetitorSelector.COMPETITOR_SELECTOR.ID].isNullOrBlank()) {
                 t.stageInputs.competitorSelectorAccumulators.add(CompetitorSelectorAccumulator(CompetitorSelectorDTO()
                         .setId(u[CompetitorSelector.COMPETITOR_SELECTOR.ID])
                         .setApplyToStageId(u[CompetitorSelector.COMPETITOR_SELECTOR.APPLY_TO_STAGE_ID])
-                        .setClassifier(u[CompetitorSelector.COMPETITOR_SELECTOR.CLASSIFIER]?.let { SelectorClassifier.values()[it] })
-                        .setLogicalOperator(u[CompetitorSelector.COMPETITOR_SELECTOR.LOGICAL_OPERATOR]?.let { LogicalOperator.values()[it] })
-                        .setOperator(u[CompetitorSelector.COMPETITOR_SELECTOR.OPERATOR]?.let { OperatorType.values()[it] })).apply { selectorValues.add(u[CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE.SELECTOR_VALUE]) })
+                        .setClassifier(u[CompetitorSelector.COMPETITOR_SELECTOR.CLASSIFIER]?.let { SelectorClassifier.valueOf(it) })
+                        .setLogicalOperator(u[CompetitorSelector.COMPETITOR_SELECTOR.LOGICAL_OPERATOR]?.let { LogicalOperator.valueOf(it) })
+                        .setOperator(u[CompetitorSelector.COMPETITOR_SELECTOR.OPERATOR]?.let { OperatorType.valueOf(it) })).apply { selectorValues.add(u[CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE.SELECTOR_VALUE]) })
             } else if (!u[CompetitorSelector.COMPETITOR_SELECTOR.ID].isNullOrBlank()) {
                 t.stageInputs.competitorSelectorAccumulators.find { it.competitorSelector.id == u[CompetitorSelector.COMPETITOR_SELECTOR.ID] }
                         ?.selectorValues?.add(u[CompetitorSelectorSelectorValue.COMPETITOR_SELECTOR_SELECTOR_VALUE.SELECTOR_VALUE])
