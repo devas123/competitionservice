@@ -31,8 +31,8 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
         )
     }
 
-    override fun applyEvent(event: EventDTO): List<EventDTO> {
-        return when (event.type) {
+    override fun applyEvent(event: EventDTO) {
+        when (event.type) {
             EventType.COMPETITORS_PROPAGATED_TO_STAGE -> {
                 executeValidated(event, CompetitorsPropagatedToStagePayload::class.java) { payload, _ ->
                     val propagations = payload.propagations

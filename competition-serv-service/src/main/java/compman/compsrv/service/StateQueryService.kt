@@ -1,7 +1,8 @@
 package compman.compsrv.service
 
-import arrow.core.Either
+import arrow.core.Option
 import arrow.fx.IO
+import arrow.fx.fix
 import com.compmanager.compservice.jooq.tables.*
 import com.compmanager.compservice.jooq.tables.daos.*
 import compman.compsrv.cluster.ClusterSession
@@ -29,7 +30,6 @@ import org.springframework.web.client.RestTemplate
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.*
-import javax.transaction.Transactional
 import kotlin.math.max
 
 @Component
@@ -40,7 +40,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
                         private val registrationInfoDao: RegistrationInfoDao,
                         private val staffDao: CompetitionPropertiesStaffIdsDao,
                         private val promoCodeDao: PromoCodeDao,
-                        private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
+                        private val competitionPropertiesDao: CompetitionPropertiesDao,
                         private val fightResultOptionDao: FightResultOptionDao,
                         private val fightDescriptionDao: FightDescriptionDao,
                         private val competitorCrudRepository: CompetitorDao) {
@@ -141,7 +141,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getFightResultOptions(competitionId: String, fightId: String) = localOrRemote(competitionId, {
         val fight = fightDescriptionDao.findById(fightId)
-        fight?.let { fightResultOptionDao.fetchByStageId(it.stageId)?.map{  fr -> fr.toDTO() } }?.toTypedArray()
+        fight?.let { fightResultOptionDao.fetchByStageId(it.stageId)?.map { fr -> fr.toDTO() } }?.toTypedArray()
     },
             { _, restTemplate, urlPrefix ->
                 restTemplate.getForObject("$urlPrefix/api/v1/store/fightresultoptions?competitionId=$competitionId&fightId=$fightId", Array<FightResultOptionDTO>::class.java)
@@ -150,23 +150,19 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
     fun getCompetitionInfoTemplate(competitionId: String?): ByteArray? {
         return localOrRemote(competitionId,
-                { competitionPropertiesCrudRepository.findById(competitionId)?.competitionInfoTemplate },
+                { competitionPropertiesDao.findById(competitionId)?.competitionInfoTemplate },
                 { _, restTemplate, url ->
                     restTemplate.getForObject("$url/api/v1/store/infotemplate?competitionId=$competitionId", ByteArray::class.java)
                 }
         )
     }
 
-    fun getCompetitionProperties(competitionId: String): CompetitionPropertiesDTO? {
-        return localOrRemote(competitionId,
+    fun getCompetitionProperties(competitionId: String): IO<Option<CompetitionPropertiesDTO>> {
+        return localOrRemoteIo(competitionId,
                 {
                     log.info("Getting competition properties id $competitionId")
-
-                    val joinedColumnsFlat = jooqQueryProvider.getRegistrationGroupPeriodsQuery(competitionId)
-                            .fetchSize(200)
-                            .fetch()
-
-                    val result = competitionPropertiesCrudRepository.findById(competitionId)
+                    val joinedColumnsFlat = jooqQueryProvider.getRegistrationGroupPeriodsQuery(competitionId).fetch()
+                    val result = competitionPropertiesDao.findById(competitionId)
                             ?.toDTO(staffDao.fetchByCompetitionPropertiesId(competitionId)?.map { it.staffId }?.toTypedArray(),
                                     promoCodeDao.fetchByCompetitionId(competitionId)?.map { it.toDTO() }?.toTypedArray())
                             { regInfoId ->
@@ -226,34 +222,29 @@ class StateQueryService(private val clusterSession: ClusterSession,
         )
     }
 
-    fun <T> localOrRemote(competitionId: String?, ifLocal: () -> T?, ifRemote: (instanceAddress: Address, restTemplate: RestTemplate, urlPrefix: String) -> T?): T? {
-        var k: Either<Throwable, T?> = Either.left(RuntimeException("Request failed for competition $competitionId, see logs for details. "))
-        competitionId?.let { id ->
-            var retries = 3
-            do {
-                val instanceAddress = clusterSession.findProcessingMember(competitionId)
-                log.debug("Competition $id is processed by $instanceAddress")
-                instanceAddress?.let {
-                    k = IO {
-                        if (clusterSession.isLocal(instanceAddress)) {
-                            log.debug("Competition $competitionId is processed locally!")
-                            ifLocal.invoke()
-                        } else {
-                            log.debug("Competition $competitionId is processed by $instanceAddress")
-                            ifRemote.invoke(instanceAddress, restTemplate, clusterSession.getUrlPrefix(it.host(), it.port()))
-                        }
-                    }.attempt().unsafeRunSync().mapLeft {
-                        log.error("Error while doing a remote request.", it)
-                        clusterSession.invalidateMemberForCompetitionId(id)
-                        retries--
-                        it
-                    }
+    fun <T> localOrRemoteIo(competitionId: String?, ifLocal: () -> T?, ifRemote: (instanceAddress: Address, restTemplate: RestTemplate, urlPrefix: String) -> T?) =
+            competitionId?.let { id ->
+                val instanceAddress = clusterSession.findProcessingMember(id)
+                instanceAddress.flatMap { address ->
+                    (1..3).toList()
+                            .fold(IO.raiseError<T?>(RuntimeException("Request failed for competition $id, see logs for details. "))) { io, i ->
+                                io.redeem({
+                                    log.debug("Attempt $i")
+                                    clusterSession.invalidateMemberForCompetitionId(id)
+                                    if (clusterSession.isLocal(address)) {
+                                        log.info("Competition $competitionId is processed locally. Starting executing the logic.")
+                                        ifLocal()
+                                    } else {
+                                        log.debug("Competition $competitionId is processed by $address")
+                                        ifRemote(address, restTemplate, clusterSession.getUrlPrefix(address.host(), address.port()))
+                                    }
+                                }, { it }) }.fix()
                 }
-            } while (retries > 0 && k.isLeft())
-        }
-        return k.fold({ throw it }, {
-            it
-        })
+            }?.map { Option.fromNullable(it) } ?: IO.just(Option.empty())
+
+
+    fun <T> localOrRemote(competitionId: String?, ifLocal: () -> T?, ifRemote: (instanceAddress: Address, restTemplate: RestTemplate, urlPrefix: String) -> T?): T? {
+        return localOrRemoteIo(competitionId, ifLocal, ifRemote).attempt().unsafeRunSync().fold({ throw it }, { it.orNull() })
     }
 
     fun getSchedule(competitionId: String): ScheduleDTO? {

@@ -28,18 +28,4 @@ abstract class AbstractEventProcessor(val mapper: ObjectMapper, val validators: 
                     listOf(mapper.createErrorEvent(event, "Error during event processing: ${it.message}"))
                 }
     }
-    inline fun <reified T : Payload> executeWithEffects(event: EventDTO, payloadClass: Class<T>,
-                                                      crossinline logic: (payload: T, event: EventDTO) -> List<EventDTO>): List<EventDTO> {
-        val payload = mapper.getPayloadAs(event, payloadClass)!!
-        return kotlin.runCatching {
-            PayloadValidationRules
-                    .accumulateErrors { payload.validate(event, validators).fix() }
-                    .map { logic(payload, event) }
-                    .fold({ it.map { p -> mapper.createErrorEvent(event, p) }.all }, { it })
-        }
-                .getOrElse {
-                    log.error("Error during event execution: $event", it)
-                    listOf(mapper.createErrorEvent(event, "Error during event processing: ${it.message}"))
-                }
-    }
 }

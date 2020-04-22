@@ -351,8 +351,8 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
         create.batch(batch).execute()
     }
 
-    fun doInTransaction(f: (c: Configuration) -> Unit) {
-        create.transaction { configuration -> f.invoke(configuration) }
+    fun doInTransaction(f: (c: DSLContext) -> Unit) {
+        create.transaction { configuration -> f.invoke(DSL.using(configuration)) }
     }
 
     fun saveStages(stages: List<StageDescriptorDTO>): IntArray = create.batchInsert(stages.map { stage ->

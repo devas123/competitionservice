@@ -5,5 +5,5 @@ import compman.compsrv.model.events.EventType
 
 interface IEventProcessor {
     fun affectedEvents(): Set<EventType>
-    fun applyEvent(event: EventDTO): List<EventDTO>
+    fun applyEvent(event: EventDTO)
 }

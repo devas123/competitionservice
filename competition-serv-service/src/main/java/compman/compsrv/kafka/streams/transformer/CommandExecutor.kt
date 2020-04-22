@@ -31,6 +31,15 @@ class CommandExecutor(private val commandTransformer: CompetitionCommandTransfor
         private val log = LoggerFactory.getLogger("commandProcessingLog")
     }
 
+    val eventsFilterPredicate = { it: EventDTO -> when (it.type) {
+        EventType.ERROR_EVENT -> {
+            log.warn("Error event: $it")
+            false
+        }
+        EventType.DUMMY, EventType.INTERNAL_COMPETITION_INFO -> false
+        else -> true
+    }}
+
     @Transactional(propagation = Propagation.REQUIRED)
     fun handleMessage(m: ConsumerRecord<String, CommandDTO>, acknowledgment: Acknowledgment?, consumer: Consumer<*, *>?): List<EventDTO> {
         if (m.value() != null && m.key() != null) {
@@ -38,19 +47,31 @@ class CommandExecutor(private val commandTransformer: CompetitionCommandTransfor
             log.info("Processing command: $m")
             val events = commandTransformer.transform(m)
             log.info("Processing commands and applying events finished. Took ${Duration.ofMillis(System.currentTimeMillis() - start)}")
-            val filteredEvents = events.filter {
-                when (it.type) {
-                    EventType.ERROR_EVENT -> {
-                        log.warn("Error event: $it")
-                        false
-                    }
-                    EventType.DUMMY, EventType.INTERNAL_COMPETITION_INFO -> false
-                    else -> true
-                }
-            }
+            val filteredEvents = events.filter (eventsFilterPredicate)
             val startSaving = System.currentTimeMillis()
             jooqRepository.saveEvents(filteredEvents)
             log.info("Events saved: took ${Duration.ofMillis(System.currentTimeMillis() - startSaving)}")
+            return events
+        }
+        return emptyList()
+    }
+
+    override fun onMessage(m: ConsumerRecord<String, CommandDTO>, acknowledgment: Acknowledgment?, consumer: Consumer<*, *>?) {
+        val startHandle = System.currentTimeMillis()
+        val events = handleMessage(m, acknowledgment, consumer)
+        val filteredEvents = events.filter (eventsFilterPredicate)
+        log.info("All events handled, took ${Duration.ofMillis(System.currentTimeMillis() - startHandle)}. Starting sending callbacks.")
+        val latch = CountDownLatch(filteredEvents.size)
+        fun <T> callback() = { _: T -> latch.countDown() }
+        filteredEvents.asSequence().forEach {
+            template.send(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME, m.key(), it).addCallback(callback(), { ex ->
+                log.error("Exception when sending events to kafka.", ex)
+                throw ex
+            })
+        }
+        if (latch.await(10, TimeUnit.SECONDS)) {
+            log.info("All the events were processed. Sending commit offsets.")
+            acknowledgment?.acknowledge()
             log.info("Executing post-processing.")
             filteredEvents.asSequence().forEach {
                 if (it.type == EventType.COMPETITION_DELETED) kotlin.runCatching {
@@ -67,26 +88,6 @@ class CommandExecutor(private val commandTransformer: CompetitionCommandTransfor
                     commandCache.commandCallback(m.value().correlationId, events.toTypedArray())
                 }
             }
-            return filteredEvents
-        }
-        return emptyList()
-    }
-
-    override fun onMessage(m: ConsumerRecord<String, CommandDTO>, acknowledgment: Acknowledgment?, consumer: Consumer<*, *>?) {
-        val startHandle = System.currentTimeMillis()
-        val filteredEvents = handleMessage(m, acknowledgment, consumer)
-        log.info("All events handled, took ${Duration.ofMillis(System.currentTimeMillis() - startHandle)}. Starting sending callbacks.")
-        val latch = CountDownLatch(filteredEvents.size)
-        fun <T> callback() = { _: T -> latch.countDown() }
-        filteredEvents.asSequence().forEach {
-            template.send(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME, m.key(), it).addCallback(callback(), { ex ->
-                log.error("Exception when sending events to kafka.", ex)
-                throw ex
-            })
-        }
-        if (latch.await(10, TimeUnit.SECONDS)) {
-            log.info("All the events were processed. Sending commit offsets.")
-            acknowledgment?.acknowledge()
         } else {
             log.error("The events were not sent to the event log. The offsets of the incomming messages will not be committed.")
             throw IllegalStateException("The events were not sent to the event log. The offsets of the incomming messages will not be committed.")

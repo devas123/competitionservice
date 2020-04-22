@@ -11,6 +11,7 @@ import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -31,7 +32,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
 
     @RequestMapping("/store/fightsbycategories", method = [RequestMethod.GET])
     fun getFightIdsByCategoryIds(@RequestParam("competitionId") competitionId: String): Map<String, Array<String>> {
-        return stateQueryService.getFightIdsByCategoryIds(competitionId);
+        return stateQueryService.getFightIdsByCategoryIds(competitionId)
     }
 
     @RequestMapping(path = ["/command/{competitionId}", "/command"], method = [RequestMethod.POST])
@@ -114,7 +115,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     @RequestMapping("/store/comprops", method = [RequestMethod.GET])
     fun getCompetitionProperties(@RequestParam("competitionId") competitionId: String?): CompetitionPropertiesDTO? {
         log.info("looking for the competition properties for competition $competitionId")
-        return competitionId?.let { stateQueryService.getCompetitionProperties(it) }
+        return runBlocking { competitionId?.let { stateQueryService.getCompetitionProperties(it).suspended() } }?.orNull()
     }
 
     @RequestMapping("/store/infotemplate", method = [RequestMethod.GET])

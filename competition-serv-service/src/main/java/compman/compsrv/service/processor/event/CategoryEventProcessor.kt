@@ -40,8 +40,8 @@ class CategoryEventProcessor(mapper: ObjectMapper,
                 EventType.COMPETITOR_CATEGORY_CHANGED)
     }
 
-    override fun applyEvent(event: EventDTO): List<EventDTO> {
-        return when (event.type) {
+    override fun applyEvent(event: EventDTO) {
+        when (event.type) {
             EventType.STAGE_STATUS_UPDATED -> appluStageStatusUpdated(event)
             EventType.CATEGORY_REGISTRATION_STATUS_CHANGED -> applyCategoryRegistrationStatusChanged(event)
             EventType.COMPETITOR_ADDED -> applyCompetitorAddedEvent(event)
@@ -140,16 +140,14 @@ class CategoryEventProcessor(mapper: ObjectMapper,
         val stages = payload.stages
         val categoryId = event.categoryId
         if (stages != null && !categoryId.isNullOrBlank()) {
-            jooqRepository.doInTransaction {
-                jooqRepository.saveStages(stages.mapIndexedNotNull { index, stage ->
-                    stage.setStageOrder(index)
-                })
-                jooqRepository.saveInputDescriptors(stages.mapNotNull { it.inputDescriptor })
-                jooqRepository.saveResultDescriptors(stages.mapNotNull { it.stageResultDescriptor?.let { srd -> it.id to srd } })
-                jooqRepository.saveGroupDescriptors(stages.map {
-                    it.id to (it.groupDescriptors?.filter { gd -> !gd.id.isNullOrBlank() }.orEmpty())
-                })
-            }
+            jooqRepository.saveStages(stages.mapIndexedNotNull { index, stage ->
+                stage.setStageOrder(index)
+            })
+            jooqRepository.saveInputDescriptors(stages.mapNotNull { it.inputDescriptor })
+            jooqRepository.saveResultDescriptors(stages.mapNotNull { it.stageResultDescriptor?.let { srd -> it.id to srd } })
+            jooqRepository.saveGroupDescriptors(stages.map {
+                it.id to (it.groupDescriptors?.filter { gd -> !gd.id.isNullOrBlank() }.orEmpty())
+            })
         } else {
             throw EventApplyingException("Fights are null or empty or category ID is empty.", event)
         }

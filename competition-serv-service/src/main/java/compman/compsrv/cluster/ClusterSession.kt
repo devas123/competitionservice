@@ -1,5 +1,6 @@
 package compman.compsrv.cluster
 
+import arrow.fx.IO
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.config.ClusterConfiguration
 import compman.compsrv.config.ClusterConfigurationProperties
@@ -189,45 +190,43 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
 
     fun getUrlPrefix(host: String, port: Int) = "http://$host:$port${serverProperties.servlet.contextPath}"
 
-    fun findProcessingMember(competitionId: String): Address? = run {
-        log.debug("Getting info about instances processing competition $competitionId")
-        clusterMembers[competitionId]?.restAddress()
-    } ?: run {
-        if (localCompetitionIds.contains(competitionId)) {
-            Address.create(cluster.member().address().host(), serverProperties.port)
-        } else {
-            null
+
+    fun findProcessingMember(competitionId: String): IO<Address> = IO {
+        log.info("Getting info about instances processing competition $competitionId")
+        clusterMembers[competitionId]?.restAddress() ?: run {
+            if (localCompetitionIds.contains(competitionId)) {
+                Address.create(cluster.member().address().host(), serverProperties.port)
+            } else {
+                null
+            }
         }
-    } ?: run {
-        log.info("Did not find processing instance for $competitionId, sending command to find the instance.")
+    }.map { address ->
+        address?.let { ad -> IO.just(ad) } ?: error("Did not find processing instance for $competitionId, sending command to find the instance.")
+    }.redeemWith( { throwable ->
+        log.info("Warning: ${throwable.message}")
         commandCache.executeCommand(competitionId, CompletableFuture()) {
             kafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId,
                     CommandProducer.createSendProcessingInfoCommand(competitionId, competitionId)))
         }
-        kotlin.runCatching {
-            commandCache.waitForResult(competitionId, Duration.ofSeconds(30))
-        }.recover { e ->
-            log.error("Error while executing competition info command", e)
-            null
-        }.map { arrayOfEventDTOs ->
-            arrayOfEventDTOs?.find { e -> e.type == EventType.INTERNAL_COMPETITION_INFO }?.let {
-                val payload = mapper.readValue(it.payload, CompetitionInfoPayload::class.java)
-                Address.create(payload.host, payload.port)
-            }
-        }.getOrNull()
-    }
-
+        IO.defer { IO {
+            commandCache.waitForResult(competitionId, Duration.ofSeconds(30)).find { e -> e.type == EventType.INTERNAL_COMPETITION_INFO }?.let { event ->
+                log.info("Received a callback with processing info for $competitionId: $event")
+                kotlin.runCatching {
+                    val payload = mapper.readValue(event.payload, CompetitionInfoPayload::class.java)
+                    Address.create(payload.host, payload.port)
+                }.getOrElse {
+                    log.warn("Error while processing callback.", it)
+                    null
+                }
+            } ?: error("The command to find the processing instance for $competitionId did not return result.") }
+        }
+    }, { it })
     fun broadcastCompetitionProcessingInfo(competitionIds: Set<String>, correlationId: String?) = broadcastCompetitionProcessingInfoWithCluster(cluster, competitionIds, correlationId)
 
     private fun broadcastCompetitionProcessingInfoWithCluster(cluster: Cluster, competitionIds: Set<String>, correlationId: String?) {
         log.info("Broadcast competition processing info method call: $competitionIds, $correlationId")
         val member = MemberWithRestPort(cluster.member(), serverProperties.port)
         val data = CompetitionProcessingMessage(correlationId, member, CompetitionProcessingInfo(member, competitionIds))
-        correlationId?.let {
-            val events = createProcessingInfoEvents(it, competitionIds)
-            log.info("Executing command callback, correlation ID: $it, data: $events")
-            commandCache.commandCallback(it, events)
-        }
         if (localCompetitionIds.addAll(competitionIds)) {
             log.info("Added $competitionIds to local competitionIds")
         }
@@ -237,6 +236,11 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
                 .build()
         cluster.spreadGossip(message).subscribe {
             log.info("Broadcasting the following competition processing info: ${cluster.member()} -> $data")
+            correlationId?.let {
+                val events = createProcessingInfoEvents(it, competitionIds)
+                log.info("Executing command callback, correlation ID: $it, data: $events")
+                commandCache.commandCallback(it, events)
+            }
         }
     }
 

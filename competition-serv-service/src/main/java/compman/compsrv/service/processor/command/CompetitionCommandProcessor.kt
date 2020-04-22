@@ -40,7 +40,6 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val compScoreDao: CompScoreDao,
                                   private val categoryCrudRepository: CategoryDescriptorDao,
                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
-                                  private val fightDescriptionDao: FightDescriptionDao,
                                   private val registrationGroupCrudRepository: RegistrationGroupDao,
                                   private val registrationPeriodCrudRepository: RegistrationPeriodDao,
                                   private val registrationInfoCrudRepository: RegistrationInfoDao,
@@ -97,7 +96,11 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
 
             return when (command.type) {
                 CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND -> {
-                    clusterSession.createProcessingInfoEvents(command.correlationId, setOf(command.competitionId)).toList()
+                    if (competitionPropertiesCrudRepository.existsById(command.competitionId)) {
+                        clusterSession.createProcessingInfoEvents(command.correlationId, setOf(command.competitionId)).toList()
+                    } else {
+                        listOf(createErrorEvent("Received INTERNAL_SEND_PROCESSING_INFO_COMMAND but competition does not exist."))
+                    }
                 }
                 CommandType.UPDATE_REGISTRATION_INFO_COMMAND -> {
                     val payload = mapper.convertValue(command.payload, UpdateRegistrationInfoPayload::class.java)
@@ -268,7 +271,6 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                     competitorNumbersByCategoryIds) { compScoreDao.fetchByCompscoreFightDescriptionId(it) }
                             val newFights = schedule.mats?.flatMap { mat ->
                                 mat.fightStartTimes.map { f -> f.setPeriodId(mat.periodId) }
-                                        .orEmpty()
                             }?.toTypedArray()
                             val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(newFights)
                             listOf(createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule)), createEvent(EventType.FIGHTS_START_TIME_UPDATED, fightStartTimeUpdatedPayload))

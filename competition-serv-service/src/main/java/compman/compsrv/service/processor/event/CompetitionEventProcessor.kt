@@ -11,7 +11,6 @@ import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.CompetitionCleaner
 import compman.compsrv.util.PayloadValidator
 import compman.compsrv.util.applyProperties
-import compman.compsrv.util.createEffect
 import org.springframework.stereotype.Component
 
 @Component
@@ -46,9 +45,9 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
         )
     }
 
-    override fun applyEvent(event: EventDTO): List<EventDTO> {
+    override fun applyEvent(event: EventDTO) {
         fun createError(error: String) = EventApplyingException(error, event)
-        return when (event.type) {
+        when (event.type) {
             EventType.REGISTRATION_INFO_UPDATED -> executeValidated(event, RegistrationInfoUpdatedPayload::class.java) { payload, _ ->
                 payload.registrationInfo?.let {
                     kotlin.runCatching {
@@ -92,7 +91,6 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
             }
             EventType.COMPETITION_DELETED -> {
                 competitionCleaner.deleteCompetition(event.competitionId)
-                emptyList()
             }
             EventType.COMPETITION_CREATED -> executeValidated(event, CompetitionCreatedPayload::class.java) { payload, _ ->
                 payload.properties?.let { props ->
@@ -104,13 +102,11 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
             EventType.SCHEDULE_DROPPED -> {
                 jooqRepository.deleteScheduleEntriesByCompetitionId(event.competitionId)
                 jooqRepository.deleteScheduleRequirementsByCompetitionId(event.competitionId)
-                listOf(mapper.createEffect(event, EventType.COMPETITION_PROPERTIES_UPDATED, CompetitionPropertiesUpdatedPayload().setProperties(mapOf("schedulePublished" to false))))
             }
-            EventType.SCHEDULE_GENERATED -> executeWithEffects(event, ScheduleGeneratedPayload::class.java) { scheduleGeneratedPayload, e ->
+            EventType.SCHEDULE_GENERATED -> executeValidated(event, ScheduleGeneratedPayload::class.java) { scheduleGeneratedPayload, _ ->
                 if (scheduleGeneratedPayload.schedule != null) {
                     val schedule = scheduleGeneratedPayload.schedule
                     jooqRepository.saveSchedule(schedule)
-                    listOf(mapper.createEffect(e, EventType.COMPETITION_PROPERTIES_UPDATED, CompetitionPropertiesUpdatedPayload().setProperties(mapOf("schedulePublished" to true))))
                 } else {
                     throw createError("Schedule not provided.")
                 }
@@ -122,7 +118,6 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
                 }
             }
             EventType.INTERNAL_COMPETITION_INFO -> {
-                emptyList()
             }
             EventType.COMPETITION_STARTED, EventType.COMPETITION_STOPPED, EventType.COMPETITION_PUBLISHED, EventType.COMPETITION_UNPUBLISHED ->
                 executeValidated(event, CompetitionStatusUpdatedPayload::class.java) { payload, _ ->

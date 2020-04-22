@@ -6,18 +6,20 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.service.ICommandProcessingService
+import compman.compsrv.service.processor.event.IEffects
 import compman.compsrv.service.resolver.CompetitionStateResolver
 import org.slf4j.LoggerFactory
 
 open class CompetitionCommandTransformer(competitionStateService: ICommandProcessingService<CommandDTO, EventDTO>,
                                          private val competitionStateRepository: CompetitionPropertiesDao,
                                          private val competitionStateResolver: CompetitionStateResolver,
+                                         effects: IEffects,
                                          mapper: ObjectMapper)
-    : AbstractCommandTransformer(competitionStateService, mapper) {
+    : AbstractCommandTransformer(competitionStateService, effects, mapper) {
 
 
-    override fun initState(id: String, correlationId: String?) {
-        competitionStateResolver.resolveLatestCompetitionState(id, correlationId)
+    override fun initState(id: String, correlationId: String?, transactional: Boolean) {
+        competitionStateResolver.resolveLatestCompetitionState(id, correlationId, transactional)
     }
 
     companion object {
