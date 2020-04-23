@@ -8,10 +8,8 @@ import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.DashboardFightOrderChangePayload
 import compman.compsrv.model.commands.payload.PropagateCompetitorsPayload
 import compman.compsrv.model.commands.payload.SetFightResultPayload
-import compman.compsrv.model.dto.brackets.BracketType
-import compman.compsrv.model.dto.brackets.FightReferenceType
-import compman.compsrv.model.dto.brackets.StageStatus
-import compman.compsrv.model.dto.brackets.StageType
+import compman.compsrv.model.dto.brackets.*
+import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
@@ -23,7 +21,6 @@ import compman.compsrv.util.PayloadValidator
 import compman.compsrv.util.copy
 import compman.compsrv.util.createErrorEvent
 import compman.compsrv.util.createEvent
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -37,7 +34,6 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                                 private val fightResultOptionDao: FightResultOptionDao,
                                 private val competitorStageResultDao: CompetitorStageResultDao,
                                 private val competitorDao: CompetitorDao,
-                                private val compScoreDao: CompScoreDao,
                                 private val stageDescriptorCrudRepository: StageDescriptorDao,
                                 validators: List<PayloadValidator>,
                                 mapper: ObjectMapper) : AbstractCommandProcessor(mapper, validators) {
@@ -45,10 +41,6 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
         return setOf(CommandType.DASHBOARD_FIGHT_ORDER_CHANGE_COMMAND,
                 CommandType.DASHBOARD_SET_FIGHT_RESULT_COMMAND,
                 CommandType.PROPAGATE_COMPETITORS_COMMAND)
-    }
-
-    companion object {
-        private val log = LoggerFactory.getLogger(DashboardCommandProcessor::class.java)
     }
 
 
@@ -67,15 +59,7 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
             val stage = jooqRepository.fetchStageById(com.competitionId, p.previousStageId).block(Duration.ofMillis(300))
                     ?: throw IllegalStateException("Cannot get stage with id ${p.previousStageId}")
 
-            val propagatedCompetitorIds = fightsGenerateService.applyStageInputDescriptorToResultsAndFights(stage.bracketType, stage.inputDescriptor, p.previousStageId,
-                    { id -> fightResultOptionDao.fetchByStageId(id).map { it.toDTO() } },
-                    { id -> competitorStageResultDao.fetchByStageId(id).map { it.toDTO() } },
-                    { id ->
-                        jooqRepository.fetchFightsByStageId(com.competitionId, id).collectList().block(Duration.ofMillis(300))
-                                .orEmpty()
-                    })
-
-            val propagatedCompetitors = competitorDao.fetchById(*propagatedCompetitorIds.toTypedArray()).map { it.toDTO(arrayOf(command.categoryId)) }
+            val propagatedCompetitors = findPropagatedCompetitors(stage, p, com)
             val propagatedStageFights = jooqRepository.fetchFightsByStageId(com.competitionId, p.propagateToStageId).collectList().block(Duration.ofMillis(300))
                     ?: throw IllegalStateException("No fights found for stage ${p.propagateToStageId}")
 
@@ -94,6 +78,17 @@ class DashboardCommandProcessor(private val fightCrudRepository: FightDescriptio
                     .setStageId(p.propagateToStageId)
                     .setPropagations(competitorIdsToFightIds)))
         }
+    }
+
+    private fun findPropagatedCompetitors(stage: StageDescriptorDTO, p: PropagateCompetitorsPayload, com: CommandDTO): List<CompetitorDTO> {
+        val propagatedCompetitorIds = fightsGenerateService.applyStageInputDescriptorToResultsAndFights(stage.bracketType, stage.inputDescriptor, p.previousStageId,
+                { id -> fightResultOptionDao.fetchByStageId(id).map { it.toDTO() } },
+                { id -> competitorStageResultDao.fetchByStageId(id).map { it.toDTO() } },
+                { id ->
+                    jooqRepository.fetchFightsByStageId(com.competitionId, id).collectList().block(Duration.ofMillis(300))
+                            .orEmpty()
+                })
+        return competitorDao.fetchById(*propagatedCompetitorIds.toTypedArray()).map { it.toDTO(arrayOf(com.categoryId)) }
     }
 
 

@@ -4,6 +4,7 @@ import com.compmanager.compservice.jooq.tables.*
 import com.compmanager.compservice.jooq.tables.records.*
 import compman.compsrv.model.dto.brackets.AdditionalGroupSortingDescriptorDTO
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
+import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
 import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
@@ -64,23 +65,26 @@ class JooqQueryProvider(private val create: DSLContext) {
 
     fun fightsQuery(competitionId: String): SelectConditionStep<Record> =
             create.selectFrom(FightDescription.FIGHT_DESCRIPTION
-                    .join(CompScore.COMP_SCORE, JoinType.LEFT_OUTER_JOIN)
-                    .on(FightDescription.FIGHT_DESCRIPTION.ID.eq(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID))
                     .join(MatDescription.MAT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
                     .on(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(MatDescription.MAT_DESCRIPTION.ID)))
                     .where(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId))
 
-    fun topMatFightsQuery(competitionId: String, matId: String, statuses: Iterable<FightStatus>): SelectSeekStep2<Record, Int, Int> {
-        return create.select(*(FightDescription.FIGHT_DESCRIPTION.fields()), *CompScore.COMP_SCORE.fields(),
+    fun activeStageIdsForCompetition(competitionId: String): SelectConditionStep<Record1<String>> =
+            create.select(StageDescriptor.STAGE_DESCRIPTOR.ID)
+                    .from(StageDescriptor.STAGE_DESCRIPTOR)
+                    .where(StageDescriptor.STAGE_DESCRIPTOR.COMPETITION_ID.eq(competitionId))
+                    .and(StageDescriptor.STAGE_DESCRIPTOR.STAGE_STATUS.`in`(listOf(StageStatus.IN_PROGRESS.name, StageStatus.APPROVED.name)))
+
+    fun topMatFightsQuery(competitionId: String, stageId: String, matId: String, statuses: Iterable<FightStatus>): SelectSeekStep2<Record, Int, Int> {
+        return create.select(*(FightDescription.FIGHT_DESCRIPTION.fields()),
                 *MatDescription.MAT_DESCRIPTION.fields())
                 .from(
-                        FightDescription.FIGHT_DESCRIPTION.join(CompScore.COMP_SCORE, JoinType.LEFT_OUTER_JOIN)
-                                .on(FightDescription.FIGHT_DESCRIPTION.ID.eq(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID))
+                        FightDescription.FIGHT_DESCRIPTION
                                 .join(MatDescription.MAT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
                                 .on(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(MatDescription.MAT_DESCRIPTION.ID)))
                 .where(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId))
                 .and(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId))
-                .and(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.isNotNull)
+                .and(FightDescription.FIGHT_DESCRIPTION.STAGE_ID.eq(stageId))
                 .and(create.selectCount()
                         .from(CompScore.COMP_SCORE)
                         .where(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.isNotNull)

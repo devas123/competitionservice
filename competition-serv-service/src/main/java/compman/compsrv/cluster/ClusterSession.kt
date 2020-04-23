@@ -137,7 +137,7 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
                     producer.flush()
                 }
                 .doOnError { throw(it) }
-                .block(Duration.ofSeconds(5))!!
+                .block(Duration.ofSeconds(15))!!
     }
 
     fun invalidateMemberForCompetitionId(competitionId: String) {

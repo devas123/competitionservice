@@ -2,7 +2,6 @@ package compman.compsrv.repository
 
 import com.compmanager.compservice.jooq.tables.*
 import com.compmanager.compservice.jooq.tables.records.*
-import com.compmanager.model.payment.RegistrationStatus
 import compman.compsrv.mapping.toRecord
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
@@ -22,7 +21,6 @@ import reactor.core.publisher.GroupedFlux
 import reactor.core.publisher.Mono
 import java.math.BigDecimal
 import java.sql.Timestamp
-import java.time.Instant
 
 @Repository
 class JooqRepository(private val create: DSLContext, private val queryProvider: JooqQueryProvider, private val jooqMappers: JooqMappers) {
@@ -67,16 +65,24 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
 
     fun fightsCountByCategoryId(competitionId: String, categoryId: String) = create.fetchCount(FightDescription.FIGHT_DESCRIPTION, FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID.eq(categoryId).and(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId)))
     fun fightsCountByStageId(competitionId: String, stageId: String) = create.fetchCount(FightDescription.FIGHT_DESCRIPTION, FightDescription.FIGHT_DESCRIPTION.STAGE_ID.eq(stageId).and(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId)))
-    fun fightsCountByMatId(competitionId: String, matId: String) = create.fetchCount(FightDescription.FIGHT_DESCRIPTION, FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId).and(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId)))
 
     fun fetchFightsByStageId(competitionId: String, stageId: String): Flux<FightDescriptionDTO> =
             fightsMapping(Flux.from(queryProvider.fightsQuery(competitionId)
                     .and(FightDescription.FIGHT_DESCRIPTION.STAGE_ID.eq(stageId))
                     .orderBy(FightDescription.FIGHT_DESCRIPTION.ROUND.asc(),
                             FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND.asc())))
+                    .flatMap { fs ->
+                        enrichWithCompScores(fs)
+                    }
 
-    fun findFightByCompetitionIdAndId(competitionId: String, fightId: String): Mono<FightDescriptionDTO> = fightsMapping(Flux.from(queryProvider.fightsQuery(competitionId)
-            .and(FightDescription.FIGHT_DESCRIPTION.ID.eq(fightId)))).publishNext().switchIfEmpty(Mono.empty())
+    private fun enrichWithCompScores(fs: FightDescriptionDTO): Mono<FightDescriptionDTO> {
+        return Flux.from(create.selectFrom(CompScore.COMP_SCORE).where(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.eq(fs.id)))
+                .map { u ->
+                    jooqMappers.compScore(u)
+                }
+                .collectList()
+                .map { fs.setScores(it.toTypedArray()) }
+    }
 
     fun getCategoryIdsForCompetition(competitionId: String): Flux<String> =
             Flux.from(create.select(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID).from(CategoryDescriptor.CATEGORY_DESCRIPTOR).where(CategoryDescriptor.CATEGORY_DESCRIPTOR.COMPETITION_ID.eq(competitionId)))
@@ -166,16 +172,15 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
 
     fun topMatFights(limit: Long = 100, competitionId: String, matId: String, statuses: Iterable<FightStatus>): Flux<FightDescriptionDTO> {
         val queryResultsFlux =
-                Flux.from(queryProvider.topMatFightsQuery(competitionId = competitionId, matId = matId, statuses = statuses))
-        return fightsMapping(queryResultsFlux).filter { f -> statuses.contains(f.status) }.limitRequest(limit)
+                Flux.from(queryProvider.activeStageIdsForCompetition(competitionId)).map { it[StageDescriptor.STAGE_DESCRIPTOR.ID] }.filter { !it.isNullOrBlank() }.flatMap { stageId ->
+                    Flux.from(queryProvider.topMatFightsQuery(competitionId = competitionId, stageId = stageId, matId = matId, statuses = statuses))
+                }
+        return fightsMapping(queryResultsFlux).filter { f -> statuses.contains(f.status) }.flatMap { f -> enrichWithCompScores(f) }.limitRequest(limit)
     }
 
-    fun fightsMapping(queryResultsFlux: Flux<Record>, filterEmptyFights: Boolean = false): Flux<FightDescriptionDTO> = queryResultsFlux.groupBy { rec -> rec[FightDescription.FIGHT_DESCRIPTION.ID] }
+    fun fightsMapping(queryResultsFlux: Flux<Record>): Flux<FightDescriptionDTO> = queryResultsFlux.groupBy { rec -> rec[FightDescription.FIGHT_DESCRIPTION.ID] }
             .flatMap { fl ->
                 fl.collect(jooqMappers.fightCollector())
-            }.filter { f ->
-                !filterEmptyFights
-                        || (f.scores?.size == 2 && (f.scores?.all { it.competitorId != null } == true))
             }
 
     private fun fightDescriptionByMatIdCompetitionIdQuery(matId: String, competitionId: String): SelectConditionStep<FightDescriptionRecord> {

@@ -49,7 +49,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
         private val log = LoggerFactory.getLogger(StateQueryService::class.java)
     }
 
-    private val timeout = Duration.ofSeconds(1)
+    private val timeout = Duration.ofSeconds(10)
     private val restTemplate = restTemplateBuilder
             .setConnectTimeout(Duration.ofSeconds(3))
             .setReadTimeout(Duration.ofSeconds(10)).build()

@@ -1,6 +1,7 @@
 package compman.compsrv.repository
 
 import com.compmanager.compservice.jooq.tables.*
+import com.compmanager.compservice.jooq.tables.records.CompScoreRecord
 import compman.compsrv.model.dto.brackets.FightReferenceType
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.competition.*
@@ -76,21 +77,7 @@ class JooqMappers {
     fun fightCollector(): Collector<Record, FightDescriptionDTO, FightDescriptionDTO> = Collector.of(
             Supplier { FightDescriptionDTO().setScores(emptyArray()) },
             BiConsumer { t: FightDescriptionDTO, it: Record ->
-                val compscore = if (!it[CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID].isNullOrBlank()) {
-                    val cs = CompScoreDTO()
-                            .setScore(ScoreDTO().setPenalties(it[CompScore.COMP_SCORE.PENALTIES])
-                                    .setAdvantages(it[CompScore.COMP_SCORE.ADVANTAGES])
-                                    .setPoints(it[CompScore.COMP_SCORE.POINTS]))
-                            .setPlaceholderId(it[CompScore.COMP_SCORE.PLACEHOLDER_ID])
-                            .setOrder(it[CompScore.COMP_SCORE.COMP_SCORE_ORDER])
-                            .setCompetitorId(it[CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID])
-                            .setParentReferenceType(it[CompScore.COMP_SCORE.PARENT_REFERENCE_TYPE]?.let { k -> FightReferenceType.valueOf(k) })
-                            .setParentFightId(it[CompScore.COMP_SCORE.PARENT_FIGHT_ID])
-                    arrayOf(cs)
-                } else {
-                    emptyArray()
-                }
-                mapFightDescription(t, it, t.scores + compscore)
+                mapFightDescription(t, it)
             }, BinaryOperator { t: FightDescriptionDTO, u: FightDescriptionDTO ->
         t.setScores(t.scores + u.scores)
     }, Collector.Characteristics.CONCURRENT, Collector.Characteristics.IDENTITY_FINISH)
@@ -109,7 +96,7 @@ class JooqMappers {
             .setCompetitionId(it[Competitor.COMPETITOR.COMPETITION_ID])
             .setPromo(it[Competitor.COMPETITOR.PROMO])
 
-    fun mapFightDescription(t: FightDescriptionDTO, u: Record, compScore: Array<CompScoreDTO>): FightDescriptionDTO =
+    fun mapFightDescription(t: FightDescriptionDTO, u: Record): FightDescriptionDTO =
             t.setId(u[FightDescription.FIGHT_DESCRIPTION.ID])
                     .setInvalid(u[FightDescription.FIGHT_DESCRIPTION.INVALID])
                     .setCategoryId(u[FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID])
@@ -131,7 +118,19 @@ class JooqMappers {
                     .setRound(u[FightDescription.FIGHT_DESCRIPTION.ROUND])
                     .setStatus(u[FightDescription.FIGHT_DESCRIPTION.STATUS]?.let { FightStatus.valueOf(it) })
                     .setRoundType(u[FightDescription.FIGHT_DESCRIPTION.ROUND_TYPE]?.let { StageRoundType.valueOf(it) })
-                    .setNumberOnMat(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT]).setScores(compScore)
+                    .setNumberOnMat(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT])
+
+    fun compScore(u: CompScoreRecord): CompScoreDTO =
+            CompScoreDTO()
+                    .setScore(ScoreDTO()
+                            .setPenalties(u[CompScore.COMP_SCORE.PENALTIES])
+                            .setPoints(u[CompScore.COMP_SCORE.POINTS])
+                            .setAdvantages(u[CompScore.COMP_SCORE.ADVANTAGES]))
+                    .setCompetitorId(u[CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID])
+                    .setOrder(u[CompScore.COMP_SCORE.COMP_SCORE_ORDER])
+                    .setParentFightId(u[CompScore.COMP_SCORE.PARENT_FIGHT_ID])
+                    .setParentReferenceType(u[CompScore.COMP_SCORE.PARENT_REFERENCE_TYPE]?.let { FightReferenceType.valueOf(it) })
+                    .setPlaceholderId(u[CompScore.COMP_SCORE.PLACEHOLDER_ID])
 
 
 }

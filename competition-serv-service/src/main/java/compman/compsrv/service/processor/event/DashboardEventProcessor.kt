@@ -43,7 +43,7 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
                                     CompScoreRecord(0, 0, 0, null, null, null, p.competitorId, p.toFightId, ind)
                                 }
                             }.values.flatten()
-                    compScores.forEach { it.store() }
+                    jooqRepository.saveCompScores(compScores)
                 }
             }
             EventType.DASHBOARD_STAGE_RESULT_SET -> {
