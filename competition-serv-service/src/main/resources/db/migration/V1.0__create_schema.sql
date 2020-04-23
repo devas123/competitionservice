@@ -300,9 +300,7 @@ create table compservice.group_descriptor
 
 create table compservice.fight_result_option
 (
-    id                       varchar(255)   not null
-        constraint fight_result_option_pkey
-            primary key,
+    id                       varchar(255)   not null,
     winner_additional_points numeric(19, 2),
     loser_additional_points  numeric(19, 2),
     description              varchar(255),
@@ -312,7 +310,9 @@ create table compservice.fight_result_option
     loser_points             numeric(19, 2) not null,
     stage_id                 varchar(255)
         constraint fkhj7y0idxgjgbg8b4el2qr8nc6
-            references compservice.stage_descriptor on delete cascade
+            references compservice.stage_descriptor on delete cascade,
+    constraint fight_result_option_pkey
+        primary key(id, stage_id)
 );
 
 create table compservice.schedule_entry
@@ -376,8 +376,7 @@ create table compservice.fight_description
         constraint fight_description_winner_id_fkey
             references compservice.competitor,
     reason            varchar(255),
-    result_type       varchar(255)
-        constraint fight_description_fight_output_fkey references compservice.fight_result_option,
+    result_type       varchar(255),
     lose_fight        varchar(255),
     mat_id            varchar(255)
         constraint fight_description_mat_description_fkey
@@ -402,7 +401,9 @@ create table compservice.fight_description
     invalid           boolean,
     schedule_entry_id varchar(255)
         constraint fight_description_schedule_entry_fkey
-            references compservice.schedule_entry
+            references compservice.schedule_entry,
+    constraint fight_description_fight_output_fkey foreign key (result_type, stage_id)
+        references compservice.fight_result_option
 );
 
 

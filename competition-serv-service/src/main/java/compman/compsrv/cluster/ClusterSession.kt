@@ -208,18 +208,18 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
             kafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId,
                     CommandProducer.createSendProcessingInfoCommand(competitionId, competitionId)))
         }
-        IO.defer { IO {
-            commandCache.waitForResult(competitionId, Duration.ofSeconds(30)).find { e -> e.type == EventType.INTERNAL_COMPETITION_INFO }?.let { event ->
-                log.info("Received a callback with processing info for $competitionId: $event")
-                kotlin.runCatching {
-                    val payload = mapper.readValue(event.payload, CompetitionInfoPayload::class.java)
-                    Address.create(payload.host, payload.port)
-                }.getOrElse {
-                    log.warn("Error while processing callback.", it)
-                    null
-                }
-            } ?: error("The command to find the processing instance for $competitionId did not return result.") }
-        }
+        IO.just(
+                commandCache.waitForResult(competitionId, Duration.ofSeconds(30)).find { e -> e.type == EventType.INTERNAL_COMPETITION_INFO }?.let { event ->
+                    log.info("Received a callback with processing info for $competitionId: $event")
+                    kotlin.runCatching {
+                        val payload = mapper.readValue(event.payload, CompetitionInfoPayload::class.java)
+                        Address.create(payload.host, payload.port)
+                    }.getOrElse {
+                        log.warn("Error while processing callback.", it)
+                        null
+                    }
+                } ?: error("The command to find the processing instance for $competitionId did not return result.")
+        )
     }, { it })
     fun broadcastCompetitionProcessingInfo(competitionIds: Set<String>, correlationId: String?) = broadcastCompetitionProcessingInfoWithCluster(cluster, competitionIds, correlationId)
 
