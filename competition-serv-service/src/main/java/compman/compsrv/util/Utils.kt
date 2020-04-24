@@ -4,6 +4,7 @@ import com.compmanager.compservice.jooq.tables.pojos.CompetitionProperties
 import compman.compsrv.model.dto.competition.AcademyDTO
 import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
+import reactor.core.publisher.Mono
 import java.math.BigDecimal
 import java.sql.Timestamp
 import java.time.Instant
@@ -24,6 +25,9 @@ fun <T> List<T>.applyConditionalUpdate(condition: (T) -> Boolean, update: (T) ->
     }
 }
 
+fun <T> T?.toMonoOrEmpty(): Mono<T> = Mono.justOrEmpty(this)
+
+
 inline fun <reified T> Array<out T>.applyConditionalUpdate(condition: (T) -> Boolean, update: (T) -> T): Array<out T> {
     return this.map {
         if (condition(it)) {
@@ -34,7 +38,7 @@ inline fun <reified T> Array<out T>.applyConditionalUpdate(condition: (T) -> Boo
     }.toTypedArray()
 }
 
-fun BigDecimal?.orZero() = this ?: BigDecimal.ZERO
+fun BigDecimal?.orZero(): BigDecimal = this ?: BigDecimal.ZERO
 
 
 fun Boolean?.orFalse() = this == true

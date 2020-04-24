@@ -1,8 +1,7 @@
 package compman.compsrv.service
 
 import arrow.core.Option
-import arrow.fx.IO
-import arrow.fx.fix
+import arrow.core.getOrElse
 import com.compmanager.compservice.jooq.tables.*
 import com.compmanager.compservice.jooq.tables.daos.*
 import compman.compsrv.cluster.ClusterSession
@@ -17,6 +16,7 @@ import compman.compsrv.repository.JooqQueryProvider
 import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.copy
+import compman.compsrv.util.toMonoOrEmpty
 import io.scalecube.net.Address
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.client.RestTemplateBuilder
@@ -27,6 +27,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClientResponseException
 import org.springframework.web.client.RestTemplate
+import reactor.core.publisher.Mono
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.*
@@ -49,7 +50,6 @@ class StateQueryService(private val clusterSession: ClusterSession,
         private val log = LoggerFactory.getLogger(StateQueryService::class.java)
     }
 
-    private val timeout = Duration.ofSeconds(10)
     private val restTemplate = restTemplateBuilder
             .setConnectTimeout(Duration.ofSeconds(3))
             .setReadTimeout(Duration.ofSeconds(10)).build()
@@ -108,7 +108,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
         }
         return localOrRemote(competitionId,
                 {
-                    getLocalCompetitors(competitionId, categoryId, searchString, pageSize, pageNumber)
+                    getLocalCompetitors(competitionId, categoryId, searchString, pageSize, pageNumber).toMonoOrEmpty()
                 },
                 { _, restTemplate, urlPrefix ->
                     val uri = "$urlPrefix/api/v1/store/competitors?competitionId=$competitionId"
@@ -124,40 +124,41 @@ class StateQueryService(private val clusterSession: ClusterSession,
 
                     val typeRef = getPageType()
                     val respEntity = restTemplate.exchange(uri + queryParams.toString(), HttpMethod.GET, HttpEntity.EMPTY, typeRef)
-                    if (respEntity.statusCode == HttpStatus.OK) {
+                    val body = if (respEntity.statusCode == HttpStatus.OK) {
                         respEntity.body
                     } else {
                         throw RestClientResponseException("Error while getting competitors", respEntity.statusCodeValue, respEntity.statusCode.reasonPhrase, respEntity.headers, null, StandardCharsets.UTF_8)
                     }
+                    body.toMonoOrEmpty()
                 })
     }
 
     fun getCompetitor(competitionId: String, fighterId: String) = localOrRemote(competitionId, {
-        competitorCrudRepository.findById(fighterId)?.toDTO(jooq.getCompetitorCategories(competitionId, fighterId).toTypedArray())
+        competitorCrudRepository.findById(fighterId)?.toDTO(jooq.getCompetitorCategories(competitionId, fighterId).toTypedArray()).toMonoOrEmpty()
     },
             { _, restTemplate, urlPrefix ->
-                restTemplate.getForObject("$urlPrefix/api/v1/store/competitor?competitionId=$competitionId&fighterId=$fighterId", CompetitorDTO::class.java)
+                restTemplate.getForObject("$urlPrefix/api/v1/store/competitor?competitionId=$competitionId&fighterId=$fighterId", CompetitorDTO::class.java).toMonoOrEmpty()
             })
 
     fun getFightResultOptions(competitionId: String, fightId: String) = localOrRemote(competitionId, {
         val fight = fightDescriptionDao.findById(fightId)
-        fight?.let { fightResultOptionDao.fetchByStageId(it.stageId)?.map { fr -> fr.toDTO() } }?.toTypedArray()
+        fight?.let { fightResultOptionDao.fetchByStageId(it.stageId)?.map { fr -> fr.toDTO() } }?.toTypedArray().toMonoOrEmpty()
     },
             { _, restTemplate, urlPrefix ->
-                restTemplate.getForObject("$urlPrefix/api/v1/store/fightresultoptions?competitionId=$competitionId&fightId=$fightId", Array<FightResultOptionDTO>::class.java)
+                restTemplate.getForObject("$urlPrefix/api/v1/store/fightresultoptions?competitionId=$competitionId&fightId=$fightId", Array<FightResultOptionDTO>::class.java).toMonoOrEmpty()
             })
 
 
     fun getCompetitionInfoTemplate(competitionId: String?): ByteArray? {
         return localOrRemote(competitionId,
-                { competitionPropertiesDao.findById(competitionId)?.competitionInfoTemplate },
+                { competitionPropertiesDao.findById(competitionId)?.competitionInfoTemplate.toMonoOrEmpty() },
                 { _, restTemplate, url ->
-                    restTemplate.getForObject("$url/api/v1/store/infotemplate?competitionId=$competitionId", ByteArray::class.java)
+                    restTemplate.getForObject("$url/api/v1/store/infotemplate?competitionId=$competitionId", ByteArray::class.java).toMonoOrEmpty()
                 }
         )
     }
 
-    fun getCompetitionProperties(competitionId: String): IO<Option<CompetitionPropertiesDTO>> {
+    fun getCompetitionProperties(competitionId: String): Mono<Option<CompetitionPropertiesDTO>> {
         return localOrRemoteIo(competitionId,
                 {
                     log.info("Getting competition properties id $competitionId")
@@ -210,53 +211,51 @@ class StateQueryService(private val clusterSession: ClusterSession,
                                 }
                             }
                     log.info("Found competition properties: $result")
-                    result
+                    result.toMonoOrEmpty()
                 },
                 { address, restTemplate, urlPrefix ->
                     val url = "$urlPrefix/api/v1/store/comprops?competitionId=$competitionId"
                     log.info("Doing a remote request to address $address, url=$url")
                     val result = restTemplate.getForObject(url, CompetitionPropertiesDTO::class.java)
                     log.info("Result: $result")
-                    result
+                    result.toMonoOrEmpty()
                 }
-        )
+        ).map { io -> Option.fromNullable(io) }
     }
 
-    fun <T> localOrRemoteIo(competitionId: String?, ifLocal: () -> T?, ifRemote: (instanceAddress: Address, restTemplate: RestTemplate, urlPrefix: String) -> T?) =
-            competitionId?.let { id ->
+    fun <T> localOrRemoteIo(competitionId: String?, ifLocal: () -> Mono<T>, ifRemote: (instanceAddress: Address, restTemplate: RestTemplate, urlPrefix: String) -> Mono<T>): Mono<T> =
+            Option.fromNullable(competitionId).map { id ->
                 val instanceAddress = clusterSession.findProcessingMember(id)
-                instanceAddress.flatMap { address ->
-                    (1..3).toList()
-                            .fold(IO.raiseError<T?>(RuntimeException("Request failed for competition $id, see logs for details. "))) { io, i ->
-                                io.redeem({
-                                    log.debug("Attempt $i")
-                                    clusterSession.invalidateMemberForCompetitionId(id)
-                                    if (clusterSession.isLocal(address)) {
-                                        log.info("Competition $competitionId is processed locally. Starting executing the logic.")
-                                        ifLocal()
-                                    } else {
-                                        log.debug("Competition $competitionId is processed by $address")
-                                        ifRemote(address, restTemplate, clusterSession.getUrlPrefix(address.host(), address.port()))
-                                    }
-                                }, { it }) }.fix()
-                }
-            }?.map { Option.fromNullable(it) } ?: IO.just(Option.empty())
+                instanceAddress.filter { it != null }.flatMap { address ->
+                    clusterSession.invalidateMemberForCompetitionId(id)
+                    if (clusterSession.isLocal(address!!)) {
+                        log.info("Competition $competitionId is processed locally. Starting executing the logic.")
+                        ifLocal()
+                    } else {
+                        log.debug("Competition $competitionId is processed by $address")
+                        ifRemote(address, restTemplate, clusterSession.getUrlPrefix(address.host(), address.port()))
+                    }
+                }.retryBackoff(3, Duration.ofMillis(10))
+            }.getOrElse { Mono.empty() }
 
-
-    fun <T> localOrRemote(competitionId: String?, ifLocal: () -> T?, ifRemote: (instanceAddress: Address, restTemplate: RestTemplate, urlPrefix: String) -> T?): T? {
-        return localOrRemoteIo(competitionId, ifLocal, ifRemote).attempt().unsafeRunSync().fold({ throw it }, { it.orNull() })
+    fun <T> localOrRemote(competitionId: String?, ifLocal: () -> Mono<T>, ifRemote: (instanceAddress: Address, restTemplate: RestTemplate, urlPrefix: String) -> Mono<T>): T? {
+        return localOrRemoteIo(competitionId, ifLocal, ifRemote).block(Duration.ofMillis(10000))
     }
 
     fun getSchedule(competitionId: String): ScheduleDTO? {
         return localOrRemote(competitionId,
                 {
-                    ScheduleDTO()
-                            .setId(competitionId)
-                            .setPeriods(jooq.fetchPeriodsByCompetitionId(competitionId).collectList().block(timeout)?.toTypedArray())
-                            .setMats(jooq.fetchMatsByCompetitionId(competitionId, getFightStartTimes = false).collectList().block(timeout)?.toTypedArray())
+                    jooq.fetchPeriodsByCompetitionId(competitionId).collectList().flatMap { periods ->
+                        jooq.fetchMatsByCompetitionId(competitionId, getFightStartTimes = false).collectList().map { mats ->
+                            ScheduleDTO()
+                                    .setId(competitionId)
+                                    .setPeriods(periods.toTypedArray())
+                                    .setMats(mats.toTypedArray())
+                        }
+                    }
                 },
                 { _, restTemplate, urlPrefix ->
-                    restTemplate.getForObject("$urlPrefix/api/v1/store/schedule?competitionId=$competitionId", ScheduleDTO::class.java)
+                    restTemplate.getForObject("$urlPrefix/api/v1/store/schedule?competitionId=$competitionId", ScheduleDTO::class.java).toMonoOrEmpty()
                 })
     }
 
@@ -264,10 +263,10 @@ class StateQueryService(private val clusterSession: ClusterSession,
     fun getCategoryState(competitionId: String, categoryId: String): CategoryStateDTO? {
         log.info("Getting state for category $categoryId")
         return localOrRemote(competitionId, {
-            jooq.fetchCategoryStateByCompetitionIdAndCategoryId(competitionId, categoryId).block(timeout)
+            jooq.fetchCategoryStateByCompetitionIdAndCategoryId(competitionId, categoryId)
         },
                 { _, restTemplate, urlPrefix ->
-                    restTemplate.getForObject("$urlPrefix/api/v1/store/categorystate?competitionId=$competitionId&categoryId=$categoryId", CategoryStateDTO::class.java)
+                    restTemplate.getForObject("$urlPrefix/api/v1/store/categorystate?competitionId=$competitionId&categoryId=$categoryId", CategoryStateDTO::class.java).toMonoOrEmpty()
                 })
     }
 
@@ -275,12 +274,13 @@ class StateQueryService(private val clusterSession: ClusterSession,
     fun getMats(competitionId: String, periodId: String): Array<MatDescriptionDTO>? {
         log.info("Getting mats for competition $competitionId and period $periodId")
         return localOrRemote(competitionId, {
-            val mats = jooq.fetchMatsByCompetitionIdAndPeriodId(competitionId, periodId, getFightStartTimes = false)
-                    .collectList().block(timeout)
-            mats?.toTypedArray()
+            jooq.fetchMatsByCompetitionIdAndPeriodId(competitionId, periodId, getFightStartTimes = false)
+                    .collectList().map { mats ->
+                        mats.toTypedArray()
+                    }
         },
                 { _, restTemplate, urlPrefix ->
-                    restTemplate.getForObject("$urlPrefix/api/v1/store/mats?competitionId=$competitionId&periodId=$periodId", Array<MatDescriptionDTO>::class.java)
+                    restTemplate.getForObject("$urlPrefix/api/v1/store/mats?competitionId=$competitionId&periodId=$periodId", Array<MatDescriptionDTO>::class.java).toMonoOrEmpty()
                 })
     }
 
@@ -297,18 +297,18 @@ class StateQueryService(private val clusterSession: ClusterSession,
                                             .setFights(fights.toTypedArray())
                                             .setCompetitors(cmps.toTypedArray())
                                 }
-                    }.block(timeout)
+                    }
         }, { _, restTemplate, urlPrefix ->
-            restTemplate.getForObject("$urlPrefix/api/v1/store/matfights?competitionId=$competitionId&matId=$matId&maxResults=$maxResults", FightsWithCompetitors::class.java)
+            restTemplate.getForObject("$urlPrefix/api/v1/store/matfights?competitionId=$competitionId&matId=$matId&maxResults=$maxResults", FightsWithCompetitors::class.java).toMonoOrEmpty()
         })
     }
 
     fun getStageFights(competitionId: String, stageId: String): Array<FightDescriptionDTO>? {
         log.info("Getting competitors for stage $stageId")
         return localOrRemote(competitionId, {
-            jooq.fetchFightsByStageId(competitionId, stageId).collectList().block(timeout)?.toTypedArray()
+            jooq.fetchFightsByStageId(competitionId, stageId).collectList().map { it.toTypedArray() }
         }, { _, restTemplate, urlPrefix ->
-            restTemplate.getForObject("$urlPrefix/api/v1/store/stagefights?competitionId=$competitionId&stageId=$stageId", Array<FightDescriptionDTO>::class.java)
+            restTemplate.getForObject("$urlPrefix/api/v1/store/stagefights?competitionId=$competitionId&stageId=$stageId", Array<FightDescriptionDTO>::class.java).toMonoOrEmpty()
         })
 
     }
@@ -316,41 +316,50 @@ class StateQueryService(private val clusterSession: ClusterSession,
     fun getStages(competitionId: String, categoryId: String): Array<StageDescriptorDTO>? {
         log.info("Getting stages for $categoryId")
         return localOrRemote(competitionId, {
-            jooq.fetchStagesForCategory(competitionId, categoryId).collectList().block(timeout)?.toTypedArray()
+            jooq.fetchStagesForCategory(competitionId, categoryId).collectList().map { it.toTypedArray() }
         }, { _, restTemplate, urlPrefix ->
-            restTemplate.getForObject("$urlPrefix/api/v1/store/stages?competitionId=$competitionId&categoryId=$categoryId", Array<StageDescriptorDTO>::class.java)
+            restTemplate.getForObject("$urlPrefix/api/v1/store/stages?competitionId=$competitionId&categoryId=$categoryId", Array<StageDescriptorDTO>::class.java).toMonoOrEmpty()
         })
     }
 
 
     fun getCategories(competitionId: String): Array<CategoryStateDTO> {
         return localOrRemote(competitionId, {
-            jooq.fetchCategoryStatesByCompetitionId(competitionId).collectList().block(timeout)?.toTypedArray()
+            jooq.fetchCategoryStatesByCompetitionId(competitionId).collectList().map { it.toTypedArray() }
         }, { _, restTemplate, urlPrefix ->
-            restTemplate.getForObject("$urlPrefix/api/v1/store/categories?competitionId=$competitionId", Array<CategoryStateDTO>::class.java)
+            restTemplate.getForObject("$urlPrefix/api/v1/store/categories?competitionId=$competitionId", Array<CategoryStateDTO>::class.java).toMonoOrEmpty()
         }) ?: emptyArray()
     }
 
     fun getDashboardState(competitionId: String): CompetitionDashboardStateDTO? {
         return localOrRemote(competitionId, {
-            val periods = jooq.fetchPeriodsByCompetitionId(competitionId).collectList().block()?.toTypedArray()
-            CompetitionDashboardStateDTO()
-                    .setCompetitionId(competitionId)
-                    .setPeriods(periods)
+            jooq.fetchPeriodsByCompetitionId(competitionId).collectList().map { periods ->
+                CompetitionDashboardStateDTO()
+                        .setCompetitionId(competitionId)
+                        .setPeriods(periods.toTypedArray())
+            }
         }, { _, restTemplate, urlPrefix ->
-            restTemplate.getForObject("$urlPrefix/api/v1/store/dashboardstate?competitionId=$competitionId", CompetitionDashboardStateDTO::class.java)
+            restTemplate.getForObject("$urlPrefix/api/v1/store/dashboardstate?competitionId=$competitionId", CompetitionDashboardStateDTO::class.java).toMonoOrEmpty()
         })
     }
 
-    @SuppressWarnings("UNCHECKED")
     fun getFightIdsByCategoryIds(competitionId: String): Map<String, Array<String>> {
+        fun getLinkedHashMapType(): ParameterizedTypeReference<LinkedHashMap<String, Array<String>>> {
+            return object : ParameterizedTypeReference<LinkedHashMap<String, Array<String>>>() {}
+        }
         return localOrRemote(competitionId, {
-            val categoryIds = jooq.getCategoryIdsForCompetition(competitionId).collectList().block(timeout).orEmpty()
-            categoryIds.map { id ->
-                id to (jooq.getFightIdsForCategory(id).collectList().block()?.toTypedArray() ?: emptyArray())
-            }.toMap()
+            jooq.getCategoryIdsForCompetition(competitionId).flatMap { id ->
+                jooq.getFightIdsForCategory(id).collectList().map { id to it.toTypedArray() }
+            }.collectList().map { it.toMap() }
         }, { _, restTemplate, urlPrefix ->
-            restTemplate.getForObject("$urlPrefix/api/v1/store/fightsbycategories?competitionId=$competitionId", LinkedHashMap::class.java) as LinkedHashMap<String, Array<String>>
+            val typeRef = getLinkedHashMapType()
+            val respEntity = restTemplate.exchange("$urlPrefix/api/v1/store/fightsbycategories?competitionId=$competitionId", HttpMethod.GET, HttpEntity.EMPTY, typeRef)
+            val body = if (respEntity.statusCode == HttpStatus.OK) {
+                respEntity.body
+            } else {
+                throw RestClientResponseException("Error while getting FightIdsByCategoryIds", respEntity.statusCodeValue, respEntity.statusCode.reasonPhrase, respEntity.headers, null, StandardCharsets.UTF_8)
+            }
+            body.toMonoOrEmpty()
         }) ?: emptyMap()
     }
 }

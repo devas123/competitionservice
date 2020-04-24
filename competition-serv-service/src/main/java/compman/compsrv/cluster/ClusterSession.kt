@@ -1,6 +1,5 @@
 package compman.compsrv.cluster
 
-import arrow.fx.IO
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.config.ClusterConfiguration
 import compman.compsrv.config.ClusterConfigurationProperties
@@ -25,8 +24,8 @@ import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.boot.autoconfigure.web.ServerProperties
 import org.springframework.kafka.core.KafkaTemplate
+import reactor.core.publisher.Mono
 import java.time.Duration
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListSet
 
@@ -191,36 +190,31 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
     fun getUrlPrefix(host: String, port: Int) = "http://$host:$port${serverProperties.servlet.contextPath}"
 
 
-    fun findProcessingMember(competitionId: String): IO<Address> = IO {
+    fun findProcessingMember(competitionId: String): Mono<Address?> {
         log.info("Getting info about instances processing competition $competitionId")
-        clusterMembers[competitionId]?.restAddress() ?: run {
+        return (clusterMembers[competitionId]?.restAddress()?.let { Mono.just(it) } ?: run {
             if (localCompetitionIds.contains(competitionId)) {
-                Address.create(cluster.member().address().host(), serverProperties.port)
+                Mono.just(Address.create(cluster.member().address().host(), serverProperties.port))
             } else {
-                null
+                Mono.empty()
             }
-        }
-    }.map { address ->
-        address?.let { ad -> IO.just(ad) } ?: error("Did not find processing instance for $competitionId, sending command to find the instance.")
-    }.redeemWith( { throwable ->
-        log.info("Warning: ${throwable.message}")
-        commandCache.executeCommand(competitionId, CompletableFuture()) {
+        }).switchIfEmpty(commandCache.executeCommand(competitionId) {
             kafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId,
                     CommandProducer.createSendProcessingInfoCommand(competitionId, competitionId)))
-        }
-        IO.just(
-                commandCache.waitForResult(competitionId, Duration.ofSeconds(30)).find { e -> e.type == EventType.INTERNAL_COMPETITION_INFO }?.let { event ->
-                    log.info("Received a callback with processing info for $competitionId: $event")
-                    kotlin.runCatching {
-                        val payload = mapper.readValue(event.payload, CompetitionInfoPayload::class.java)
-                        Address.create(payload.host, payload.port)
-                    }.getOrElse {
-                        log.warn("Error while processing callback.", it)
-                        null
-                    }
-                } ?: error("The command to find the processing instance for $competitionId did not return result.")
-        )
-    }, { it })
+        }.map { arr ->
+            arr.find { e -> e.type == EventType.INTERNAL_COMPETITION_INFO }?.let { event ->
+                log.info("Received a callback with processing info for $competitionId: $event")
+                kotlin.runCatching {
+                    val payload = mapper.readValue(event.payload, CompetitionInfoPayload::class.java)
+                    Address.create(payload.host, payload.port)
+                }.getOrElse {
+                    log.warn("Error while processing callback.", it)
+                    null
+                }
+            }
+        })
+    }
+
     fun broadcastCompetitionProcessingInfo(competitionIds: Set<String>, correlationId: String?) = broadcastCompetitionProcessingInfoWithCluster(cluster, competitionIds, correlationId)
 
     private fun broadcastCompetitionProcessingInfoWithCluster(cluster: Cluster, competitionIds: Set<String>, correlationId: String?) {

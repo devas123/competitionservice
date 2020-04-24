@@ -9,11 +9,11 @@ import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
-import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import java.time.Duration
 
 @RestController
 @RequestMapping("/api/v1")
@@ -45,7 +45,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     }
 
     @RequestMapping(path = ["/commandsync/{competitionId}", "/commandsync"], method = [RequestMethod.POST])
-    fun sendCommandSync(@RequestBody command: CommandDTO, @PathVariable competitionId: String?): ResponseEntity<Array<EventDTO>> {
+    fun sendCommandSync(@RequestBody command: CommandDTO, @PathVariable competitionId: String?): ResponseEntity<Array<out EventDTO>> {
         log.info("COMMAND SYNC: $command")
         return ResponseEntity(commandProducer.sendCommandSync(command, competitionId), HttpStatus.OK)
     }
@@ -113,7 +113,8 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     @RequestMapping("/store/comprops", method = [RequestMethod.GET])
     fun getCompetitionProperties(@RequestParam("competitionId") competitionId: String?): CompetitionPropertiesDTO? {
         log.info("looking for the competition properties for competition $competitionId")
-        return runBlocking { competitionId?.let { stateQueryService.getCompetitionProperties(it).suspended() } }?.orNull()
+        return competitionId?.let {
+            stateQueryService.getCompetitionProperties(it).block(Duration.ofMillis(10000)) }?.orNull()
     }
 
     @RequestMapping("/store/infotemplate", method = [RequestMethod.GET])
