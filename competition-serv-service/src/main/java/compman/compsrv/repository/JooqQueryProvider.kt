@@ -75,7 +75,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                     .where(StageDescriptor.STAGE_DESCRIPTOR.COMPETITION_ID.eq(competitionId))
                     .and(StageDescriptor.STAGE_DESCRIPTOR.STAGE_STATUS.`in`(listOf(StageStatus.IN_PROGRESS.name, StageStatus.APPROVED.name)))
 
-    fun topMatFightsQuery(competitionId: String, stageId: String, matId: String, statuses: Iterable<FightStatus>): SelectSeekStep2<Record, Int, Int> {
+    fun topMatFightsQuery(competitionId: String, stageId: String, matId: String, statuses: Iterable<FightStatus>): SelectSeekStep1<Record, Int> {
         return create.select(*(FightDescription.FIGHT_DESCRIPTION.fields()),
                 *MatDescription.MAT_DESCRIPTION.fields())
                 .from(
@@ -90,8 +90,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                         .where(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.isNotNull)
                         .and(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.eq(FightDescription.FIGHT_DESCRIPTION.ID)).asField<Int>().ge(2))
                 .and(FightDescription.FIGHT_DESCRIPTION.STATUS.`in`(statuses.map { it.name }))
-                .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT,
-                        FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND)
+                .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.asc().nullsLast())
     }
 
     fun competitorsQueryBasic(): SelectWhereStep<CompetitorRecord> = create.selectFrom(Competitor.COMPETITOR)
@@ -104,11 +103,10 @@ class JooqQueryProvider(private val create: DSLContext) {
 
     fun competitorsQuery(competitionId: String): SelectConditionStep<Record> = competitorsQueryJoined().where(Competitor.COMPETITOR.COMPETITION_ID.equal(competitionId))
 
-    fun getRegistrationGroupPeriodsQuery(competitionId: String): SelectConditionStep<Record> = create.selectFrom(RegistrationGroup.REGISTRATION_GROUP.join(RegGroupRegPeriod.REG_GROUP_REG_PERIOD, JoinType.LEFT_OUTER_JOIN)
+    fun getRegistrationGroupQuery(competitionId: String): SelectConditionStep<Record> = create.selectFrom(
+            RegistrationGroup.REGISTRATION_GROUP.join(RegGroupRegPeriod.REG_GROUP_REG_PERIOD, JoinType.LEFT_OUTER_JOIN)
             .on(RegistrationGroup.REGISTRATION_GROUP.ID.equal(RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_GROUP_ID))
-            .join(RegistrationPeriod.REGISTRATION_PERIOD, JoinType.RIGHT_OUTER_JOIN)
-            .on(RegistrationPeriod.REGISTRATION_PERIOD.ID.equal(RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_PERIOD_ID))
-            .join(RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES, JoinType.FULL_OUTER_JOIN)
+            .join(RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES, JoinType.LEFT_OUTER_JOIN)
             .on(RegistrationGroup.REGISTRATION_GROUP.ID.equal(RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES.REGISTRATION_GROUP_ID)))
             .where(RegistrationGroup.REGISTRATION_GROUP.REGISTRATION_INFO_ID.equal(competitionId))
 

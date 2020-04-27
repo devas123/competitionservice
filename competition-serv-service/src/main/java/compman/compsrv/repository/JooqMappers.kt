@@ -74,14 +74,6 @@ class JooqMappers {
         t.setRestrictions(t.restrictions + u.restrictions)
     }, Collector.Characteristics.CONCURRENT, Collector.Characteristics.IDENTITY_FINISH)
 
-    fun fightCollector(): Collector<Record, FightDescriptionDTO, FightDescriptionDTO> = Collector.of(
-            Supplier { FightDescriptionDTO().setScores(emptyArray()) },
-            BiConsumer { t: FightDescriptionDTO, it: Record ->
-                mapFightDescription(t, it)
-            }, BinaryOperator { t: FightDescriptionDTO, u: FightDescriptionDTO ->
-        t.setScores(t.scores + u.scores)
-    }, Collector.Characteristics.CONCURRENT, Collector.Characteristics.IDENTITY_FINISH)
-
 
     fun mapCompetitorWithoutCategories(it: Record): CompetitorDTO = CompetitorDTO()
             .setFirstName(it[Competitor.COMPETITOR.FIRST_NAME])

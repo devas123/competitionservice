@@ -6,8 +6,10 @@ import com.compmanager.model.payment.RegistrationStatus
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.dto.schedule.*
+import compman.compsrv.model.dto.schedule.PeriodDTO
+import compman.compsrv.model.dto.schedule.ScheduleEntryDTO
 import compman.compsrv.util.IDGenerator
+import compman.compsrv.util.toTimestamp
 import java.sql.Timestamp
 
 
@@ -33,7 +35,6 @@ fun SchedulePeriod.toDTO(scheduleEntries: Array<ScheduleEntryDTO>): PeriodDTO = 
         .setStartTime(startTime?.toInstant())
 
 
-
 fun CategoryRestriction.toDTO(): CategoryRestrictionDTO = CategoryRestrictionDTO().setMaxValue(maxValue).setMinValue(minValue).setName(name).setType(CategoryRestrictionType.valueOf(type))
         .setUnit(unit).apply {
             id = IDGenerator.restrictionId(this)
@@ -52,13 +53,30 @@ fun RegistrationGroup.toDTO(getCategories: (groupId: String) -> Array<String>, g
         .setRegistrationFee(registrationFee)
         .setCategories(getCategories(id))
 
-fun RegistrationPeriod.toDTO(getGroups: (periodId: String) -> Array<String>): RegistrationPeriodDTO = RegistrationPeriodDTO()
+fun RegistrationPeriod.toDTO(getGroups: (periodId: String) -> Array<out String>): RegistrationPeriodDTO = RegistrationPeriodDTO()
         .setId(id)
         .setCompetitionId(registrationInfoId)
         .setName(name)
         .setEnd(endDate.toInstant())
         .setStart(startDate.toInstant())
         .setRegistrationGroupIds(getGroups(id))
+
+fun RegistrationPeriodDTO.toPojo(): RegistrationPeriod = RegistrationPeriod().also {
+    it.id = id
+    it.endDate = end?.toTimestamp()
+    it.startDate = start?.toTimestamp()
+    it.name = name
+    it.registrationInfoId = competitionId
+}
+
+fun RegistrationGroupDTO.toPojo(): RegistrationGroup = RegistrationGroup().also {
+    it.id = id
+    it.defaultGroup = defaultGroup
+    it.displayName = displayName
+    it.registrationFee = registrationFee
+    it.registrationInfoId = registrationInfoId
+}
+
 
 fun PromoCode.toDTO(): PromoCodeDTO = PromoCodeDTO()
         .setId(id.toString())
@@ -72,6 +90,7 @@ fun CompScore.toDTO(): CompScoreDTO = CompScoreDTO().setScore(ScoreDTO()
         .setAdvantages(advantages)
         .setPenalties(penalties))
         .setCompetitorId(compscoreCompetitorId)
+
 fun FightResultOption.toDTO(): FightResultOptionDTO =
         FightResultOptionDTO().setShortName(shortName)
                 .setDescription(description)
@@ -82,7 +101,7 @@ fun FightResultOption.toDTO(): FightResultOptionDTO =
                 .setWinnerAdditionalPoints(winnerAdditionalPoints)
                 .setWinnerPoints(winnerPoints)
 
-fun CompetitionProperties.toDTO(staffIds: Array<String>?, promoCodes: Array<PromoCodeDTO>?, getRegistrationInfo: (id: String) -> RegistrationInfoDTO?): CompetitionPropertiesDTO =
+fun CompetitionProperties.toDTO(staffIds: Array<String>?, promoCodes: Array<PromoCodeDTO>?): CompetitionPropertiesDTO =
         CompetitionPropertiesDTO()
                 .setId(id)
                 .setBracketsPublished(bracketsPublished)
@@ -96,7 +115,6 @@ fun CompetitionProperties.toDTO(staffIds: Array<String>?, promoCodes: Array<Prom
                 .setStaffIds(staffIds ?: emptyArray())
                 .setPromoCodes(promoCodes ?: emptyArray())
                 .setTimeZone(timeZone)
-                .setRegistrationInfo(getRegistrationInfo(id))
                 .setCreationTimestamp(creationTimestamp)
                 .setStatus(CompetitionStatus.valueOf(status))
 
@@ -176,7 +194,7 @@ fun FightDescriptionDTO.toPojo(): FightDescription =
         }
 
 fun CompScoreDTO.toPojo(fightId: String): CompScore {
-    return CompScore().also {cs ->
+    return CompScore().also { cs ->
         cs.placeholderId = this.placeholderId
         cs.advantages = this.score?.advantages
         cs.compScoreOrder = this.order

@@ -184,10 +184,10 @@ create table compservice.reg_group_reg_period
 (
     reg_group_id  varchar(255) not null
         constraint fkfhwupl1py85g0cyjikvp794hi
-            references compservice.registration_period on delete cascade,
+            references compservice.registration_group on delete cascade,
     reg_period_id varchar(255) not null
         constraint fkn4hr8mvec1fixuba1wmv1271r
-            references compservice.registration_group on delete cascade,
+            references compservice.registration_period on delete cascade,
     constraint reg_group_reg_period_pkey
         primary key (reg_group_id, reg_period_id)
 );

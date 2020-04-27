@@ -219,7 +219,8 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                 newProperties.timeZone = ZoneId.systemDefault().id
                             }
                             if (!competitionPropertiesCrudRepository.existsById(command.competitionId)) {
-                                listOf(createEvent(EventType.COMPETITION_CREATED, CompetitionCreatedPayload(newProperties.setId(command.competitionId))))
+                                listOf(createEvent(EventType.COMPETITION_CREATED, CompetitionCreatedPayload(
+                                        newProperties.setId(command.competitionId), payload.reginfo?.setId(command.competitionId))))
                             } else {
                                 listOf(createErrorEvent("Competition with name '${newProperties.competitionName}' already exists."))
                             }

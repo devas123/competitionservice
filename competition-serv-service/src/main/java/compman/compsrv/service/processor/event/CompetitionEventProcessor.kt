@@ -1,8 +1,12 @@
 package compman.compsrv.service.processor.event
 
 import com.compmanager.compservice.jooq.tables.daos.*
+import com.compmanager.compservice.jooq.tables.pojos.RegGroupRegPeriod
+import com.compmanager.compservice.jooq.tables.pojos.RegistrationInfo
 import com.fasterxml.jackson.databind.ObjectMapper
+import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.dto.competition.CompetitionStateDTO
+import compman.compsrv.model.dto.competition.RegistrationInfoDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
@@ -96,7 +100,13 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
                 payload.properties?.let { props ->
                     log.info("Creating competition: $props")
                     val state = CompetitionStateDTO().setId(props.id).setProperties(props)
+                    val regInfo = payload.reginfo ?: RegistrationInfoDTO()
+                            .setId(props.id).setRegistrationOpen(false).setRegistrationGroups(emptyArray()).setRegistrationPeriods(emptyArray())
                     jooqRepository.saveCompetitionState(state)
+                    registrationInfoCrudRepository.insert(RegistrationInfo(regInfo.id, regInfo.registrationOpen))
+                    registrationPeriodCrudRepository.insert(regInfo.registrationPeriods.orEmpty().map { it.toPojo() })
+                    registrationGroupCrudRepository.insert(regInfo.registrationGroups.orEmpty().map { it.toPojo() })
+                    regGroupRegPeriodDao.insert(regInfo.registrationGroups?.flatMap { it.registrationPeriodIds.map { rp -> RegGroupRegPeriod(it.id, rp) } }.orEmpty())
                 } ?: throw createError("Properties are missing.")
             }
             EventType.SCHEDULE_DROPPED -> {

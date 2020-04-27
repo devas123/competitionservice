@@ -39,6 +39,9 @@ class StateQueryService(private val clusterSession: ClusterSession,
                         private val jooq: JooqRepository,
                         private val jooqQueryProvider: JooqQueryProvider,
                         private val registrationInfoDao: RegistrationInfoDao,
+                        private val registrationPeriodDao: RegistrationPeriodDao,
+                        private val registrationGroupDao: RegistrationGroupDao,
+                        private val regGroupRegPeriodDao: RegGroupRegPeriodDao,
                         private val staffDao: CompetitionPropertiesStaffIdsDao,
                         private val promoCodeDao: PromoCodeDao,
                         private val competitionPropertiesDao: CompetitionPropertiesDao,
@@ -158,58 +161,44 @@ class StateQueryService(private val clusterSession: ClusterSession,
         )
     }
 
+    fun getRegistrationInfo(competitionId: String): Mono<RegistrationInfoDTO> {
+        return localOrRemoteIo(competitionId, {
+            Mono.just(registrationInfoDao.findById(competitionId))
+                    .flatMap { regInfo ->
+                        val periods = registrationPeriodDao.fetchByRegistrationInfoId(competitionId)
+                        val groups = registrationGroupDao.fetchByRegistrationInfoId(competitionId)
+                        val connections = regGroupRegPeriodDao.fetchByRegPeriodId(*periods.mapNotNull { it.id }.toTypedArray())
+                        val categoryIds = jooq.fetchCategoryIdsByRegistrationGroupIds(groups.mapNotNull { it.id })
+                        categoryIds.collectList()
+                                .map { groupIdsToCategoryIds ->
+                                    regInfo.toDTO(
+                                            registrationPeriods = periods.map { period -> period.toDTO { perId -> connections.filter { con -> con.regPeriodId == perId }.map { id -> id.regGroupId }.toTypedArray() }}.toTypedArray(),
+                                            registrationGroups = groups.map { group ->
+                                                group.toDTO({ grId ->
+                                                groupIdsToCategoryIds.filter { it.a == grId }.flatMap { it.b }.toTypedArray()
+                                            }, { groupId ->
+                                                connections.filter { con -> con.regGroupId == groupId }.map { it.regPeriodId }.toTypedArray()
+                                            }) }.toTypedArray()
+                                    )
+                                }
+                    }
+        },
+                { address, restTemplate, urlPrefix ->
+                    val url = "$urlPrefix/api/v1/store/reginfo?competitionId=$competitionId"
+                    log.info("Doing a remote request to address $address, url=$url")
+                    val result = restTemplate.getForObject(url, RegistrationInfoDTO::class.java)
+                    log.info("Result: $result")
+                    result.toMonoOrEmpty()
+                })
+    }
+
     fun getCompetitionProperties(competitionId: String): Mono<Option<CompetitionPropertiesDTO>> {
         return localOrRemoteIo(competitionId,
                 {
                     log.info("Getting competition properties id $competitionId")
-                    val joinedColumnsFlat = jooqQueryProvider.getRegistrationGroupPeriodsQuery(competitionId).fetch()
                     val result = competitionPropertiesDao.findById(competitionId)
                             ?.toDTO(staffDao.fetchByCompetitionPropertiesId(competitionId)?.map { it.staffId }?.toTypedArray(),
                                     promoCodeDao.fetchByCompetitionId(competitionId)?.map { it.toDTO() }?.toTypedArray())
-                            { regInfoId ->
-                                registrationInfoDao.findById(regInfoId)?.let {
-                                    val byGroups = joinedColumnsFlat.intoGroups(RegistrationGroup.REGISTRATION_GROUP.ID)
-                                    val byPeriods = joinedColumnsFlat.intoGroups(RegistrationPeriod.REGISTRATION_PERIOD.ID)
-                                    val registrationCategories = byGroups.mapValues { e ->
-                                        e.value.intoArray(RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES.CATEGORY_ID).filterNotNull()
-                                    }
-                                    val registrationPeriodIds = byGroups.mapValues { e ->
-                                        e.value.intoArray(RegistrationPeriod.REGISTRATION_PERIOD.ID).filterNotNull()
-                                    }
-
-                                    val regGroupIds = byPeriods.mapValues { e ->
-                                        e.value.intoArray(RegistrationGroup.REGISTRATION_GROUP.ID).filterNotNull()
-                                    }
-
-                                    RegistrationInfoDTO()
-                                            .setId(regInfoId)
-                                            .setRegistrationOpen(it.registrationOpen)
-                                            .setRegistrationPeriods(
-                                                    joinedColumnsFlat.map { rec ->
-                                                        val id = rec[RegistrationPeriod.REGISTRATION_PERIOD.ID]
-                                                        RegistrationPeriodDTO()
-                                                                .setCompetitionId(competitionId)
-                                                                .setEnd(rec[RegistrationPeriod.REGISTRATION_PERIOD.END_DATE]?.toInstant())
-                                                                .setStart(rec[RegistrationPeriod.REGISTRATION_PERIOD.START_DATE]?.toInstant())
-                                                                .setId(id)
-                                                                .setName(rec[RegistrationPeriod.REGISTRATION_PERIOD.NAME])
-                                                                .setRegistrationGroupIds(regGroupIds[id]?.toTypedArray())
-                                                    }?.toTypedArray()
-                                            )
-                                            .setRegistrationGroups(
-                                                    joinedColumnsFlat.map { rec ->
-                                                        val id = rec[RegistrationGroup.REGISTRATION_GROUP.ID]
-                                                        RegistrationGroupDTO()
-                                                                .setRegistrationInfoId(regInfoId)
-                                                                .setCategories(registrationCategories[id]?.toTypedArray())
-                                                                .setDefaultGroup(rec[RegistrationGroup.REGISTRATION_GROUP.DEFAULT_GROUP])
-                                                                .setId(id)
-                                                                .setRegistrationFee(rec[RegistrationGroup.REGISTRATION_GROUP.REGISTRATION_FEE])
-                                                                .setRegistrationPeriodIds(registrationPeriodIds[id]?.toTypedArray())
-                                                    }?.toTypedArray()
-                                            )
-                                }
-                            }
                     log.info("Found competition properties: $result")
                     result.toMonoOrEmpty()
                 },
@@ -304,11 +293,20 @@ class StateQueryService(private val clusterSession: ClusterSession,
     }
 
     fun getStageFights(competitionId: String, stageId: String): Array<FightDescriptionDTO>? {
-        log.info("Getting competitors for stage $stageId")
+        log.info("Getting fights for stage $stageId")
         return localOrRemote(competitionId, {
             jooq.fetchFightsByStageId(competitionId, stageId).collectList().map { it.toTypedArray() }
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/stagefights?competitionId=$competitionId&stageId=$stageId", Array<FightDescriptionDTO>::class.java).toMonoOrEmpty()
+        })
+    }
+
+    fun getFight(competitionId: String, fightId: String): FightDescriptionDTO? {
+        log.info("Getting fight for id $fightId")
+        return localOrRemote(competitionId, {
+            jooq.fetchFightById(competitionId, fightId)
+        }, { _, restTemplate, urlPrefix ->
+            restTemplate.getForObject("$urlPrefix/api/v1/store/stagefights?competitionId=$competitionId&stageId=$fightId", FightDescriptionDTO::class.java).toMonoOrEmpty()
         })
 
     }

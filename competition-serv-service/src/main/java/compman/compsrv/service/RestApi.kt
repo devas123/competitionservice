@@ -77,6 +77,11 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
         return stateQueryService.getStageFights(competitionId, stageId)?.toList().orEmpty()
     }
 
+    @RequestMapping("/store/fight", method = [RequestMethod.GET])
+    fun getFight(@RequestParam("competitionId") competitionId: String, @RequestParam("fightId") fightId: String): FightDescriptionDTO? {
+        return stateQueryService.getFight(competitionId, fightId)
+    }
+
     @RequestMapping("/store/stages", method = [RequestMethod.GET])
     fun getCategoryStages(@RequestParam("competitionId") competitionId: String, @RequestParam("categoryId") categoryId: String): Array<StageDescriptorDTO> {
         return stateQueryService.getStages(competitionId, categoryId) ?: emptyArray()
@@ -115,6 +120,12 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
         log.info("looking for the competition properties for competition $competitionId")
         return competitionId?.let {
             stateQueryService.getCompetitionProperties(it).block(Duration.ofMillis(10000)) }?.orNull()
+    }
+    @RequestMapping("/store/reginfo", method = [RequestMethod.GET])
+    fun getRegistrationInfo(@RequestParam("competitionId") competitionId: String?): RegistrationInfoDTO? {
+        log.info("looking for the competition properties for competition $competitionId")
+        return competitionId?.let {
+            stateQueryService.getRegistrationInfo(it).block(Duration.ofMillis(10000)) }
     }
 
     @RequestMapping("/store/infotemplate", method = [RequestMethod.GET])
