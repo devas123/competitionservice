@@ -89,7 +89,7 @@ class ScheduleService {
                 getFightScores = getFight,
                 competitionId = competitionId)
 
-        val fightsByMats = composer.simulate().block(Duration.ofMillis(500)) ?: error("Generated schedule is null")
+        val fightsByMats = composer.simulate().block(Duration.ofMillis(180000)) ?: error("Generated schedule is null")
         val invalidFightIds = fightsByMats.c
 
         return ScheduleDTO()
