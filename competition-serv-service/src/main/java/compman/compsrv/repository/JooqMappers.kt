@@ -36,6 +36,7 @@ class JooqMappers {
                 .setStartTime(u[FightDescription.FIGHT_DESCRIPTION.START_TIME]?.toInstant())
                 .setNumberOnMat(u[FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT])
                 .setInvalid(u[FightDescription.FIGHT_DESCRIPTION.INVALID])
+                .setScheduleEntryId(u[FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID])
     }
 
 

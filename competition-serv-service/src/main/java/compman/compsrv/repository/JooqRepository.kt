@@ -192,7 +192,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
 
     fun topMatFights(limit: Long = 100, competitionId: String, matId: String, statuses: Iterable<FightStatus>): Flux<FightDescriptionDTO> {
         return Flux.from(queryProvider.activeStageIdsForCompetition(competitionId)).map { it[StageDescriptor.STAGE_DESCRIPTOR.ID] }.filter { !it.isNullOrBlank() }.flatMap { stageId ->
-                    Flux.from(queryProvider.topMatFightsQuery(competitionId = competitionId, stageId = stageId, matId = matId, statuses = statuses))
+                    Flux.from(queryProvider.topMatFightsQuery(competitionId = competitionId, stageId = stageId, matId = matId, statuses = statuses, limit = limit))
                 }.doOnEach { f -> log.info("${f.get()?.get(FightDescription.FIGHT_DESCRIPTION.MAT_ID)} -> ${f.get()?.get(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT)}") }
                         .map { rec -> jooqMappers.fightDescription(rec) }
                         .flatMap { f -> enrichWithCompScores(f) }.limitRequest(limit)
@@ -637,6 +637,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
             create.batch(newFights.map {
                 create.update(FightDescription.FIGHT_DESCRIPTION)
                         .set(FightDescription.FIGHT_DESCRIPTION.MAT_ID, it.matId)
+                        .set(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID, it.scheduleEntryId)
                         .set(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT, it.numberOnMat)
                         .set(FightDescription.FIGHT_DESCRIPTION.START_TIME, it.startTime?.toTimestamp())
                         .set(FightDescription.FIGHT_DESCRIPTION.PERIOD, it.periodId)

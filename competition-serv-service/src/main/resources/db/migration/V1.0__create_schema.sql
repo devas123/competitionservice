@@ -50,6 +50,10 @@ drop table if exists compservice.competitor_selector_selector_value cascade;
 
 drop table if exists compservice.competitor_stage_result cascade;
 
+drop index if exists fd_number_on_mat cascade;
+drop index if exists fd_number_in_round cascade;
+drop index if exists fd_start_time cascade;
+
 create table compservice.category_restriction
 (
     id        varchar(255) not null
@@ -405,6 +409,10 @@ create table compservice.fight_description
     constraint fight_description_fight_output_fkey foreign key (result_type, stage_id)
         references compservice.fight_result_option
 );
+
+CREATE INDEX fd_number_on_mat ON compservice.fight_description (number_on_mat NULLS LAST);
+CREATE INDEX fd_number_in_round ON compservice.fight_description (number_in_round NULLS LAST);
+CREATE INDEX fd_start_time ON compservice.fight_description (start_time NULLS LAST);
 
 
 create table compservice.schedule_requirement_fight_description

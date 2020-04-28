@@ -16,19 +16,17 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.util.*
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.function.BiConsumer
 import java.util.function.BinaryOperator
 import java.util.function.Supplier
 import java.util.stream.Collector
-import kotlin.collections.ArrayList
-import kotlin.collections.LinkedHashSet
 
 data class InternalFightStartTime(val fight: FightDescription,
                                   val matId: String,
                                   val fightNumber: Int,
                                   val startTime: Instant,
+                                  val scheduleEntryId: String,
                                   val periodId: String)
 
 data class FightDescriptionAndEntryOrder(val f: FightDescription, val entryOrder: Int) {
@@ -71,7 +69,8 @@ class ScheduleAccumulator(initialMatSchedules: List<InternalMatScheduleContainer
 }
 
 
-class ScheduleProducer(val startTime: Map<String, Instant>,
+class ScheduleProducer(val competitionId: String,
+        val startTime: Map<String, Instant>,
                        val mats: List<MatDescriptionDTO>,
                        req: List<ScheduleRequirementDTO>,
                        private val brackets: Flux<StageGraph>,
@@ -218,7 +217,6 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
                 log.trace("Dispatching fight ${f.id} -> ${f.round}. to entry ${entryDTO.id}")
                 val newSchedule = updateScheduleEntry(entryDTO.apply {
                     categoryIds = ((categoryIds ?: emptyArray()) + f.categoryId).distinct().toTypedArray()
-                    fightIds = ((fightIds ?: emptyArray()) + MatIdAndSomeId(mat.id, f.id)).distinct().toTypedArray()
                     startTime = startTime ?: mat.currentTime
                     numberOfFights = (numberOfFights ?: 0) + 1
                 })
@@ -231,6 +229,7 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
                                                 fightNumber = mat.totalFights,
                                                 startTime = mat.currentTime,
                                                 matId = mat.id,
+                                                scheduleEntryId = entryDTO.id,
                                                 periodId = mat.periodId),
                                 totalFights = mat.totalFights + 1))
             } else {
@@ -313,7 +312,8 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
 
     private fun emptyScheduleEntry(defaultMat: InternalMatScheduleContainer): ScheduleEntryDTO {
         return ScheduleEntryDTO()
-                .setId(UUID.randomUUID().toString())
+                .setId(IDGenerator
+                        .scheduleEntryId(competitionId, defaultMat.periodId))
                 .setPeriodId(defaultMat.periodId)
                 .setEntryType(ScheduleEntryType.FIGHTS_GROUP)
                 .setFightIds(emptyArray())
@@ -325,7 +325,8 @@ class ScheduleProducer(val startTime: Map<String, Instant>,
     private fun scheduleEntryFromRequirement(requirement: ScheduleRequirementDTO, schedule: List<ScheduleEntryDTO>): ScheduleEntryDTO {
         return (schedule.firstOrNull { it.requirementIds?.contains(requirement.id) == true }
                 ?: ScheduleEntryDTO()
-                        .setId(requirement.id + "-entry")
+                        .setId(IDGenerator
+                                .scheduleEntryId(competitionId, requirement.periodId))
                         .setPeriodId(requirement.periodId)
                         .setEntryType(ScheduleEntryType.FIGHTS_GROUP)
                         .setFightIds(emptyArray())

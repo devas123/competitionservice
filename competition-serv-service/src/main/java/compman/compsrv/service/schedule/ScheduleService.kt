@@ -86,7 +86,8 @@ class ScheduleService {
                 timeBetweenFights = periods.map { p -> p.id!! to BigDecimal(p.timeBetweenFights) }.toMap(),
                 riskFactor = periods.map { p -> p.id!! to p.riskPercent }.toMap(),
                 timeZone = timeZone,
-                getFightScores = getFight)
+                getFightScores = getFight,
+                competitionId = competitionId)
 
         val fightsByMats = composer.simulate().block(Duration.ofMillis(500)) ?: error("Generated schedule is null")
         val invalidFightIds = fightsByMats.c
@@ -111,8 +112,6 @@ class ScheduleService {
                                     .sortedBy { it.startTime.toEpochMilli() }
                                     .mapIndexed { i, scheduleEntryDTO ->
                                         scheduleEntryDTO
-                                                .setId(IDGenerator
-                                                        .scheduleEntryId(competitionId, period.id))
                                                 .setOrder(i)
                                                 .setInvalidFightIds(scheduleEntryDTO.fightIds?.filter { invalidFightIds.contains(it.someId) }
                                                         ?.mapNotNull { it.someId }
@@ -129,6 +128,7 @@ class ScheduleService {
                         .setPeriodId(it.periodId)
                         .setFightCategoryId(it.fight.categoryId)
                         .setMatId(it.matId)
+                        .setScheduleEntryId(it.scheduleEntryId)
             }
         }
     }
