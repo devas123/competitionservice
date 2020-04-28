@@ -1,6 +1,5 @@
 package compman.compsrv.model.dto.schedule;
 
-import compman.compsrv.model.dto.dashboard.MatDescriptionDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

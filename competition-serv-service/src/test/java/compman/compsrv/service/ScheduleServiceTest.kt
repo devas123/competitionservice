@@ -35,7 +35,9 @@ class ScheduleServiceTest {
         }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }) }
         val flatFights = fights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }
 
-        val schedule = testDataGenerationUtils.generateSchedule(categories, fights, competitionId, competitorNumbers)
+        val tuple = testDataGenerationUtils.generateSchedule(categories, fights, competitionId, competitorNumbers)
+        val schedule = tuple.a
+        val fstms = tuple.b
 
         println("Fights: ")
         fights.forEach {
@@ -44,9 +46,9 @@ class ScheduleServiceTest {
 
         assertNotNull(schedule)
         assertNotNull(schedule.periods)
-        assertEquals(flatFights.size, schedule.mats.flatMap { descriptionDTO -> descriptionDTO.fightStartTimes.toList() }.size)
+        assertEquals(flatFights.size, fstms.size)
         assertEquals(flatFights.size, schedule.periods.flatMap { it.scheduleEntries.flatMap { entryDTO -> entryDTO.fightIds.toList() } }.distinct().size)
-        val fightStartTimes = schedule.mats.flatMap { descriptionDTO -> descriptionDTO.fightStartTimes.toList() }
+        val fightStartTimes = fstms
         val fightIdsInSchedule = schedule.periods.flatMap { it.scheduleEntries.flatMap { dto -> dto.fightIds.toList() } }
         assertTrue(flatFights.fold(true) { acc, f -> acc && fightStartTimes.any { it.fightId == f.id } })
         assertTrue(flatFights.fold(true) { acc, f -> acc && fightIdsInSchedule.any { it.someId == f.id } })
@@ -68,7 +70,8 @@ class ScheduleServiceTest {
             println("${it.id} -> ${it.name}")
             println("------------------ MATS: ${mats.size} --------------")
             mats.forEach { mat ->
-                println("${mat.id} -> ${mat.fightStartTimes?.size} -> \n${mat.fightStartTimes?.joinToString(separator = "\n") { f -> "${f.fightId} -> ${f.startTime} -> ${f.numberOnMat}" }}")
+                val mattimes = fstms.filter { fs -> fs.matId == mat.id }
+                println("${mat.id} -> ${mattimes.size} -> \n${mattimes.joinToString(separator = "\n") { f -> "${f.fightId} -> ${f.startTime} -> ${f.numberOnMat}" }}")
             }
             println("------------------ SCHEDULE REQUIREMENTS ${it.scheduleRequirements?.size} -----------------")
             it.scheduleRequirements?.forEach { e ->

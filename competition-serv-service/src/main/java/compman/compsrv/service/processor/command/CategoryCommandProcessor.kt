@@ -1,7 +1,6 @@
 package compman.compsrv.service.processor.command
 
-import arrow.core.Tuple2
-import arrow.core.fix
+import arrow.core.*
 import com.compmanager.compservice.jooq.tables.CategoryDescriptor
 import com.compmanager.compservice.jooq.tables.daos.CategoryDescriptorDao
 import com.compmanager.compservice.jooq.tables.daos.CompetitionPropertiesDao
@@ -31,6 +30,15 @@ import java.math.BigDecimal
 import java.time.Duration
 import java.util.*
 
+
+data class LabeledFight(val fight: Option<FightDescriptionDTO>, val label: String, val id: Option<String> = None) {
+    constructor(fight: FightDescriptionDTO, label: String): this(fight.some(), label, None)
+    companion object {
+        const val UPDATED = "UPDATED"
+        const val NEW = "NEW"
+        const val REMOVED = "REMOVED"
+    }
+}
 
 @Component
 class CategoryCommandProcessor constructor(private val fightsGenerateService: FightServiceFactory,
@@ -185,14 +193,11 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                                 ?: stageFights.firstOrNull { it.id == id })?.scores?.map { it.toPojo(id) }
                     }
 
-
-                    listOf(createEvent(command, EventType.FIGHTS_EDITOR_CHANGE_APPLIED,
-                            FightEditorChangesAppliedPayload()
-                                    .setRemovedFighids(allStageFights.filter { asf -> markedStageFights.none { msf -> asf.id == msf.id } }
-                                            .map { it.id }.toTypedArray())
-                                    .setUpdates(markedStageFights.filter { allStageFights.any { asf -> asf.id == it.id } }
-                                            .toTypedArray())
-                                    .setNewFights(markedStageFights.filter { allStageFights.none { asf -> asf.id == it.id } }.toTypedArray())))
+                    createFightEditorChangesAppliedEvents(command,
+                            markedStageFights.filter { allStageFights.none { asf -> asf.id == it.id } },
+                            markedStageFights.filter { allStageFights.any { asf -> asf.id == it.id } },
+                            allStageFights.filter { asf -> markedStageFights.none { msf -> asf.id == msf.id } }
+                                    .map { it.id })
                 } else {
                     listOf(createErrorEvent(command, "Competition schedule or brackets are published."))
                 }
@@ -280,6 +285,14 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
     private fun createErrorEvent(command: CommandDTO, errorStr: String) = mapper.createErrorEvent(command, errorStr)
 
     private fun createEvent(command: CommandDTO, eventType: EventType, payload: Any?) = mapper.createEvent(command, eventType, payload)
+
+    private fun createFightEditorChangesAppliedEvents(command: CommandDTO, newFights: List<FightDescriptionDTO>, updates: List<FightDescriptionDTO>, removeFightIds: List<String>): List<EventDTO> {
+        val allFights = newFights.map { LabeledFight(it, LabeledFight.NEW) } + updates.map { LabeledFight(it, LabeledFight.UPDATED) } + removeFightIds.map { LabeledFight(None, LabeledFight.REMOVED, it.some()) }
+        return allFights.chunked(50) { chunk -> createEvent(command, EventType.FIGHTS_EDITOR_CHANGE_APPLIED, FightEditorChangesAppliedPayload()
+                .setNewFights(chunk.filter { it.label == LabeledFight.NEW }.mapNotNull { it.fight.orNull() }.toTypedArray())
+                .setUpdates(chunk.filter { it.label == LabeledFight.UPDATED }.mapNotNull { it.fight.orNull() }.toTypedArray())
+                .setRemovedFighids(chunk.filter { it.label == LabeledFight.REMOVED }.mapNotNull { it.id.orNull() }.toTypedArray())) }
+    }
 
     private fun doGenerateBrackets(com: CommandDTO): List<EventDTO> =
             executeValidated(com, GenerateBracketsPayload::class.java) { payload, command ->
@@ -380,19 +393,15 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                                 (dirtyStageFights.firstOrNull { it.id == id }
                                         ?: stageFights.firstOrNull { it.id == id })?.scores?.map { it.toPojo(id) }
                             }
-                            listOf(createEvent(c, EventType.STAGE_STATUS_UPDATED, StageStatusUpdatedPayload(payload.stageId, payload.status)),
-                                    createEvent(c, EventType.FIGHTS_EDITOR_CHANGE_APPLIED,
-                                            FightEditorChangesAppliedPayload()
-                                                    .setUpdates(markedStageFights.toTypedArray())))
+                            listOf(createEvent(c, EventType.STAGE_STATUS_UPDATED, StageStatusUpdatedPayload(payload.stageId, payload.status))) +
+                                    createFightEditorChangesAppliedEvents(command, emptyList(), markedStageFights, emptyList())
                         }
                     }
                     StageStatus.WAITING_FOR_COMPETITORS -> {
                         jooq.fetchFightsByStageId(c.competitionId, payload.stageId).collectList().map { stageFights ->
                             val dirtyStageFights = stageFights.applyConditionalUpdate({ it.status == FightStatus.UNCOMPLETABLE }, { it.setStatus(FightStatus.PENDING) })
-                            listOf(createEvent(c, EventType.STAGE_STATUS_UPDATED, StageStatusUpdatedPayload(payload.stageId, payload.status)),
-                                    createEvent(c, EventType.FIGHTS_EDITOR_CHANGE_APPLIED,
-                                            FightEditorChangesAppliedPayload()
-                                                    .setUpdates(dirtyStageFights.toTypedArray())))
+                            listOf(createEvent(c, EventType.STAGE_STATUS_UPDATED, StageStatusUpdatedPayload(payload.stageId, payload.status))) +
+                                    createFightEditorChangesAppliedEvents(command, emptyList(), dirtyStageFights, emptyList())
                         }
                     }
                     else -> Mono.empty()

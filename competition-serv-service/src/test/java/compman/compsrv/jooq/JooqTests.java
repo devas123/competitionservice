@@ -159,7 +159,7 @@ public class JooqTests {
                         stage, competitors, BigDecimal.valueOf(fightDuration)));
             })
                     .collect(Collectors.toList());
-            ScheduleDTO schedule = testDataGenerationUtils.generateSchedule(categories, stagesToFights, competitionId, competitorNumbers);
+            ScheduleDTO schedule = testDataGenerationUtils.generateSchedule(categories, stagesToFights, competitionId, competitorNumbers).getA();
             categories.forEach(cat -> jooqRepository.saveCategoryDescriptor(cat.getSecond(), competitionId));
             List<StageDescriptorDTO> stages = new ArrayList<>();
             for (Pair<StageDescriptorDTO, List<FightDescriptionDTO>> fight : stagesToFights) {
@@ -171,7 +171,7 @@ public class JooqTests {
             jooqRepository.saveFights(stagesToFights.stream().flatMap(p -> p.getSecond().stream()).collect(Collectors.toList()));
             jooqRepository.saveSchedule(schedule);
             List<PeriodDTO> periods = jooqRepository.fetchPeriodsByCompetitionId(competitionId).collectList().block();
-            List<MatDescriptionDTO> mats = jooqRepository.fetchMatsByCompetitionId(competitionId, true).collectList().block();
+            List<MatDescriptionDTO> mats = jooqRepository.fetchMatsByCompetitionId(competitionId).collectList().block();
 
             Assert.assertNotNull(periods);
             Assert.assertNotNull(mats);

@@ -266,15 +266,17 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                     if (compProps != null && !compProps.schedulePublished && !periods.isNullOrEmpty()) {
                         if (missingCategories.isNullOrEmpty()) {
                             val competitorNumbersByCategoryIds = jooqRepository.getCompetitorNumbersByCategoryIds(com.competitionId)
-                            val schedule = scheduleService.generateSchedule(com.competitionId, periods, mats,
+                            val tuple = scheduleService.generateSchedule(com.competitionId, periods, mats,
                                     getAllBrackets(com.competitionId),
                                     compProps.timeZone,
                                     competitorNumbersByCategoryIds) { compScoreDao.fetchByCompscoreFightDescriptionId(it) }
-                            val newFights = schedule.mats?.flatMap { mat ->
-                                mat.fightStartTimes.map { f -> f.setPeriodId(mat.periodId) }
-                            }?.toTypedArray()
-                            val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(newFights)
-                            listOf(createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule)), createEvent(EventType.FIGHTS_START_TIME_UPDATED, fightStartTimeUpdatedPayload))
+                            val schedule = tuple.a
+                            val newFights = tuple.b
+                            val fightStartTimeUpdatedEvents = newFights.chunked(100) { list ->
+                                val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(list.toTypedArray())
+                                createEvent(EventType.FIGHTS_START_TIME_UPDATED, fightStartTimeUpdatedPayload)
+                            }
+                            listOf(createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule))) + fightStartTimeUpdatedEvents
                         } else {
                             listOf(createErrorEvent("Categories $missingCategories are unknown"))
                         }

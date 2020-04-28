@@ -74,13 +74,14 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                     .and(FightDescription.FIGHT_DESCRIPTION.STAGE_ID.eq(stageId))
                     .orderBy(FightDescription.FIGHT_DESCRIPTION.ROUND.asc(),
                             FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND.asc()))
-                    .map { fr -> jooqMappers.mapFightDescription(FightDescriptionDTO(), fr) }
-                    .flatMap(::enrichWithCompScores)
+                    .map { fr -> jooqMappers.fightDescription(fr) }
+                    .buffer(50)
+                    .flatMap(::bulkEnrichWithCompScores)
 
     fun fetchFightById(competitionId: String, fightId: String): Mono<FightDescriptionDTO> =
             Mono.from(Flux.from(queryProvider.fightsQuery(competitionId)
                     .and(FightDescription.FIGHT_DESCRIPTION.ID.eq(fightId)))
-                    .map { jooqMappers.mapFightDescription(FightDescriptionDTO(), it) }
+                    .map { jooqMappers.fightDescription(it) }
                     .flatMap(::enrichWithCompScores))
 
     private fun enrichWithCompScores(fs: FightDescriptionDTO): Mono<FightDescriptionDTO> {
@@ -90,6 +91,17 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 }
                 .collectList()
                 .map { fs.setScores(it.toTypedArray()) }
+    }
+
+    private fun bulkEnrichWithCompScores(fs: List<FightDescriptionDTO>): Flux<FightDescriptionDTO> {
+        return Flux.from(create.selectFrom(CompScore.COMP_SCORE).where(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.`in`(fs.map { it.id })))
+                .groupBy { u -> u[CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID] }
+                .flatMap { gr ->
+                    gr.map { u -> jooqMappers.compScore(u) }
+                            .collectList()
+                            .map { sc -> fs.find { it.id == gr.key() }?.setScores(sc.orEmpty().toTypedArray()) }
+                }
+                .filter { f -> f != null }.map { f -> f!!}
     }
 
     fun getCategoryIdsForCompetition(competitionId: String): Flux<String> =
@@ -182,7 +194,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
         return Flux.from(queryProvider.activeStageIdsForCompetition(competitionId)).map { it[StageDescriptor.STAGE_DESCRIPTOR.ID] }.filter { !it.isNullOrBlank() }.flatMap { stageId ->
                     Flux.from(queryProvider.topMatFightsQuery(competitionId = competitionId, stageId = stageId, matId = matId, statuses = statuses))
                 }.doOnEach { f -> log.info("${f.get()?.get(FightDescription.FIGHT_DESCRIPTION.MAT_ID)} -> ${f.get()?.get(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT)}") }
-                        .map { rec -> jooqMappers.mapFightDescription(FightDescriptionDTO(), rec) }
+                        .map { rec -> jooqMappers.fightDescription(rec) }
                         .flatMap { f -> enrichWithCompScores(f) }.limitRequest(limit)
     }
 
@@ -804,9 +816,9 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 create.deleteFrom(CompScore.COMP_SCORE).where(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.`in`(ids))).execute()
     }
 
-    fun fetchMatsByCompetitionIdAndPeriodId(competitionId: String, periodId: String, getFightStartTimes: Boolean = false) = fetchMatsByCompetitionId(competitionId, getFightStartTimes).filter { it.periodId == periodId }
+    fun fetchMatsByCompetitionIdAndPeriodId(competitionId: String, periodId: String, getFightStartTimes: Boolean = false): Flux<MatDescriptionDTO> = fetchMatsByCompetitionId(competitionId).filter { it.periodId == periodId }
 
-    fun fetchMatsByCompetitionId(competitionId: String, getFightStartTimes: Boolean = false): Flux<MatDescriptionDTO> {
+    fun fetchMatsByCompetitionId(competitionId: String): Flux<MatDescriptionDTO> {
         return Flux.from(create.selectFrom(SchedulePeriod.SCHEDULE_PERIOD.join(MatDescription.MAT_DESCRIPTION)
                 .on(SchedulePeriod.SCHEDULE_PERIOD.ID.eq(MatDescription.MAT_DESCRIPTION.PERIOD_ID))).where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(competitionId)))
                 .map { rec ->
@@ -818,13 +830,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 }
                 .distinct { it.id }
                 .flatMap { mat ->
-                    if (getFightStartTimes) {
-                        fetchFightStartTimesByMat(mat.id).collectList().map {
-                            mat.setNumberOfFights(it?.size ?: 0).setFightStartTimes(it?.toTypedArray())
-                        }
-                    } else {
-                        Mono.just(mat.setNumberOfFights(fetchFightStartTimesCountByMat(mat.id)))
-                    }
+                    Mono.just(mat.setNumberOfFights(fetchFightStartTimesCountByMat(mat.id)))
                 }
     }
 

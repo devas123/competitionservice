@@ -151,16 +151,8 @@ class JooqQueryProvider(private val create: DSLContext) {
                     ?.flatMap { scheduleRequirementDTO -> saveScheduleRequirementsQuery(scheduleRequirementDTO) }.orEmpty()
 
     private fun saveMatsAndUpdateFightStartTimes(schedule: ScheduleDTO): List<RowCountQuery> {
-        return schedule.mats.flatMap { ms ->
-            listOf(saveMatQuery(ms)) +
-                    ms.fightStartTimes.map { f ->
-                        create.update(FightDescription.FIGHT_DESCRIPTION)
-                                .set(FightDescription.FIGHT_DESCRIPTION.PERIOD, ms.periodId)
-                                .set(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT, f.numberOnMat)
-                                .set(FightDescription.FIGHT_DESCRIPTION.MAT_ID, f.matId)
-                                .set(FightDescription.FIGHT_DESCRIPTION.START_TIME, f.startTime?.toTimestamp())
-                                .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(f.fightId))
-                    }
+        return schedule.mats.map { ms ->
+            saveMatQuery(ms)
         }
     }
 

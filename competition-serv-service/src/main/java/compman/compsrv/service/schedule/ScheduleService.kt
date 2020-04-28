@@ -1,5 +1,7 @@
 package compman.compsrv.service.schedule
 
+import arrow.core.Tuple2
+import arrow.core.toT
 import com.compmanager.compservice.jooq.tables.pojos.CompScore
 import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import com.compmanager.service.ServiceException
@@ -44,7 +46,7 @@ class ScheduleService {
      * @param stages - Flux<pair<Tuple3<StageId, CategoryId, BracketType>, fights>>
      */
     fun generateSchedule(competitionId: String, periods: List<PeriodDTO>, mats: List<MatDescriptionDTO>, stages: Flux<StageGraph>, timeZone: String,
-                         categoryCompetitorNumbers: Map<String, Int>, getFight: (fightId: String) -> List<CompScore>?): ScheduleDTO {
+                         categoryCompetitorNumbers: Map<String, Int>, getFight: (fightId: String) -> List<CompScore>?): Tuple2<ScheduleDTO, List<FightStartTimePairDTO>> {
         if (!periods.isNullOrEmpty()) {
             return doGenerateSchedule(competitionId, stages, periods, mats, timeZone, getFight)
         } else {
@@ -57,7 +59,7 @@ class ScheduleService {
                                    periods: List<PeriodDTO>,
                                    mats: List<MatDescriptionDTO>,
                                    timeZone: String,
-                                   getFight: (fightId: String) -> List<CompScore>?): ScheduleDTO {
+                                   getFight: (fightId: String) -> List<CompScore>?): Tuple2<ScheduleDTO, List<FightStartTimePairDTO>> {
         val periodsWithIds = periods.map { periodDTO ->
             val id = periodDTO.id ?: IDGenerator.createPeriodId(competitionId)
             periodDTO.setId(id)
@@ -97,15 +99,6 @@ class ScheduleService {
                             .setPeriodId(container.periodId)
                             .setName(container.name)
                             .setMatOrder(container.matOrder ?: i)
-                            .setFightStartTimes(container.fights.map {
-                                FightStartTimePairDTO()
-                                        .setStartTime(it.startTime)
-                                        .setNumberOnMat(it.fightNumber)
-                                        .setFightId(it.fight.id)
-                                        .setPeriodId(it.periodId)
-                                        .setFightCategoryId(it.fight.categoryId)
-                                        .setMatId(it.matId)
-                            }.toTypedArray())
                 }.toTypedArray())
                 .setPeriods(periods.mapNotNull { period ->
                     PeriodDTO()
@@ -127,6 +120,16 @@ class ScheduleService {
                                     }.toTypedArray())
                             .setStartTime(period.startTime)
                             .setName(period.name)
-                }.toTypedArray())
+                }.toTypedArray()) toT fightsByMats.b.flatMap { container ->
+            container.fights.map {
+                FightStartTimePairDTO()
+                        .setStartTime(it.startTime)
+                        .setNumberOnMat(it.fightNumber)
+                        .setFightId(it.fight.id)
+                        .setPeriodId(it.periodId)
+                        .setFightCategoryId(it.fight.categoryId)
+                        .setMatId(it.matId)
+            }
+        }
     }
 }

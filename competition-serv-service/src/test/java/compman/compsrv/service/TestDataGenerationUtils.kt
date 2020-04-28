@@ -1,14 +1,12 @@
 package compman.compsrv.service
 
+import arrow.core.Tuple2
 import arrow.core.Tuple3
 import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.dto.schedule.PeriodDTO
-import compman.compsrv.model.dto.schedule.ScheduleDTO
-import compman.compsrv.model.dto.schedule.ScheduleRequirementDTO
-import compman.compsrv.model.dto.schedule.ScheduleRequirementType
+import compman.compsrv.model.dto.schedule.*
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.service.schedule.BracketSimulatorFactory
 import compman.compsrv.service.schedule.ScheduleService
@@ -118,7 +116,7 @@ class TestDataGenerationUtils(private val fightsGenerateService: FightsService) 
     fun generateSchedule(categories: List<Pair<String, CategoryDescriptorDTO>>,
                          stagesToFights: List<Pair<StageDescriptorDTO, List<FightDescriptionDTO>>>,
                          competitionId: String,
-                         competitorNumbers: Int): ScheduleDTO {
+                         competitorNumbers: Int): Tuple2<ScheduleDTO, List<FightStartTimePairDTO>> {
         val findFightIdsByCatIds = { categoryIds: Collection<String> ->
             stagesToFights.flatMap { it.second }.filter { categoryIds.contains(it.categoryId) }.map { it.id }
         }

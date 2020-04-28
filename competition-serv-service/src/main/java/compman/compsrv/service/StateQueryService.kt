@@ -228,14 +228,14 @@ class StateQueryService(private val clusterSession: ClusterSession,
             }.getOrElse { Mono.empty() }
 
     fun <T> localOrRemote(competitionId: String?, ifLocal: () -> Mono<T>, ifRemote: (instanceAddress: Address, restTemplate: RestTemplate, urlPrefix: String) -> Mono<T>): T? {
-        return localOrRemoteIo(competitionId, ifLocal, ifRemote).block(Duration.ofMillis(10000))
+        return localOrRemoteIo(competitionId, ifLocal, ifRemote).block(Duration.ofMillis(30000))
     }
 
     fun getSchedule(competitionId: String): ScheduleDTO? {
         return localOrRemote(competitionId,
                 {
                     jooq.fetchPeriodsByCompetitionId(competitionId).collectList().flatMap { periods ->
-                        jooq.fetchMatsByCompetitionId(competitionId, getFightStartTimes = false).collectList().map { mats ->
+                        jooq.fetchMatsByCompetitionId(competitionId).collectList().map { mats ->
                             ScheduleDTO()
                                     .setId(competitionId)
                                     .setPeriods(periods.toTypedArray())

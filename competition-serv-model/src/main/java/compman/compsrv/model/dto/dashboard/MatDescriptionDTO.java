@@ -1,6 +1,5 @@
 package compman.compsrv.model.dto.dashboard;
 
-import compman.compsrv.model.dto.schedule.FightStartTimePairDTO;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -14,5 +13,4 @@ public class MatDescriptionDTO {
     private String periodId;
     private Integer matOrder;
     private Integer numberOfFights;
-    private FightStartTimePairDTO[] fightStartTimes;
 }

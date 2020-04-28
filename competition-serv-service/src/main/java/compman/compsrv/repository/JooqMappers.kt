@@ -27,14 +27,6 @@ class JooqMappers {
                 && u[FightDescription.FIGHT_DESCRIPTION.MAT_ID] == u[MatDescription.MAT_DESCRIPTION.ID])
     }
 
-    fun matDescriptionDTO(u: Record): MatDescriptionDTO {
-        return MatDescriptionDTO().setId(u[MatDescription.MAT_DESCRIPTION.ID])
-                .setMatOrder(u[MatDescription.MAT_DESCRIPTION.MAT_ORDER])
-                .setPeriodId(u[MatDescription.MAT_DESCRIPTION.PERIOD_ID])
-                .setName(u[MatDescription.MAT_DESCRIPTION.NAME])
-                .setFightStartTimes(emptyArray())
-    }
-
     fun fightStartTimePairDTO(u: Record): FightStartTimePairDTO {
         return FightStartTimePairDTO()
                 .setFightId(u[FightDescription.FIGHT_DESCRIPTION.ID])
@@ -88,8 +80,8 @@ class JooqMappers {
             .setCompetitionId(it[Competitor.COMPETITOR.COMPETITION_ID])
             .setPromo(it[Competitor.COMPETITOR.PROMO])
 
-    fun mapFightDescription(t: FightDescriptionDTO, u: Record): FightDescriptionDTO =
-            t.setId(u[FightDescription.FIGHT_DESCRIPTION.ID])
+    fun fightDescription(u: Record): FightDescriptionDTO =
+            FightDescriptionDTO().setId(u[FightDescription.FIGHT_DESCRIPTION.ID])
                     .setInvalid(u[FightDescription.FIGHT_DESCRIPTION.INVALID])
                     .setCategoryId(u[FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID])
                     .setCompetitionId(u[FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID])
