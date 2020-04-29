@@ -33,7 +33,7 @@ class GroupGenerateServiceTest : AbstractGenerateServiceTest() {
                                 .setId(groupId)
                                 .setName("Valera_group")
                 ))
-        val competitors = FightsService.generateRandomCompetitorsForCategory(competitorsSize, 20, category, competitionId)
+        val competitors = FightsService.generateRandomCompetitorsForCategory(competitorsSize, 20, category.id, competitionId)
         val fights = fightsGenerateService.generateStageFights(competitionId, categoryId, stage, competitorsSize, duration, competitors, 0)
         assertNotNull(fights)
         assertEquals(competitorsSize * (competitorsSize - 1) / 2, fights.size)

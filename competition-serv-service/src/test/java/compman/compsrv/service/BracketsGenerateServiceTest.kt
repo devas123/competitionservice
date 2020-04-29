@@ -74,7 +74,7 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
     @Test
     fun testDistributeCompetitorsWinnerFights() {
         val fights = generateEmptyWinnerFights(14)
-        val competitors = FightsService.generateRandomCompetitorsForCategory(14, 20, category, competitionId)
+        val competitors = FightsService.generateRandomCompetitorsForCategory(14, 20, category.id, competitionId)
         fightsGenerateService.distributeCompetitors(competitors, fights, BracketType.SINGLE_ELIMINATION)
     }
 
@@ -102,7 +102,7 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
 
     private fun createDistributedDoubleElimination(compsSize: Int): List<FightDescriptionDTO> {
         val fights = generateEmptyWinnerFights(compsSize)
-        val competitors = FightsService.generateRandomCompetitorsForCategory(compsSize, 20, category, competitionId)
+        val competitors = FightsService.generateRandomCompetitorsForCategory(compsSize, 20, category.id, competitionId)
         checkWinnerFightsLaws(fights, 8)
         val doubleEliminationBracketFights = fightsGenerateService.generateLoserBracketAndGrandFinalForWinnerBracket(competitionId, categoryId, stageId, fights, duration, true)
         log.info("${doubleEliminationBracketFights.size}")
@@ -117,7 +117,7 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
     @Test
     fun testProcessSingleEliminationBrackets() {
         val fights = generateEmptyWinnerFights(14)
-        val competitors = FightsService.generateRandomCompetitorsForCategory(14, 20, category, competitionId)
+        val competitors = FightsService.generateRandomCompetitorsForCategory(14, 20, category.id, competitionId)
         val fightsWithCompetitors = fightsGenerateService.distributeCompetitors(competitors, fights, BracketType.SINGLE_ELIMINATION)
         val filledFights = processSingleElimination(fightsWithCompetitors)
         val results = fightsGenerateService.buildStageResults(BracketType.SINGLE_ELIMINATION, StageStatus.FINISHED, StageType.FINAL, filledFights, "asasdasd", competitionId, emptyList())
@@ -146,7 +146,7 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
     @Test
     fun testProcessSingleEliminationBracketsWithThirdPlace() {
         val fights = fightsGenerateService.generateThirdPlaceFightForOlympicSystem(competitionId, categoryId, stageId, generateEmptyWinnerFights(14))
-        val competitors = FightsService.generateRandomCompetitorsForCategory(14, 20, category, competitionId)
+        val competitors = FightsService.generateRandomCompetitorsForCategory(14, 20, category.id, competitionId)
         val fightsWithCompetitors = fightsGenerateService.distributeCompetitors(competitors, fights, BracketType.SINGLE_ELIMINATION)
         val filledFights = processSingleElimination(fightsWithCompetitors)
         val results = fightsGenerateService.buildStageResults(BracketType.SINGLE_ELIMINATION, StageStatus.FINISHED, StageType.FINAL, filledFights, "asasdasd", competitionId, emptyList())

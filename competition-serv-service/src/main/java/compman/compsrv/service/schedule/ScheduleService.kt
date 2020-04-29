@@ -28,27 +28,15 @@ class ScheduleService {
             return f.status == FightStatus.UNCOMPLETABLE.name || f.status == FightStatus.WALKOVER.name
         }
 
-        fun getAllFightsParents(fightScores: List<CompScore>, getScoresForFight: (fightId: String) -> List<CompScore>?): List<String> {
-            tailrec fun loop(result: List<String>, parentIds: List<String>): List<String> {
-                return if (parentIds.isEmpty()) {
-                    result
-                } else {
-                    loop(result + parentIds, parentIds.flatMap {
-                        getScoresForFight(it)?.mapNotNull { compScore -> compScore.parentFightId }.orEmpty()
-                    })
-                }
-            }
-            return loop(emptyList(), fightScores.mapNotNull { it.parentFightId })
-        }
     }
 
     /**
      * @param stages - Flux<pair<Tuple3<StageId, CategoryId, BracketType>, fights>>
      */
     fun generateSchedule(competitionId: String, periods: List<PeriodDTO>, mats: List<MatDescriptionDTO>, stages: Flux<StageGraph>, timeZone: String,
-                         categoryCompetitorNumbers: Map<String, Int>, getFight: (fightId: String) -> List<CompScore>?): Tuple2<ScheduleDTO, List<FightStartTimePairDTO>> {
+                         categoryCompetitorNumbers: Map<String, Int>): Tuple2<ScheduleDTO, List<FightStartTimePairDTO>> {
         if (!periods.isNullOrEmpty()) {
-            return doGenerateSchedule(competitionId, stages, periods, mats, timeZone, getFight)
+            return doGenerateSchedule(competitionId, stages, periods, mats, timeZone)
         } else {
             throw ServiceException("Periods are not specified!")
         }
@@ -58,8 +46,7 @@ class ScheduleService {
                                    stages: Flux<StageGraph>,
                                    periods: List<PeriodDTO>,
                                    mats: List<MatDescriptionDTO>,
-                                   timeZone: String,
-                                   getFight: (fightId: String) -> List<CompScore>?): Tuple2<ScheduleDTO, List<FightStartTimePairDTO>> {
+                                   timeZone: String): Tuple2<ScheduleDTO, List<FightStartTimePairDTO>> {
         val periodsWithIds = periods.map { periodDTO ->
             val id = periodDTO.id ?: IDGenerator.createPeriodId(competitionId)
             periodDTO.setId(id)
@@ -79,15 +66,14 @@ class ScheduleService {
         val flatFights = enrichedScheduleRequirements.flatMap { it.fightIds?.toList().orEmpty() }
         assert(flatFights.distinct().size == flatFights.size)
 
-        val composer = ScheduleProducer(startTime = periods.map { p -> p.id!! to p.startTime!! }.toMap(),
+        val composer = ScheduleProducer(competitionId = competitionId,
+                startTime = periods.map { p -> p.id!! to p.startTime!! }.toMap(),
                 mats = mats,
                 req = enrichedScheduleRequirements,
                 brackets = stages,
                 timeBetweenFights = periods.map { p -> p.id!! to BigDecimal(p.timeBetweenFights) }.toMap(),
                 riskFactor = periods.map { p -> p.id!! to p.riskPercent }.toMap(),
-                timeZone = timeZone,
-                getFightScores = getFight,
-                competitionId = competitionId)
+                timeZone = timeZone)
 
         val fightsByMats = composer.simulate().block(Duration.ofMillis(180000)) ?: error("Generated schedule is null")
         val invalidFightIds = fightsByMats.c
@@ -124,9 +110,9 @@ class ScheduleService {
                 FightStartTimePairDTO()
                         .setStartTime(it.startTime)
                         .setNumberOnMat(it.fightNumber)
-                        .setFightId(it.fight.id)
+                        .setFightId(it.fightId)
                         .setPeriodId(it.periodId)
-                        .setFightCategoryId(it.fight.categoryId)
+                        .setFightCategoryId(it.categoryId)
                         .setMatId(it.matId)
                         .setScheduleEntryId(it.scheduleEntryId)
             }

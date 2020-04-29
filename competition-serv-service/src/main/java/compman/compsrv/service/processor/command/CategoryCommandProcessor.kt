@@ -467,7 +467,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         val numberOfCompetitors = payload?.numberOfCompetitors ?: 50
         val numberOfAcademies = payload?.numberOfAcademies ?: 30
         val categoryState = jooq.fetchCategoryStateByCompetitionIdAndCategoryId(command.competitionId, command.categoryId!!).block()
-        val fakeCompetitors = FightsService.generateRandomCompetitorsForCategory(numberOfCompetitors, numberOfAcademies, categoryState?.category!!, command.competitionId!!)
+        val fakeCompetitors = FightsService.generateRandomCompetitorsForCategory(numberOfCompetitors, numberOfAcademies, categoryState?.category?.id!!, command.competitionId!!)
         return fakeCompetitors.map {
             createEvent(command, EventType.COMPETITOR_ADDED, CompetitorAddedPayload(it))
         }

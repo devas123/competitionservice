@@ -8,10 +8,12 @@ import org.slf4j.LoggerFactory
 
 interface IBracketSimulator {
     fun isEmpty(): Boolean
-    fun getNextRound(): List<FightDescription>
+    fun getNextRound(): List<FightDescriptionWithParentIds>
     val stageIds: Set<String>
     val categoryId: String
 }
+
+data class FightDescriptionWithParentIds(val fight: FightDescription, val parentIds: Set<String>)
 
 class SingleEliminationSimulator(val stageId: String, val getFightScores: (id: String) -> List<CompScore>, override val categoryId: String, fights: List<FightDescription>, threeCompetitorCategory: Boolean) : IBracketSimulator {
     private val fightsByRounds: MutableList<List<FightDescription>>
@@ -34,9 +36,9 @@ class SingleEliminationSimulator(val stageId: String, val getFightScores: (id: S
 
     override fun isEmpty() = this.fightsByRounds.isEmpty()
 
-    override fun getNextRound(): List<FightDescription> {
+    override fun getNextRound(): List<FightDescriptionWithParentIds> {
         return if (this.fightsByRounds.size > 0) {
-            this.fightsByRounds.removeAt(0)
+            this.fightsByRounds.removeAt(0).map { FightDescriptionWithParentIds(it, getFightScores(it.id).mapNotNull { cs -> cs.parentFightId }.toSet()) }
         } else {
             ArrayList()
         }
@@ -77,10 +79,10 @@ class DoubleEliminationSimulator(val stageId: String, val getFightScores: (id: S
         return this.fightsByBracketTypeAndRounds.isEmpty()
     }
 
-    override fun getNextRound(): List<FightDescription> {
+    override fun getNextRound(): List<FightDescriptionWithParentIds> {
         val result = this.fightsByBracketTypeAndRounds[0]
         this.fightsByBracketTypeAndRounds = this.fightsByBracketTypeAndRounds.drop(1)
-        return result
+        return result.map { FightDescriptionWithParentIds(it, getFightScores(it.id).mapNotNull { cs -> cs.parentFightId }.toSet()) }
     }
 }
 
@@ -106,9 +108,9 @@ class GroupSimulator(val stageId: String, override val categoryId: String, fight
 
     override fun isEmpty() = this.fightsByRounds.isEmpty()
 
-    override fun getNextRound(): List<FightDescription> {
+    override fun getNextRound(): List<FightDescriptionWithParentIds> {
         return if (this.fightsByRounds.size > 0) {
-            this.fightsByRounds.removeAt(0)
+            this.fightsByRounds.removeAt(0).map { FightDescriptionWithParentIds(it, emptySet()) }
         } else {
             ArrayList()
         }

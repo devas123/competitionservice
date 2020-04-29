@@ -139,21 +139,21 @@ abstract class FightsService {
         }
 
         fun generateRandomCompetitorsForCategory(size: Int, academies: Int = 20,
-                                                 category: CategoryDescriptorDTO,
+                                                 categoryId: String,
                                                  competitionId: String): List<CompetitorDTO> {
             val random = Random()
             val result = ArrayList<CompetitorDTO>()
             for (k in 1 until size + 1) {
                 val email = generateEmail(random)
                 result.add(CompetitorDTO()
-                        .setId(IDGenerator.hashString("$competitionId/${category.id}/$email"))
+                        .setId(IDGenerator.hashString("$competitionId/$categoryId/$email"))
                         .setEmail(email)
                         .setFirstName(names[random.nextInt(names.size)])
                         .setLastName(surnames[random.nextInt(surnames.size)])
                         .setBirthDate(Instant.now())
                         .setRegistrationStatus(RegistrationStatus.SUCCESS_CONFIRMED.name)
                         .setAcademy(AcademyDTO(UUID.randomUUID().toString(), "Academy${random.nextInt(academies)}"))
-                        .setCategories(arrayOf(category.id))
+                        .setCategories(arrayOf(categoryId))
                         .setCompetitionId(competitionId))
             }
             return result

@@ -52,7 +52,7 @@ class StageGraph(override val categoryId: String, private val stages: List<Stage
         return empty.get() || stageNodes.all { it.brackets.isEmpty() }
     }
 
-    override fun getNextRound(): List<FightDescription> {
+    override fun getNextRound(): List<FightDescriptionWithParentIds> {
         val node = stageNodes.firstOrNull { !completeStages.contains(it.stage.id) && completeStages.containsAll(it.parentStageIds) && !it.brackets.isEmpty() }
         val nextRound = node?.brackets?.getNextRound().orEmpty()
         if (node != null && node.brackets.isEmpty()) {

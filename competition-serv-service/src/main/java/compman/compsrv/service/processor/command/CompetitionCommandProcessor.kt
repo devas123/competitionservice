@@ -269,7 +269,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                             val tuple = scheduleService.generateSchedule(com.competitionId, periods, mats,
                                     getAllBrackets(com.competitionId),
                                     compProps.timeZone,
-                                    competitorNumbersByCategoryIds) { compScoreDao.fetchByCompscoreFightDescriptionId(it) }
+                                    competitorNumbersByCategoryIds)
                             val schedule = tuple.a
                             val newFights = tuple.b
                             val fightStartTimeUpdatedEvents = newFights.chunked(100) { list ->

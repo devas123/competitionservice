@@ -2,10 +2,10 @@ package compman.compsrv.service.schedule
 
 import arrow.core.Tuple3
 import arrow.core.Tuple4
-import com.compmanager.compservice.jooq.tables.pojos.CompScore
 import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.*
+import compman.compsrv.repository.collectors.ScheduleEntryAccumulator
 import compman.compsrv.util.IDGenerator
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -22,62 +22,115 @@ import java.util.function.BinaryOperator
 import java.util.function.Supplier
 import java.util.stream.Collector
 
-data class InternalFightStartTime(val fight: FightDescription,
+data class InternalFightStartTime(val fightId: String,
+                                  val categoryId: String,
+                                  val round: Int,
                                   val matId: String,
                                   val fightNumber: Int,
                                   val startTime: Instant,
                                   val scheduleEntryId: String,
-                                  val periodId: String)
+                                  val periodId: String) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
 
-data class FightDescriptionAndEntryOrder(val f: FightDescription, val entryOrder: Int) {
+        other as InternalFightStartTime
+
+        if (fightId != other.fightId) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return fightId.hashCode()
+    }
+}
+
+data class FightDescriptionAndEntryOrder(val f: FightDescriptionWithParentIds, val entryOrder: Int) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
         other as FightDescriptionAndEntryOrder
 
-        if (f.id != other.f.id) return false
+        if (f.fight.id != other.f.fight.id) return false
 
         return true
     }
 
     override fun hashCode(): Int {
-        return f.id.hashCode()
+        return f.fight.id.hashCode()
     }
 }
 
-fun FightDescription.withOrder(order: Int?) = FightDescriptionAndEntryOrder(this, order ?: Int.MAX_VALUE)
+fun FightDescriptionWithParentIds.withOrder(order: Int?) = FightDescriptionAndEntryOrder(this, order ?: Int.MAX_VALUE)
 
-data class InternalMatScheduleContainer(
-        val currentTime: Instant,
-        val name: String,
-        val matOrder: Int?,
-        val totalFights: Int,
-        val id: String,
-        val periodId: String,
-        val fights: List<InternalFightStartTime>,
-        val timeZone: String,
-        val pending: LinkedHashSet<FightDescriptionAndEntryOrder>,
-        val invalid: LinkedHashSet<FightDescription>)
+class InternalMatScheduleContainer(
+        var currentTime: Instant,
+        var name: String,
+        var matOrder: Int?,
+        var totalFights: Int,
+        var id: String,
+        var periodId: String,
+        var fights: MutableList<InternalFightStartTime>,
+        var timeZone: String) {
+
+    fun addFight(f: InternalFightStartTime): InternalMatScheduleContainer {
+        fights.add(f)
+        return this
+    }
+
+    fun copy(currentTime: Instant = this.currentTime, name: String = this.name, matOrder: Int? = this.matOrder,
+             totalFights: Int = this.totalFights, id: String = this.id, periodId: String = this.periodId,
+             fights: MutableList<InternalFightStartTime> = this.fights, timeZone: String = this.timeZone): InternalMatScheduleContainer {
+        this.currentTime = currentTime
+        this.name = name
+        this.matOrder = matOrder
+        this.totalFights = totalFights
+        this.id = id
+        this.periodId = periodId
+        this.fights = fights
+        this.timeZone = timeZone
+        return this
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as InternalMatScheduleContainer
+
+        if (id != other.id) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return id.hashCode()
+    }
+
+}
 
 class ScheduleAccumulator(initialMatSchedules: List<InternalMatScheduleContainer>) {
-    val scheduleEntries = mutableListOf<ScheduleEntryDTO>()
-    val matSchedules = mutableListOf(*initialMatSchedules.toTypedArray())
-    val pendingFights = mutableListOf<FightDescriptionAndEntryOrder>()
-    val invalidFights = mutableSetOf<String>()
-    val finishedStages = mutableSetOf<String>()
+    val scheduleEntries = mutableListOf<ScheduleEntryAccumulator>()
+    val matSchedules = ArrayList(initialMatSchedules)
+    val pendingFights = HashSet<FightDescriptionAndEntryOrder>()
+    val invalidFights = HashSet<String>()
+    val dispatchedFightIds = HashSet<String>()
+
+    fun getPendingFightsList() = pendingFights.filter { !dispatchedFightIds.contains(it.f.fight.id) }
+            .distinctBy { it.f.fight.id }.sortedBy { it.entryOrder }
 }
 
 
 class ScheduleProducer(val competitionId: String,
-        val startTime: Map<String, Instant>,
+                       val startTime: Map<String, Instant>,
                        val mats: List<MatDescriptionDTO>,
                        req: List<ScheduleRequirementDTO>,
                        private val brackets: Flux<StageGraph>,
                        val timeBetweenFights: Map<String, BigDecimal>,
                        riskFactor: Map<String, BigDecimal>,
-                       val timeZone: String,
-                       val getFightScores: (fightId: String) -> List<CompScore>?) : Collector<List<IBracketSimulator>, ScheduleAccumulator, Tuple4<List<ScheduleEntryDTO>,
+                       val timeZone: String) : Collector<List<IBracketSimulator>, ScheduleAccumulator, Tuple4<List<ScheduleEntryDTO>,
         List<InternalMatScheduleContainer>,
         List<FightDescription>,
         Set<String>>> {
@@ -95,10 +148,7 @@ class ScheduleProducer(val competitionId: String,
 
     private val riskCoeff = riskFactor.mapValues { BigDecimal.ONE.plus(it.value) }
 
-    private fun internalMatById2(fightsByMats: List<InternalMatScheduleContainer>) = { matId: String -> fightsByMats.first { it.id == matId } }
-
-    private fun fightNotRegistered(fightId: String, schedule: List<ScheduleEntryDTO>) =
-            schedule.none { entry -> entry.fightIds?.any { it.someId == fightId } == true }
+    private fun internalMatById2(fightsByMats: MutableList<InternalMatScheduleContainer>) = { matId: String -> fightsByMats.indexOfFirst { it.id == matId } }
 
     private fun findRequirementForFight(f: FightDescription) =
             this.scheduleRequirements
@@ -109,137 +159,132 @@ class ScheduleProducer(val competitionId: String,
                         it.entryType == ScheduleRequirementType.CATEGORIES && (it.categoryIds?.contains(f.categoryId) == true)
                     }
 
-    private fun updateMatInCollection2(fightsByMats: List<InternalMatScheduleContainer>) = { freshMatCopy: InternalMatScheduleContainer ->
-        fightsByMats.map {
-            if (it.id == freshMatCopy.id) {
-                freshMatCopy
-            } else {
-                it
-            }
-        }
-    }
-
-    private fun updateScheduleEntry2(schedule: List<ScheduleEntryDTO>) = { newEntryDTO: ScheduleEntryDTO ->
-        if (schedule.none { it.id == newEntryDTO.id }) {
-            schedule + newEntryDTO
-        } else {
-            schedule.map {
-                if (it.id == newEntryDTO.id) {
-                    newEntryDTO
-                } else {
-                    it
-                }
-            }
-        }
+    private fun updateScheduleEntry2(schedule: MutableList<ScheduleEntryAccumulator>) = { newEntryDTO: ScheduleEntryAccumulator ->
+        schedule.removeIf { it.getId() == newEntryDTO.getId() }
+        schedule.add(newEntryDTO)
     }
 
     private fun eightyPercentOfDurationInMillis(duration: BigDecimal): Long {
         return duration.multiply(BigDecimal.valueOf(0.8 * 60000)).toLong()
     }
 
-    private fun fightsAreDispatchedOrCanBeDispatched(fightIds: List<String>, schedule: List<ScheduleEntryDTO>, currentTime: Instant): Boolean {
-        return fightIds.fold(true) { acc, fid ->
+    private fun fightsAreDispatchedOrCanBeDispatched(fightIds: Set<String>, dispatchedFights: Set<String>, schedule: MutableList<ScheduleEntryAccumulator>, currentTime: Instant): Boolean {
+        return fightIds.filter { f -> !dispatchedFights.contains(f) }.fold(true) { acc, fid ->
             acc && scheduleRequirements.any { sr ->
                 (sr.fightIds?.contains(fid) == true
-                        && schedule.any { se -> se.requirementIds?.contains(sr.id) == true }) ||
+                        && schedule.any { se -> se.getRequirementIds()?.contains(sr.id) == true }) ||
                         startTime[sr.periodId]?.toEpochMilli()!! <= currentTime.toEpochMilli()
             }
         }
     }
 
-    private fun updateSchedule(f: FightDescription,
-                               schedule: List<ScheduleEntryDTO>,
-                               matContainers: List<InternalMatScheduleContainer>,
+    private fun updateSchedule(accumulator: ScheduleAccumulator,
+                               f: FightDescriptionWithParentIds,
                                pauses: MutableList<ScheduleRequirementDTO>,
-                               lastRun: Boolean): Pair<List<ScheduleEntryDTO>, List<InternalMatScheduleContainer>> {
-        val updateMatInCollection = updateMatInCollection2(matContainers)
-        val updateScheduleEntry = updateScheduleEntry2(schedule)
-        val internalMatById = internalMatById2(matContainers)
-        if (fightNotRegistered(f.id, schedule)) {
-            val requirementForFight = findRequirementForFight(f)
+                               lastRun: Boolean): ScheduleAccumulator {
+        val updateScheduleEntry = updateScheduleEntry2(accumulator.scheduleEntries)
+        val internalMatById = internalMatById2(accumulator.matSchedules)
+        if (!accumulator.dispatchedFightIds.contains(f.fight.id)) {
+            val requirementForFight = findRequirementForFight(f.fight)
             val periodId = requirementForFight?.periodId
-            val defaultMat = matContainers.find { it.fights.isEmpty() && (periodId.isNullOrBlank() || it.periodId == periodId) }
-                    ?: matContainers.filter { periodId.isNullOrBlank() || it.periodId == periodId }
-                            .minBy { a -> a.currentTime.toEpochMilli() }!!
+            val existingIndex = accumulator.matSchedules.indexOfFirst { (periodId.isNullOrBlank() || it.periodId == periodId) && it.fights.isEmpty() }
+            val defaultMatIndex = if (existingIndex >= 0) {
+                existingIndex
+            } else {
+                val mat = accumulator.matSchedules.filter { periodId.isNullOrBlank() || it.periodId == periodId }
+                        .minBy { a -> a.currentTime.toEpochMilli() }!!
+                accumulator.matSchedules.indexOf(mat)
+            }
             val entryDTO = when {
-                requirementForFight?.fightIds?.contains(f.id) == true || requirementForFight?.categoryIds?.contains(f.categoryId) == true -> {
-                    val e = scheduleEntryFromRequirement(requirementForFight, schedule)
-                    log.trace("Fight ${f.id} from category ${f.categoryId} has requirements. ${e.id}")
+                requirementForFight?.categoryIds?.contains(f.fight.categoryId) == true || requirementForFight?.fightIds?.contains(f.fight.id) == true -> {
+                    val e = scheduleEntryFromRequirement(requirementForFight, accumulator.scheduleEntries)
+                    log.trace("Fight ${f.fight.id} from category ${f.fight.categoryId} has requirements. ${e.getId()}")
                     e
                 }
                 else -> {
-                    log.trace("Neither fight category ${f.categoryId} nor fight itself ${f.id} was dispatched. Placing it to random mat.")
-                    schedule.firstOrNull { it.categoryIds?.contains(f.categoryId) == true && it.requirementIds.isNullOrEmpty() }
-                            ?: emptyScheduleEntry(defaultMat)
+                    log.trace("Neither fight category ${f.fight.categoryId} nor fight itself ${f.fight.id} was dispatched. Placing it to random mat.")
+                    accumulator.scheduleEntries.find { it.categoryIds.contains(f.fight.categoryId) && it.getRequirementIds().isNullOrEmpty() }
+                            ?: emptyScheduleEntry(accumulator.matSchedules[defaultMatIndex])
                 }
             }
-            val mat = requirementForFight?.matId?.let { internalMatById(it) } ?: defaultMat
-            val allFightParents = ScheduleService.getAllFightsParents(getFightScores(f.id).orEmpty(), getFightScores)
-            if (!fightsAreDispatchedOrCanBeDispatched(allFightParents, schedule, mat.currentTime) && !lastRun) {
-                log.trace("Fight $f cannot be dispatched because it's parent fights $allFightParents have incorrect order.")
-                return schedule to updateMatInCollection(mat.copy(pending = LinkedHashSet(mat.pending + f.withOrder(requirementForFight?.entryOrder)), invalid = LinkedHashSet(mat.invalid + f)))
+            val matIndex = requirementForFight?.matId?.let { internalMatById(it) } ?: defaultMatIndex
+            val currentMat = accumulator.matSchedules.getOrElse(matIndex) { accumulator.matSchedules[0] }
+            val fightParents = f.parentIds
+            if (!fightsAreDispatchedOrCanBeDispatched(fightParents, accumulator.dispatchedFightIds, accumulator.scheduleEntries, currentMat.currentTime) && !lastRun) {
+                log.trace("Fight $f cannot be dispatched because it's parent fights $fightParents have incorrect order.")
+                accumulator.pendingFights.add(f.withOrder(requirementForFight?.entryOrder))
+                accumulator.invalidFights.add(f.fight.id)
+                return accumulator
             }
-            if ((requirementForFight != null && !previousRequirementsMet(requirementForFight, schedule))) {
-                return schedule to updateMatInCollection(mat.copy(pending = LinkedHashSet(mat.pending + f.withOrder(requirementForFight.entryOrder))))
+            if ((requirementForFight != null && !previousRequirementsMet(requirementForFight, accumulator.scheduleEntries))) {
+                accumulator.pendingFights.add(f.withOrder(requirementForFight.entryOrder))
+                return accumulator
             }
-
-            val matsWithTheSameCategory = matContainers
-                    .filter {
-                        it.periodId == mat.periodId &&
-                                it.fights.isNotEmpty() && it.fights.last().fight.categoryId == f.categoryId
-                                && ((f.round ?: -1) - (it.fights.last().fight.round ?: -1)) in 1..2
+            val matWithTheSameCategory = accumulator.matSchedules
+                    .find {
+                        val lastFight = it.fights.lastOrNull()
+                        it.periodId == currentMat.periodId
+                                && lastFight != null
+                                && lastFight.categoryId == f.fight.categoryId
+                                && ((f.fight.round ?: -1) - lastFight.round) in 1..2
                     }
-            if (matsWithTheSameCategory.isNotEmpty() && !lastRun) {
-                val matWithTheSameCat = matsWithTheSameCategory.minBy { it.currentTime.toEpochMilli() }!!
-                log.trace("Sending fight ${f.categoryId} -> ${f.round} to pending.")
-                return schedule to updateMatInCollection(matWithTheSameCat.copy(pending = LinkedHashSet(matWithTheSameCat.pending + f.withOrder(requirementForFight?.entryOrder))))
+            if (matWithTheSameCategory != null && !lastRun) {
+                log.trace("Sending fight ${f.fight.categoryId} -> ${f.fight.round} to pending.")
+                accumulator.pendingFights.add(f.withOrder(requirementForFight?.entryOrder))
+                return accumulator
             }
-            val fixedPause = findFixedPauseForMatAndFight(pauses, mat, f)
+            val fixedPause = findFixedPauseForMatAndFight(pauses, currentMat, f.fight)
             if (fixedPause != null) {
                 pauses.removeIf { it.id == fixedPause.id }
                 log.trace("Fixed pause.")
                 val endTime = fixedPause.endTime
                         ?: fixedPause.startTime.plusMillis(fixedPause.durationMinutes.multiply(BigDecimal.valueOf(60000L)).toLong())
                 val pauseEntry = createFixedPauseEntry(fixedPause, endTime)
-                return updateScheduleEntry(pauseEntry) to updateMatInCollection(
-                        mat.copy(currentTime = endTime, pending = LinkedHashSet(mat.pending + f.withOrder(requirementForFight?.entryOrder))))
+                accumulator.pendingFights.add(f.withOrder(requirementForFight?.entryOrder))
+                updateScheduleEntry(ScheduleEntryAccumulator(pauseEntry))
+                currentMat.currentTime = endTime
+                return accumulator
             }
-            val relativePause = findRelativePauseForMatAndFight(pauses, mat, f, requirementForFight)
+            val relativePause = findRelativePauseForMatAndFight(pauses, currentMat, f.fight, requirementForFight)
             if (relativePause != null) {
                 pauses.removeIf { it.id == relativePause.id }
                 log.trace("Relative pause.")
-                val endTime = mat.currentTime.plusMillis(relativePause.durationMinutes.multiply(BigDecimal.valueOf(60000L)).toLong())
-                val pauseEntry = createRelativePauseEntry(relativePause, mat.currentTime, endTime)
-                return updateScheduleEntry(pauseEntry) to updateMatInCollection(
-                        mat.copy(currentTime = endTime, pending = LinkedHashSet(mat.pending + f.withOrder(requirementForFight?.entryOrder))))
+                val endTime = currentMat.currentTime.plusMillis(relativePause.durationMinutes.multiply(BigDecimal.valueOf(60000L)).toLong())
+                val pauseEntry = createRelativePauseEntry(relativePause, accumulator.matSchedules[matIndex].currentTime, endTime)
+                accumulator.pendingFights.add(f.withOrder(requirementForFight?.entryOrder))
+                updateScheduleEntry(ScheduleEntryAccumulator(pauseEntry))
+                currentMat.currentTime = endTime
+                return accumulator
             }
-            if (entryDTO.startTime == null || entryDTO.startTime <= mat.currentTime || lastRun) {
-                log.trace("Dispatching fight ${f.id} -> ${f.round}. to entry ${entryDTO.id}")
-                val newSchedule = updateScheduleEntry(entryDTO.apply {
-                    categoryIds = ((categoryIds ?: emptyArray()) + f.categoryId).distinct().toTypedArray()
-                    startTime = startTime ?: mat.currentTime
-                    numberOfFights = (numberOfFights ?: 0) + 1
+            if (!accumulator.dispatchedFightIds.contains(f.fight.id) && (entryDTO.getStartTime()?.isBefore(currentMat.currentTime.plusSeconds(60)) != false || lastRun)) {
+                log.trace("Dispatching fight ${f.fight.id} -> ${f.fight.round}. to entry ${entryDTO.getId()}")
+                updateScheduleEntry(entryDTO.apply {
+                    categoryIds.add(f.fight.categoryId)
+                    setStartTime(getStartTime() ?: currentMat.currentTime)
+                    setNumberOfFights((getNumberOfFights() ?: 0) + 1)
                 })
-                return newSchedule to updateMatInCollection(
-                        mat.copy(
-                                currentTime = mat.currentTime.plus(Duration.ofMinutes(getFightDuration(f, mat.periodId).toLong())),
-                                fights = mat.fights +
-                                        InternalFightStartTime(
-                                                fight = f,
-                                                fightNumber = mat.totalFights,
-                                                startTime = mat.currentTime,
-                                                matId = mat.id,
-                                                scheduleEntryId = entryDTO.id,
-                                                periodId = mat.periodId),
-                                totalFights = mat.totalFights + 1))
-            } else {
-                log.trace("Fight ${f.id} should be started later. Adding it to pending.")
-                return schedule to updateMatInCollection(mat.copy(pending = LinkedHashSet(mat.pending + f.withOrder(requirementForFight?.entryOrder))))
+                currentMat.addFight(InternalFightStartTime(
+                        fightId = f.fight.id,
+                        categoryId = f.fight.categoryId,
+                        round = f.fight.round,
+                        fightNumber = currentMat.totalFights,
+                        startTime = currentMat.currentTime,
+                        matId = currentMat.id,
+                        scheduleEntryId = entryDTO.getId(),
+                        periodId = currentMat.periodId))
+                currentMat.totalFights += 1
+                currentMat.currentTime = currentMat.currentTime.plus(Duration.ofMinutes(getFightDuration(f.fight, currentMat.periodId).toLong()))
+                accumulator.pendingFights.removeIf { it.f.fight.id == f.fight.id }
+                accumulator.dispatchedFightIds.add(f.fight.id)
+            } else if (!accumulator.dispatchedFightIds.contains(f.fight.id)) {
+                log.trace("Fight ${f.fight.id} should be started later. Adding it to pending.")
+                accumulator.pendingFights.add(f.withOrder(requirementForFight?.entryOrder))
             }
         } else {
             log.trace("Fight $f is already registered. Skipping.")
-            return schedule to matContainers
         }
+        return accumulator
+
     }
 
     private fun findFixedPauseForMatAndFight(pauses: MutableList<ScheduleRequirementDTO>, mat: InternalMatScheduleContainer, f: FightDescription): ScheduleRequirementDTO? {
@@ -297,21 +342,21 @@ class ScheduleProducer(val competitionId: String,
     }
 
 
-    private fun previousRequirementsMet(requirement: ScheduleRequirementDTO, schedule: List<ScheduleEntryDTO>): Boolean {
+    private fun previousRequirementsMet(requirement: ScheduleRequirementDTO, schedule: MutableList<ScheduleEntryAccumulator>): Boolean {
         val previousRequirementIds = if (requirement.matId.isNullOrBlank()) {
             //This is a requirement without mat
-            scheduleRequirements.filter(prevReqPredicate(requirement) { s -> s.matId.isNullOrBlank() }).map { it.id }
+            scheduleRequirements.filter(prevReqPredicate(requirement) { s -> s.matId.isNullOrBlank() })
         } else {
             //This is a requirement for mat
-            scheduleRequirements.filter(prevReqPredicate(requirement) { s -> !s.matId.isNullOrBlank() }).map { it.id }
+            scheduleRequirements.filter(prevReqPredicate(requirement) { s -> !s.matId.isNullOrBlank() })
         }
         return previousRequirementIds.isEmpty() || previousRequirementIds.all { requirementId ->
-            schedule.any { it.requirementIds?.contains(requirementId) == true }
+            schedule.any { it.getRequirementIds()?.contains(requirementId.id) == true }
         }
     }
 
-    private fun emptyScheduleEntry(defaultMat: InternalMatScheduleContainer): ScheduleEntryDTO {
-        return ScheduleEntryDTO()
+    private fun emptyScheduleEntry(defaultMat: InternalMatScheduleContainer): ScheduleEntryAccumulator {
+        return ScheduleEntryAccumulator(ScheduleEntryDTO()
                 .setId(IDGenerator
                         .scheduleEntryId(competitionId, defaultMat.periodId))
                 .setPeriodId(defaultMat.periodId)
@@ -319,12 +364,12 @@ class ScheduleProducer(val competitionId: String,
                 .setFightIds(emptyArray())
                 .setCategoryIds(emptyArray())
                 .setStartTime(defaultMat.currentTime)
-                .setRequirementIds(emptyArray())
+                .setRequirementIds(emptyArray()))
     }
 
-    private fun scheduleEntryFromRequirement(requirement: ScheduleRequirementDTO, schedule: List<ScheduleEntryDTO>): ScheduleEntryDTO {
-        return (schedule.firstOrNull { it.requirementIds?.contains(requirement.id) == true }
-                ?: ScheduleEntryDTO()
+    private fun scheduleEntryFromRequirement(requirement: ScheduleRequirementDTO, schedule: MutableList<ScheduleEntryAccumulator>): ScheduleEntryAccumulator {
+        return (schedule.find { it.getRequirementIds()?.contains(requirement.id) == true }
+                ?: ScheduleEntryAccumulator(ScheduleEntryDTO()
                         .setId(IDGenerator
                                 .scheduleEntryId(competitionId, requirement.periodId))
                         .setPeriodId(requirement.periodId)
@@ -335,21 +380,11 @@ class ScheduleProducer(val competitionId: String,
                         .setEndTime(requirement.endTime)
                         .setRequirementIds(arrayOf(requirement.id))
                         .setName(requirement.name)
-                        .setColor(requirement.color))
-    }
-
-    private fun acceptFight(schedule: List<ScheduleEntryDTO>, fightsByMats: List<InternalMatScheduleContainer>, f: FightDescription, pauses: MutableList<ScheduleRequirementDTO>, lastrun: Boolean): Pair<List<ScheduleEntryDTO>, List<InternalMatScheduleContainer>> {
-        return this.updateSchedule(f, schedule, fightsByMats, pauses, lastrun)
+                        .setColor(requirement.color)))
     }
 
     private fun getFightDuration(fight: FightDescription, periodId: String) = fight.duration!!.multiply(riskCoeff[periodId]
-            ?: error("No risk coeff for $periodId")).plus(timeBetweenFights[periodId]
-            ?: error("No TimeBetweenFights for $periodId"))
-
-    private fun <T> MutableList<T>.replaceAll(elements: Collection<T>) {
-        this.clear()
-        this.addAll(elements)
-    }
+            ?: error("No risk coeff for $periodId")).plus(timeBetweenFights[periodId] ?: BigDecimal.ZERO)
 
     fun simulate(): Mono<Tuple3<List<ScheduleEntryDTO>, List<InternalMatScheduleContainer>, Set<String>>> {
         return this.brackets.buffer(mats.size + 1 /* на всякий :) */)
@@ -361,97 +396,94 @@ class ScheduleProducer(val competitionId: String,
         return mutableSetOf(Collector.Characteristics.CONCURRENT)
     }
 
-    override fun supplier(): Supplier<ScheduleAccumulator> {
-        val initialFightsByMats = mats.mapIndexed { i, mat ->
-            val initDate = ZonedDateTime.ofInstant(startTime[mat.periodId]
-                    ?: error("No Start time for period ${mat.periodId}"), ZoneId.of(timeZone))
-            InternalMatScheduleContainer(
-                    timeZone = timeZone,
-                    name = mat.name,
-                    id = mat.id ?: IDGenerator.createMatId(mat.periodId),
-                    fights = emptyList(),
-                    currentTime = initDate.toInstant(),
-                    totalFights = 0,
-                    pending = LinkedHashSet(),
-                    matOrder = mat.matOrder ?: i,
-                    periodId = mat.periodId, invalid = LinkedHashSet())
-        }.toMutableList()
+    private val initialFightsByMats = mats.mapIndexed { i, mat ->
+        val initDate = ZonedDateTime.ofInstant(startTime[mat.periodId]
+                ?: error("No Start time for period ${mat.periodId}"), ZoneId.of(timeZone))
+        InternalMatScheduleContainer(
+                timeZone = timeZone,
+                name = mat.name,
+                id = mat.id ?: IDGenerator.createMatId(mat.periodId),
+                fights = mutableListOf(),
+                currentTime = initDate.toInstant(),
+                totalFights = 0,
+                matOrder = mat.matOrder ?: i,
+                periodId = mat.periodId)
+    }
 
+    override fun supplier(): Supplier<ScheduleAccumulator> {
         return Supplier {
-            log.trace("Supplier.")
+            log.info("Supplier.")
             ScheduleAccumulator(initialFightsByMats)
         }
     }
 
     override fun accumulator(): BiConsumer<ScheduleAccumulator, List<IBracketSimulator>> {
-        return BiConsumer { fightsByMats: ScheduleAccumulator, brackets: List<IBracketSimulator> ->
+        return BiConsumer { accumulator: ScheduleAccumulator, brackets: List<IBracketSimulator> ->
             val br = brackets.toMutableList()
-            log.trace("Consumer.")
+            log.info("Consumer.")
             val activeBrackets = ArrayList<IBracketSimulator>()
-            var pendingFights = fightsByMats.pendingFights.toList()
-            var sfbm = fightsByMats.scheduleEntries.toList() to fightsByMats.matSchedules.toList()
+            var pendingFights = accumulator.getPendingFightsList()
             while (br.isNotEmpty() || activeBrackets.isNotEmpty()) {
-                log.trace("Loop. ${br.size}, ${activeBrackets.size}")
-                val fights = ArrayList<FightDescription>()
+                val fights = ArrayList<FightDescriptionWithParentIds>()
                 var i = 0
                 if (activeBrackets.size >= i + 1) {
                     fights.addAll(activeBrackets[i++].getNextRound())
                 }
                 while (fights.size <= mats.size && br.isNotEmpty()) {
-                    if (activeBrackets.getOrNull(i) == null) {
+                    if (activeBrackets.getOrNull(i) == null || activeBrackets.getOrNull(i)?.isEmpty() != false) {
                         activeBrackets.add(br.removeAt(0))
                     }
                     fights.addAll(activeBrackets[i++].getNextRound())
                 }
                 activeBrackets.removeIf { b -> b.isEmpty() }
-                val fightsToDispatch = (pendingFights + fights.map{it.withOrder(-1)}).distinctBy { it.f.id }.sortedBy { it.entryOrder }.map { it.f }
-                sfbm = fightsToDispatch.fold(sfbm) { acc, f ->
-                    this.acceptFight(acc.first, acc.second, f, pauses, false)
+                val fightsToDispatch = (pendingFights + fights.map { it.withOrder(-1) }).distinctBy { it.f.fight.id }.sortedBy { it.entryOrder }.map { it.f }
+                        .filter { !accumulator.dispatchedFightIds.contains(it.fight.id) }
+                val start = System.currentTimeMillis()
+                log.info("Started folding. Fights size: ${fightsToDispatch.size}")
+                fightsToDispatch.fold(accumulator) { acc, f ->
+                    this.updateSchedule(acc, f, pauses, false)
                 }
-                pendingFights = sfbm.second.flatMap { it.pending }
-                sfbm = sfbm.copy(second = sfbm.second.map { it.copy(pending = LinkedHashSet()) })
+                log.info("Finished folding. Took ${System.currentTimeMillis() - start}ms.")
+                pendingFights = accumulator.getPendingFightsList()
+                accumulator.pendingFights.clear()
+//                sfbm = sfbm.copy(second = sfbm.second.map { it.copy(pending = LinkedHashSet()) })
             }
-            val invalidFights = sfbm.second.flatMap { internalMatScheduleContainer ->
-                internalMatScheduleContainer.invalid.map { it.id }
-            }
-            fightsByMats.scheduleEntries.replaceAll(sfbm.first)
-            fightsByMats.matSchedules.replaceAll(sfbm.second)
-            fightsByMats.pendingFights.replaceAll(pendingFights)
-            fightsByMats.invalidFights.addAll(invalidFights)
+            accumulator.pendingFights.addAll(pendingFights)
         }
     }
 
     override fun combiner(): BinaryOperator<ScheduleAccumulator> {
         return BinaryOperator { t: ScheduleAccumulator, u: ScheduleAccumulator ->
-            log.trace("Combiner.")
+            log.info("Combiner.")
             val b = t.matSchedules.map { mat ->
                 u.matSchedules.find { m -> m.id == mat.id }
                         ?.let { scheduleContainer ->
-                            val newFights = (mat.fights + scheduleContainer.fights.filter { f -> mat.fights.none { it.fight.id == f.fight.id } })
+                            val newFights = (mat.fights + scheduleContainer.fights.filter { f -> mat.fights.none { it.fightId == f.fightId } })
                                     .sortedBy { fightStartTime -> fightStartTime.startTime }
                                     .mapIndexed { ind, f ->
                                         f.copy(fightNumber = ind)
                                     }
-                            mat.copy(fights = newFights, totalFights = newFights.size)
+                            mat.copy(fights = newFights.toMutableList(), totalFights = newFights.size)
                         } ?: mat
             }.toMutableList()
-            val a = (t.scheduleEntries + u.scheduleEntries).groupBy { it.id }.mapValues { e ->
+            val a = (t.scheduleEntries + u.scheduleEntries).groupBy { it.getRequirementIds() }.mapValues { e ->
                 //Categories, fights, requirements
                 val cfr = e.value.fold(Tuple3(emptyList<String>(), emptyList<MatIdAndSomeId>(), emptyList<String>())) { acc, schedEntry ->
-                    Tuple3((acc.a + schedEntry.categoryIds.orEmpty()).distinct(),
-                            (acc.b + schedEntry.fightIds.orEmpty()).distinct(),
-                            (acc.c + schedEntry.requirementIds.orEmpty()).distinct())
+                    Tuple3((acc.a + schedEntry.categoryIds).distinct(),
+                            (acc.b + schedEntry.fightIds).distinct(),
+                            (acc.c + schedEntry.getRequirementIds().orEmpty()).distinct())
                 }
                 val entry = e.value[0]
-                entry
-                        .setCategoryIds(cfr.a.distinct().toTypedArray())
-                        .setFightIds(cfr.b.distinct().toTypedArray())
-                        .setRequirementIds(cfr.c.distinct().toTypedArray())
+                entry.apply {
+                    categoryIds.addAll(cfr.a)
+                    setRequirementIds(cfr.c.distinct().toTypedArray())
+                }
+
             }.toList().map { it.second }.toMutableList()
             ScheduleAccumulator(t.matSchedules.toList()).apply {
                 scheduleEntries.addAll(a)
                 matSchedules.addAll(b)
-                pendingFights.addAll((t.pendingFights + u.pendingFights).distinctBy { it.f.id })
+                pendingFights.addAll((t.pendingFights + u.pendingFights).distinctBy { it.f.fight.id })
                 invalidFights.addAll(t.invalidFights + u.invalidFights)
             }
         }
@@ -461,22 +493,24 @@ class ScheduleProducer(val competitionId: String,
             Tuple4<List<ScheduleEntryDTO>, List<InternalMatScheduleContainer>, List<FightDescription>, Set<String>>> {
         return java.util.function.Function<ScheduleAccumulator,
                 Tuple4<List<ScheduleEntryDTO>, List<InternalMatScheduleContainer>, List<FightDescription>, Set<String>>> { scheduleAccumulator ->
-            log.trace("Finisher.")
-            var k = scheduleAccumulator.pendingFights.distinctBy { it.f.id }.sortedBy { it.entryOrder }
-                    .fold(scheduleAccumulator.scheduleEntries.toList() to scheduleAccumulator.matSchedules.toList()) { acc, f ->
-                        this.acceptFight(acc.first, acc.second, f.f, pauses, true) }
-            while (!k.second.flatMap { container -> container.pending }.isNullOrEmpty()) {
-                k = k.second.flatMap { container -> container.pending }
-                        .distinctBy { it.f.id }
-                        .sortedBy { it.entryOrder }
-                        .fold(k.first to k.second.map { scheduleContainer ->
-                            scheduleContainer
-                                    .copy(pending = LinkedHashSet())
-                        }) { acc, f ->
-                            this.acceptFight(acc.first, acc.second, f.f, pauses, true)
+            log.info("Finisher.")
+            var pending = scheduleAccumulator.getPendingFightsList()
+            scheduleAccumulator.pendingFights.clear()
+            pending
+                    .fold(scheduleAccumulator) { acc, f ->
+                        this.updateSchedule(acc, f.f, pauses, true)
+                    }
+            pending = scheduleAccumulator.getPendingFightsList()
+            scheduleAccumulator.pendingFights.clear()
+            while (!pending.isNullOrEmpty()) {
+                pending
+                        .fold(scheduleAccumulator) { acc, f ->
+                            this.updateSchedule(acc, f.f, pauses, true)
                         }
+                pending = scheduleAccumulator.getPendingFightsList()
+                scheduleAccumulator.pendingFights.clear()
             }
-            Tuple4(k.first, k.second, listOf(), scheduleAccumulator.invalidFights)
+            Tuple4(scheduleAccumulator.scheduleEntries.map { it.getScheduleEntry() }, scheduleAccumulator.matSchedules.toList(), listOf(), scheduleAccumulator.invalidFights)
         }
     }
 }

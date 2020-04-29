@@ -13,6 +13,7 @@ import compman.compsrv.service.CategoryGeneratorService;
 import compman.compsrv.service.TestDataGenerationUtils;
 import compman.compsrv.service.fight.BracketsGenerateService;
 import compman.compsrv.service.fight.FightsService;
+import compman.compsrv.service.fight.GroupStageGenerateService;
 import kotlin.Pair;
 import org.jooq.DSLContext;
 import org.jooq.conf.RenderNameStyle;
@@ -42,7 +43,7 @@ public class JooqTests {
 
     private final BracketsGenerateService bracketsGenerateService = new BracketsGenerateService();
     private final String competitionId = "testCompetitionId";
-    private final TestDataGenerationUtils testDataGenerationUtils = new TestDataGenerationUtils(bracketsGenerateService);
+    private final TestDataGenerationUtils testDataGenerationUtils = new TestDataGenerationUtils(bracketsGenerateService, new GroupStageGenerateService());
 
     @Rule
     public PostgreSQLContainer postgres = new PostgreSQLContainer<>()
@@ -96,7 +97,7 @@ public class JooqTests {
                             .setGroupSortDirection(GroupSortDirection.DESC)
                             .setGroupSortSpecifier(GroupSortSpecifier.DIRECT_FIGHT_RESULT)
             };
-            List<StageDescriptorDTO> stages = Collections.singletonList(testDataGenerationUtils.createGroupStage(competitionId, categoryId, stageId, additionalGroupSortingDescriptorDTOS));
+            List<StageDescriptorDTO> stages = Collections.singletonList(testDataGenerationUtils.createGroupStage(competitionId, categoryId, stageId, additionalGroupSortingDescriptorDTOS, Arrays.asList(25, 25)));
             jooqRepository.saveStages(stages);
             jooqRepository.saveGroupDescriptors(stages.stream().map(s -> new Pair<>(s.getId(), Arrays.asList(s.getGroupDescriptors())))
                     .collect(Collectors.toList()));
@@ -152,7 +153,7 @@ public class JooqTests {
                     .setId(competitionId)
                     .setProperties(competitionPropertiesDTO));
             List<Pair<StageDescriptorDTO, List<FightDescriptionDTO>>> stagesToFights = categories.stream().map(cat -> {
-                List<CompetitorDTO> competitors = FightsService.Companion.generateRandomCompetitorsForCategory(competitorNumbers, 10, cat.getSecond(), competitionId);
+                List<CompetitorDTO> competitors = FightsService.Companion.generateRandomCompetitorsForCategory(competitorNumbers, 10, cat.getSecond().getId(), competitionId);
                 StageDescriptorDTO stage = testDataGenerationUtils.createSingleEliminationStage(competitionId, cat.getSecond().getId(), cat.getFirst(), competitorNumbers);
                 jooqRepository.saveCompetitors(competitors);
                 return new Pair<>(stage, testDataGenerationUtils.generateFilledFights(competitionId, cat.getSecond(),

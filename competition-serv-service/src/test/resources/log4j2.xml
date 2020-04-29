@@ -9,6 +9,7 @@
         <logger name="org.apache.kafka" level="DEBUG"/>
         <logger name="org.springframework.web.servlet" level="WARN"/>
         <logger name="org.apache.zookeeper" level="WARN"/>
+        <logger name="compman.compsrv.service.schedule.ScheduleProducer" level="INFO"/>
         <logger name="io.scalecube" level="INFO"/>
         <logger name="kafka" level="WARN" />
         <Root level="info">
