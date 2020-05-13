@@ -4,12 +4,14 @@ import com.compmanager.compservice.jooq.tables.*
 import com.compmanager.compservice.jooq.tables.records.*
 import compman.compsrv.model.dto.brackets.AdditionalGroupSortingDescriptorDTO
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
+import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
 import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.PeriodDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.dto.schedule.ScheduleRequirementDTO
+import compman.compsrv.util.toTimestamp
 import org.jooq.*
 import org.jooq.impl.DSL
 import org.springframework.stereotype.Component
@@ -32,7 +34,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                 .groupBy(CompetitorCategories.COMPETITOR_CATEGORIES.CATEGORIES_ID)
     }
 
-    fun saveCompetitionPropertiesQuery(properties: CompetitionPropertiesDTO): InsertValuesStep12<CompetitionPropertiesRecord, String, String, Boolean, Boolean, Timestamp, Timestamp, Boolean, String, String, String, Int, Long> {
+    fun saveCompetitionPropertiesQuery(properties: CompetitionPropertiesDTO): InsertValuesStep12<CompetitionPropertiesRecord, String, String, Boolean, Boolean, Timestamp, Timestamp, Boolean, String, String, String, String, Long>? {
         return create.insertInto(CompetitionProperties.COMPETITION_PROPERTIES,
                 CompetitionProperties.COMPETITION_PROPERTIES.ID,
                 CompetitionProperties.COMPETITION_PROPERTIES.COMPETITION_NAME,
@@ -57,36 +59,39 @@ class JooqQueryProvider(private val create: DSLContext) {
                         properties.emailTemplate,
                         properties.creatorId,
                         properties.timeZone,
-                        properties.status?.ordinal,
+                        properties.status?.name,
                         properties.creationTimestamp)
     }
 
     fun fightsQuery(competitionId: String): SelectConditionStep<Record> =
             create.selectFrom(FightDescription.FIGHT_DESCRIPTION
-                    .join(CompScore.COMP_SCORE, JoinType.LEFT_OUTER_JOIN)
-                    .on(FightDescription.FIGHT_DESCRIPTION.ID.eq(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID))
                     .join(MatDescription.MAT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
                     .on(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(MatDescription.MAT_DESCRIPTION.ID)))
                     .where(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId))
 
-    fun topMatFightsQuery(competitionId: String, matId: String, statuses: Iterable<FightStatus>): SelectSeekStep2<Record, Int, Int> {
-        return create.select(*(FightDescription.FIGHT_DESCRIPTION.fields()), *CompScore.COMP_SCORE.fields(),
+    fun activeStageIdsForCompetition(competitionId: String): SelectConditionStep<Record1<String>> =
+            create.select(StageDescriptor.STAGE_DESCRIPTOR.ID)
+                    .from(StageDescriptor.STAGE_DESCRIPTOR)
+                    .where(StageDescriptor.STAGE_DESCRIPTOR.COMPETITION_ID.eq(competitionId))
+                    .and(StageDescriptor.STAGE_DESCRIPTOR.STAGE_STATUS.`in`(listOf(StageStatus.IN_PROGRESS.name, StageStatus.APPROVED.name)))
+
+    fun topMatFightsQuery(competitionId: String, stageId: String, matId: String, statuses: Iterable<FightStatus>, limit: Long): SelectLimitPercentStep<Record> {
+        return create.select(*(FightDescription.FIGHT_DESCRIPTION.fields()),
                 *MatDescription.MAT_DESCRIPTION.fields())
                 .from(
-                        FightDescription.FIGHT_DESCRIPTION.join(CompScore.COMP_SCORE, JoinType.LEFT_OUTER_JOIN)
-                                .on(FightDescription.FIGHT_DESCRIPTION.ID.eq(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID))
+                        FightDescription.FIGHT_DESCRIPTION
                                 .join(MatDescription.MAT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
                                 .on(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(MatDescription.MAT_DESCRIPTION.ID)))
                 .where(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId))
                 .and(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId))
-                .and(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.isNotNull)
+                .and(FightDescription.FIGHT_DESCRIPTION.STAGE_ID.eq(stageId))
                 .and(create.selectCount()
                         .from(CompScore.COMP_SCORE)
                         .where(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.isNotNull)
                         .and(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.eq(FightDescription.FIGHT_DESCRIPTION.ID)).asField<Int>().ge(2))
-                .and(FightDescription.FIGHT_DESCRIPTION.STATUS.`in`(statuses.map { it.ordinal }))
-                .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT,
-                        FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND)
+                .and(FightDescription.FIGHT_DESCRIPTION.STATUS.`in`(statuses.map { it.name }))
+                .orderBy(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT.asc().nullsLast())
+                .limit(limit)
     }
 
     fun competitorsQueryBasic(): SelectWhereStep<CompetitorRecord> = create.selectFrom(Competitor.COMPETITOR)
@@ -98,14 +103,6 @@ class JooqQueryProvider(private val create: DSLContext) {
             .on(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.equal(CompetitorCategories.COMPETITOR_CATEGORIES.CATEGORIES_ID)))
 
     fun competitorsQuery(competitionId: String): SelectConditionStep<Record> = competitorsQueryJoined().where(Competitor.COMPETITOR.COMPETITION_ID.equal(competitionId))
-
-    fun getRegistrationGroupPeriodsQuery(competitionId: String): SelectConditionStep<Record> = create.selectFrom(RegistrationGroup.REGISTRATION_GROUP.join(RegGroupRegPeriod.REG_GROUP_REG_PERIOD, JoinType.LEFT_OUTER_JOIN)
-            .on(RegistrationGroup.REGISTRATION_GROUP.ID.equal(RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_GROUP_ID))
-            .join(RegistrationPeriod.REGISTRATION_PERIOD, JoinType.RIGHT_OUTER_JOIN)
-            .on(RegistrationPeriod.REGISTRATION_PERIOD.ID.equal(RegGroupRegPeriod.REG_GROUP_REG_PERIOD.REG_PERIOD_ID))
-            .join(RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES, JoinType.FULL_OUTER_JOIN)
-            .on(RegistrationGroup.REGISTRATION_GROUP.ID.equal(RegistrationGroupCategories.REGISTRATION_GROUP_CATEGORIES.REGISTRATION_GROUP_ID)))
-            .where(RegistrationGroup.REGISTRATION_GROUP.REGISTRATION_INFO_ID.equal(competitionId))
 
     fun saveFightResultOptionQuery(stageId: String, fro: FightResultOptionDTO): InsertReturningStep<FightResultOptionRecord> =
             create.insertInto(FightResultOption.FIGHT_RESULT_OPTION,
@@ -119,10 +116,13 @@ class JooqQueryProvider(private val create: DSLContext) {
 
     fun saveScheduleQuery(schedule: ScheduleDTO): List<RowCountQuery> {
         return listOf(resetFightDescriptions(schedule),
+                create.update(FightDescription.FIGHT_DESCRIPTION)
+                        .set(FightDescription.FIGHT_DESCRIPTION.INVALID, false)
+                        .where(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(schedule.id)),
                 create.deleteFrom(SchedulePeriod.SCHEDULE_PERIOD)
                         .where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(schedule.id))) +
                 schedule.periods.map { per -> upsertSchedulePeriod(per, schedule.id) } +
-                saveMatsAndUpdateFightStartTimes(schedule) +
+                saveMatsQuery(schedule) +
                 schedule.periods.flatMap { per ->
                     insertPeriodsScheduleEntries(per) +
                             connectEntriesAndCategoriesAndFights(per)
@@ -147,17 +147,9 @@ class JooqQueryProvider(private val create: DSLContext) {
             schedule.periods?.flatMap { per -> per.scheduleRequirements?.toList().orEmpty() }
                     ?.flatMap { scheduleRequirementDTO -> saveScheduleRequirementsQuery(scheduleRequirementDTO) }.orEmpty()
 
-    private fun saveMatsAndUpdateFightStartTimes(schedule: ScheduleDTO): List<RowCountQuery> {
-        return schedule.mats.flatMap { ms ->
-            listOf(saveMatQuery(ms)) +
-                    ms.fightStartTimes.map { f ->
-                        create.update(FightDescription.FIGHT_DESCRIPTION)
-                                .set(FightDescription.FIGHT_DESCRIPTION.PERIOD, ms.periodId)
-                                .set(FightDescription.FIGHT_DESCRIPTION.NUMBER_ON_MAT, f.numberOnMat)
-                                .set(FightDescription.FIGHT_DESCRIPTION.MAT_ID, f.matId)
-                                .set(FightDescription.FIGHT_DESCRIPTION.START_TIME, f.startTime?.toTimestamp())
-                                .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(f.fightId))
-                    }
+    private fun saveMatsQuery(schedule: ScheduleDTO): List<RowCountQuery> {
+        return schedule.mats.map { ms ->
+            saveMatQuery(ms)
         }
     }
 
@@ -171,21 +163,15 @@ class JooqQueryProvider(private val create: DSLContext) {
                                 CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.SCHEDULE_ENTRY_ID)
                                 .values(cat, sch.id)
                     } +
-                    sch.fightIds.map { fid ->
-                        create.update(FightDescription.FIGHT_DESCRIPTION)
-                                .set(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID, sch.id)
-                                .set(FightDescription.FIGHT_DESCRIPTION.INVALID, false)
-                                .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fid.someId))
-                    } +
-                    sch.invalidFightIds?.map { fid ->
+                    sch.invalidFightIds?.let { fid ->
                         create.update(FightDescription.FIGHT_DESCRIPTION)
                                 .set(FightDescription.FIGHT_DESCRIPTION.INVALID, true)
-                                .where(FightDescription.FIGHT_DESCRIPTION.ID.eq(fid))
-                    }.orEmpty()
-        }
+                                .where(FightDescription.FIGHT_DESCRIPTION.ID.`in`(*fid))
+                    }
+        }.filterNotNull()
     }
 
-    private fun insertPeriodsScheduleEntries(per: PeriodDTO): List<InsertValuesStep10<ScheduleEntryRecord, String, String, BigDecimal, Timestamp, Int, Timestamp, Int, String, String, String>> {
+    private fun insertPeriodsScheduleEntries(per: PeriodDTO): List<InsertValuesStep10<ScheduleEntryRecord, String, String, BigDecimal, Timestamp, Int, Timestamp, String, String, String, String>> {
         return per.scheduleEntries.map { sch ->
             create.insertInto(ScheduleEntry.SCHEDULE_ENTRY,
                     ScheduleEntry.SCHEDULE_ENTRY.ID,
@@ -204,7 +190,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                             sch.startTime?.toTimestamp(),
                             sch.order,
                             sch.endTime?.toTimestamp(),
-                            sch.entryType?.ordinal,
+                            sch.entryType?.name,
                             sch.description,
                             sch.name,
                             sch.color)
@@ -254,7 +240,7 @@ class JooqQueryProvider(private val create: DSLContext) {
             this.id = schedReqDTO.id
             this.matId = schedReqDTO.matId
             this.periodId = schedReqDTO.periodId
-            this.entryType = schedReqDTO.entryType?.ordinal
+            this.entryType = schedReqDTO.entryType?.name
             this.force = schedReqDTO.isForce
             this.startTime = schedReqDTO.startTime?.toTimestamp()
             this.endTime = schedReqDTO.endTime?.toTimestamp()
@@ -270,7 +256,7 @@ class JooqQueryProvider(private val create: DSLContext) {
                 .onDuplicateKeyUpdate()
                 .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.COLOR, schedReqDTO.color)
                 .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_ORDER, schedReqDTO.entryOrder)
-                .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_TYPE, schedReqDTO.entryType?.ordinal)
+                .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_TYPE, schedReqDTO.entryType?.name)
                 .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.START_TIME, schedReqDTO.startTime?.toTimestamp())
                 .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.END_TIME, schedReqDTO.endTime?.toTimestamp())
                 .set(ScheduleRequirement.SCHEDULE_REQUIREMENT.DURATION_MINUTES, schedReqDTO.durationMinutes)
@@ -298,7 +284,7 @@ class JooqQueryProvider(private val create: DSLContext) {
 
 
     fun saveAdditionalGroupSortingDescriptorQuery(stageId: String, agsd: AdditionalGroupSortingDescriptorDTO): InsertReturningStep<AdditionalGroupSortingDescriptorRecord> =
-            AdditionalGroupSortingDescriptorRecord(stageId, agsd.groupSortDirection?.ordinal, agsd.groupSortSpecifier?.ordinal).let {
+            AdditionalGroupSortingDescriptorRecord(stageId, agsd.groupSortDirection?.name, agsd.groupSortSpecifier?.name).let {
                 create.insertInto(AdditionalGroupSortingDescriptor.ADDITIONAL_GROUP_SORTING_DESCRIPTOR,
                         *it.fields()).values(it.value1(), it.value2(), it.value3()).onDuplicateKeyIgnore()
             }

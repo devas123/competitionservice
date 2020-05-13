@@ -27,6 +27,6 @@ object IDGenerator {
     fun scheduleEntryId(competitionId: String, periodId: String): String = hashString("$competitionId-$periodId-${UUID.randomUUID()}")
     fun scheduleRequirementId(competitionId: String, periodId: String, entryType: ScheduleRequirementType): String = hashString("$competitionId-$periodId-${entryType}-${UUID.randomUUID()}")
     fun groupId(stageId: String): String =
-            hashString("$stageId/${UUID.randomUUID()}")
+            hashString("$stageId-${UUID.randomUUID()}")
 
 }

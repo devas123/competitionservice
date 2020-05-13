@@ -54,13 +54,13 @@ sealed class PayloadValidationRules<F>(private val A: ApplicativeError<F, Nel<Pa
                     this.validate(com)
                 else ->
                     validators.filter { it.canValidate(this) }.fold(just(this)) { k, p ->
-                        map(k, p.validate(this@PayloadValidationRules, this, Ior.Left(com))) { this }.handleErrorWith { raiseError(it) }
+                        mapN(k, p.validate(this@PayloadValidationRules, this, Ior.Left(com))) { this }.handleErrorWith { raiseError(it) }
                     }
             }
 
     fun Payload.validate(event: EventDTO, validators: Iterable<PayloadValidator>): Kind<F, Payload> =
             validators.filter { it.canValidate(this) }.fold(just(this)) { k, p ->
-                map(k, p.validate(this@PayloadValidationRules, this, Ior.Right(event))) { this }.handleErrorWith { raiseError(it) }
+                mapN(k, p.validate(this@PayloadValidationRules, this, Ior.Right(event))) { this }.handleErrorWith { raiseError(it) }
             }
 
 

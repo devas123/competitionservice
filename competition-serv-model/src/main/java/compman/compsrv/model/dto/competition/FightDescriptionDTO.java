@@ -1,6 +1,5 @@
 package compman.compsrv.model.dto.competition;
 
-import compman.compsrv.model.dto.brackets.ParentFightReferenceDTO;
 import compman.compsrv.model.dto.brackets.StageRoundType;
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO;
 import lombok.AllArgsConstructor;
@@ -22,8 +21,6 @@ public class FightDescriptionDTO {
     private String winFight;
     private String loseFight;
     private CompScoreDTO[] scores;
-    private ParentFightReferenceDTO parentId1;
-    private ParentFightReferenceDTO parentId2;
     private BigDecimal duration;
     private Integer round;
     private Boolean invalid;

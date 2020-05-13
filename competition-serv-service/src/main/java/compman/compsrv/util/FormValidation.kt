@@ -42,7 +42,7 @@ sealed class Rules<F>(A: ApplicativeError<F, Nel<ValidationError>>) : Applicativ
             else raiseError(ValidationError.MaxLength(maxLength).nel())
 
     fun CategoryRestrictionDTO.validate(): Kind<F, CategoryRestrictionDTO> =
-            map(validateMaxValue(), validateMinValue(), nameMaxLength(50)) { this }
+            mapN(validateMaxValue(), validateMinValue(), nameMaxLength(50)) { this }
                     .handleErrorWith { raiseError(ValidationError.NotValid(this, it).nel()) }
 
     object ErrorAccumulationStrategy :

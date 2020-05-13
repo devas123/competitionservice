@@ -1,5 +1,8 @@
 package compman.compsrv.service.schedule
 
+import arrow.core.Tuple2
+import arrow.core.toT
+import com.compmanager.compservice.jooq.tables.pojos.CompScore
 import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import com.compmanager.service.ServiceException
 import compman.compsrv.model.dto.competition.FightStatus
@@ -17,35 +20,23 @@ import java.time.Duration
 class ScheduleService {
 
     companion object {
-        fun obsoleteFight(f: FightDescription, threeCompetitorCategory: Boolean = false): Boolean {
+        fun obsoleteFight(f: FightDescription, cs: List<CompScore>, threeCompetitorCategory: Boolean = false): Boolean {
             if (threeCompetitorCategory) {
                 return false
             }
-            if ((f.parent_1FightId != null) || (f.parent_2FightId != null)) return false
-            return f.status == FightStatus.UNCOMPLETABLE.ordinal || f.status == FightStatus.WALKOVER.ordinal
+            if (cs.any { !it.parentFightId.isNullOrBlank() }) return false
+            return f.status == FightStatus.UNCOMPLETABLE.name || f.status == FightStatus.WALKOVER.name
         }
 
-        fun getAllFightsParents(f: FightDescription, getFight: (fightId: String) -> FightDescription?): List<String> {
-            tailrec fun loop(result: List<String>, parentIds: List<String>): List<String> {
-                return if (parentIds.isEmpty()) {
-                    result
-                } else {
-                    loop(result + parentIds, parentIds.flatMap {
-                        getFight(it)?.let { pf -> listOfNotNull(pf.parent_1FightId, pf.parent_2FightId) }.orEmpty()
-                    })
-                }
-            }
-            return loop(emptyList(), listOfNotNull(f.parent_1FightId, f.parent_2FightId))
-        }
     }
 
     /**
      * @param stages - Flux<pair<Tuple3<StageId, CategoryId, BracketType>, fights>>
      */
     fun generateSchedule(competitionId: String, periods: List<PeriodDTO>, mats: List<MatDescriptionDTO>, stages: Flux<StageGraph>, timeZone: String,
-                         categoryCompetitorNumbers: Map<String, Int>, getFight: (fightId: String) -> FightDescription?): ScheduleDTO {
+                         categoryCompetitorNumbers: Map<String, Int>): Tuple2<ScheduleDTO, List<FightStartTimePairDTO>> {
         if (!periods.isNullOrEmpty()) {
-            return doGenerateSchedule(competitionId, stages, periods, mats, timeZone, getFight)
+            return doGenerateSchedule(competitionId, stages, periods, mats, timeZone)
         } else {
             throw ServiceException("Periods are not specified!")
         }
@@ -55,8 +46,7 @@ class ScheduleService {
                                    stages: Flux<StageGraph>,
                                    periods: List<PeriodDTO>,
                                    mats: List<MatDescriptionDTO>,
-                                   timeZone: String,
-                                   getFight: (fightId: String) -> FightDescription?): ScheduleDTO {
+                                   timeZone: String): Tuple2<ScheduleDTO, List<FightStartTimePairDTO>> {
         val periodsWithIds = periods.map { periodDTO ->
             val id = periodDTO.id ?: IDGenerator.createPeriodId(competitionId)
             periodDTO.setId(id)
@@ -68,7 +58,7 @@ class ScheduleService {
             // we will dynamically create a 'default' schedule group for the remaining fights
             // later if we move the schedule groups we will have to re-calculate the whole schedule again to avoid inconsistencies.
             periodDTO.scheduleRequirements?.map { it.setPeriodId(periodDTO.id) }.orEmpty()
-        }.mapIndexed { index, it ->
+        }.mapIndexed { _, it ->
             it.setId(it.id
                     ?: IDGenerator.scheduleRequirementId(competitionId, it.periodId, it.entryType))
         }.sortedBy { it.entryOrder }
@@ -76,16 +66,16 @@ class ScheduleService {
         val flatFights = enrichedScheduleRequirements.flatMap { it.fightIds?.toList().orEmpty() }
         assert(flatFights.distinct().size == flatFights.size)
 
-        val composer = ScheduleProducer(startTime = periods.map { p -> p.id!! to p.startTime!! }.toMap(),
+        val composer = ScheduleProducer(competitionId = competitionId,
+                startTime = periods.map { p -> p.id!! to p.startTime!! }.toMap(),
                 mats = mats,
                 req = enrichedScheduleRequirements,
                 brackets = stages,
                 timeBetweenFights = periods.map { p -> p.id!! to BigDecimal(p.timeBetweenFights) }.toMap(),
                 riskFactor = periods.map { p -> p.id!! to p.riskPercent }.toMap(),
-                timeZone = timeZone,
-                getFight = getFight)
+                timeZone = timeZone)
 
-        val fightsByMats = composer.simulate().block(Duration.ofMillis(500)) ?: error("Generated schedule is null")
+        val fightsByMats = composer.simulate().block(Duration.ofMillis(180000)) ?: error("Generated schedule is null")
         val invalidFightIds = fightsByMats.c
 
         return ScheduleDTO()
@@ -96,15 +86,6 @@ class ScheduleService {
                             .setPeriodId(container.periodId)
                             .setName(container.name)
                             .setMatOrder(container.matOrder ?: i)
-                            .setFightStartTimes(container.fights.map {
-                                FightStartTimePairDTO()
-                                        .setStartTime(it.startTime)
-                                        .setNumberOnMat(it.fightNumber)
-                                        .setFightId(it.fight.id)
-                                        .setPeriodId(it.periodId)
-                                        .setFightCategoryId(it.fight.categoryId)
-                                        .setMatId(it.matId)
-                            }.toTypedArray())
                 }.toTypedArray())
                 .setPeriods(periods.mapNotNull { period ->
                     PeriodDTO()
@@ -117,8 +98,6 @@ class ScheduleService {
                                     .sortedBy { it.startTime.toEpochMilli() }
                                     .mapIndexed { i, scheduleEntryDTO ->
                                         scheduleEntryDTO
-                                                .setId(IDGenerator
-                                                        .scheduleEntryId(competitionId, period.id))
                                                 .setOrder(i)
                                                 .setInvalidFightIds(scheduleEntryDTO.fightIds?.filter { invalidFightIds.contains(it.someId) }
                                                         ?.mapNotNull { it.someId }
@@ -126,6 +105,17 @@ class ScheduleService {
                                     }.toTypedArray())
                             .setStartTime(period.startTime)
                             .setName(period.name)
-                }.toTypedArray())
+                }.toTypedArray()) toT fightsByMats.b.flatMap { container ->
+            container.fights.map {
+                FightStartTimePairDTO()
+                        .setStartTime(it.startTime)
+                        .setNumberOnMat(it.fightNumber)
+                        .setFightId(it.fightId)
+                        .setPeriodId(it.periodId)
+                        .setFightCategoryId(it.categoryId)
+                        .setMatId(it.matId)
+                        .setScheduleEntryId(it.scheduleEntryId)
+            }
+        }
     }
 }

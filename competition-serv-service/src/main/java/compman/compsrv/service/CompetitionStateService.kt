@@ -28,20 +28,15 @@ class CompetitionStateService(
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
-    override fun apply(event: EventDTO, isBatch: Boolean): List<EventDTO> {
+    override fun apply(event: EventDTO, isBatch: Boolean) {
         log.info("Applying event: $event, batch: $isBatch")
         fun createErrorEvent(error: String?) = mapper.createErrorEvent(event, error)
-        return try {
-            val eventWithId = event.setId(event.id ?: IDGenerator.uid())
-            if (isBatch || !duplicateCheck(event)) {
-                eventProcessors.filter { it.affectedEvents().contains(event.type) }.flatMap { it.applyEvent(eventWithId) }
-                listOf(eventWithId)
-            } else {
-                listOf(createErrorEvent("Duplicate event: CorrelationId: ${eventWithId.correlationId}"))
-            }
-        } catch (e: Exception) {
-            log.error("Error while applying event.", e)
-            listOf(createErrorEvent(e.message))
+        val eventWithId = event.setId(event.id ?: IDGenerator.uid())
+        if (isBatch || !duplicateCheck(event)) {
+            eventProcessors.filter { it.affectedEvents().contains(event.type) }.forEach { it.applyEvent(eventWithId) }
+            listOf(eventWithId)
+        } else {
+            listOf(createErrorEvent("Duplicate event: CorrelationId: ${eventWithId.correlationId}"))
         }
     }
 

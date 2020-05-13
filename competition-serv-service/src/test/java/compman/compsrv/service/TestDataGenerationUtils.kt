@@ -1,15 +1,15 @@
 package compman.compsrv.service
 
+import arrow.core.Tuple2
 import arrow.core.Tuple3
 import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.dto.schedule.PeriodDTO
-import compman.compsrv.model.dto.schedule.ScheduleDTO
-import compman.compsrv.model.dto.schedule.ScheduleRequirementDTO
-import compman.compsrv.model.dto.schedule.ScheduleRequirementType
+import compman.compsrv.model.dto.schedule.*
+import compman.compsrv.service.fight.BracketsGenerateService
 import compman.compsrv.service.fight.FightsService
+import compman.compsrv.service.fight.GroupStageGenerateService
 import compman.compsrv.service.schedule.BracketSimulatorFactory
 import compman.compsrv.service.schedule.ScheduleService
 import compman.compsrv.service.schedule.StageGraph
@@ -18,9 +18,11 @@ import java.math.BigDecimal
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.*
+import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
-class TestDataGenerationUtils(private val fightsGenerateService: FightsService) {
+class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGenerateService, private val groupStageGenerateService: GroupStageGenerateService) {
     private val scheduleService = ScheduleService()
 
     fun category1(fightDuration: Long) = CategoryGeneratorService.createCategory(fightDuration, CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.brown)
@@ -34,15 +36,34 @@ class TestDataGenerationUtils(private val fightsGenerateService: FightsService) 
                              stage: StageDescriptorDTO,
                              competitors: List<CompetitorDTO>,
                              duration: BigDecimal): List<FightDescriptionDTO> {
-        val fights = fightsGenerateService.generateStageFights(competitionId, category.id, stage, competitors.size, duration, competitors, 0)
+        val fights = bracketsGenerateService.generateStageFights(competitionId, category.id, stage, competitors.size, duration, competitors, 0)
         assertNotNull(fights)
         return fights
     }
 
+    fun generateGroupFights(competitionId: String,
+                                    categoryId: String,
+                                    stageId: String,
+                                    additionalGroupSortingDescriptors: Array<AdditionalGroupSortingDescriptorDTO>?,
+                                    groupSizes: List<Int>): Pair<StageDescriptorDTO, List<FightDescriptionDTO>> {
+        val duration = BigDecimal.TEN
+        val competitorsSize = groupSizes.sum()
+        val stage = createGroupStage(competitionId, categoryId, stageId, additionalGroupSortingDescriptors, groupSizes)
+        val competitors = FightsService.generateRandomCompetitorsForCategory(competitorsSize, 20, categoryId, competitionId)
+        val fights = groupStageGenerateService.generateStageFights(competitionId, categoryId, stage, competitorsSize, duration, competitors, 0)
+        assertNotNull(fights)
+        assertTrue(fights.all { it.scores.size == 2 }) //all fights are packed
+        assertTrue(fights.none { it.groupId.isNullOrBlank() }) //all fights have a group id
+        assertTrue(competitors.all { comp -> fights.filter { f -> f.scores.any { it.competitorId == comp.id } }.size == competitorsSize - 1 }) //each fighter fights with all the other fighters
+        return stage to fights
+    }
+
+
     fun createGroupStage(competitionId: String,
                          categoryId: String,
                          stageId: String,
-                         additionalGroupSortingDescriptorDTOS: Array<AdditionalGroupSortingDescriptorDTO>?): StageDescriptorDTO {
+                         additionalGroupSortingDescriptorDTOS: Array<AdditionalGroupSortingDescriptorDTO>?,
+    groupSizes: List<Int>): StageDescriptorDTO {
         return StageDescriptorDTO()
                 .setId(stageId)
                 .setName("Name")
@@ -56,16 +77,12 @@ class TestDataGenerationUtils(private val fightsGenerateService: FightsService) 
                 .setStageResultDescriptor(StageResultDescriptorDTO()
                         .setId(stageId)
                         .setAdditionalGroupSortingDescriptors(additionalGroupSortingDescriptorDTOS))
-                .setGroupDescriptors(arrayOf(
-                        GroupDescriptorDTO()
-                                .setId(stageId + "-group-" + UUID.randomUUID().toString())
-                                .setName(stageId + "group-Name")
-                                .setSize(25),
-                        GroupDescriptorDTO()
-                                .setId(stageId + "-group-" + UUID.randomUUID().toString())
-                                .setName(stageId + "group-Name1")
-                                .setSize(25)
-                ))
+                .setGroupDescriptors(groupSizes.mapIndexed {ind, size ->
+                    GroupDescriptorDTO()
+                            .setId(stageId + "-group-" + UUID.randomUUID().toString())
+                            .setName(stageId + "group-Name-$ind")
+                            .setSize(size)
+                }.toTypedArray())
                 .setInputDescriptor(StageInputDescriptorDTO().setId(stageId).setNumberOfCompetitors(50))
     }
 
@@ -84,6 +101,7 @@ class TestDataGenerationUtils(private val fightsGenerateService: FightsService) 
                 .setStageOrder(0)
                 .setStageStatus(StageStatus.APPROVED)
                 .setStageResultDescriptor(StageResultDescriptorDTO()
+                        .setFightResultOptions(FightResultOptionDTO.values.toTypedArray())
                         .setId(stageId))
                 .setInputDescriptor(StageInputDescriptorDTO().setId(stageId).setNumberOfCompetitors(numberOfCompetitors))
     }
@@ -117,7 +135,7 @@ class TestDataGenerationUtils(private val fightsGenerateService: FightsService) 
     fun generateSchedule(categories: List<Pair<String, CategoryDescriptorDTO>>,
                          stagesToFights: List<Pair<StageDescriptorDTO, List<FightDescriptionDTO>>>,
                          competitionId: String,
-                         competitorNumbers: Int): ScheduleDTO {
+                         competitorNumbers: Int): Tuple2<ScheduleDTO, List<FightStartTimePairDTO>> {
         val findFightIdsByCatIds = { categoryIds: Collection<String> ->
             stagesToFights.flatMap { it.second }.filter { categoryIds.contains(it.categoryId) }.map { it.id }
         }
@@ -174,14 +192,16 @@ class TestDataGenerationUtils(private val fightsGenerateService: FightsService) 
                                 .setEntryOrder(2)
 
                 )))
+        val getCompScores = { id: String -> stagesToFights.flatMap { it.second }.firstOrNull { it.id == id }?.scores?.map { it.toPojo(id) }.orEmpty() }
+
         val stageGraph = stagesToFights.map {
             Tuple3(it.first, it.second.first().categoryId, BracketType.SINGLE_ELIMINATION) to it.second.map { f ->
                 f.toPojo()
             }
         }.map { pp ->
-            StageGraph(pp.first.a.categoryId, listOf(pp.first.a), pp.second, BracketSimulatorFactory())
+            StageGraph(pp.first.a.categoryId, listOf(pp.first.a), pp.second, BracketSimulatorFactory(), getCompScores)
         }
 
-        return scheduleService.generateSchedule(competitionId, periods, mats.toList(), Flux.fromIterable(stageGraph), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap()) { id -> stagesToFights.flatMap { it.second }.firstOrNull { it.id == id }?.toPojo() }
+        return scheduleService.generateSchedule(competitionId, periods, mats.toList(), Flux.fromIterable(stageGraph), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap())
     }
 }

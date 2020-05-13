@@ -456,6 +456,25 @@
                     </compilerPlugins>
                     <jvmTarget>1.8</jvmTarget>
                 </configuration>
+<!--
+                <executions>
+                    <execution>
+                        <id>kapt</id>
+                        <goals>
+                            <goal>kapt</goal>
+                        </goals>
+                        <configuration>
+                            <annotationProcessorPaths>
+                                <annotationProcessorPath>
+                                    <groupId>io.arrow-kt</groupId>
+                                    <artifactId>arrow-meta</artifactId>
+                                    <version>${arrow.version}</version>
+                                </annotationProcessorPath>
+                            </annotationProcessorPaths>
+                        </configuration>
+                    </execution>
+                </executions>
+-->
                 <dependencies>
                     <dependency>
                         <groupId>org.jetbrains.kotlin</groupId>

@@ -2,6 +2,7 @@ package compman.compsrv.model.dto.schedule;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
@@ -12,7 +13,9 @@ import java.time.Instant;
 @AllArgsConstructor
 @Accessors(chain = true)
 @NoArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class ScheduleEntryDTO {
+    @EqualsAndHashCode.Include
     private String id;
     private String[] categoryIds;
     private MatIdAndSomeId[] fightIds;

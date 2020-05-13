@@ -32,10 +32,13 @@ class FightEditorApplyChangesPayloadValidator : AbstractCommandPayloadValidator<
             payload.stageId.isNullOrBlank() -> {
                 validationRules.raiseError(PayloadValidationError.FieldMissing("stageId", command.id).nel())
             }
-            payload.fights.isNullOrEmpty() && payload.competitorGroupChanges.isNullOrEmpty() -> {
-                validationRules.raiseError(PayloadValidationError.FieldMissing("fights,competitorGroupChanges", command.id).nel())
+            payload.bracketsChanges.isNullOrEmpty() && payload.competitorGroupChanges.isNullOrEmpty() -> {
+                validationRules.raiseError(PayloadValidationError.FieldMissing("bracketsChanges, competitorGroupChanges", command.id).nel())
             }
-            !payload.competitorGroupChanges.isNullOrEmpty() && !payload.fights.isNullOrEmpty() -> {
+            !payload.bracketsChanges.isNullOrEmpty() && payload.bracketsChanges.any { bc -> bc.fightId.isNullOrBlank() || bc.competitors?.any { it.isNullOrBlank() } == true } -> {
+                validationRules.raiseError(PayloadValidationError.GenericError("Brackets changes contain null fight ids or null competitor ids: ${payload.bracketsChanges}", command.id).nel())
+            }
+            !payload.competitorGroupChanges.isNullOrEmpty() && !payload.bracketsChanges.isNullOrEmpty() -> {
                 validationRules.raiseError(PayloadValidationError.GenericError("Cannot have both fight and group changes.", command.id).nel())
             }
             !payload.competitorGroupChanges.isNullOrEmpty() && !payload.competitorGroupChanges.none { it.groupId.isNullOrBlank() || it.competitorId.isNullOrBlank() || it.changeType == null } -> {

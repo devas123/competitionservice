@@ -9,14 +9,13 @@ import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.createErrorEvent
+import compman.compsrv.util.toMonoOrEmpty
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
-import java.time.Duration
 import java.util.*
-import java.util.concurrent.CompletableFuture
 
 @Component
 class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, CommandDTO>,
@@ -56,7 +55,7 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
         }
     }
 
-    fun sendCommandSync(command: CommandDTO, competitionId: String?): Array<EventDTO> {
+    fun sendCommandSync(command: CommandDTO, competitionId: String?): Array<out EventDTO> {
         fun createErrorEvent(errorMsg: String) = arrayOf(mapper.createErrorEvent(command, errorMsg))
         command.id = command.id ?: UUID.randomUUID().toString()
         if (competitionId.isNullOrBlank()) {
@@ -69,14 +68,12 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
             return kotlin.runCatching {
                 stateQueryService.localOrRemote(competitionId,
                         {
-                            commandCache.executeCommand(correlationId, CompletableFuture()) {
+                            commandCache.executeCommand(correlationId) {
                                 sendCommandAsync(command, competitionId, correlationId)
                             }
-                            val result = commandCache.waitForResult(correlationId, Duration.ofSeconds(30))
-                            result
                         },
                         { _, restTemplate, prefix ->
-                            restTemplate.postForObject("$prefix/api/v1/commandsync", command, Array<EventDTO>::class.java, mapOf("competitionId" to competitionId))
+                            restTemplate.postForObject("$prefix/api/v1/commandsync", command, Array<EventDTO>::class.java, mapOf("competitionId" to competitionId)).toMonoOrEmpty()
                         })
             }
                     .recover { e ->

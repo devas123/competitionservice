@@ -14,17 +14,26 @@ import java.util.List;
 @NoArgsConstructor
 @Accessors(chain = true)
 public class FightResultOptionDTO {
-   public static final FightResultOptionDTO WIN_POINTS = new FightResultOptionDTO().setWinnerPoints(BigDecimal.valueOf(3)).setWinnerAdditionalPoints(BigDecimal.valueOf(1)).setDescription("Win by points")
+   public static final FightResultOptionDTO WIN_POINTS = new FightResultOptionDTO()
+           .setId("_default_win_points")
+           .setWinnerPoints(BigDecimal.valueOf(3))
+           .setWinnerAdditionalPoints(BigDecimal.valueOf(1))
+           .setDescription("Win by points")
            .setShortName("Win points");
-   public static final FightResultOptionDTO WIN_SUBMISSION = new FightResultOptionDTO().setWinnerPoints(BigDecimal.valueOf(3)).setWinnerAdditionalPoints(BigDecimal.valueOf(2)).setDescription("Win by submission")
+   public static final FightResultOptionDTO WIN_SUBMISSION = new FightResultOptionDTO()
+           .setId("_default_win_submission")
+           .setWinnerPoints(BigDecimal.valueOf(3))
+           .setWinnerAdditionalPoints(BigDecimal.valueOf(2))
+           .setDescription("Win by submission")
            .setShortName("Win submission");
-   public static final FightResultOptionDTO WIN_DECISION = new FightResultOptionDTO().setWinnerPoints(BigDecimal.valueOf(3)).setWinnerAdditionalPoints(BigDecimal.valueOf(0)).setDescription("Win by decision")
+   public static final FightResultOptionDTO WIN_DECISION = new FightResultOptionDTO().setId("_default_win_decision").setWinnerPoints(BigDecimal.valueOf(3)).setWinnerAdditionalPoints(BigDecimal.valueOf(0)).setDescription("Win by decision")
            .setShortName("Win decision");
-   public static final FightResultOptionDTO OPPONENT_DQ = new FightResultOptionDTO().setWinnerPoints(BigDecimal.valueOf(3)).setWinnerAdditionalPoints(BigDecimal.valueOf(0)).setDescription("Win because opponent was disqualified")
+   public static final FightResultOptionDTO OPPONENT_DQ = new FightResultOptionDTO().setId("_default_opponent_dq").setWinnerPoints(BigDecimal.valueOf(3)).setWinnerAdditionalPoints(BigDecimal.valueOf(0)).setDescription("Win because opponent was disqualified")
            .setShortName("Win opponent DQ");
-   public static final FightResultOptionDTO WALKOVER = new FightResultOptionDTO().setWinnerPoints(BigDecimal.valueOf(3)).setWinnerAdditionalPoints(BigDecimal.valueOf(0)).setDescription("Win because opponent didn't show up or got injured, or some other reason.")
+   public static final FightResultOptionDTO WALKOVER = new FightResultOptionDTO().setId("_default_walkover").setWinnerPoints(BigDecimal.valueOf(3)).setWinnerAdditionalPoints(BigDecimal.valueOf(0)).setDescription("Win because opponent didn't show up or got injured, or some other reason.")
            .setShortName("Win walkover");
    public static final FightResultOptionDTO BOTH_DQ = new FightResultOptionDTO()
+           .setId("_default_both_dq")
            .setWinnerPoints(BigDecimal.valueOf(0))
            .setWinnerAdditionalPoints(BigDecimal.valueOf(0))
            .setLoserPoints(BigDecimal.valueOf(0))
@@ -55,7 +64,7 @@ public class FightResultOptionDTO {
     private String shortName;
     private boolean draw;
     private BigDecimal winnerPoints;
-    private BigDecimal winnerAdditionalPoints;
-    private BigDecimal loserPoints;
-    private BigDecimal loserAdditionalPoints;
+    private BigDecimal winnerAdditionalPoints = BigDecimal.ZERO;
+    private BigDecimal loserPoints = BigDecimal.ZERO;
+    private BigDecimal loserAdditionalPoints = BigDecimal.ZERO;
 }

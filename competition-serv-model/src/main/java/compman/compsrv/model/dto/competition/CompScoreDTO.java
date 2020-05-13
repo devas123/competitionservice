@@ -1,5 +1,6 @@
 package compman.compsrv.model.dto.competition;
 
+import compman.compsrv.model.dto.brackets.FightReferenceType;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
@@ -10,4 +11,6 @@ public class CompScoreDTO {
     private String competitorId;
     private ScoreDTO score;
     private Integer order;
+    private FightReferenceType parentReferenceType;
+    private String parentFightId;
 }

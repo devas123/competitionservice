@@ -9,6 +9,7 @@ import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.CompScoreDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
+import compman.compsrv.util.orZero
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
 
@@ -116,24 +117,22 @@ class GroupStageGenerateService : FightsService() {
     }
 
     override fun buildStageResults(bracketType: BracketType, stageStatus: StageStatus,
+                                   stageType: StageType,
                                    fights: List<FightDescriptionDTO>, stageId: String,
                                    competitionId: String,
-                                   pointsAssignmentDescriptors: List<FightResultOptionDTO>): List<CompetitorStageResultDTO> {
+                                   fightResultOptions: List<FightResultOptionDTO>): List<CompetitorStageResultDTO> {
         return when (stageStatus) {
             StageStatus.FINISHED -> {
                 val competitorPointsMap = mutableMapOf<String, Tuple3<BigDecimal, BigDecimal, String>>()
-
                 fights.forEach { fight ->
-                    val pointsDescriptor = pointsAssignmentDescriptors.find { p -> p.id == fight.fightResult.resultTypeId }
+                    val pointsDescriptor = fightResultOptions.find { p -> p.id == fight.fightResult.resultTypeId }
                     when (pointsDescriptor?.isDraw) {
                         true -> {
                             fight.scores.forEach { sc ->
                                 sc.competitorId?.let {
                                     competitorPointsMap.compute(it) { _, u ->
                                         val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
-                                        Tuple3(basis.a + (pointsDescriptor.winnerPoints
-                                                ?: BigDecimal.ZERO), basis.b + (pointsDescriptor.winnerAdditionalPoints
-                                                ?: BigDecimal.ZERO), basis.c)
+                                        Tuple3(basis.a + pointsDescriptor.winnerPoints.orZero(), basis.b + pointsDescriptor.winnerAdditionalPoints.orZero(), basis.c)
                                     }
                                 }
                             }
@@ -141,17 +140,12 @@ class GroupStageGenerateService : FightsService() {
                         else -> {
                             competitorPointsMap.compute(fight.fightResult.winnerId) { _, u ->
                                 val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
-                                Tuple3(basis.a + (pointsDescriptor?.winnerPoints
-                                        ?: BigDecimal.ZERO), basis.b + (pointsDescriptor?.winnerAdditionalPoints
-                                        ?: BigDecimal.ZERO), basis.c)
+                                Tuple3(basis.a + pointsDescriptor?.winnerPoints.orZero(), basis.b + pointsDescriptor?.winnerAdditionalPoints.orZero(), basis.c)
                             }
-
                             fight.scores.find { it.competitorId != fight.fightResult.winnerId }?.competitorId?.let {
                                 competitorPointsMap.compute(it) { _, u ->
                                     val basis = u ?: Tuple3(BigDecimal.ZERO, BigDecimal.ZERO, fight.groupId)
-                                    Tuple3(basis.a + (pointsDescriptor?.winnerPoints
-                                            ?: BigDecimal.ZERO), basis.b + (pointsDescriptor?.winnerAdditionalPoints
-                                            ?: BigDecimal.ZERO), basis.c)
+                                    Tuple3(basis.a + pointsDescriptor?.loserPoints.orZero(), basis.b + pointsDescriptor?.loserAdditionalPoints.orZero(), basis.c)
                                 }
                             }
                         }
@@ -165,7 +159,7 @@ class GroupStageGenerateService : FightsService() {
                                     .setGroupId(e.second.c)
                                     .setCompetitorId(e.first)
                                     .setPoints(e.second.a)
-                                    .setPlace(i)
+                                    .setPlace(i + 1)
                                     .setStageId(stageId)
                         }
             }

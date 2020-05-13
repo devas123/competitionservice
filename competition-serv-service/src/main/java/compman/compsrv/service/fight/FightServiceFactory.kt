@@ -11,9 +11,7 @@ class FightServiceFactory(private val fightServices: List<FightsService>) {
 
     private fun findService(bracketType: BracketType) = fightServices.first { it.supportedBracketTypes().contains(bracketType) }
 
-    fun supportedBracketTypes(): List<BracketType> {
-        return fightServices.flatMap { it.supportedBracketTypes() }
-    }
+
 
     fun generateStageFights(competitionId: String, categoryId: String, stage: StageDescriptorDTO, compssize: Int, duration: BigDecimal, competitors: List<CompetitorDTO>, outputSize: Int): List<FightDescriptionDTO> {
         return findService(stage.bracketType).generateStageFights(competitionId, categoryId, stage, compssize, duration, competitors, outputSize)
@@ -23,8 +21,8 @@ class FightServiceFactory(private val fightServices: List<FightsService>) {
         return findService(bracketType).distributeCompetitors(competitors, fights, bracketType)
     }
 
-    fun buildStageResults(bracketType: BracketType, stageStatus: StageStatus, fights: List<FightDescriptionDTO>, stageId: String, competitionId: String, pointsAssignmentDescriptors: List<FightResultOptionDTO>): List<CompetitorStageResultDTO> {
-        return findService(bracketType).buildStageResults(bracketType, stageStatus, fights, stageId, competitionId, pointsAssignmentDescriptors)
+    fun buildStageResults(bracketType: BracketType, stageStatus: StageStatus, stageType: StageType, fights: List<FightDescriptionDTO>, stageId: String, competitionId: String, pointsAssignmentDescriptors: List<FightResultOptionDTO>): List<CompetitorStageResultDTO> {
+        return findService(bracketType).buildStageResults(bracketType, stageStatus, stageType, fights, stageId, competitionId, pointsAssignmentDescriptors)
     }
 
     fun applyStageInputDescriptorToResultsAndFights(bracketType: BracketType, inputDescriptor: StageInputDescriptorDTO, previousStageId: String, fightResultOptions: (stageId: String) -> List<FightResultOptionDTO>,

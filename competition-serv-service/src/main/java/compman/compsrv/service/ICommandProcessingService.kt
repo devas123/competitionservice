@@ -11,21 +11,20 @@ interface ICommandProcessingService<Command, Event> {
         val log: Logger = LoggerFactory.getLogger(ICommandProcessingService::class.java)
     }
 
-    fun apply(event: Event, isBatch: Boolean = false): List<Event>
+    fun apply(event: Event, isBatch: Boolean = false)
 
     @Transactional(propagation = Propagation.REQUIRED)
-    fun batchApply(events: List<Event>): List<Event> {
-        return events.filter {
+    fun batchApply(events: List<Event>) {
+        events.filter {
             log.info("Check if event is duplicate: $it")
             !duplicateCheck(it)
-        }.fold(emptyList()) { acc, eventHolder ->
+        }.fold(Unit) { _, eventHolder ->
             val start = System.currentTimeMillis()
             log.info("Batch applying start")
-            val res = (acc + apply(eventHolder, isBatch = true))
+            apply(eventHolder, isBatch = true)
             val finishApply = System.currentTimeMillis()
             log.info("Batch apply finish, took ${Duration.ofMillis(finishApply - start)}. Starting flush")
             log.info("Flush finish, took ${Duration.ofMillis(System.currentTimeMillis() - finishApply)}.")
-            res
         }
     }
 

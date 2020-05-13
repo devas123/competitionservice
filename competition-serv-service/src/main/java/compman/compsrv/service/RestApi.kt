@@ -1,6 +1,5 @@
 package compman.compsrv.service
 
-import arrow.core.extensions.either.monadError.monadError
 import compman.compsrv.cluster.ClusterMember
 import compman.compsrv.model.CommonResponse
 import compman.compsrv.model.commands.CommandDTO
@@ -8,13 +7,13 @@ import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.dto.dashboard.MatStateDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import java.time.Duration
 
 @RestController
 @RequestMapping("/api/v1")
@@ -23,13 +22,15 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
               private val clusterInfoService: ClusterInfoService,
               private val commandProducer: CommandProducer) {
 
+    fun String?.isNullOrEmptyOrUndefined() = this.isNullOrEmpty() || this == "null" || this == "undefined"
+
     companion object {
         private val log = LoggerFactory.getLogger(RestApi::class.java)
     }
 
     @RequestMapping("/store/fightsbycategories", method = [RequestMethod.GET])
     fun getFightIdsByCategoryIds(@RequestParam("competitionId") competitionId: String): Map<String, Array<String>> {
-        return stateQueryService.getFightIdsByCategoryIds(competitionId);
+        return stateQueryService.getFightIdsByCategoryIds(competitionId)
     }
 
     @RequestMapping(path = ["/command/{competitionId}", "/command"], method = [RequestMethod.POST])
@@ -44,7 +45,7 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
     }
 
     @RequestMapping(path = ["/commandsync/{competitionId}", "/commandsync"], method = [RequestMethod.POST])
-    fun sendCommandSync(@RequestBody command: CommandDTO, @PathVariable competitionId: String?): ResponseEntity<Array<EventDTO>> {
+    fun sendCommandSync(@RequestBody command: CommandDTO, @PathVariable competitionId: String?): ResponseEntity<Array<out EventDTO>> {
         log.info("COMMAND SYNC: $command")
         return ResponseEntity(commandProducer.sendCommandSync(command, competitionId), HttpStatus.OK)
     }
@@ -76,6 +77,11 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
         return stateQueryService.getStageFights(competitionId, stageId)?.toList().orEmpty()
     }
 
+    @RequestMapping("/store/fight", method = [RequestMethod.GET])
+    fun getFight(@RequestParam("competitionId") competitionId: String, @RequestParam("fightId") fightId: String): FightDescriptionDTO? {
+        return stateQueryService.getFight(competitionId, fightId)
+    }
+
     @RequestMapping("/store/stages", method = [RequestMethod.GET])
     fun getCategoryStages(@RequestParam("competitionId") competitionId: String, @RequestParam("categoryId") categoryId: String): Array<StageDescriptorDTO> {
         return stateQueryService.getStages(competitionId, categoryId) ?: emptyArray()
@@ -100,11 +106,26 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
         }
         return stateQueryService.getCompetitor(competitionId, fighterId)
     }
+    @RequestMapping("/store/fightresultoptions", method = [RequestMethod.GET])
+    fun getFightResultOptions(@RequestParam("competitionId") competitionId: String,
+                      @RequestParam("fightId") fightId: String): Array<FightResultOptionDTO>? {
+        if (competitionId.isNullOrEmptyOrUndefined() || fightId.isNullOrEmptyOrUndefined()) {
+            return null
+        }
+        return stateQueryService.getFightResultOptions(competitionId, fightId)
+    }
 
     @RequestMapping("/store/comprops", method = [RequestMethod.GET])
     fun getCompetitionProperties(@RequestParam("competitionId") competitionId: String?): CompetitionPropertiesDTO? {
         log.info("looking for the competition properties for competition $competitionId")
-        return competitionId?.let { stateQueryService.getCompetitionProperties(it) }
+        return competitionId?.let {
+            stateQueryService.getCompetitionProperties(it).block(Duration.ofMillis(10000)) }?.orNull()
+    }
+    @RequestMapping("/store/reginfo", method = [RequestMethod.GET])
+    fun getRegistrationInfo(@RequestParam("competitionId") competitionId: String?): RegistrationInfoDTO? {
+        log.info("looking for the competition properties for competition $competitionId")
+        return competitionId?.let {
+            stateQueryService.getRegistrationInfo(it).block(Duration.ofMillis(10000)) }
     }
 
     @RequestMapping("/store/infotemplate", method = [RequestMethod.GET])

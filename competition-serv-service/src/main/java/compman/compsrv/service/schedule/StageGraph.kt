@@ -1,5 +1,6 @@
 package compman.compsrv.service.schedule
 
+import com.compmanager.compservice.jooq.tables.pojos.CompScore
 import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import org.slf4j.LoggerFactory
@@ -8,7 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 data class StageNode(val stage: StageDescriptorDTO, val parentStageIds: Set<String>, val fights: List<FightDescription>, val brackets: IBracketSimulator)
 
 class StageGraph(override val categoryId: String, private val stages: List<StageDescriptorDTO>, private val fights: List<FightDescription>,
-                 private val bracketSimulatorFactory: BracketSimulatorFactory) : IBracketSimulator {
+                 private val bracketSimulatorFactory: BracketSimulatorFactory, getFightScores: (id: String) -> List<CompScore>) : IBracketSimulator {
 
     companion object {
         private val log = LoggerFactory.getLogger(StageGraph::class.java)
@@ -26,7 +27,7 @@ class StageGraph(override val categoryId: String, private val stages: List<Stage
             val parentIds = getParentIds(stage)
             val stageFights = fights.filter { f -> f.stageId == stage.id }
             acc + StageNode(stage, parentIds.toSet(), stageFights,
-                    bracketSimulatorFactory.createSimulator(stage.id, categoryId, stageFights, stage.bracketType, stage.inputDescriptor.numberOfCompetitors))
+                    bracketSimulatorFactory.createSimulator(stage.id, categoryId, stageFights, stage.bracketType, stage.inputDescriptor.numberOfCompetitors, getFightScores))
         }.sortedBy { it.stage.stageOrder }
     }
 
@@ -51,7 +52,7 @@ class StageGraph(override val categoryId: String, private val stages: List<Stage
         return empty.get() || stageNodes.all { it.brackets.isEmpty() }
     }
 
-    override fun getNextRound(): List<FightDescription> {
+    override fun getNextRound(): List<FightDescriptionWithParentIds> {
         val node = stageNodes.firstOrNull { !completeStages.contains(it.stage.id) && completeStages.containsAll(it.parentStageIds) && !it.brackets.isEmpty() }
         val nextRound = node?.brackets?.getNextRound().orEmpty()
         if (node != null && node.brackets.isEmpty()) {

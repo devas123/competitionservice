@@ -37,9 +37,9 @@ import java.time.ZoneId
 @Component
 class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val clusterSession: ClusterSession,
+                                  private val compScoreDao: CompScoreDao,
                                   private val categoryCrudRepository: CategoryDescriptorDao,
                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
-                                  private val fightDescriptionDao: FightDescriptionDao,
                                   private val registrationGroupCrudRepository: RegistrationGroupDao,
                                   private val registrationPeriodCrudRepository: RegistrationPeriodDao,
                                   private val registrationInfoCrudRepository: RegistrationInfoDao,
@@ -77,7 +77,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                         it.fold(emptyList<StageDescriptorDTO>() to emptyList<FightDescription>()) { acc, pair ->
                             (acc.first + pair.first) to (acc.second + pair.second?.toList().orEmpty())
                         }
-                    }.map { pr -> StageGraph(grfl.key()!!, pr.first, pr.second, bracketSimulatorFactory) }
+                    }.map { pr -> StageGraph(grfl.key()!!, pr.first, pr.second, bracketSimulatorFactory) { id -> compScoreDao.fetchByCompscoreFightDescriptionId(id) } }
                 }
     }
 
@@ -96,7 +96,11 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
 
             return when (command.type) {
                 CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND -> {
-                    clusterSession.createProcessingInfoEvents(command.correlationId, setOf(command.competitionId)).toList()
+                    if (competitionPropertiesCrudRepository.existsById(command.competitionId)) {
+                        clusterSession.createProcessingInfoEvents(command.correlationId, setOf(command.competitionId)).toList()
+                    } else {
+                        listOf(createErrorEvent("Received INTERNAL_SEND_PROCESSING_INFO_COMMAND but competition does not exist."))
+                    }
                 }
                 CommandType.UPDATE_REGISTRATION_INFO_COMMAND -> {
                     val payload = mapper.convertValue(command.payload, UpdateRegistrationInfoPayload::class.java)
@@ -215,7 +219,8 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                 newProperties.timeZone = ZoneId.systemDefault().id
                             }
                             if (!competitionPropertiesCrudRepository.existsById(command.competitionId)) {
-                                listOf(createEvent(EventType.COMPETITION_CREATED, CompetitionCreatedPayload(newProperties.setId(command.competitionId))))
+                                listOf(createEvent(EventType.COMPETITION_CREATED, CompetitionCreatedPayload(
+                                        newProperties.setId(command.competitionId), payload.reginfo?.setId(command.competitionId))))
                             } else {
                                 listOf(createErrorEvent("Competition with name '${newProperties.competitionName}' already exists."))
                             }
@@ -261,16 +266,17 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                     if (compProps != null && !compProps.schedulePublished && !periods.isNullOrEmpty()) {
                         if (missingCategories.isNullOrEmpty()) {
                             val competitorNumbersByCategoryIds = jooqRepository.getCompetitorNumbersByCategoryIds(com.competitionId)
-                            val schedule = scheduleService.generateSchedule(com.competitionId, periods, mats,
+                            val tuple = scheduleService.generateSchedule(com.competitionId, periods, mats,
                                     getAllBrackets(com.competitionId),
                                     compProps.timeZone,
-                                    competitorNumbersByCategoryIds) { fightDescriptionDao.findById(it) }
-                            val newFights = schedule.mats?.flatMap { mat ->
-                                mat.fightStartTimes.map { f -> f.setPeriodId(mat.periodId) }
-                                        .orEmpty()
-                            }?.toTypedArray()
-                            val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(newFights)
-                            listOf(createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule)), createEvent(EventType.FIGHTS_START_TIME_UPDATED, fightStartTimeUpdatedPayload))
+                                    competitorNumbersByCategoryIds)
+                            val schedule = tuple.a
+                            val newFights = tuple.b
+                            val fightStartTimeUpdatedEvents = newFights.chunked(100) { list ->
+                                val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(list.toTypedArray())
+                                createEvent(EventType.FIGHTS_START_TIME_UPDATED, fightStartTimeUpdatedPayload)
+                            }
+                            listOf(createEvent(EventType.SCHEDULE_GENERATED, ScheduleGeneratedPayload(schedule))) + fightStartTimeUpdatedEvents
                         } else {
                             listOf(createErrorEvent("Categories $missingCategories are unknown"))
                         }

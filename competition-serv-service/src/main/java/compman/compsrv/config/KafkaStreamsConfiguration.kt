@@ -5,12 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.kafka.serde.CommandDeserializer
 import compman.compsrv.kafka.serde.CommandSerializer
 import compman.compsrv.kafka.serde.EventSerializer
-import compman.compsrv.kafka.streams.transformer.CommandExecutor
 import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.service.ICommandProcessingService
+import compman.compsrv.service.processor.event.IEffects
 import compman.compsrv.service.resolver.CompetitionStateResolver
 import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -25,6 +25,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory
 import org.springframework.kafka.core.*
+import org.springframework.kafka.listener.AcknowledgingConsumerAwareMessageListener
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer
 import org.springframework.kafka.listener.ContainerProperties
 import org.springframework.kafka.listener.DefaultAfterRollbackProcessor
@@ -77,7 +78,7 @@ class KafkaStreamsConfiguration {
     @Bean
     fun eventProducerFactory(kafkaProps: KafkaProperties): ProducerFactory<String, EventDTO> {
         val props = producerProps(kafkaProps, EventSerializer::class.java)
-        return DefaultKafkaProducerFactory<String, EventDTO>(props, StringSerializer(), EventSerializer())
+        return DefaultKafkaProducerFactory(props, StringSerializer(), EventSerializer())
                 .apply { setTransactionIdPrefix(kafkaProps.producer.transactionIdPrefix) }
     }
 
@@ -94,7 +95,7 @@ class KafkaStreamsConfiguration {
 
     @Bean
     fun consumerFactory(kafkaProps: KafkaProperties): DefaultKafkaConsumerFactory<String, CommandDTO> {
-        return DefaultKafkaConsumerFactory<String, CommandDTO>(consumerConfigs(kafkaProps), StringDeserializer(), CommandDeserializer())
+        return DefaultKafkaConsumerFactory(consumerConfigs(kafkaProps), StringDeserializer(), CommandDeserializer())
     }
 
     @Bean
@@ -123,7 +124,7 @@ class KafkaStreamsConfiguration {
     fun container(cf: ConsumerFactory<String, CommandDTO>,
                   kafkaProps: KafkaProperties,
                   trm: ChainedKafkaTransactionManager<Any, Any>,
-                  commandExecutor: CommandExecutor): ConcurrentMessageListenerContainer<String, CommandDTO> {
+                  commandExecutor: AcknowledgingConsumerAwareMessageListener<String, CommandDTO>): ConcurrentMessageListenerContainer<String, CommandDTO> {
         val props = ContainerProperties(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME)
         val consumerProps = kafkaProps.buildConsumerProperties()
         consumerProps[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
@@ -154,9 +155,11 @@ class KafkaStreamsConfiguration {
     @Bean
     fun commandTransformer(competitionStateService: ICommandProcessingService<CommandDTO, EventDTO>,
                            objectMapper: ObjectMapper,
+                           effects: IEffects,
                            competitionStateRepository: CompetitionPropertiesDao,
                            competitionStateResolver: CompetitionStateResolver) = CompetitionCommandTransformer(competitionStateService,
             competitionStateRepository,
             competitionStateResolver,
+            effects,
             objectMapper)
 }
