@@ -18,4 +18,5 @@ public class CategoryRestrictionDTO {
     private String minValue;
     private String maxValue;
     private String unit;
+    private int restrictionOrder;
 }

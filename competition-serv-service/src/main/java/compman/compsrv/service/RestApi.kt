@@ -145,13 +145,13 @@ class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
         }
     }
 
-    @RequestMapping("/store/defaultcategories", method = [RequestMethod.GET])
-    fun getDefaultCategories(@RequestParam("sportsId") sportsId: String?, @RequestParam("competitionId") competitionId: String?, includeKids: Boolean? = false): List<CategoryDescriptorDTO> {
-        return if (sportsId.isNullOrBlank() || competitionId.isNullOrBlank()) {
-            log.warn("Sports id is $sportsId, competition ID is $competitionId.")
+    @RequestMapping("/store/defaultrestrictions", method = [RequestMethod.GET])
+    fun getDefaultCategories(@RequestParam("sportsId") sportsId: String?, includeKids: Boolean? = false): List<CategoryRestrictionDTO> {
+        return if (sportsId.isNullOrBlank()) {
+            log.warn("Sports id is missing.")
             emptyList()
         } else {
-            categoryGeneratorService.createDefaultBjjCategories(competitionId)
+            CategoryGeneratorService.restrictions
         }
     }
 

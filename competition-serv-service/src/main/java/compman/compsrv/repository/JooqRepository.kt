@@ -53,7 +53,8 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                         CategoryRestriction.CATEGORY_RESTRICTION.NAME,
                         CategoryRestriction.CATEGORY_RESTRICTION.MIN_VALUE,
                         CategoryRestriction.CATEGORY_RESTRICTION.MAX_VALUE,
-                        CategoryRestriction.CATEGORY_RESTRICTION.UNIT).into(CategoryRestrictionDTO::class.java)
+                        CategoryRestriction.CATEGORY_RESTRICTION.UNIT,
+                CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.RESTRICTION_ORDER).into(CategoryRestrictionDTO::class.java)
         if (categoryFlatResults.isNotEmpty) {
             return CategoryDescriptorDTO()
                     .setId(categoryFlatResults.getValue(0, CategoryDescriptor.CATEGORY_DESCRIPTOR.ID))
@@ -178,6 +179,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 .groupBy { it[CategoryDescriptor.CATEGORY_DESCRIPTOR.ID] }.flatMap { fl ->
                     fl.collect(jooqMappers.categoryCollector())
                 }
+                .map { cat -> cat.setRestrictions(cat.restrictions.sortedBy { it.restrictionOrder }.toTypedArray())}
                 .flatMap { cat ->
                     getCategoryStateForCategoryDescriptor(competitionId, cat)
                 }
@@ -452,16 +454,17 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 c.restrictions.map {
                     val restRow = CategoryRestrictionRecord(it.id, it.maxValue, it.minValue, it.name, it.type?.name, it.value, it.alias, it.unit)
                     create.insertInto(CategoryRestriction.CATEGORY_RESTRICTION, restRow.field1(), restRow.field2(),
-                            restRow.field3(), restRow.field4(), restRow.field5(), restRow.field6())
+                            restRow.field3(), restRow.field4(), restRow.field5(), restRow.field6(), restRow.field7(), restRow.field8())
                             .values(restRow.value1(), restRow.value2(), restRow.value3(), restRow.value4(),
-                                    restRow.value5(), restRow.value6())
+                                    restRow.value5(), restRow.value6(), restRow.value7(), restRow.value8())
                             .onDuplicateKeyIgnore()
                 } +
                 c.restrictions.map { restr ->
                     create.insertInto(CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION,
                             CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.CATEGORY_RESTRICTION_ID,
-                            CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.CATEGORY_DESCRIPTOR_ID)
-                            .values(restr.id, c.id)
+                            CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.CATEGORY_DESCRIPTOR_ID,
+                            CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.RESTRICTION_ORDER)
+                            .values(restr.id, c.id, restr.restrictionOrder)
                             .onDuplicateKeyIgnore()
                 }
         create.batch(batch).execute()

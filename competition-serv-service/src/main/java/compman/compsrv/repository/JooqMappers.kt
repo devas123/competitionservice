@@ -45,22 +45,24 @@ class JooqMappers {
     fun stageCollector() = StageCollector()
 
     fun categoryCollector(): Collector<Record, CategoryDescriptorDTO, CategoryDescriptorDTO> = Collector.of(
-            Supplier { CategoryDescriptorDTO() }, BiConsumer<CategoryDescriptorDTO, Record> { t, it ->
+            Supplier { CategoryDescriptorDTO() }, BiConsumer { t, it ->
         val restriction = CategoryRestrictionDTO()
                 .setId(it[CategoryRestriction.CATEGORY_RESTRICTION.ID])
                 .setType(it[CategoryRestriction.CATEGORY_RESTRICTION.TYPE]?.let { CategoryRestrictionType.valueOf(it) })
                 .setName(it[CategoryRestriction.CATEGORY_RESTRICTION.NAME])
                 .setMinValue(it[CategoryRestriction.CATEGORY_RESTRICTION.MIN_VALUE])
+                .setValue(it[CategoryRestriction.CATEGORY_RESTRICTION.VALUE])
+                .setAlias(it[CategoryRestriction.CATEGORY_RESTRICTION.ALIAS])
                 .setMaxValue(it[CategoryRestriction.CATEGORY_RESTRICTION.MAX_VALUE])
                 .setUnit(it[CategoryRestriction.CATEGORY_RESTRICTION.UNIT])
+                .setRestrictionOrder(it[CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.RESTRICTION_ORDER])
 
-        val oldRestrictions = t.restrictions ?: emptyArray()
-        val newRestrictions = restriction?.let { arrayOf(it) } ?: emptyArray()
+        val newRestrictions = restriction?.let { arrayOf(*t.restrictions.orEmpty(), it) } ?: emptyArray()
         t
                 .setId(it[CategoryDescriptor.CATEGORY_DESCRIPTOR.ID])
                 .setRegistrationOpen(it[CategoryDescriptor.CATEGORY_DESCRIPTOR.REGISTRATION_OPEN])
                 .setFightDuration(it[CategoryDescriptor.CATEGORY_DESCRIPTOR.FIGHT_DURATION])
-                .setRestrictions(oldRestrictions + newRestrictions)
+                .setRestrictions(newRestrictions)
                 .name = it[CategoryDescriptor.CATEGORY_DESCRIPTOR.NAME]
 
     }, BinaryOperator { t, u ->

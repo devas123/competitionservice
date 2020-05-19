@@ -6,6 +6,7 @@ import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.competition.FightResultDTO
+import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.copy
 import org.slf4j.LoggerFactory
 import org.testcontainers.shaded.com.google.common.math.DoubleMath
@@ -21,7 +22,7 @@ import kotlin.test.assertTrue
 open class AbstractGenerateServiceTest {
     companion object {
         private val log = LoggerFactory.getLogger(AbstractGenerateServiceTest::class.java)
-        val fightResultOptions = FightResultOptionDTO.values.map { it.setId(UUID.randomUUID().toString()) }
+        val fightResultOptions = FightResultOptionDTO.values.map { it.setId(IDGenerator.uid()) }
         fun generateFightResult(fight: FightDescriptionDTO): Pair<FightDescriptionDTO, String?> {
             val scores = fight.scores?.filter { !it.competitorId.isNullOrBlank() }?.toList()
             val competitor = fight.fightResult?.winnerId ?: when (scores?.size) {

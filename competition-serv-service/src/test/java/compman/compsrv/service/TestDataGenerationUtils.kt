@@ -13,12 +13,12 @@ import compman.compsrv.service.fight.GroupStageGenerateService
 import compman.compsrv.service.schedule.BracketSimulatorFactory
 import compman.compsrv.service.schedule.ScheduleService
 import compman.compsrv.service.schedule.StageGraph
+import compman.compsrv.util.IDGenerator
 import reactor.core.publisher.Flux
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.*
-import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -79,7 +79,7 @@ class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGener
                         .setAdditionalGroupSortingDescriptors(additionalGroupSortingDescriptorDTOS))
                 .setGroupDescriptors(groupSizes.mapIndexed {ind, size ->
                     GroupDescriptorDTO()
-                            .setId(stageId + "-group-" + UUID.randomUUID().toString())
+                            .setId(stageId + "-group-" + IDGenerator.uid())
                             .setName(stageId + "group-Name-$ind")
                             .setSize(size)
                 }.toTypedArray())

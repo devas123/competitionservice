@@ -11,6 +11,7 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.JooqRepository
+import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.PayloadValidator
 import org.springframework.stereotype.Component
 import java.util.*
@@ -96,7 +97,7 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
                     targetScore.advantages ?: 0,
                     targetScore.penalties ?: 0,
                     targetScore.points ?: 0,
-                    targetScore.placeholderId ?: UUID.randomUUID().toString(),
+                    targetScore.placeholderId ?: IDGenerator.uid(),
                     targetScore.parentFightId ?: a.fromFightId,
                     targetScore.parentReferenceType ?: a.referenceType?.name,
                     a.competitorId,

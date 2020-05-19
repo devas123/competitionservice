@@ -15,5 +15,4 @@ public class CategoryDescriptorDTO {
     private String name;
     private Boolean registrationOpen;
     private BigDecimal fightDuration;
-    private String[] competitors;
 }

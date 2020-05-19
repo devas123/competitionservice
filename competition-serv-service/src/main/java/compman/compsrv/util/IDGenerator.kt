@@ -10,7 +10,7 @@ object IDGenerator {
     private const val SALT = "zhenekpenek"
     fun uid() = "${UUID.randomUUID()}-${System.currentTimeMillis()}"
     fun restrictionId(restriction: CategoryRestrictionDTO) = restriction.id
-            ?: hashString("${restriction.name}/${restriction.minValue}/${restriction.maxValue}")
+            ?: uid()
 
     fun categoryId(category: CategoryDescriptorDTO) = category.id ?: hashString("${
     category.restrictions?.fold(StringBuilder()) { acc, r ->

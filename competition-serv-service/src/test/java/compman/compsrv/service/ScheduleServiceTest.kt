@@ -91,7 +91,6 @@ class ScheduleServiceTest {
                 "stageid4" to testBracketsDataGenerationUtils.category4(fightDuration))
         val competitorNumbers = 110
         val fights = stageIdToCategory.map {
-            val competitors = FightsService.generateRandomCompetitorsForCategory(competitorNumbers, competitorNumbers, it.second.id, competitionId)
             testBracketsDataGenerationUtils.generateGroupFights(
                     stageId = it.first,
                     competitionId = competitionId,
