@@ -1,5 +1,6 @@
 package compman.compsrv.model.dto.competition;
 
+import compman.compsrv.model.dto.dashboard.MatDescriptionDTO;
 import compman.compsrv.model.dto.schedule.PeriodDTO;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -11,4 +12,5 @@ import lombok.experimental.Accessors;
 public class CompetitionDashboardStateDTO {
     private String competitionId;
     private PeriodDTO[] periods;
+    private MatDescriptionDTO[] mats;
 }
