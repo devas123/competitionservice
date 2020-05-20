@@ -9,9 +9,7 @@ import compman.compsrv.mapping.toRecord
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.dto.schedule.FightStartTimePairDTO
-import compman.compsrv.model.dto.schedule.PeriodDTO
-import compman.compsrv.model.dto.schedule.ScheduleDTO
+import compman.compsrv.model.dto.schedule.*
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.util.toTimestamp
 import org.jooq.*
@@ -641,9 +639,80 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
 
     fun fetchPeriodsByCompetitionId(competitionId: String): Flux<PeriodDTO> = Flux.from(
             queryProvider.selectPeriodsQuery(competitionId)
-    ).groupBy { it[SchedulePeriod.SCHEDULE_PERIOD.ID] }.flatMap { rec ->
-        rec.collect(jooqMappers.periodCollector(rec))
-    }.flatMap { per ->
+    ).map { rec -> PeriodDTO()
+            .setId(rec[SchedulePeriod.SCHEDULE_PERIOD.ID])
+            .setEndTime(rec[SchedulePeriod.SCHEDULE_PERIOD.END_TIME]?.toInstant())
+            .setStartTime(rec[SchedulePeriod.SCHEDULE_PERIOD.START_TIME]?.toInstant())
+            .setIsActive(rec[SchedulePeriod.SCHEDULE_PERIOD.IS_ACTIVE])
+            .setName(rec[SchedulePeriod.SCHEDULE_PERIOD.NAME])
+            .setRiskPercent(rec[SchedulePeriod.SCHEDULE_PERIOD.RISK_PERCENT])
+            .setTimeBetweenFights(rec[SchedulePeriod.SCHEDULE_PERIOD.TIME_BETWEEN_FIGHTS])
+    }
+            .flatMap { period ->
+                val scheduleRequirements = Flux.from(create.selectFrom(ScheduleRequirement.SCHEDULE_REQUIREMENT)
+                        .where(ScheduleRequirement.SCHEDULE_REQUIREMENT.PERIOD_ID.eq(period.id)))
+                        .collectList()
+                val scheduleEntries = Flux.from(create.selectFrom(ScheduleEntry.SCHEDULE_ENTRY)
+                        .where(ScheduleEntry.SCHEDULE_ENTRY.PERIOD_ID.eq(period.id)))
+                        .collectList()
+                scheduleRequirements.zipWith(scheduleEntries)
+                        .flatMap { reqEntr ->
+                            val entriesById = reqEntr.t2.map { it.id to it }.toMap()
+                            val requirementsById = reqEntr.t1.map { it.id to it }.toMap()
+                            val entries = Flux.from(
+                                    create.select(FightDescription.FIGHT_DESCRIPTION.ID, FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID,
+                                            FightDescription.FIGHT_DESCRIPTION.PERIOD,
+                                            FightDescription.FIGHT_DESCRIPTION.MAT_ID,
+                                            FightDescription.FIGHT_DESCRIPTION.INVALID,
+                                            FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID)
+                                            .from(FightDescription.FIGHT_DESCRIPTION)
+                                            .where(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID.`in`(entriesById.keys))
+                            ).groupBy { it[FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID] }
+                                    .flatMap { gr ->
+                                        gr.collectList()
+                                                .map { rec ->
+                                                    val entryRec = entriesById.getValue(gr.key())
+                                                    JooqMappers.scheduleEntry(entryRec)
+                                                            .setInvalidFightIds(rec
+                                                                    .filter { fr -> fr[FightDescription.FIGHT_DESCRIPTION.INVALID] }
+                                                                    .mapNotNull { fr -> fr[FightDescription.FIGHT_DESCRIPTION.ID] }.toTypedArray())
+                                                            .setFightIds(rec.map { fr -> MatIdAndSomeId().setMatId(fr[FightDescription.FIGHT_DESCRIPTION.MAT_ID])
+                                                                    .setSomeId(fr[FightDescription.FIGHT_DESCRIPTION.ID]) }.toTypedArray())
+                                                            .setCategoryIds(rec.map { fr -> fr[FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID] }.distinct().toTypedArray())
+                                                }
+                                    }.collectList()
+
+                            val categories = Flux.from(
+                                    create.selectFrom(ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION)
+                                            .where(ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.REQUIREMENT_ID.`in`(requirementsById.keys))
+                            ).collectList()
+                            val fights = Flux.from(
+                                    create.selectFrom(ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION)
+                                            .where(ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.REQUIREMENT_ID.`in`(requirementsById.keys))
+                            ).collectList()
+                            val requirements = Mono.zip(categories, fights).map { cf ->
+                                val fightsByRequirementId = cf.t2.groupBy { k ->
+                                    k[ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.REQUIREMENT_ID] }
+                                val categoriesByRequirementId = cf.t1.groupBy { k ->
+                                    k[ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.REQUIREMENT_ID] }
+                                reqEntr.t1.map { rr ->
+                                    val tmp = JooqMappers.scheduleRequirement(rr)
+                                    tmp.setCategoryIds(categoriesByRequirementId[tmp.id]
+                                            ?.map { u -> u[ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.CATEGORY_ID]}
+                                            ?.toTypedArray().orEmpty())
+                                            .setFightIds(fightsByRequirementId[tmp.id]
+                                                    ?.map { u -> u[ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.FIGHT_ID]}
+                                                    ?.toTypedArray().orEmpty())
+                                }
+                            }
+                            Mono.zip(entries, requirements)
+                                    .map { period
+                                            .setScheduleEntries(it.t1.toTypedArray())
+                                            .setScheduleRequirements(it.t2.toTypedArray())
+                                    }
+                        }
+            }
+            .flatMap { per ->
         addScheduleRequirementsToScheduleEntries(per)
     }.flatMap { per ->
         addCategoriesToScheduleRequirements(per)

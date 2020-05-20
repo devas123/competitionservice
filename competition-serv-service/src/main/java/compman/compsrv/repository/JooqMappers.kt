@@ -6,12 +6,10 @@ import compman.compsrv.model.dto.brackets.FightReferenceType
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.dto.schedule.FightStartTimePairDTO
-import compman.compsrv.repository.collectors.PeriodCollector
+import compman.compsrv.model.dto.schedule.*
 import compman.compsrv.repository.collectors.StageCollector
 import org.jooq.Record
 import org.springframework.stereotype.Component
-import reactor.core.publisher.GroupedFlux
 import java.util.function.BiConsumer
 import java.util.function.BinaryOperator
 import java.util.function.Supplier
@@ -19,6 +17,39 @@ import java.util.stream.Collector
 
 @Component
 class JooqMappers {
+
+    companion object {
+        fun scheduleEntry(u: Record): ScheduleEntryDTO {
+            return ScheduleEntryDTO()
+                    .setOrder(u[ScheduleEntry.SCHEDULE_ENTRY.SCHEDULE_ORDER])
+                    .setEntryType(u[ScheduleEntry.SCHEDULE_ENTRY.ENTRY_TYPE]?.let { ScheduleEntryType.valueOf(it) })
+                    .setEndTime(u[ScheduleEntry.SCHEDULE_ENTRY.END_TIME]?.toInstant())
+                    .setStartTime(u[ScheduleEntry.SCHEDULE_ENTRY.START_TIME]?.toInstant())
+                    .setDescription(u[ScheduleEntry.SCHEDULE_ENTRY.DESCRIPTION])
+                    .setDuration(u[ScheduleEntry.SCHEDULE_ENTRY.DURATION])
+                    .setId(u[ScheduleEntry.SCHEDULE_ENTRY.ID])
+                    .setPeriodId(u[ScheduleEntry.SCHEDULE_ENTRY.PERIOD_ID])
+                    .setName(u[ScheduleEntry.SCHEDULE_ENTRY.NAME])
+                    .setColor(u[ScheduleEntry.SCHEDULE_ENTRY.COLOR])
+        }
+
+        fun scheduleRequirement(u: Record): ScheduleRequirementDTO {
+            return ScheduleRequirementDTO()
+                    .setEntryType(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_TYPE]?.let { ScheduleRequirementType.valueOf(it) })
+                    .setEndTime(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.END_TIME]?.toInstant())
+                    .setStartTime(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.START_TIME]?.toInstant())
+                    .setMatId(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.MAT_ID])
+                    .setId(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ID])
+                    .setForce(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.FORCE])
+                    .setPeriodId(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.PERIOD_ID])
+                    .setDurationMinutes(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.DURATION_MINUTES])
+                    .setEntryOrder(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.ENTRY_ORDER])
+                    .setName(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.NAME])
+                    .setColor(u[ScheduleRequirement.SCHEDULE_REQUIREMENT.COLOR])
+
+        }
+
+    }
 
     fun hasFightStartTime(u: Record): Boolean {
         return (!u[FightDescription.FIGHT_DESCRIPTION.ID].isNullOrBlank()
@@ -39,8 +70,6 @@ class JooqMappers {
                 .setScheduleEntryId(u[FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID])
     }
 
-
-    fun periodCollector(rec: GroupedFlux<String, Record>) = PeriodCollector(rec.key()!!)
 
     fun stageCollector() = StageCollector()
 
