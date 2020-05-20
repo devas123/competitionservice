@@ -61,7 +61,6 @@ class JooqMappers {
         t
                 .setId(it[CategoryDescriptor.CATEGORY_DESCRIPTOR.ID])
                 .setRegistrationOpen(it[CategoryDescriptor.CATEGORY_DESCRIPTOR.REGISTRATION_OPEN])
-                .setFightDuration(it[CategoryDescriptor.CATEGORY_DESCRIPTOR.FIGHT_DURATION])
                 .setRestrictions(newRestrictions)
                 .name = it[CategoryDescriptor.CATEGORY_DESCRIPTOR.NAME]
 

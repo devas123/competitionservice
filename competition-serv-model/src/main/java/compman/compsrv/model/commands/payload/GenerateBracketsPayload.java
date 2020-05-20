@@ -1,6 +1,5 @@
 package compman.compsrv.model.commands.payload;
 
-import compman.compsrv.model.dto.brackets.BracketType;
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO;
 import lombok.Data;
 import lombok.NoArgsConstructor;

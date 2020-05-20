@@ -25,10 +25,10 @@ import kotlin.test.assertTrue
 class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGenerateService, private val groupStageGenerateService: GroupStageGenerateService) {
     private val scheduleService = ScheduleService()
 
-    fun category1(fightDuration: Long) = CategoryGeneratorService.createCategory(fightDuration, CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.brown)
-    fun category2(fightDuration: Long) = CategoryGeneratorService.createCategory(fightDuration, CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.white)
-    fun category3(fightDuration: Long) = CategoryGeneratorService.createCategory(fightDuration, CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.black)
-    fun category4(fightDuration: Long) = CategoryGeneratorService.createCategory(fightDuration, CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.blue)
+    fun category1(fightDuration: Long) = CategoryGeneratorService.createCategory(CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.brown)
+    fun category2(fightDuration: Long) = CategoryGeneratorService.createCategory(CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.white)
+    fun category3(fightDuration: Long) = CategoryGeneratorService.createCategory(CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.black)
+    fun category4(fightDuration: Long) = CategoryGeneratorService.createCategory(CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.blue)
 
 
     fun generateFilledFights(competitionId: String,

@@ -5,7 +5,6 @@ import compman.compsrv.model.commands.payload.AdjacencyListEntry
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.util.IDGenerator
 import org.springframework.stereotype.Component
-import java.math.BigDecimal
 import java.util.*
 import kotlin.collections.HashMap
 
@@ -145,11 +144,10 @@ class CategoryGeneratorService {
                 jflightFeather, jffeather, jflight, jfmiddle, jfmediumHeavy, fheavy
         )
 
-        fun createCategory(fightDuration: Long, vararg restrictions: CategoryRestrictionDTO, registrationOpen: Boolean = true): CategoryDescriptorDTO {
+        fun createCategory(vararg restrictions: CategoryRestrictionDTO, registrationOpen: Boolean = true): CategoryDescriptorDTO {
             val restr = restrictions.mapIndexed { index, it -> it.setRestrictionOrder(index) }
             return CategoryDescriptorDTO()
                     .setRestrictions(restr.toTypedArray())
-                    .setFightDuration(BigDecimal.valueOf(fightDuration))
                     .setRegistrationOpen(registrationOpen)
                     .apply {
                         id = IDGenerator.categoryId(this)
@@ -159,29 +157,29 @@ class CategoryGeneratorService {
 
     fun createDefaultBjjCategories(competitionId: String): List<CategoryDescriptorDTO> {
 
-        fun createMaleAdultBeltWeights(duration: Long, belt: CategoryRestrictionDTO) = listOf(
-                createCategory(duration, bjj, adult, male, admrooster, belt),
-                createCategory(duration, bjj, adult, male, admlightFeather, belt),
-                createCategory(duration, bjj, adult, male, admfeather, belt),
-                createCategory(duration, bjj, adult, male, admlight, belt),
-                createCategory(duration, bjj, adult, male, admmiddle, belt),
-                createCategory(duration, bjj, adult, male, admmediumHeavy, belt),
-                createCategory(duration, bjj, adult, male, admheavy, belt),
-                createCategory(duration, bjj, adult, male, admsuperHeavy, belt),
-                createCategory(duration, bjj, adult, male, multraHeavy, belt)
+        fun createMaleAdultBeltWeights(belt: CategoryRestrictionDTO) = listOf(
+                createCategory(bjj, adult, male, admrooster, belt),
+                createCategory(bjj, adult, male, admlightFeather, belt),
+                createCategory(bjj, adult, male, admfeather, belt),
+                createCategory(bjj, adult, male, admlight, belt),
+                createCategory(bjj, adult, male, admmiddle, belt),
+                createCategory(bjj, adult, male, admmediumHeavy, belt),
+                createCategory(bjj, adult, male, admheavy, belt),
+                createCategory(bjj, adult, male, admsuperHeavy, belt),
+                createCategory(bjj, adult, male, multraHeavy, belt)
         )
 
-        fun createFemaleAdultBeltWeights(duration: Long, belt: CategoryRestrictionDTO) = listOf(
-                createCategory(duration, bjj, adult, female, admlightFeather, belt),
-                createCategory(duration, bjj, adult, female, admfeather, belt),
-                createCategory(duration, bjj, adult, female, admlight, belt),
-                createCategory(duration, bjj, adult, female, admmiddle, belt),
-                createCategory(duration, bjj, adult, female, admmediumHeavy, belt),
-                createCategory(duration, bjj, adult, female, admheavy, belt)
+        fun createFemaleAdultBeltWeights(belt: CategoryRestrictionDTO) = listOf(
+                createCategory(bjj, adult, female, admlightFeather, belt),
+                createCategory(bjj, adult, female, admfeather, belt),
+                createCategory(bjj, adult, female, admlight, belt),
+                createCategory(bjj, adult, female, admmiddle, belt),
+                createCategory(bjj, adult, female, admmediumHeavy, belt),
+                createCategory(bjj, adult, female, admheavy, belt)
         )
 
-        val maleAdult = createMaleAdultBeltWeights(5, white) + createMaleAdultBeltWeights(6, blue) + createMaleAdultBeltWeights(7, purple) + createMaleAdultBeltWeights(8, brown) + createMaleAdultBeltWeights(10, black)
-        val femaleAdult = createFemaleAdultBeltWeights(5, white) + createFemaleAdultBeltWeights(6, blue) + createFemaleAdultBeltWeights(7, purple) + createFemaleAdultBeltWeights(8, brown) + createFemaleAdultBeltWeights(10, black)
+        val maleAdult = createMaleAdultBeltWeights(white) + createMaleAdultBeltWeights(blue) + createMaleAdultBeltWeights(purple) + createMaleAdultBeltWeights(brown) + createMaleAdultBeltWeights(black)
+        val femaleAdult = createFemaleAdultBeltWeights(white) + createFemaleAdultBeltWeights(blue) + createFemaleAdultBeltWeights(purple) + createFemaleAdultBeltWeights(brown) + createFemaleAdultBeltWeights(black)
 
         return maleAdult + femaleAdult
     }

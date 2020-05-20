@@ -56,16 +56,16 @@ drop index if exists fd_start_time;
 
 create table compservice.category_restriction
 (
-    id                varchar(255) not null
+    id        varchar(255) not null
         constraint category_restriction_pkey
             primary key,
-    max_value         varchar(255),
-    min_value         varchar(255),
-    name              varchar(255),
-    type              varchar(255),
-    value             varchar(255),
-    alias             varchar(255),
-    unit              varchar(255)
+    max_value varchar(255),
+    min_value varchar(255),
+    name      varchar(255),
+    type      varchar(255),
+    value     varchar(255),
+    alias     varchar(255),
+    unit      varchar(255)
 );
 
 create table compservice.competition_properties
@@ -231,7 +231,6 @@ create table compservice.category_descriptor
         constraint category_descriptor_pkey
             primary key,
     competition_id    varchar(255),
-    fight_duration    numeric(19, 2),
     name              varchar(255),
     registration_open boolean      not null
 );
@@ -263,7 +262,7 @@ create table compservice.competitor_categories
 
 create table compservice.stage_descriptor
 (
-    id                      varchar(255) not null
+    id                      varchar(255)   not null
         constraint stage_descriptor_pkey
             primary key,
     category_id             varchar(255)
@@ -278,7 +277,8 @@ create table compservice.stage_descriptor
     wait_for_previous       boolean,
     has_third_place_fight   boolean,
     force_manual_assignment boolean,
-    output_size             integer
+    output_size             integer,
+    fight_duration          numeric(19, 2) not null
 );
 
 create table compservice.additional_group_sorting_descriptor

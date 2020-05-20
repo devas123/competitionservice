@@ -301,17 +301,17 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
             executeValidated(com, GenerateBracketsPayload::class.java) { payload, command ->
                 val competitors = jooqQueryProvider.competitorsQuery(command.competitionId).and(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.eq(command.categoryId)).fetch { rec -> jooqMappers.mapCompetitorWithoutCategories(rec) }
                 if (!competitors.isNullOrEmpty() && stageDescriptorDao.fetchByCategoryId(command.categoryId).isNullOrEmpty()) {
-                    val duration = categoryCrudRepository.findById(command.categoryId).fightDuration!!
                     val stages = payload.stageDescriptors.sortedBy { it.stageOrder }
                     val stageIdMap = stages
-                            .map { stage -> stage.id!! to IDGenerator.stageId(command.competitionId, command.categoryId!!) }
+                            .map { stage -> (stage.id ?: error("Missing stage id")) to IDGenerator.stageId(command.competitionId, command.categoryId!!) }
                             .toMap()
                     val updatedStages = stages.map { stage ->
+                        val duration = stage.fightDuration ?: error("Missing fight duration.")
                         val outputSize = when (stage.stageType) {
                             StageType.PRELIMINARY -> stage.stageResultDescriptor.outputSize!!
                             else -> 0
                         }
-                        val stageId = stageIdMap[stage.id] ?: error("Stage id not found.")
+                        val stageId = stageIdMap[stage.id] ?: error("Generated stage id not found in the map.")
                         val groupDescr = stage.groupDescriptors?.map { it ->
                             it.setId(IDGenerator.groupId(stageId))
                         }?.toTypedArray()

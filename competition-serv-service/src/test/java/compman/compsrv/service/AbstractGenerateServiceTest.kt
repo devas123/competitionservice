@@ -11,7 +11,6 @@ import compman.compsrv.util.copy
 import org.slf4j.LoggerFactory
 import org.testcontainers.shaded.com.google.common.math.DoubleMath
 import java.math.BigDecimal
-import java.util.*
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.random.Random
@@ -135,5 +134,5 @@ open class AbstractGenerateServiceTest {
     protected val competitionId = "UG9wZW5nYWdlbiBPcGVu"
     protected val categoryId = "UG9wZW5nYWdlbiBPcGVu-UG9wZW5nYWdlbiBPcGVu"
     protected val stageId = "asoifjqwoijqwoijqpwtoj2j12-j1fpasoj"
-    val category = CategoryGeneratorService.createCategory(8, CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.brown)
+    val category = CategoryGeneratorService.createCategory(CategoryGeneratorService.bjj, CategoryGeneratorService.adult, CategoryGeneratorService.male, CategoryGeneratorService.admlight, CategoryGeneratorService.brown)
 }
