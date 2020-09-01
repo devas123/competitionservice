@@ -781,32 +781,44 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 .where(FightDescription.FIGHT_DESCRIPTION.STAGE_ID.eq(stageId))
                 .orderBy(FightDescription.FIGHT_DESCRIPTION.ROUND, FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND))
                 .map {
-                    com.compmanager.compservice.jooq.tables.pojos.FightDescription().apply {
-                        this.id = it.id
-                        this.categoryId = it.categoryId
-                        this.competitionId = it.competitionId
-                        this.duration = it.duration
-                        this.fightName = it.fightName
-                        this.winnerId = it.winnerId
-                        this.reason = it.reason
-                        this.resultType = it.resultType
-                        this.loseFight = it.loseFight
-                        this.matId = it.matId
-                        this.numberInRound = it.numberInRound
-                        this.numberOnMat = it.numberOnMat
-                        this.period = it.period
-                        this.priority = it.priority
-                        this.round = it.round
-                        this.roundType = it.roundType
-                        this.status = it.status
-                        this.startTime = it.startTime
-                        this.winFight = it.winFight
-                        this.stageId = it.stageId
-                        this.groupId = it.groupId
-                        this.invalid = it.invalid
-                        this.scheduleEntryId = it.scheduleEntryId
-                    }
+                    mapFightDescriptionRecord(it)
                 }
+    }
+    fun getFightsByCompetitionIdOrderedByRounds(competitionId: String): Flux<com.compmanager.compservice.jooq.tables.pojos.FightDescription> {
+        return Flux.from(create.selectFrom(FightDescription.FIGHT_DESCRIPTION)
+                .where(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId))
+                .orderBy(FightDescription.FIGHT_DESCRIPTION.ROUND, FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND))
+                .map {
+                    mapFightDescriptionRecord(it)
+                }
+    }
+
+    private fun mapFightDescriptionRecord(it: FightDescriptionRecord): com.compmanager.compservice.jooq.tables.pojos.FightDescription  {
+        return com.compmanager.compservice.jooq.tables.pojos.FightDescription().apply {
+            this.id = it.id
+            this.categoryId = it.categoryId
+            this.competitionId = it.competitionId
+            this.duration = it.duration
+            this.fightName = it.fightName
+            this.winnerId = it.winnerId
+            this.reason = it.reason
+            this.resultType = it.resultType
+            this.loseFight = it.loseFight
+            this.matId = it.matId
+            this.numberInRound = it.numberInRound
+            this.numberOnMat = it.numberOnMat
+            this.period = it.period
+            this.priority = it.priority
+            this.round = it.round
+            this.roundType = it.roundType
+            this.status = it.status
+            this.startTime = it.startTime
+            this.winFight = it.winFight
+            this.stageId = it.stageId
+            this.groupId = it.groupId
+            this.invalid = it.invalid
+            this.scheduleEntryId = it.scheduleEntryId
+        }
     }
 
     fun updateFightsStatusAndCompScores(updates: List<FightDescriptionDTO>) {

@@ -19,7 +19,7 @@ abstract class AbstractCommandPayloadValidator<P: Payload>(private val payloadCl
     }
 
     abstract fun <F> validateCommand(validationRules: PayloadValidationRules<F>, payload: P, command: CommandDTO): Kind<F, P>
-    @SuppressWarnings("all", "unchecked", "rawtypes")
+    @Suppress("all", "UNCHECKED_CAST", "rawtypes")
     override fun <F, T : Payload> validate(validationRules: PayloadValidationRules<F>, payload: T, comEv: Ior<CommandDTO, EventDTO>): Kind<F, T> {
         log.info("Validating payload: $payload")
         return kotlin.runCatching {

@@ -11,12 +11,15 @@ class ScheduleEntryAccumulator(private val scheduleEntry: ScheduleEntryDTO) {
         scheduleEntry.requirementIds = reqIds
     }
     fun getStartTime(): Instant? = scheduleEntry.startTime
-    fun getNumberOfFights(): Int? = scheduleEntry.numberOfFights
     fun setStartTime(time: Instant) { scheduleEntry.startTime = time }
     fun setNumberOfFights(numberOfFights: Int) { scheduleEntry.numberOfFights = numberOfFights }
-    val invalidFightIds = mutableSetOf<String>()
+    private val invalidFightIds = mutableSetOf<String>()
     val categoryIds = mutableSetOf<String>()
     val fightIds = mutableSetOf<MatIdAndSomeId>()
-    fun getScheduleEntry(): ScheduleEntryDTO = scheduleEntry.setInvalidFightIds(invalidFightIds.toTypedArray()).setCategoryIds(categoryIds.toTypedArray()).setFightIds(fightIds.toTypedArray())
+    fun getScheduleEntry(): ScheduleEntryDTO = scheduleEntry
+            .setInvalidFightIds(invalidFightIds.toTypedArray())
+            .setCategoryIds(categoryIds.toTypedArray())
+            .setFightIds(fightIds.toTypedArray())
+            .setNumberOfFights(fightIds.size)
 }
 

@@ -25,10 +25,10 @@ class ScheduleServiceTest {
     @Test
     fun testScheduleGeneration() {
         val competitionId = "competitionId"
-        val categories = listOf("stageid1" to testBracketsDataGenerationUtils.category1(fightDuration),
-                "stageid2" to testBracketsDataGenerationUtils.category2(fightDuration),
-                "stageid3" to testBracketsDataGenerationUtils.category3(fightDuration),
-                "stageid4" to testBracketsDataGenerationUtils.category4(fightDuration))
+        val categories = listOf("stageid1" to testBracketsDataGenerationUtils.category1(),
+                "stageid2" to testBracketsDataGenerationUtils.category2(),
+                "stageid3" to testBracketsDataGenerationUtils.category3(),
+                "stageid4" to testBracketsDataGenerationUtils.category4())
         val competitorNumbers = 10
         val fights = categories.map {
             val competitors = FightsService.generateRandomCompetitorsForCategory(competitorNumbers, competitorNumbers, it.second.id, competitionId)
@@ -43,7 +43,12 @@ class ScheduleServiceTest {
 
         println("Fights: ")
         fights.forEach { pair ->
-            println("${pair.first} -> ${pair.second.filter { dto -> !ScheduleService.obsoleteFight(dto.toPojo(), dto.scores.map { it.toPojo(dto.id) }) }.size}")
+            println("${pair.first.id} -> ${pair.second.filter { dto -> !ScheduleService.obsoleteFight(dto.toPojo(), dto.scores.map { it.toPojo(dto.id) }) }.size}")
+        }
+
+        println("FightStartTimes: ")
+        fstms.sortedBy{ it.startTime }.forEach { fstm ->
+            println("${fstm.fightId} -> ${fstm.startTime} at mat ${fstm.matId}")
         }
 
         assertNotNull(schedule)
@@ -85,10 +90,10 @@ class ScheduleServiceTest {
     @Test
     fun testScheduleGenerationLoad() {
         val competitionId = "competitionId"
-        val stageIdToCategory = listOf("stageid1" to testBracketsDataGenerationUtils.category1(fightDuration),
-                "stageid2" to testBracketsDataGenerationUtils.category2(fightDuration),
-                "stageid3" to testBracketsDataGenerationUtils.category3(fightDuration),
-                "stageid4" to testBracketsDataGenerationUtils.category4(fightDuration))
+        val stageIdToCategory = listOf("stageid1" to testBracketsDataGenerationUtils.category1(),
+                "stageid2" to testBracketsDataGenerationUtils.category2(),
+                "stageid3" to testBracketsDataGenerationUtils.category3(),
+                "stageid4" to testBracketsDataGenerationUtils.category4())
         val competitorNumbers = 110
         val fights = stageIdToCategory.map {
             testBracketsDataGenerationUtils.generateGroupFights(
