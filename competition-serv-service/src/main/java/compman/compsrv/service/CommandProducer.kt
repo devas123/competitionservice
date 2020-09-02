@@ -15,7 +15,6 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
-import java.util.*
 
 @Component
 class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, CommandDTO>,
@@ -26,12 +25,12 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
         private val log: Logger = LoggerFactory.getLogger(CommandProducer::class.java)
         fun createSendProcessingInfoCommand(competitionId: String, correlationId: String): CommandDTO =
                 CommandDTO().setCorrelationId(correlationId).setCompetitionId(competitionId)
-                        .setType(CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND).setId(UUID.randomUUID().toString())
+                        .setType(CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND).setId(IDGenerator.uid())
     }
 
-    fun sendCommandAsync(command: CommandDTO, competitionId: String?, correlationId: String = UUID.randomUUID().toString()): CommonResponse {
+    fun sendCommandAsync(command: CommandDTO, competitionId: String?, correlationId: String = IDGenerator.uid()): CommonResponse {
         return try {
-            command.id = command.id ?: UUID.randomUUID().toString()
+            command.id = command.id ?: IDGenerator.uid()
             command.correlationId = correlationId
             if (command.type == CommandType.CREATE_COMPETITION_COMMAND) {
                 log.info("Received a create competition command: $command")
@@ -57,14 +56,14 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
 
     fun sendCommandSync(command: CommandDTO, competitionId: String?): Array<out EventDTO> {
         fun createErrorEvent(errorMsg: String) = arrayOf(mapper.createErrorEvent(command, errorMsg))
-        command.id = command.id ?: UUID.randomUUID().toString()
+        command.id = command.id ?: IDGenerator.uid()
         if (competitionId.isNullOrBlank()) {
             //this is a global command, can process anywhere
             //TODO
             sendCommandAsync(command, competitionId)
             return emptyArray()
         } else {
-            val correlationId = UUID.randomUUID().toString()
+            val correlationId = IDGenerator.uid()
             return kotlin.runCatching {
                 stateQueryService.localOrRemote(competitionId,
                         {

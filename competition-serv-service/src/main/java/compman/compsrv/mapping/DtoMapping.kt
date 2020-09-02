@@ -133,13 +133,6 @@ fun Competitor.toDTO(categories: Array<String>): CompetitorDTO = CompetitorDTO()
         .setRegistrationStatus(registrationStatus?.let { RegistrationStatus.valueOf(it).name })
         .setUserId(userId)
 
-fun CategoryDescriptor.toDTO(competitors: Array<String>, restrictions: Array<CategoryRestrictionDTO>): CategoryDescriptorDTO = CategoryDescriptorDTO()
-        .setId(id)
-        .setFightDuration(fightDuration)
-        .setCompetitors(competitors)
-        .setRestrictions(restrictions)
-        .setName(name).setRegistrationOpen(registrationOpen)
-
 fun StageInputDescriptor.toDTO(selectors: Array<CompetitorSelectorDTO>): StageInputDescriptorDTO = StageInputDescriptorDTO()
         .setId(id)
         .setDistributionType(DistributionType.valueOf(distributionType))

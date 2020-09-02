@@ -152,7 +152,7 @@ abstract class FightsService {
                         .setLastName(surnames[random.nextInt(surnames.size)])
                         .setBirthDate(Instant.now())
                         .setRegistrationStatus(RegistrationStatus.SUCCESS_CONFIRMED.name)
-                        .setAcademy(AcademyDTO(UUID.randomUUID().toString(), "Academy${random.nextInt(academies)}"))
+                        .setAcademy(AcademyDTO(IDGenerator.uid(), "Academy${random.nextInt(academies)}"))
                         .setCategories(arrayOf(categoryId))
                         .setCompetitionId(competitionId))
             }

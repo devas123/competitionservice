@@ -9,6 +9,7 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.CompetitionCleaner
 import compman.compsrv.service.ICommandProcessingService
+import compman.compsrv.util.IDGenerator
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.consumer.KafkaConsumer
@@ -36,7 +37,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
 
     private fun consumerProperties() = Properties().apply {
         putAll(kafkaProperties.buildConsumerProperties())
-        setProperty(ConsumerConfig.GROUP_ID_CONFIG, "state-resolver-${UUID.randomUUID()}")
+        setProperty(ConsumerConfig.GROUP_ID_CONFIG, "state-resolver-${IDGenerator.uid()}")
         setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer::class.java.canonicalName)
         setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, EventDeserializer::class.java.canonicalName)
     }

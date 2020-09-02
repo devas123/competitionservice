@@ -1,7 +1,6 @@
 package compman.compsrv.service.processor.event
 
 import com.compmanager.compservice.jooq.tables.daos.CategoryDescriptorDao
-import com.compmanager.compservice.jooq.tables.daos.CompetitionPropertiesDao
 import com.compmanager.compservice.jooq.tables.daos.CompetitorDao
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.mapping.toPojo
@@ -19,7 +18,6 @@ import org.springframework.stereotype.Component
 @Component
 class CategoryEventProcessor(mapper: ObjectMapper,
                              validators: List<PayloadValidator>,
-                             private val competitionPropertiesDao: CompetitionPropertiesDao,
                              private val categoryDescriptorCrudRepository: CategoryDescriptorDao,
                              private val competitorCrudRepository: CompetitorDao,
                              private val jooqRepository: JooqRepository) : AbstractEventProcessor(mapper, validators) {
@@ -155,13 +153,8 @@ class CategoryEventProcessor(mapper: ObjectMapper,
 
     private fun applyCategoryAddedEvent(event: EventDTO) = executeValidated(event, CategoryAddedPayload::class.java) { payload, _ ->
         val c = payload.categoryState
-        if (c != null && event.categoryId != null && competitionPropertiesDao.existsById(event.competitionId) && c.category != null
-                && !c.category.restrictions.isNullOrEmpty()) {
-            log.info("Adding category: ${event.categoryId} to competition ${event.competitionId}")
-            jooqRepository.saveCategoryDescriptor(c.category, event.competitionId)
-        } else {
-            throw EventApplyingException("event did not contain category state.", event)
-        }
+        log.info("Adding category: ${event.categoryId} to competition ${event.competitionId}")
+        jooqRepository.saveCategoryDescriptor(c.category, event.competitionId)
     }
 
     private fun applyCategoryStateDeletedEvent(event: EventDTO): List<EventDTO> {

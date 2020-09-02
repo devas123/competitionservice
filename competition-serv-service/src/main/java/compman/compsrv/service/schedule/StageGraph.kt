@@ -1,68 +1,155 @@
 package compman.compsrv.service.schedule
 
-import com.compmanager.compservice.jooq.tables.pojos.CompScore
 import com.compmanager.compservice.jooq.tables.pojos.FightDescription
+import com.google.common.collect.BiMap
+import com.google.common.collect.HashBiMap
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import org.slf4j.LoggerFactory
-import java.util.concurrent.atomic.AtomicBoolean
+import java.math.BigDecimal
 
-data class StageNode(val stage: StageDescriptorDTO, val parentStageIds: Set<String>, val fights: List<FightDescription>, val brackets: IBracketSimulator)
-
-class StageGraph(override val categoryId: String, private val stages: List<StageDescriptorDTO>, private val fights: List<FightDescription>,
-                 private val bracketSimulatorFactory: BracketSimulatorFactory, getFightScores: (id: String) -> List<CompScore>) : IBracketSimulator {
+class StageGraph(stages: List<StageDescriptorDTO>, fights: List<FightDescription>) {
 
     companion object {
         private val log = LoggerFactory.getLogger(StageGraph::class.java)
     }
 
-    private val stageNodes: List<StageNode>
+    private val stagesGraph: Array<List<Int>>
+    private val fightsGraph: Array<List<Int>>
+    private val stageIdsToIds: BiMap<String, Int>
+    private val fightIdsToIds: BiMap<String, Int>
+    private val fightIdToCategoryId: MutableMap<String, String> = mutableMapOf()
+    private val fightIdToStageId: MutableMap<String, String> = mutableMapOf()
+    private val fightIdToDuration: MutableMap<String, BigDecimal> = mutableMapOf()
+    private val stageIdToFightIds: Array<MutableSet<String>>
+    private val stageOrdering: IntArray
+    private val fightsOrdering: IntArray
+    private var nonCompleteCount: Int
+    private val fightsInDegree: IntArray
+    private val completedFights: BooleanArray
+    private val completableFights: MutableSet<Int>
+    private val categoryIdToFightIds: Map<String, Set<String>>
 
-    private val completeStages = mutableListOf<String>()
 
-    private val empty = AtomicBoolean(false)
 
     init {
+
+        categoryIdToFightIds = fights.groupBy { it.categoryId }.mapValues { e -> e.value.map { it.id }.toSet() }
+        stageIdsToIds = HashBiMap.create()
+        fightIdsToIds = HashBiMap.create()
         // we resolve transitive connections here (a -> b -> c ~  (a -> b, a -> c, b -> c))
-        stageNodes = stages.fold(emptyList<StageNode>()) { acc, stage ->
-            val parentIds = getParentIds(stage)
-            val stageFights = fights.filter { f -> f.stageId == stage.id }
-            acc + StageNode(stage, parentIds.toSet(), stageFights,
-                    bracketSimulatorFactory.createSimulator(stage.id, categoryId, stageFights, stage.bracketType, stage.inputDescriptor.numberOfCompetitors, getFightScores))
-        }.sortedBy { it.stage.stageOrder }
-    }
-
-    private fun getParentIds(stage: StageDescriptorDTO): Set<String> {
-        tailrec fun loop(result: Set<String>,  parents: List<StageDescriptorDTO>): Set<String> {
-            log.info("Loop: $result, $parents")
-            if (parents.all { it.stageOrder <= 0 }) {
-                log.info("Return: $result, ${parents.map { it.id }.toSet()}")
-                return result + parents.map { it.id }.toSet()
+        var i = 0
+        for (stage in stages) {
+            if (!stageIdsToIds.containsKey(stage.id)) {
+                stageIdsToIds[stage.id] = i++
             }
-            val directParents = parents.fold(emptyList<StageDescriptorDTO>()) { acc, stg ->
-                acc + stages.filter { st -> st.stageOrder < stg.stageOrder } +
-                        stg.inputDescriptor.selectors?.mapNotNull { it?.applyToStageId }?.map { stages.first { st -> st.id == it } }.orEmpty()
+        }
+        val stageNodesMutable = Array<MutableSet<Int>>(i) { HashSet() }
+        stageIdToFightIds = Array<MutableSet<String>>(i) { HashSet() }
+
+        stages.forEach { stage ->
+            stage.inputDescriptor?.selectors?.forEach { s ->
+                s.applyToStageId?.let { parentId ->
+                    if (stageIdsToIds.containsKey(parentId)) {
+                        val nodeId = stageIdsToIds[stage.id]!!
+                        stageNodesMutable[stageIdsToIds[parentId]!!].add(nodeId)
+                    }
+                }
             }
-            return loop(result + parents.map { it.id }.toSet(), directParents)
         }
-        return loop(emptySet(), stages.filter { st -> st.stageOrder < stage.stageOrder } +
-                stage.inputDescriptor.selectors?.mapNotNull { it?.applyToStageId }?.map { stages.first { st -> st.id == it } }.orEmpty())
+
+        stageOrdering = GraphUtils.findTopologicalOrdering(stageNodesMutable)
+        nonCompleteCount = i
+        stagesGraph = stageNodesMutable.map { it.toList() }.toTypedArray()
+
+        i = 0
+        fights.sortedBy { it.round }.sortedBy { stageOrdering[stageIdsToIds[it.stageId]!!] }.forEach { f ->
+            fightIdToCategoryId[f.id] = f.categoryId
+            fightIdToStageId[f.id] = f.stageId
+            fightIdToDuration[f.id] = f.duration
+            if (!fightIdsToIds.containsKey(f.id)) {
+                fightIdsToIds[f.id] = i++
+            }
+        }
+
+        val fightsGraphMutable = Array<MutableSet<Int>>(i) { HashSet() }
+
+
+        fights.forEach { fight ->
+            if (!fight.winFight.isNullOrBlank()) {
+                fightsGraphMutable[fightIdsToIds[fight.id]!!].add(fightIdsToIds[fight.winFight]!!)
+            }
+            if (!fight.loseFight.isNullOrBlank()) {
+                fightsGraphMutable[fightIdsToIds[fight.id]!!].add(fightIdsToIds[fight.loseFight]!!)
+            }
+            stageIdToFightIds[stageIdsToIds[fight.stageId]!!].add(fight.id)
+        }
+        completableFights = HashSet()
+        fightsInDegree = GraphUtils.getIndegree(fightsGraphMutable)
+        fightsInDegree.forEachIndexed { fight, degree ->
+            if (degree == 0) {
+                completableFights.add(fight)
+            }
+        }
+        fightsOrdering = GraphUtils.findTopologicalOrdering(fightsGraphMutable)
+        fightsGraph = fightsGraphMutable.map { it.toList() }.toTypedArray()
+        completedFights = BooleanArray(i) { false }
+        nonCompleteCount = i
     }
 
-    override fun isEmpty(): Boolean {
-        return empty.get() || stageNodes.all { it.brackets.isEmpty() }
+    fun completeFight(id: String) {
+        val i = fightIdsToIds[id]
+        if (i != null && !completedFights[i]) {
+            completedFights[i] = true
+            fightsGraph[i].forEach { adj ->
+                if (!completedFights[adj]) {
+                    if (--fightsInDegree[adj] <= 0) {
+                        completableFights.add(adj)
+                    }
+                }
+            }
+            nonCompleteCount--
+            completableFights.remove(i)
+        }
     }
 
-    override fun getNextRound(): List<FightDescriptionWithParentIds> {
-        val node = stageNodes.firstOrNull { !completeStages.contains(it.stage.id) && completeStages.containsAll(it.parentStageIds) && !it.brackets.isEmpty() }
-        val nextRound = node?.brackets?.getNextRound().orEmpty()
-        if (node != null && node.brackets.isEmpty()) {
-            completeStages.add(node.stage.id)
-        }
-        if (node == null) {
-            empty.lazySet(true)
-        }
-        return nextRound
+    fun getFightInDegree(id: String): Int {
+        return fightsInDegree[fightIdsToIds[id]!!]
     }
 
-    override val stageIds = stages.map { it.id }.toSet()
+    fun flushCompletableFights(fromFights: Set<String>): List<String> {
+        return fromFights.filter { completableFights.contains(fightIdsToIds[it]) && !completedFights[fightIdsToIds.getValue(it)] }
+                .sortedBy { fightIdsToIds[it]?.let { f -> fightsOrdering[f] } ?: Int.MAX_VALUE }
+    }
+
+    fun flushNonCompletedFights(fromFights: Set<String>): List<String> {
+        return fromFights.filter { !completedFights[fightIdsToIds.getValue(it)] }
+                .sortedBy { fightIdsToIds[it]?.let { f -> fightsOrdering[f] } ?: Int.MAX_VALUE }
+    }
+
+    fun getCategoryId(id: String): String {
+        return fightIdToCategoryId[id]!!
+    }
+    fun getStageId(id: String): String {
+        return fightIdToStageId[id]!!
+    }
+    fun getDuration(id: String): BigDecimal {
+        return fightIdToDuration[id]!!
+    }
+
+    fun getStageFights(stageId: String): Set<String> {
+        return if (stageIdsToIds.containsKey(stageId)) {
+            stageIdToFightIds[stageIdsToIds[stageId]!!]
+        } else {
+            emptySet()
+        }
+    }
+
+    fun getCategoryIdsToFightIds(): Map<String, Set<String>> {
+        return categoryIdToFightIds
+    }
+
+    fun getNonCompleteCount(): Int {
+        return nonCompleteCount
+    }
+
 }

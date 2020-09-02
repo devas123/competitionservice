@@ -349,9 +349,12 @@ class JooqQueryProvider(private val create: DSLContext) {
                 }
     }
 
-    fun selectPeriodsQuery(competitionId: String): SelectConditionStep<Record> {
-        return create.selectFrom(SchedulePeriod.SCHEDULE_PERIOD
-                .join(ScheduleEntry.SCHEDULE_ENTRY, JoinType.LEFT_OUTER_JOIN)
+    fun selectPeriodsQuery(competitionId: String): SelectConditionStep<SchedulePeriodRecord> {
+        return create.selectFrom(SchedulePeriod.SCHEDULE_PERIOD)
+                .where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(competitionId))
+
+                /*
+                , JoinType.LEFT_OUTER_JOIN)
                 .on(ScheduleEntry.SCHEDULE_ENTRY.PERIOD_ID.eq(SchedulePeriod.SCHEDULE_PERIOD.ID))
                 .join(ScheduleRequirement.SCHEDULE_REQUIREMENT, JoinType.LEFT_OUTER_JOIN)
                 .on(ScheduleRequirement.SCHEDULE_REQUIREMENT.PERIOD_ID.eq(SchedulePeriod.SCHEDULE_PERIOD.ID))
@@ -359,6 +362,6 @@ class JooqQueryProvider(private val create: DSLContext) {
                 .on(CategoryScheduleEntry.CATEGORY_SCHEDULE_ENTRY.SCHEDULE_ENTRY_ID.eq(ScheduleEntry.SCHEDULE_ENTRY.ID))
                 .join(FightDescription.FIGHT_DESCRIPTION, JoinType.LEFT_OUTER_JOIN)
                 .on(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID.eq(ScheduleEntry.SCHEDULE_ENTRY.ID)))
-                .where(SchedulePeriod.SCHEDULE_PERIOD.COMPETITION_ID.eq(competitionId))
+                * */
     }
 }

@@ -13,6 +13,7 @@ import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.util.IDGenerator
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
 import java.math.BigDecimal
 import java.time.Duration
 
@@ -33,7 +34,7 @@ class ScheduleService {
     /**
      * @param stages - Flux<pair<Tuple3<StageId, CategoryId, BracketType>, fights>>
      */
-    fun generateSchedule(competitionId: String, periods: List<PeriodDTO>, mats: List<MatDescriptionDTO>, stages: Flux<StageGraph>, timeZone: String,
+    fun generateSchedule(competitionId: String, periods: List<PeriodDTO>, mats: List<MatDescriptionDTO>, stages: Mono<StageGraph>, timeZone: String,
                          categoryCompetitorNumbers: Map<String, Int>): Tuple2<ScheduleDTO, List<FightStartTimePairDTO>> {
         if (!periods.isNullOrEmpty()) {
             return doGenerateSchedule(competitionId, stages, periods, mats, timeZone)
@@ -43,7 +44,7 @@ class ScheduleService {
     }
 
     private fun doGenerateSchedule(competitionId: String,
-                                   stages: Flux<StageGraph>,
+                                   stages: Mono<StageGraph>,
                                    periods: List<PeriodDTO>,
                                    mats: List<MatDescriptionDTO>,
                                    timeZone: String): Tuple2<ScheduleDTO, List<FightStartTimePairDTO>> {
@@ -70,7 +71,8 @@ class ScheduleService {
                 startTime = periods.map { p -> p.id!! to p.startTime!! }.toMap(),
                 mats = mats,
                 req = enrichedScheduleRequirements,
-                brackets = stages,
+                stages = stages,
+                periods = periods.sortedBy { it.startTime.toEpochMilli() },
                 timeBetweenFights = periods.map { p -> p.id!! to BigDecimal(p.timeBetweenFights) }.toMap(),
                 riskFactor = periods.map { p -> p.id!! to p.riskPercent }.toMap(),
                 timeZone = timeZone)

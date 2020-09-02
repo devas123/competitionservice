@@ -9,9 +9,7 @@ import compman.compsrv.mapping.toRecord
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.dto.schedule.FightStartTimePairDTO
-import compman.compsrv.model.dto.schedule.PeriodDTO
-import compman.compsrv.model.dto.schedule.ScheduleDTO
+import compman.compsrv.model.dto.schedule.*
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.util.toTimestamp
 import org.jooq.*
@@ -53,12 +51,12 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                         CategoryRestriction.CATEGORY_RESTRICTION.NAME,
                         CategoryRestriction.CATEGORY_RESTRICTION.MIN_VALUE,
                         CategoryRestriction.CATEGORY_RESTRICTION.MAX_VALUE,
-                        CategoryRestriction.CATEGORY_RESTRICTION.UNIT).into(CategoryRestrictionDTO::class.java)
+                        CategoryRestriction.CATEGORY_RESTRICTION.UNIT,
+                CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.RESTRICTION_ORDER).into(CategoryRestrictionDTO::class.java)
         if (categoryFlatResults.isNotEmpty) {
             return CategoryDescriptorDTO()
                     .setId(categoryFlatResults.getValue(0, CategoryDescriptor.CATEGORY_DESCRIPTOR.ID))
                     .setRegistrationOpen(categoryFlatResults.getValue(0, CategoryDescriptor.CATEGORY_DESCRIPTOR.REGISTRATION_OPEN))
-                    .setFightDuration(categoryFlatResults.getValue(0, CategoryDescriptor.CATEGORY_DESCRIPTOR.FIGHT_DURATION))
                     .setRestrictions(categoryRestrictions?.toTypedArray())
                     .setName(categoryFlatResults.getValue(0, CategoryDescriptor.CATEGORY_DESCRIPTOR.NAME))
         } else {
@@ -178,6 +176,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 .groupBy { it[CategoryDescriptor.CATEGORY_DESCRIPTOR.ID] }.flatMap { fl ->
                     fl.collect(jooqMappers.categoryCollector())
                 }
+                .map { cat -> cat.setRestrictions(cat.restrictions.sortedBy { it.restrictionOrder }.toTypedArray())}
                 .flatMap { cat ->
                     getCategoryStateForCategoryDescriptor(competitionId, cat)
                 }
@@ -197,23 +196,6 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                         .map { rec -> jooqMappers.fightDescription(rec) }
                         .flatMap { f -> enrichWithCompScores(f) }.limitRequest(limit)
     }
-
-    private fun fightDescriptionByMatIdCompetitionIdQuery(matId: String, competitionId: String): SelectConditionStep<FightDescriptionRecord> {
-        return create.selectFrom(FightDescription.FIGHT_DESCRIPTION)
-                .where(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId))
-                .and(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId))
-    }
-
-    private fun fightDescription(it: FightDescriptionRecord) =
-            com.compmanager.compservice.jooq.tables.pojos.FightDescription().apply {
-                id = it.id
-                matId = it.matId
-                competitionId = it.competitionId
-                numberOnMat = it.numberOnMat
-                categoryId = it.categoryId
-                startTime = it.startTime
-                invalid = it.invalid
-            }
 
     fun saveFights(fights: List<FightDescriptionDTO>) {
         val records = fights.flatMap { fight ->
@@ -352,10 +334,6 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
         create.batch(batch).execute()
     }
 
-    fun doInTransaction(f: (c: DSLContext) -> Unit) {
-        create.transaction { configuration -> f.invoke(DSL.using(configuration)) }
-    }
-
     fun saveStages(stages: List<StageDescriptorDTO>): IntArray = create.batchInsert(stages.map { stage ->
         StageDescriptorRecord().apply {
             id = stage.id
@@ -364,6 +342,7 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
             competitionId = stage.competitionId
             hasThirdPlaceFight = stage.hasThirdPlaceFight
             name = stage.name
+            fightDuration = stage.fightDuration
             stageOrder = stage.stageOrder
             stageType = stage.stageType?.name
             waitForPrevious = stage.waitForPrevious
@@ -442,48 +421,29 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
         val rec = CategoryDescriptorRecord().apply {
             this.id = c.id
             this.competitionId = competitionId
-            this.fightDuration = c.fightDuration
             this.name = c.name
             this.registrationOpen = c.registrationOpen
         }
         val batch = listOf(create.insertInto(CategoryDescriptor.CATEGORY_DESCRIPTOR,
-                rec.field1(), rec.field2(), rec.field3(), rec.field4(), rec.field5())
-                .values(rec.value1(), rec.value2(), rec.value3(), rec.value4(), rec.value5())) +
+                rec.field1(), rec.field2(), rec.field3(), rec.field4())
+                .values(rec.value1(), rec.value2(), rec.value3(), rec.value4())) +
                 c.restrictions.map {
                     val restRow = CategoryRestrictionRecord(it.id, it.maxValue, it.minValue, it.name, it.type?.name, it.value, it.alias, it.unit)
                     create.insertInto(CategoryRestriction.CATEGORY_RESTRICTION, restRow.field1(), restRow.field2(),
-                            restRow.field3(), restRow.field4(), restRow.field5(), restRow.field6())
+                            restRow.field3(), restRow.field4(), restRow.field5(), restRow.field6(), restRow.field7(), restRow.field8())
                             .values(restRow.value1(), restRow.value2(), restRow.value3(), restRow.value4(),
-                                    restRow.value5(), restRow.value6())
+                                    restRow.value5(), restRow.value6(), restRow.value7(), restRow.value8())
                             .onDuplicateKeyIgnore()
                 } +
                 c.restrictions.map { restr ->
                     create.insertInto(CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION,
                             CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.CATEGORY_RESTRICTION_ID,
-                            CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.CATEGORY_DESCRIPTOR_ID)
-                            .values(restr.id, c.id)
+                            CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.CATEGORY_DESCRIPTOR_ID,
+                            CategoryDescriptorRestriction.CATEGORY_DESCRIPTOR_RESTRICTION.RESTRICTION_ORDER)
+                            .values(restr.id, c.id, restr.restrictionOrder)
                             .onDuplicateKeyIgnore()
                 }
         create.batch(batch).execute()
-    }
-
-    fun replaceFightScore(fightId: String, value: CompScoreDTO, index: Int) {
-        create.batch(
-                create.deleteFrom(CompScore.COMP_SCORE)
-                        .where(CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.eq(fightId))
-                        .and(CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID.eq(value.competitorId)),
-                create.insertInto(CompScore.COMP_SCORE,
-                        CompScore.COMP_SCORE.COMPSCORE_COMPETITOR_ID,
-                        CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID,
-                        CompScore.COMP_SCORE.POINTS,
-                        CompScore.COMP_SCORE.PENALTIES,
-                        CompScore.COMP_SCORE.ADVANTAGES,
-                        CompScore.COMP_SCORE.COMP_SCORE_ORDER,
-                        CompScore.COMP_SCORE.PARENT_FIGHT_ID,
-                        CompScore.COMP_SCORE.PARENT_REFERENCE_TYPE,
-                        CompScore.COMP_SCORE.PLACEHOLDER_ID).values(value.competitorId, fightId, value.score.points, value.score.penalties,
-                        value.score.advantages, index, value.parentFightId, value.parentReferenceType?.name, value.placeholderId)
-        ).execute()
     }
 
     fun updateRegistrationInfo(regInfo: RegistrationInfoDTO) {
@@ -519,10 +479,6 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
         create.batch(queryProvider.updateRegistrationGroupCategoriesQueries(regGroupId, categories)).execute()
     }
 
-//    fun replaceRegistrationPeriodRegistrationGroups(periodId: String, groupIds: List<String>) {
-//        create.batch(replaceRegPeriodsRegGroupsQueries(periodId, groupIds)).execute()
-//    }
-
     fun addRegistrationGroupsToPeriod(periodId: String, regGroups: List<RegistrationGroupDTO>) {
         val newGroups = regGroups.mapNotNull { it.id }
         create.batch(
@@ -541,8 +497,6 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                         queryProvider.insertGroupIdsForPeriodIdQueries(newGroups, periodId)
         ).execute()
     }
-
-    fun getCompScoreSize(fightId: String): Int = create.fetchCount(CompScore.COMP_SCORE, CompScore.COMP_SCORE.COMPSCORE_FIGHT_DESCRIPTION_ID.eq(fightId))
 
     fun saveRegistrationPeriod(period: RegistrationPeriodDTO?) = period?.let { per ->
         create.batch(
@@ -679,19 +633,86 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
         return query.execute()
     }
 
-    fun fetchFightStartTimesByMat(matId: String): Flux<FightStartTimePairDTO> =
-            Flux.from(create.selectFrom(FightDescription.FIGHT_DESCRIPTION).where(FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId)))
-                    .map { r -> jooqMappers.fightStartTimePairDTO(r) }
-
     fun fetchFightStartTimesCountByMat(matId: String) =
             create.fetchCount(FightDescription.FIGHT_DESCRIPTION, FightDescription.FIGHT_DESCRIPTION.MAT_ID.eq(matId))
 
 
     fun fetchPeriodsByCompetitionId(competitionId: String): Flux<PeriodDTO> = Flux.from(
             queryProvider.selectPeriodsQuery(competitionId)
-    ).groupBy { it[SchedulePeriod.SCHEDULE_PERIOD.ID] }.flatMap { rec ->
-        rec.collect(jooqMappers.periodCollector(rec))
-    }.flatMap { per ->
+    ).map { rec -> PeriodDTO()
+            .setId(rec[SchedulePeriod.SCHEDULE_PERIOD.ID])
+            .setEndTime(rec[SchedulePeriod.SCHEDULE_PERIOD.END_TIME]?.toInstant())
+            .setStartTime(rec[SchedulePeriod.SCHEDULE_PERIOD.START_TIME]?.toInstant())
+            .setIsActive(rec[SchedulePeriod.SCHEDULE_PERIOD.IS_ACTIVE])
+            .setName(rec[SchedulePeriod.SCHEDULE_PERIOD.NAME])
+            .setRiskPercent(rec[SchedulePeriod.SCHEDULE_PERIOD.RISK_PERCENT])
+            .setTimeBetweenFights(rec[SchedulePeriod.SCHEDULE_PERIOD.TIME_BETWEEN_FIGHTS])
+    }
+            .flatMap { period ->
+                val scheduleRequirements = Flux.from(create.selectFrom(ScheduleRequirement.SCHEDULE_REQUIREMENT)
+                        .where(ScheduleRequirement.SCHEDULE_REQUIREMENT.PERIOD_ID.eq(period.id)))
+                        .collectList()
+                val scheduleEntries = Flux.from(create.selectFrom(ScheduleEntry.SCHEDULE_ENTRY)
+                        .where(ScheduleEntry.SCHEDULE_ENTRY.PERIOD_ID.eq(period.id)))
+                        .collectList()
+                scheduleRequirements.zipWith(scheduleEntries)
+                        .flatMap { reqEntr ->
+                            val entriesById = reqEntr.t2.map { it.id to it }.toMap()
+                            val requirementsById = reqEntr.t1.map { it.id to it }.toMap()
+                            val entries = Flux.from(
+                                    create.select(FightDescription.FIGHT_DESCRIPTION.ID, FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID,
+                                            FightDescription.FIGHT_DESCRIPTION.PERIOD,
+                                            FightDescription.FIGHT_DESCRIPTION.MAT_ID,
+                                            FightDescription.FIGHT_DESCRIPTION.INVALID,
+                                            FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID)
+                                            .from(FightDescription.FIGHT_DESCRIPTION)
+                                            .where(FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID.`in`(entriesById.keys))
+                            ).groupBy { it[FightDescription.FIGHT_DESCRIPTION.SCHEDULE_ENTRY_ID] }
+                                    .flatMap { gr ->
+                                        gr.collectList()
+                                                .map { rec ->
+                                                    val entryRec = entriesById.getValue(gr.key())
+                                                    JooqMappers.scheduleEntry(entryRec)
+                                                            .setInvalidFightIds(rec
+                                                                    .filter { fr -> fr[FightDescription.FIGHT_DESCRIPTION.INVALID] }
+                                                                    .mapNotNull { fr -> fr[FightDescription.FIGHT_DESCRIPTION.ID] }.toTypedArray())
+                                                            .setFightIds(rec.map { fr -> MatIdAndSomeId().setMatId(fr[FightDescription.FIGHT_DESCRIPTION.MAT_ID])
+                                                                    .setSomeId(fr[FightDescription.FIGHT_DESCRIPTION.ID]) }.toTypedArray())
+                                                            .setCategoryIds(rec.map { fr -> fr[FightDescription.FIGHT_DESCRIPTION.CATEGORY_ID] }.distinct().toTypedArray())
+                                                }
+                                    }.collectList()
+
+                            val categories = Flux.from(
+                                    create.selectFrom(ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION)
+                                            .where(ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.REQUIREMENT_ID.`in`(requirementsById.keys))
+                            ).collectList()
+                            val fights = Flux.from(
+                                    create.selectFrom(ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION)
+                                            .where(ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.REQUIREMENT_ID.`in`(requirementsById.keys))
+                            ).collectList()
+                            val requirements = Mono.zip(categories, fights).map { cf ->
+                                val fightsByRequirementId = cf.t2.groupBy { k ->
+                                    k[ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.REQUIREMENT_ID] }
+                                val categoriesByRequirementId = cf.t1.groupBy { k ->
+                                    k[ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.REQUIREMENT_ID] }
+                                reqEntr.t1.map { rr ->
+                                    val tmp = JooqMappers.scheduleRequirement(rr)
+                                    tmp.setCategoryIds(categoriesByRequirementId[tmp.id]
+                                            ?.map { u -> u[ScheduleRequirementCategoryDescription.SCHEDULE_REQUIREMENT_CATEGORY_DESCRIPTION.CATEGORY_ID]}
+                                            ?.toTypedArray().orEmpty())
+                                            .setFightIds(fightsByRequirementId[tmp.id]
+                                                    ?.map { u -> u[ScheduleRequirementFightDescription.SCHEDULE_REQUIREMENT_FIGHT_DESCRIPTION.FIGHT_ID]}
+                                                    ?.toTypedArray().orEmpty())
+                                }
+                            }
+                            Mono.zip(entries, requirements)
+                                    .map { period
+                                            .setScheduleEntries(it.t1.toTypedArray())
+                                            .setScheduleRequirements(it.t2.toTypedArray())
+                                    }
+                        }
+            }
+            .flatMap { per ->
         addScheduleRequirementsToScheduleEntries(per)
     }.flatMap { per ->
         addCategoriesToScheduleRequirements(per)
@@ -760,32 +781,44 @@ class JooqRepository(private val create: DSLContext, private val queryProvider: 
                 .where(FightDescription.FIGHT_DESCRIPTION.STAGE_ID.eq(stageId))
                 .orderBy(FightDescription.FIGHT_DESCRIPTION.ROUND, FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND))
                 .map {
-                    com.compmanager.compservice.jooq.tables.pojos.FightDescription().apply {
-                        this.id = it.id
-                        this.categoryId = it.categoryId
-                        this.competitionId = it.competitionId
-                        this.duration = it.duration
-                        this.fightName = it.fightName
-                        this.winnerId = it.winnerId
-                        this.reason = it.reason
-                        this.resultType = it.resultType
-                        this.loseFight = it.loseFight
-                        this.matId = it.matId
-                        this.numberInRound = it.numberInRound
-                        this.numberOnMat = it.numberOnMat
-                        this.period = it.period
-                        this.priority = it.priority
-                        this.round = it.round
-                        this.roundType = it.roundType
-                        this.status = it.status
-                        this.startTime = it.startTime
-                        this.winFight = it.winFight
-                        this.stageId = it.stageId
-                        this.groupId = it.groupId
-                        this.invalid = it.invalid
-                        this.scheduleEntryId = it.scheduleEntryId
-                    }
+                    mapFightDescriptionRecord(it)
                 }
+    }
+    fun getFightsByCompetitionIdOrderedByRounds(competitionId: String): Flux<com.compmanager.compservice.jooq.tables.pojos.FightDescription> {
+        return Flux.from(create.selectFrom(FightDescription.FIGHT_DESCRIPTION)
+                .where(FightDescription.FIGHT_DESCRIPTION.COMPETITION_ID.eq(competitionId))
+                .orderBy(FightDescription.FIGHT_DESCRIPTION.ROUND, FightDescription.FIGHT_DESCRIPTION.NUMBER_IN_ROUND))
+                .map {
+                    mapFightDescriptionRecord(it)
+                }
+    }
+
+    private fun mapFightDescriptionRecord(it: FightDescriptionRecord): com.compmanager.compservice.jooq.tables.pojos.FightDescription  {
+        return com.compmanager.compservice.jooq.tables.pojos.FightDescription().apply {
+            this.id = it.id
+            this.categoryId = it.categoryId
+            this.competitionId = it.competitionId
+            this.duration = it.duration
+            this.fightName = it.fightName
+            this.winnerId = it.winnerId
+            this.reason = it.reason
+            this.resultType = it.resultType
+            this.loseFight = it.loseFight
+            this.matId = it.matId
+            this.numberInRound = it.numberInRound
+            this.numberOnMat = it.numberOnMat
+            this.period = it.period
+            this.priority = it.priority
+            this.round = it.round
+            this.roundType = it.roundType
+            this.status = it.status
+            this.startTime = it.startTime
+            this.winFight = it.winFight
+            this.stageId = it.stageId
+            this.groupId = it.groupId
+            this.invalid = it.invalid
+            this.scheduleEntryId = it.scheduleEntryId
+        }
     }
 
     fun updateFightsStatusAndCompScores(updates: List<FightDescriptionDTO>) {

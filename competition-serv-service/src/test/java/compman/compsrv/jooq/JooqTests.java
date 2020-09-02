@@ -139,10 +139,10 @@ public class JooqTests {
         String competitionId = "competitionId";
         long fightDuration = 8L;
         List<Pair<String, CategoryDescriptorDTO>> categories = Arrays.asList(
-                new Pair<>("stage1", testDataGenerationUtils.category1(fightDuration)),
-                new Pair<>("stage2", testDataGenerationUtils.category2(fightDuration)),
-                new Pair<>("stage3", testDataGenerationUtils.category3(fightDuration)),
-                new Pair<>("stage4", testDataGenerationUtils.category4(fightDuration)));
+                new Pair<>("stage1", testDataGenerationUtils.category1()),
+                new Pair<>("stage2", testDataGenerationUtils.category2()),
+                new Pair<>("stage3", testDataGenerationUtils.category3()),
+                new Pair<>("stage4", testDataGenerationUtils.category4()));
         int competitorNumbers = 10;
         try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
              DSLContext dsl = DSL.using(conn, new Settings().withRenderNameStyle(RenderNameStyle.AS_IS))) {

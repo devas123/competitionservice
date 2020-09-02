@@ -12,22 +12,24 @@ import compman.compsrv.util.PayloadValidator
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
-abstract class AbstractCommandPayloadValidator<P: Payload>(private val payloadClass: Class<P>) : PayloadValidator {
-    protected val log: Logger = LoggerFactory.getLogger(AbstractCommandPayloadValidator::class.java)
+abstract class AbstractEventPayloadValidator<P: Payload>(private val payloadClass: Class<P>) : PayloadValidator {
+    protected val log: Logger = LoggerFactory.getLogger(AbstractEventPayloadValidator::class.java)
     override fun canValidate(payload: Payload): Boolean {
         return payloadClass.isInstance(payload)
     }
 
-    abstract fun <F> validateCommand(validationRules: PayloadValidationRules<F>, payload: P, command: CommandDTO): Kind<F, P>
-    @Suppress("all", "UNCHECKED_CAST", "rawtypes")
+    abstract fun <F> validateEvent(validationRules: PayloadValidationRules<F>, payload: P, event: EventDTO): Kind<F, P>
+    @Suppress("all", "unchecked_cast", "rawtypes")
     override fun <F, T : Payload> validate(validationRules: PayloadValidationRules<F>, payload: T, comEv: Ior<CommandDTO, EventDTO>): Kind<F, T> {
         log.info("Validating payload: $payload")
         return kotlin.runCatching {
-            if (comEv.isLeft) {
+            if (comEv.isRight) {
                 comEv.fold({ com ->
-                    validateCommand(validationRules, payloadClass.cast(payload), com) as Kind<F, T>
-                }, { validationRules.raiseError(PayloadValidationError.GenericError("This is a command payload, but is a part of event.", it.id).nel()) }, { _, e ->
-                    validationRules.raiseError(PayloadValidationError.GenericError("This is a command payload, but is a part of event.", e.id).nel())
+                    validationRules.raiseError<T>(PayloadValidationError.GenericError("This is an event payload, but is a part of a command.", com.id).nel())
+                }, { ev ->
+                    validateEvent(validationRules, payloadClass.cast(payload), ev) as Kind<F, T>
+                }, { _, e ->
+                    validationRules.raiseError(PayloadValidationError.GenericError("This is an event payload, but is a part of a command.", e.id).nel())
                 })
             } else {
                 validationRules.just(payload)

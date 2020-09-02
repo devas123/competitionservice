@@ -1,15 +1,19 @@
 package compman.compsrv.service
 
+import compman.compsrv.model.commands.payload.AdjacencyList
+import compman.compsrv.model.commands.payload.AdjacencyListEntry
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.util.IDGenerator
 import org.springframework.stereotype.Component
-import java.math.BigDecimal
 import java.util.*
+import kotlin.collections.HashMap
+
+internal data class AdjacencyListEntryWithLevelAndId(val id: Int, val entry: CategoryRestrictionDTO, val level: Int)
 
 @Component
 class CategoryGeneratorService {
     companion object {
-        val bjj: CategoryRestrictionDTO = CategoryRestrictionDTO().setId(UUID.randomUUID().toString()).setType(CategoryRestrictionType.Value).setName("Sport").setValue("BJJ")
+        val bjj: CategoryRestrictionDTO = CategoryRestrictionDTO().setId(IDGenerator.uid()).setType(CategoryRestrictionType.Value).setName("Sport").setValue("BJJ")
         private fun weightRestriction(alias: String = "", maxValue: String, minValue: String = "0"): CategoryRestrictionDTO = CategoryRestrictionDTO()
                 .setId(IDGenerator.hashString("Weight/$minValue/$maxValue/$alias"))
                 .setType(CategoryRestrictionType.Range)
@@ -36,6 +40,22 @@ class CategoryGeneratorService {
         private fun genderRestriction(value: String): CategoryRestrictionDTO = CategoryRestrictionDTO().setId(IDGenerator.hashString(value)).setType(CategoryRestrictionType.Value)
                 .setValue(value)
                 .setName("Gender")
+
+        @ExperimentalStdlibApi
+        fun printCategory(cat: CategoryDescriptorDTO): String {
+            val sv = StringBuilder()
+            if (!cat.restrictions.isNullOrEmpty()) {
+                cat.restrictions.forEach {
+                    sv.append(it.alias ?: it.name)
+                    if (!it.value.isNullOrBlank()) {
+                        sv.append("=").append(it.value)
+                    }
+                    sv.append("/")
+                }
+                sv.deleteAt(sv.lastIndex)
+            }
+            return sv.toString()
+        }
 
         val male = genderRestriction("MALE")
         val female = genderRestriction("FEMALE")
@@ -107,42 +127,90 @@ class CategoryGeneratorService {
 
         val fheavy = weightRestriction(WeightDTO.HEAVY, "300")
 
-        fun createCategory(fightDuration: Long, vararg restrictions: CategoryRestrictionDTO, registrationOpen: Boolean = true): CategoryDescriptorDTO =
-                CategoryDescriptorDTO()
-                        .setRestrictions(restrictions)
-                        .setFightDuration(BigDecimal.valueOf(fightDuration))
-                        .setRegistrationOpen(registrationOpen)
-                        .apply {
-                            id = IDGenerator.categoryId(this)
-                        }
+        val restrictions = listOf(
+                bjj, male, female, white,
+                gray, yellow, orange, green, blue,
+                purple, brown, black, adult, junior1,
+                junior2, junior3, juvenile1, juvenile2,
+                master1, master2, master3, master4, master5,
+                master6, mightyMite1, mightyMite2, mightyMite3,
+                peeWee1, peeWee2, peeWee3, teen1, teen2, teen3,
+                admrooster, admlightFeather, admfeather, admlight,
+                admmiddle, admmediumHeavy, admheavy, admsuperHeavy,
+                jmrooster, jmlightFeather, jmfeather, jmlight,
+                jmmiddle, jmmediumHeavy, jmheavy, jmsuperHeavy,
+                multraHeavy, openClass, adflightFeather, adffeather, adflight,
+                adfmiddle, adfmediumHeavy, jflightFeather,
+                jflightFeather, jffeather, jflight, jfmiddle, jfmediumHeavy, fheavy
+        )
+
+        fun createCategory(vararg restrictions: CategoryRestrictionDTO, registrationOpen: Boolean = true): CategoryDescriptorDTO {
+            val restr = restrictions.mapIndexed { index, it -> it.setRestrictionOrder(index) }
+            return CategoryDescriptorDTO()
+                    .setRestrictions(restr.toTypedArray())
+                    .setRegistrationOpen(registrationOpen)
+                    .apply {
+                        id = IDGenerator.categoryId(this)
+                    }
+        }
     }
 
     fun createDefaultBjjCategories(competitionId: String): List<CategoryDescriptorDTO> {
 
-        fun createMaleAdultBeltWeights(duration: Long, belt: CategoryRestrictionDTO) = listOf(
-                createCategory(duration, bjj, adult, male, admrooster, belt),
-                createCategory(duration, bjj, adult, male, admlightFeather, belt),
-                createCategory(duration, bjj, adult, male, admfeather, belt),
-                createCategory(duration, bjj, adult, male, admlight, belt),
-                createCategory(duration, bjj, adult, male, admmiddle, belt),
-                createCategory(duration, bjj, adult, male, admmediumHeavy, belt),
-                createCategory(duration, bjj, adult, male, admheavy, belt),
-                createCategory(duration, bjj, adult, male, admsuperHeavy, belt),
-                createCategory(duration, bjj, adult, male, multraHeavy, belt)
+        fun createMaleAdultBeltWeights(belt: CategoryRestrictionDTO) = listOf(
+                createCategory(bjj, adult, male, admrooster, belt),
+                createCategory(bjj, adult, male, admlightFeather, belt),
+                createCategory(bjj, adult, male, admfeather, belt),
+                createCategory(bjj, adult, male, admlight, belt),
+                createCategory(bjj, adult, male, admmiddle, belt),
+                createCategory(bjj, adult, male, admmediumHeavy, belt),
+                createCategory(bjj, adult, male, admheavy, belt),
+                createCategory(bjj, adult, male, admsuperHeavy, belt),
+                createCategory(bjj, adult, male, multraHeavy, belt)
         )
 
-        fun createFemaleAdultBeltWeights(duration: Long, belt: CategoryRestrictionDTO) = listOf(
-                createCategory(duration, bjj, adult, female, admlightFeather, belt),
-                createCategory(duration, bjj, adult, female, admfeather, belt),
-                createCategory(duration, bjj, adult, female, admlight, belt),
-                createCategory(duration, bjj, adult, female, admmiddle, belt),
-                createCategory(duration, bjj, adult, female, admmediumHeavy, belt),
-                createCategory(duration, bjj, adult, female, admheavy, belt)
+        fun createFemaleAdultBeltWeights(belt: CategoryRestrictionDTO) = listOf(
+                createCategory(bjj, adult, female, admlightFeather, belt),
+                createCategory(bjj, adult, female, admfeather, belt),
+                createCategory(bjj, adult, female, admlight, belt),
+                createCategory(bjj, adult, female, admmiddle, belt),
+                createCategory(bjj, adult, female, admmediumHeavy, belt),
+                createCategory(bjj, adult, female, admheavy, belt)
         )
 
-        val maleAdult = createMaleAdultBeltWeights(5, white) + createMaleAdultBeltWeights(6, blue) + createMaleAdultBeltWeights(7, purple) + createMaleAdultBeltWeights(8, brown) + createMaleAdultBeltWeights(10, black)
-        val femaleAdult = createFemaleAdultBeltWeights(5, white) + createFemaleAdultBeltWeights(6, blue) + createFemaleAdultBeltWeights(7, purple) + createFemaleAdultBeltWeights(8, brown) + createFemaleAdultBeltWeights(10, black)
+        val maleAdult = createMaleAdultBeltWeights(white) + createMaleAdultBeltWeights(blue) + createMaleAdultBeltWeights(purple) + createMaleAdultBeltWeights(brown) + createMaleAdultBeltWeights(black)
+        val femaleAdult = createFemaleAdultBeltWeights(white) + createFemaleAdultBeltWeights(blue) + createFemaleAdultBeltWeights(purple) + createFemaleAdultBeltWeights(brown) + createFemaleAdultBeltWeights(black)
 
         return maleAdult + femaleAdult
+    }
+
+    internal fun generateCategoriesFromRestrictions(competitionId: String,
+                                                    restrictions: Array<out CategoryRestrictionDTO>,
+                                                    idTree: AdjacencyList,
+                                                    restrictionNamesOrder: Map<String, Int>): List<CategoryDescriptorDTO> {
+        val stack = Stack<AdjacencyListEntryWithLevelAndId>()
+        val idMap = HashMap<Int, AdjacencyListEntry>()
+        idTree.vertices.forEach { v -> idMap[v.id] = v }
+        stack.push(AdjacencyListEntryWithLevelAndId(idTree.root, restrictions[idTree.root], 0))
+        val paths = mutableListOf<Array<CategoryRestrictionDTO>>()
+        val currentPath = ArrayDeque<CategoryRestrictionDTO>()
+        while (!stack.isEmpty()) {
+            val node = stack.pop()
+            while (currentPath.size > node.level) {
+                currentPath.removeLast()
+            }
+            currentPath.add(node.entry)
+            idMap[node.id]?.children?.forEach { stack.push(AdjacencyListEntryWithLevelAndId(it, restrictions[it], node.level + 1)) }
+                    ?: paths.add(currentPath.sortedBy {categoryRestrictionDTO ->
+                        restrictionNamesOrder.getValue(categoryRestrictionDTO.name) }.mapIndexed { index, c ->
+                        c.setRestrictionOrder(index)
+                    }.toTypedArray())
+        }
+        return paths.mapNotNull { path ->
+            CategoryDescriptorDTO()
+                    .setRegistrationOpen(false)
+                    .setId(IDGenerator.uid())
+                    .setRestrictions(path)
+        }
     }
 }

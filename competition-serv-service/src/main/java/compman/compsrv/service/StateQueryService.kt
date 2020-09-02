@@ -335,7 +335,9 @@ class StateQueryService(private val clusterSession: ClusterSession,
                 CompetitionDashboardStateDTO()
                         .setCompetitionId(competitionId)
                         .setPeriods(periods.toTypedArray())
-            }
+            }.flatMap { state ->
+                jooq.fetchMatsByCompetitionId(competitionId).collectList()
+                        .map { mats -> state.setMats(mats.toTypedArray()) } }
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/dashboardstate?competitionId=$competitionId", CompetitionDashboardStateDTO::class.java).toMonoOrEmpty()
         })

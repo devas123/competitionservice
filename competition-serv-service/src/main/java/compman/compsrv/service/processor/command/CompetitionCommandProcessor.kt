@@ -5,20 +5,17 @@ import arrow.core.extensions.either.monad.monad
 import arrow.core.extensions.list.foldable.foldM
 import arrow.core.fix
 import com.compmanager.compservice.jooq.tables.daos.*
-import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterSession
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
-import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.model.dto.competition.RegistrationGroupDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.repository.JooqRepository
-import compman.compsrv.service.schedule.BracketSimulatorFactory
 import compman.compsrv.service.schedule.ScheduleService
 import compman.compsrv.service.schedule.StageGraph
 import compman.compsrv.util.IDGenerator
@@ -29,7 +26,7 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
-import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
 import java.time.Instant
 import java.time.ZoneId
 
@@ -37,7 +34,6 @@ import java.time.ZoneId
 @Component
 class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val clusterSession: ClusterSession,
-                                  private val compScoreDao: CompScoreDao,
                                   private val categoryCrudRepository: CategoryDescriptorDao,
                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
                                   private val registrationGroupCrudRepository: RegistrationGroupDao,
@@ -45,7 +41,6 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                                   private val registrationInfoCrudRepository: RegistrationInfoDao,
                                   private val jooqRepository: JooqRepository,
                                   validators: List<PayloadValidator>,
-                                  private val bracketSimulatorFactory: BracketSimulatorFactory,
                                   mapper: ObjectMapper) : AbstractCommandProcessor(mapper, validators) {
     override fun affectedCommands(): Set<CommandType> {
         return setOf(CommandType.ASSIGN_REGISTRATION_GROUP_CATEGORIES_COMMAND,
@@ -68,17 +63,10 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
                 CommandType.UPDATE_REGISTRATION_INFO_COMMAND)
     }
 
-    private fun getAllBrackets(competitionId: String): Flux<StageGraph> {
-        return jooqRepository.fetchStagesByCompetitionIdOrdered(competitionId).flatMap {
-            jooqRepository.getFightsByStageIdOrderedByRounds(it.id).collectList().map { fights -> it to fights }
-        }.groupBy { it.first.categoryId }
-                .flatMap { grfl ->
-                    grfl.collectList().map {
-                        it.fold(emptyList<StageDescriptorDTO>() to emptyList<FightDescription>()) { acc, pair ->
-                            (acc.first + pair.first) to (acc.second + pair.second?.toList().orEmpty())
-                        }
-                    }.map { pr -> StageGraph(grfl.key()!!, pr.first, pr.second, bracketSimulatorFactory) { id -> compScoreDao.fetchByCompscoreFightDescriptionId(id) } }
-                }
+    private fun getAllBrackets(competitionId: String): Mono<StageGraph> {
+        val fights = jooqRepository.getFightsByCompetitionIdOrderedByRounds(competitionId).collectList()
+        val stages = jooqRepository.fetchStagesByCompetitionIdOrdered(competitionId).collectList()
+        return fights.zipWith(stages).map { StageGraph(it.t2, it.t1) }
     }
 
 

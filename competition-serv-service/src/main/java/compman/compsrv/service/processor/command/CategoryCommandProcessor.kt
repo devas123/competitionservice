@@ -19,6 +19,7 @@ import compman.compsrv.model.events.payload.*
 import compman.compsrv.repository.JooqMappers
 import compman.compsrv.repository.JooqQueryProvider
 import compman.compsrv.repository.JooqRepository
+import compman.compsrv.service.CategoryGeneratorService
 import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.service.fight.FightsService.Companion.createEmptyScore
@@ -28,7 +29,6 @@ import org.springframework.stereotype.Component
 import reactor.core.publisher.Mono
 import java.math.BigDecimal
 import java.time.Duration
-import java.util.*
 
 
 data class LabeledFight(val fight: Option<FightDescriptionDTO>, val label: String, val id: Option<String> = None) {
@@ -42,6 +42,7 @@ data class LabeledFight(val fight: Option<FightDescriptionDTO>, val label: Strin
 
 @Component
 class CategoryCommandProcessor constructor(private val fightsGenerateService: FightServiceFactory,
+                                           private val categoryGeneratorService: CategoryGeneratorService,
                                            mapper: ObjectMapper,
                                            validators: List<PayloadValidator>,
                                            private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
@@ -69,6 +70,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
             CommandType.UPDATE_STAGE_STATUS_COMMAND to ::updateStageStatus,
             CommandType.REMOVE_COMPETITOR_COMMAND to ::doRemoveCompetitor,
             CommandType.ADD_CATEGORY_COMMAND to ::processAddCategoryCommandDTO,
+            CommandType.GENERATE_CATEGORIES_COMMAND to ::processGenerateCategoriesCommand,
             CommandType.UPDATE_COMPETITOR_COMMAND to ::doUpdateCompetitor,
             CommandType.CHANGE_COMPETITOR_CATEGORY_COMMAND to ::doChangeCompetitorCategory,
             CommandType.FIGHTS_EDITOR_APPLY_CHANGE to ::doApplyFightsEditorChanges,
@@ -268,7 +270,8 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
             val startIndex = (groupFights.maxBy { it.numberInRound }?.numberInRound
                     ?: 0) + 1
             val duration = groupFights.first().duration
-            val newPlaceholderId = (flatScores.map { it.competitorId to it.placeholderId } + (ch.competitorId to "placeholder-${UUID.randomUUID()}")).toMap<String?, String?>()
+            val newPlaceholderId = (flatScores.map { it.competitorId to it.placeholderId } +
+                    (ch.competitorId to "placeholder-${IDGenerator.uid()}")).toMap<String?, String?>()
             val newFights = newCompetitorPairs.mapIndexed { index, tuple2 ->
                 FightsService.fightDescription(competitionId, categoryId,
                         stageId, 0,
@@ -298,17 +301,17 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
             executeValidated(com, GenerateBracketsPayload::class.java) { payload, command ->
                 val competitors = jooqQueryProvider.competitorsQuery(command.competitionId).and(CategoryDescriptor.CATEGORY_DESCRIPTOR.ID.eq(command.categoryId)).fetch { rec -> jooqMappers.mapCompetitorWithoutCategories(rec) }
                 if (!competitors.isNullOrEmpty() && stageDescriptorDao.fetchByCategoryId(command.categoryId).isNullOrEmpty()) {
-                    val duration = categoryCrudRepository.findById(command.categoryId).fightDuration!!
                     val stages = payload.stageDescriptors.sortedBy { it.stageOrder }
                     val stageIdMap = stages
-                            .map { stage -> stage.id!! to IDGenerator.stageId(command.competitionId, command.categoryId!!) }
+                            .map { stage -> (stage.id ?: error("Missing stage id")) to IDGenerator.stageId(command.competitionId, command.categoryId!!) }
                             .toMap()
                     val updatedStages = stages.map { stage ->
+                        val duration = stage.fightDuration ?: error("Missing fight duration.")
                         val outputSize = when (stage.stageType) {
                             StageType.PRELIMINARY -> stage.stageResultDescriptor.outputSize!!
                             else -> 0
                         }
-                        val stageId = stageIdMap[stage.id] ?: error("Stage id not found.")
+                        val stageId = stageIdMap[stage.id] ?: error("Generated stage id not found in the map.")
                         val groupDescr = stage.groupDescriptors?.map { it ->
                             it.setId(IDGenerator.groupId(stageId))
                         }?.toTypedArray()
@@ -323,7 +326,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
                                 .setId(stageId)
                                 .setFightResultOptions(enrichedOptions.map {
                                     it
-                                            .setId(it.id ?: IDGenerator.hashString("$stageId-${UUID.randomUUID()}"))
+                                            .setId(it.id ?: IDGenerator.hashString("$stageId-${IDGenerator.uid()}"))
                                             .setLoserAdditionalPoints(it.loserAdditionalPoints ?: BigDecimal.ZERO)
                                             .setLoserPoints(it.loserPoints ?: BigDecimal.ZERO)
                                             .setWinnerAdditionalPoints(it.winnerAdditionalPoints ?: BigDecimal.ZERO)
@@ -426,6 +429,21 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
 
     private fun CategoryRestrictionDTO.withId(): CategoryRestrictionDTO = this.setId(IDGenerator.restrictionId(this))
 
+    private fun processGenerateCategoriesCommand(c: CommandDTO): List<EventDTO> =
+            executeValidated(c, GenerateCategoriesFromRestrictionsPayload::class.java) { payload, com ->
+                val categories = payload.idTrees.flatMap { idTree ->
+                    val restrNamesOrder = payload.restrictionNames.mapIndexed { index, s -> s to index }.toMap()
+                    categoryGeneratorService.generateCategoriesFromRestrictions(com.competitionId, payload.restrictions, idTree, restrNamesOrder)
+                }
+                categories.map { createEvent(com, EventType.CATEGORY_ADDED, CategoryAddedPayload(CategoryStateDTO()
+                        .setId(it.id)
+                        .setCategory(it)
+                        .setCompetitionId(com.competitionId)
+                        .setFightsNumber(0)
+                        .setNumberOfCompetitors(0)))
+                        .setCategoryId(it.id)}
+            }
+
     private fun processAddCategoryCommandDTO(command: CommandDTO): List<EventDTO> {
         val c = mapper.convertValue(command.payload, AddCategoryPayload::class.java)?.category
         return if (c != null && !c.restrictions.isNullOrEmpty()) {
@@ -437,7 +455,8 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
             if (!categoryCrudRepository.existsById(categoryId) && competitionPropertiesCrudRepository.existsById(command.competitionId)) {
                 if (restrictionsValid.all { restriction -> restriction.isValid }) {
                     val registrationOpen = c.registrationOpen ?: true
-                    val state = CategoryStateDTO().setId(categoryId).setCompetitionId(command.competitionId).setCategory(c
+                    val state = CategoryStateDTO()
+                            .setId(categoryId).setCompetitionId(command.competitionId).setCategory(c
                             .setRestrictions(c.restrictions.map { it.withId() }.toTypedArray())
                             .setId(categoryId).setRegistrationOpen(registrationOpen)).setFightsNumber(0)
                             .setNumberOfCompetitors(0)

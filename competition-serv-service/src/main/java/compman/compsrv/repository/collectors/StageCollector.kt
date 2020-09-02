@@ -32,15 +32,15 @@ class CompetitorSelectorAccumulator(val competitorSelector: CompetitorSelectorDT
 }
 
 class StageCollector : Collector<Record, StageDescriptorAccumulator, StageDescriptorDTO> {
-    private fun createStageDescriptorFromAccumulator(tuple: StageDescriptorAccumulator): StageDescriptorDTO {
-        return tuple.stageDescriptorDTO
-                .setGroupDescriptors(tuple.groups.toTypedArray())
-                .setStageResultDescriptor(tuple.stageResults.stageResultDescriptor
-                        .setFightResultOptions(tuple.fightResultOptions.toTypedArray())
-                        .setCompetitorResults(tuple.stageResults.competitorResults.toTypedArray())
-                        .setAdditionalGroupSortingDescriptors(tuple.additionalGroupSorting.toTypedArray()))
-                .setInputDescriptor(tuple.stageInputs.inputDescriptor
-                        .setSelectors(tuple.stageInputs.competitorSelectorAccumulators
+    private fun createStageDescriptorFromAccumulator(accumulator: StageDescriptorAccumulator): StageDescriptorDTO {
+        return accumulator.stageDescriptorDTO
+                .setGroupDescriptors(accumulator.groups.toTypedArray())
+                .setStageResultDescriptor(accumulator.stageResults.stageResultDescriptor
+                        .setFightResultOptions(accumulator.fightResultOptions.toTypedArray())
+                        .setCompetitorResults(accumulator.stageResults.competitorResults.toTypedArray())
+                        .setAdditionalGroupSortingDescriptors(accumulator.additionalGroupSorting.toTypedArray()))
+                .setInputDescriptor(accumulator.stageInputs.inputDescriptor
+                        .setSelectors(accumulator.stageInputs.competitorSelectorAccumulators
                                 .map { db -> db.competitorSelector.setSelectorValue(db.selectorValues.toTypedArray()) }.toTypedArray()))
                 .setNumberOfFights(0)
     }
@@ -61,6 +61,7 @@ class StageCollector : Collector<Record, StageDescriptorAccumulator, StageDescri
             t.stageDescriptorDTO.competitionId = u[StageDescriptor.STAGE_DESCRIPTOR.COMPETITION_ID]
             t.stageDescriptorDTO.hasThirdPlaceFight = u[StageDescriptor.STAGE_DESCRIPTOR.HAS_THIRD_PLACE_FIGHT]
             t.stageDescriptorDTO.name = u[StageDescriptor.STAGE_DESCRIPTOR.NAME]
+            t.stageDescriptorDTO.fightDuration = u[StageDescriptor.STAGE_DESCRIPTOR.FIGHT_DURATION]
             t.stageDescriptorDTO.stageType = StageType.valueOf(u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_TYPE])
             t.stageDescriptorDTO.stageOrder = u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_ORDER]
             t.stageDescriptorDTO.stageStatus = u[StageDescriptor.STAGE_DESCRIPTOR.STAGE_STATUS]?.let { StageStatus.valueOf(it) }
