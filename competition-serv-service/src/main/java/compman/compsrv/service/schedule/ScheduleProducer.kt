@@ -79,6 +79,7 @@ class ScheduleProducer(val competitionId: String,
                     val requiremetsGraph = RequirementsGraph(scheduleRequirements.map { it.id to it }.toMap(), categoryIdsToFightIds, sortedPeriods.map { it.id }.toTypedArray())
                     val requirementsCapacity = requiremetsGraph.getRequirementsFightsSize()
                     sortedPeriods.forEach { period ->
+                        val periodMats = accumulator.matSchedules.filter { it.periodId == period.id }
                         unfinishedRequirements.forEach { r ->
                             log.error("Requirement ${r.id} is from period ${r.periodId} but it is processed in ${period.id} because it could not have been processed in it's own period (wrong order)")
                             st.flushNonCompletedFights(requiremetsGraph.getFightIdsForRequirement(r.id)).forEach {
@@ -109,31 +110,41 @@ class ScheduleProducer(val competitionId: String,
                             }
                             while (!q.isEmpty()) {
                                 val req = q.poll()
-                                log.info("Processing requirement: ${req.first.id}")
-                                if (req.first.entryType == ScheduleRequirementType.RELATIVE_PAUSE && req.first.matId != null && req.first.durationMinutes != null) {
-                                    val mat = matsToIds.getValue(req.first.matId)
-                                    log.info("Processing pause at mat ${req.first.matId}, period ${req.first.periodId} at ${mat.currentTime} for ${req.first.durationMinutes} minutes")
-                                    val e = createRelativePauseEntry(req.first, mat.currentTime,
-                                            mat.currentTime.plus(req.first.durationMinutes.toLong(), ChronoUnit.MINUTES))
-                                    accumulator.scheduleEntries.add(ScheduleEntryAccumulator(e))
-                                    mat.currentTime = mat.currentTime.plus(req.first.durationMinutes.toLong(), ChronoUnit.MINUTES)
+                                if (req.first.entryType == ScheduleRequirementType.RELATIVE_PAUSE && !req.first.matId.isNullOrBlank() && req.first.durationMinutes != null
+                                        && req.first.periodId == period.id) {
+                                    if (matsToIds.containsKey(req.first.matId) && matsToIds.getValue(req.first.matId).periodId == period.id) {
+                                        val mat = matsToIds.getValue(req.first.matId)
+                                        log.info("Processing pause at mat ${req.first.matId}, period ${req.first.periodId} at ${mat.currentTime} for ${req.first.durationMinutes} minutes")
+                                        val e = createRelativePauseEntry(req.first, mat.currentTime,
+                                                mat.currentTime.plus(req.first.durationMinutes.toLong(), ChronoUnit.MINUTES))
+                                        accumulator.scheduleEntries.add(ScheduleEntryAccumulator(e))
+                                        mat.currentTime = mat.currentTime.plus(req.first.durationMinutes.toLong(), ChronoUnit.MINUTES)
+                                    } else {
+                                        log.warn("Relative pause ${req.first.id} not dispatched because either mat ${req.first.matId} not found or mat is from another period: ${matsToIds[req.first.matId]?.periodId}/${period.id}")
+                                    }
                                     continue
                                 }
+                                log.info("Processing requirement: ${req.first.id}")
                                 val capacity = requirementsCapacity[requiremetsGraph.getIndex(req.first.id)]
                                 if (!req.first.matId.isNullOrBlank()) {
-                                    val mat = matsToIds.getValue(req.first.matId)
-                                    req.second.forEach {fightId ->
-                                        updateMatAndSchedule(requirementsCapacity, requiremetsGraph, req, accumulator, mat, fightId, st, period)
-                                        fightsDispatched++
-                                        log.debug("Dispatched $fightsDispatched fights")
+                                    if (matsToIds.containsKey(req.first.matId)) {
+                                        val mat = matsToIds[req.first.matId]
+                                                ?: error("No mat with id: ${req.first.matId}")
+                                        if (mat.periodId == period.id) {
+                                            req.second.forEach { fightId ->
+                                                updateMatAndSchedule(requirementsCapacity, requiremetsGraph, req, accumulator, mat, fightId, st, period)
+                                                fightsDispatched++
+                                                log.debug("Dispatched $fightsDispatched fights")
+                                            }
+                                        } else {
+                                            log.warn("Mat with id ${req.first.matId} is from a different period. Dispatching to the available mats for this period.")
+                                            fightsDispatched = loadBalanceToMats(req, periodMats, requirementsCapacity, requiremetsGraph, accumulator, st, period, fightsDispatched)
+                                        }
+                                    } else {
+                                        log.warn("No mat with id ${req.first.matId}")
                                     }
                                 } else {
-                                    req.second.forEach {fightId ->
-                                        val mat = accumulator.matSchedules.minBy { it.currentTime.toEpochMilli() }!!
-                                        updateMatAndSchedule(requirementsCapacity, requiremetsGraph, req, accumulator, mat, fightId, st, period)
-                                        fightsDispatched++
-                                        log.debug("Dispatched $fightsDispatched fights")
-                                    }
+                                    fightsDispatched = loadBalanceToMats(req, periodMats, requirementsCapacity, requiremetsGraph, accumulator, st, period, fightsDispatched)
                                 }
 
                                 if (capacity > 0 && capacity == requirementsCapacity[requiremetsGraph.getIndex(req.first.id)]) {
@@ -158,6 +169,17 @@ class ScheduleProducer(val competitionId: String,
                 }
     }
 
+    private fun loadBalanceToMats(req: Pair<ScheduleRequirementDTO, List<String>>, periodMats: List<InternalMatScheduleContainer>, requirementsCapacity: IntArray, requiremetsGraph: RequirementsGraph, accumulator: ScheduleAccumulator, st: StageGraph, period: PeriodDTO, fightsDispatched: Int): Int {
+        var fightsDispatched1 = fightsDispatched
+        req.second.forEach { fightId ->
+            val mat = periodMats.minBy { it.currentTime.toEpochMilli() }!!
+            updateMatAndSchedule(requirementsCapacity, requiremetsGraph, req, accumulator, mat, fightId, st, period)
+            fightsDispatched1++
+            log.debug("Dispatched $fightsDispatched1 fights")
+        }
+        return fightsDispatched1
+    }
+
     private fun updateMatAndSchedule(requirementsCapacity: IntArray,
                                      requiremetsGraph: RequirementsGraph,
                                      req: Pair<ScheduleRequirementDTO, List<String>>,
@@ -169,6 +191,7 @@ class ScheduleProducer(val competitionId: String,
         val duration = getFightDuration(st.getDuration(fightId), period.id)
         if (!pauses[mat.id].isNullOrEmpty() && mat.currentTime.toEpochMilli() + eightyPercentOfDurationInMillis(duration) >= pauses.getValue(mat.id)[0].startTime.toEpochMilli()) {
             val p = pauses.getValue(mat.id).removeAt(0)
+            log.info("Processing a fixed pause, required: ${p.startTime}, actual: ${mat.currentTime}, mat: ${mat.id}, duration: ${p.durationMinutes}. Period starts: ${period.startTime}")
             val e = createFixedPauseEntry(p, p.startTime.plus(p.durationMinutes.toLong(), ChronoUnit.MINUTES))
             accumulator.scheduleEntries.add(ScheduleEntryAccumulator(e))
             mat.currentTime = mat.currentTime.plus(p.durationMinutes.toLong(), ChronoUnit.MINUTES)
@@ -178,6 +201,7 @@ class ScheduleProducer(val competitionId: String,
         accumulator.scheduleEntries[e].fightIds.add(MatIdAndSomeId(mat.id, fightId))
         accumulator.scheduleEntries[e].categoryIds.add(st.getCategoryId(fightId))
         mat.fights.add(InternalFightStartTime(fightId, st.getCategoryId(fightId), mat.id, mat.totalFights++, mat.currentTime, accumulator.scheduleEntries[e].getId(), period.id))
+        log.info("Period: ${period.id}, category: ${st.getCategoryId(fightId)}, fight: $fightId, starts: ${mat.currentTime}, mat: ${mat.id}, numberOnMat: ${mat.totalFights - 1}")
         mat.currentTime = mat.currentTime.plus(duration.multiply(BigDecimal.valueOf(60L)).toLong(), ChronoUnit.SECONDS)
         st.completeFight(fightId)
     }

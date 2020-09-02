@@ -160,18 +160,18 @@ class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGener
 
     fun createDefaultMats(period1: String, period2: String): Array<MatDescriptionDTO> {
         val mats1 = arrayOf(MatDescriptionDTO()
-                .setId("mat1")
+                .setId("$period1-mat1")
                 .setMatOrder(0)
                 .setName("Mat 1")
                 .setPeriodId(period1))
 
         val mats2 = arrayOf(MatDescriptionDTO()
-                .setId("mat2")
+                .setId("$period2-mat2")
                 .setMatOrder(0)
                 .setName("Mat 1 Period2")
                 .setPeriodId(period2),
                 MatDescriptionDTO()
-                        .setId("mat3")
+                        .setId("$period2-mat3")
                         .setMatOrder(1)
                         .setName("Mat 2 Period2")
                         .setPeriodId(period2))
@@ -186,7 +186,7 @@ class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGener
                         .setId("$period1-entry1")
                         .setCategoryIds(categories.subList(0, 1).map { it.second.id }
                                 .toTypedArray())
-                        .setMatId("mat1")
+                        .setMatId("$period1-mat1")
                         .setEntryType(ScheduleRequirementType.CATEGORIES)
                         .setEntryOrder(0)
         )),
@@ -199,7 +199,7 @@ class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGener
                                 .setEntryOrder(0),
                         ScheduleRequirementDTO()
                                 .setId("$period2-entry2")
-                                .setMatId("mat2")
+                                .setMatId("$period2-mat2")
                                 .setFightIds(
                                         lastCatFights.take(5).toTypedArray()
                                 )

@@ -10,6 +10,7 @@ import compman.compsrv.service.fight.FightsService
 import compman.compsrv.service.fight.GroupStageGenerateService
 import compman.compsrv.service.schedule.ScheduleService
 import java.math.BigDecimal
+import java.time.temporal.ChronoUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -47,7 +48,7 @@ class ScheduleServiceTest {
         val lastIndex = periods[1].scheduleRequirements.size - 1
         periods[1].scheduleRequirements = periods[1].scheduleRequirements + ScheduleRequirementDTO()
                 .setId("$period2-entryPause")
-                .setMatId("mat1")
+                .setMatId("$period2-mat2")
                 .setEntryType(ScheduleRequirementType.RELATIVE_PAUSE)
                 .setDurationMinutes(BigDecimal(10))
                 .setEntryOrder(lastIndex - 1)
@@ -66,6 +67,50 @@ class ScheduleServiceTest {
         assertEquals(2, schedule.periods.size)
         schedule.periods.forEach { p -> assertNotNull(p.scheduleEntries) }
         assertTrue(schedule.periods[1].scheduleEntries.any { it.entryType == ScheduleEntryType.RELATIVE_PAUSE })
+    }
+
+    @Test
+    fun testFixedPause() {
+        val competitionId = "competitionId"
+        val categories = listOf("stageid1" to testBracketsDataGenerationUtils.category1(),
+                "stageid2" to testBracketsDataGenerationUtils.category2(),
+                "stageid3" to testBracketsDataGenerationUtils.category3(),
+                "stageid4" to testBracketsDataGenerationUtils.category4())
+        val competitorNumbers = 10
+        val stagesToFights = categories.map {
+            val competitors = FightsService.generateRandomCompetitorsForCategory(competitorNumbers, competitorNumbers, it.second.id, competitionId)
+            val stage = testBracketsDataGenerationUtils.createSingleEliminationStage(competitionId, it.second.id, it.first, competitorNumbers)
+            stage to testBracketsDataGenerationUtils.generateFilledFights(competitionId, it.second, stage, competitors, BigDecimal.valueOf(fightDuration))
+        }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }) }
+        val flatFights = stagesToFights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }
+
+        val period1 = "P1"
+        val period2 = "P2"
+
+        val periods = testBracketsDataGenerationUtils.createDefaultPeriods({ categoryIds -> flatFights.filter { f -> categoryIds.contains(f.categoryId) }.map { f -> f.id }}, categories, period1, period2)
+        val lastIndex = periods[1].scheduleRequirements.size - 1
+        periods[1].scheduleRequirements = periods[1].scheduleRequirements + ScheduleRequirementDTO()
+                .setId("$period2-entryPause")
+                .setMatId("$period2-mat2")
+                .setEntryType(ScheduleRequirementType.FIXED_PAUSE)
+                .setStartTime(periods[1].startTime.plus(30, ChronoUnit.MINUTES))
+                .setDurationMinutes(BigDecimal(10))
+                .setEntryOrder(lastIndex - 1)
+        val tmp = periods[1].scheduleRequirements[lastIndex + 1]
+        periods[1].scheduleRequirements[lastIndex + 1] = periods[1].scheduleRequirements[lastIndex]
+        periods[1].scheduleRequirements[lastIndex] = tmp
+        periods[1].scheduleRequirements.forEachIndexed { index, scheduleRequirementDTO -> scheduleRequirementDTO.entryOrder = index }
+        val stages = stagesToFights.map { it.first }
+        val fights = stagesToFights.flatMap { it.second }.map { it.toPojo() }
+        val mats = testBracketsDataGenerationUtils.createDefaultMats(period1, period2)
+        val tuple2 = testBracketsDataGenerationUtils.generateSchedule(competitionId, periods, mats.toList(), stages, fights, categories, competitorNumbers)
+        val (schedule, fstms) = printSchedule(tuple2, stagesToFights)
+        assertNotNull(schedule.periods)
+        assertNotNull(schedule.mats)
+        assertEquals(3, schedule.mats.size)
+        assertEquals(2, schedule.periods.size)
+        schedule.periods.forEach { p -> assertNotNull(p.scheduleEntries) }
+        assertTrue(schedule.periods[1].scheduleEntries.any { it.entryType == ScheduleEntryType.FIXED_PAUSE })
     }
 
     @Test

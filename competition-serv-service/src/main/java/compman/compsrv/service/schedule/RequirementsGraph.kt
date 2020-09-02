@@ -78,7 +78,7 @@ class RequirementsGraph(requirements: Map<String, ScheduleRequirementDTO>, categ
 
     fun getFightIdsForRequirement(reqId: String): Set<String> {
         return if (requirementIdToId.containsKey(reqId)) {
-            requirementFightIds[requirementIdToId[reqId]!!]
+            requirementFightIds[requirementIdToId.getValue(reqId)]
         } else {
             emptySet()
         }
