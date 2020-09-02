@@ -1,6 +1,7 @@
 package compman.compsrv.service
 
 import arrow.core.Tuple2
+import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
@@ -48,6 +49,7 @@ class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGener
                                     stageId: String,
                                     additionalGroupSortingDescriptors: Array<AdditionalGroupSortingDescriptorDTO>?,
                                     groupSizes: List<Int>): Pair<StageDescriptorDTO, List<FightDescriptionDTO>> {
+        println("Generating group fights.")
         val duration = BigDecimal.TEN
         val competitorsSize = groupSizes.sum()
         val stage = createGroupStage(competitionId, categoryId, stageId, additionalGroupSortingDescriptors, groupSizes)
@@ -143,6 +145,20 @@ class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGener
         }
         val period1 = "Period1"
         val period2 = "Period2"
+        val mats = createDefaultMats(period1, period2)
+
+        val periods = createDefaultPeriods(findFightIdsByCatIds, categories, period1, period2)
+        val stages = stagesToFights.map { it.first }
+        val fights = stagesToFights.flatMap { it.second }.map { it.toPojo() }
+
+        return scheduleService.generateSchedule(competitionId, periods, mats.toList(), Mono.just(StageGraph(stages, fights)), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap())
+    }
+
+    fun generateSchedule(competitionId: String, periods: List<PeriodDTO>, mats: List<MatDescriptionDTO>, stages: List<StageDescriptorDTO>, fights: List<FightDescription>,
+                         categories: List<Pair<String, CategoryDescriptorDTO>>, competitorNumbers: Int) = scheduleService.generateSchedule(competitionId, periods, mats,
+            Mono.just(StageGraph(stages, fights)), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap())
+
+    fun createDefaultMats(period1: String, period2: String): Array<MatDescriptionDTO> {
         val mats1 = arrayOf(MatDescriptionDTO()
                 .setId("mat1")
                 .setMatOrder(0)
@@ -160,10 +176,12 @@ class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGener
                         .setName("Mat 2 Period2")
                         .setPeriodId(period2))
 
-        val mats = mats1 + mats2
+        return mats1 + mats2
+    }
 
-        val lastCatFights = findFightIdsByCatIds.invoke(categories.subList(2, categories.size).map { it.second.id })
-        val periods = listOf(createPeriod(period1, arrayOf(
+    fun createDefaultPeriods(findFightIdsByCatIds: (Collection<String>) -> List<String>, categories: List<Pair<String, CategoryDescriptorDTO>>, period1: String, period2: String): List<PeriodDTO> {
+        val lastCatFights = findFightIdsByCatIds(categories.subList(2, categories.size).map { it.second.id }).shuffled().take(10)
+        return listOf(createPeriod(period1, arrayOf(
                 ScheduleRequirementDTO()
                         .setId("$period1-entry1")
                         .setCategoryIds(categories.subList(0, 1).map { it.second.id }
@@ -194,9 +212,5 @@ class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGener
                                 .setEntryOrder(2)
 
                 )))
-        val stages = stagesToFights.map { it.first }
-        val fights = stagesToFights.flatMap { it.second }.map { it.toPojo() }
-
-        return scheduleService.generateSchedule(competitionId, periods, mats.toList(), Mono.just(StageGraph(stages, fights)), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap())
     }
 }

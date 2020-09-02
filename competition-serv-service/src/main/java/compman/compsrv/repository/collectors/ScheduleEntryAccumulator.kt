@@ -21,5 +21,9 @@ class ScheduleEntryAccumulator(private val scheduleEntry: ScheduleEntryDTO) {
             .setCategoryIds(categoryIds.toTypedArray())
             .setFightIds(fightIds.toTypedArray())
             .setNumberOfFights(fightIds.size)
+
+    fun getPeriodId(): String {
+        return scheduleEntry.periodId ?: "<unknown>"
+    }
 }
 

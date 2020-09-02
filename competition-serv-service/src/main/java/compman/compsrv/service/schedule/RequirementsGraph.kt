@@ -6,7 +6,7 @@ import com.google.common.collect.HashBiMap
 import compman.compsrv.model.dto.schedule.ScheduleRequirementDTO
 import compman.compsrv.model.dto.schedule.ScheduleRequirementType
 
-class RequirementsGraph(requirements: Map<String, ScheduleRequirementDTO>, categoryIdToFightIds: Map<String, Set<String>>) {
+class RequirementsGraph(requirements: Map<String, ScheduleRequirementDTO>, categoryIdToFightIds: Map<String, Set<String>>, periods: Array<String>) {
     val requirementIdToId: BiMap<String, Int> = HashBiMap.create()
     private val graph: Array<List<Int>>
     private val categoryRequirements: MutableMap<String, MutableList<Int>>
@@ -17,11 +17,11 @@ class RequirementsGraph(requirements: Map<String, ScheduleRequirementDTO>, categ
 
     init {
         val fightIdToCategoryId = mutableMapOf<String, String>()
-        categoryIdToFightIds.forEach { t, u ->
+        categoryIdToFightIds.forEach { (t, u) ->
             u.forEach { fid -> fightIdToCategoryId[fid] = t }
         }
         var n = 0
-        val sorted = requirements.values.sortedBy { it.entryOrder }
+        val sorted = requirements.values.sortedBy { it.entryOrder }.sortedBy { periods.indexOf(it.periodId) }
         sorted.forEach { req ->
             if (!requirementIdToId.containsKey(req.id)) {
                 requirementIdToId[req.id] = n++
@@ -59,13 +59,13 @@ class RequirementsGraph(requirements: Map<String, ScheduleRequirementDTO>, categ
 
 
         size = n
-        val ordering = GraphUtils.findTopologicalOrdering(requirementsGraph, true)
+        val ordering = GraphUtils.findTopologicalOrdering(requirementsGraph, false)
         graph = requirementsGraph.map { it.toList() }.toTypedArray()
         orderedRequirements = sorted.sortedBy { ordering[requirementIdToId[it.id]!!] }
     }
 
     fun getRequirementsFightsSize(): IntArray {
-        return requirementFightsSize.copyOf(requirementFightsSize.size)
+        return requirementFightsSize.copyOf()
     }
 
     fun getIndex(id: String): Int {

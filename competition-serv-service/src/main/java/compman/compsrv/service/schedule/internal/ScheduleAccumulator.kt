@@ -12,13 +12,13 @@ class ScheduleAccumulator(initialMatSchedules: List<InternalMatScheduleContainer
     val matSchedules = ArrayList(initialMatSchedules)
     val invalidFights = HashSet<String>()
 
-    fun scheduleEntryFromRequirement(requirement: ScheduleRequirementDTO, startTime: Instant): Int {
-        val index = scheduleEntries.indexOfFirst { it.getRequirementIds()?.contains(requirement.id) == true }
+    fun scheduleEntryFromRequirement(requirement: ScheduleRequirementDTO, startTime: Instant, overridePeriodId: String = requirement.periodId): Int {
+        val index = scheduleEntries.indexOfFirst { it.getRequirementIds()?.contains(requirement.id) == true && it.getPeriodId() == overridePeriodId }
                 return if (index < 0) {
                     scheduleEntries.add(ScheduleEntryAccumulator(ScheduleEntryDTO()
                             .setId(IDGenerator
-                                    .scheduleEntryId(competitionId, requirement.periodId))
-                            .setPeriodId(requirement.periodId)
+                                    .scheduleEntryId(competitionId, overridePeriodId))
+                            .setPeriodId(overridePeriodId)
                             .setEntryType(ScheduleEntryType.FIGHTS_GROUP)
                             .setFightIds(emptyArray())
                             .setCategoryIds(emptyArray())

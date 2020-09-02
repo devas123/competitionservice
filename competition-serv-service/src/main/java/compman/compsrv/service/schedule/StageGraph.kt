@@ -102,7 +102,7 @@ class StageGraph(stages: List<StageDescriptorDTO>, fights: List<FightDescription
             completedFights[i] = true
             fightsGraph[i].forEach { adj ->
                 if (!completedFights[adj]) {
-                    if (--fightsInDegree[adj] == 0) {
+                    if (--fightsInDegree[adj] <= 0) {
                         completableFights.add(adj)
                     }
                 }
@@ -117,7 +117,12 @@ class StageGraph(stages: List<StageDescriptorDTO>, fights: List<FightDescription
     }
 
     fun flushCompletableFights(fromFights: Set<String>): List<String> {
-        return fromFights.filter { completableFights.contains(fightIdsToIds[it]) }
+        return fromFights.filter { completableFights.contains(fightIdsToIds[it]) && !completedFights[fightIdsToIds.getValue(it)] }
+                .sortedBy { fightIdsToIds[it]?.let { f -> fightsOrdering[f] } ?: Int.MAX_VALUE }
+    }
+
+    fun flushNonCompletedFights(fromFights: Set<String>): List<String> {
+        return fromFights.filter { !completedFights[fightIdsToIds.getValue(it)] }
                 .sortedBy { fightIdsToIds[it]?.let { f -> fightsOrdering[f] } ?: Int.MAX_VALUE }
     }
 
@@ -141,6 +146,10 @@ class StageGraph(stages: List<StageDescriptorDTO>, fights: List<FightDescription
 
     fun getCategoryIdsToFightIds(): Map<String, Set<String>> {
         return categoryIdToFightIds
+    }
+
+    fun getNonCompleteCount(): Int {
+        return nonCompleteCount
     }
 
 }

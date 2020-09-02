@@ -1,8 +1,6 @@
 package compman.compsrv.service.schedule
 
 import arrow.core.Tuple3
-import arrow.core.Tuple4
-import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.*
 import compman.compsrv.repository.collectors.ScheduleEntryAccumulator
@@ -14,18 +12,12 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import reactor.core.publisher.Mono
 import java.math.BigDecimal
-import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import java.util.*
-import java.util.concurrent.CopyOnWriteArrayList
-import java.util.function.BiConsumer
-import java.util.function.BinaryOperator
 import java.util.function.Supplier
-import java.util.stream.Collector
-import kotlin.collections.ArrayList
 
 class ScheduleProducer(val competitionId: String,
                        val startTime: Map<String, Instant>,
@@ -77,61 +69,90 @@ class ScheduleProducer(val competitionId: String,
     fun simulate(): Mono<Tuple3<List<ScheduleEntryDTO>, List<InternalMatScheduleContainer>, Set<String>>> {
         return this.stages
                 .map { st ->
+                    var fightsDispatched = 0
                     val scheduleRequirements = req
                     val unfinishedRequirements = LinkedList<ScheduleRequirementDTO>()
                     val accumulator = supplier().get()
                     val categoryIdsToFightIds = st.getCategoryIdsToFightIds()
                     val matsToIds = accumulator.matSchedules.map { it.id to it }.toMap()
-                    periods.forEach { period ->
-                        val requiremetsGraph = RequirementsGraph(scheduleRequirements.filter { it.periodId == period.id }.map { it.id to it }.toMap(), categoryIdsToFightIds)
-                        val q: Queue<Pair<ScheduleRequirementDTO, List<String>>> = LinkedList()
-                        val requirementsCapacity = requiremetsGraph.getRequirementsFightsSize()
-                        val rq: Queue<ScheduleRequirementDTO> = LinkedList(requiremetsGraph.orderedRequirements)
-                        while (!rq.isEmpty() || !unfinishedRequirements.isEmpty()) {
-                            val united = ArrayList<ScheduleRequirementDTO>(unfinishedRequirements)
-                            while (united.size - unfinishedRequirements.size < initialFightsByMats.size && !rq.isEmpty()) {
-                                united.add(rq.poll())
-                            }
-                            while (true) {
-                                united.forEach { sr ->
-                                    if (sr.entryType == ScheduleRequirementType.RELATIVE_PAUSE && sr.matId != null) {
-                                        val mat = matsToIds.getValue(sr.matId)
-                                        val e = createRelativePauseEntry(sr, mat.currentTime,
-                                                mat.currentTime.plus(sr.durationMinutes.toLong(), ChronoUnit.MINUTES))
-                                        accumulator.scheduleEntries.add(ScheduleEntryAccumulator(e))
-                                    } else {
-                                        val fights = st.flushCompletableFights(requiremetsGraph.getFightIdsForRequirement(sr.id))
-                                        if (!fights.isNullOrEmpty()) {
-                                            q.add(sr to fights)
-                                        }
-                                    }
-                                }
-                                if (q.isEmpty()) {
-                                    unfinishedRequirements.clear()
-                                    united.forEach { sr ->
-                                        if (requirementsCapacity[requiremetsGraph.getIndex(sr.id)] > 0) {
-                                            unfinishedRequirements.add(sr)
-                                        }
-                                    }
-                                    break
-                                }
-                                while (!q.isEmpty()) {
-                                    val req = q.poll()
-                                    log.info("Processing requirement: ${req.first.id}")
-                                    if (!req.first.matId.isNullOrBlank()) {
-                                        val mat = matsToIds.getValue(req.first.matId)
-                                        req.second.forEach {fightId ->
-                                            updateMatAndSchedule(requirementsCapacity, requiremetsGraph, req, accumulator, mat, fightId, st, period)
-                                        }
-                                    } else {
-                                        req.second.forEach {fightId ->
-                                            val mat = accumulator.matSchedules.minBy { it.currentTime.toEpochMilli() }!!
-                                            updateMatAndSchedule(requirementsCapacity, requiremetsGraph, req, accumulator, mat, fightId, st, period)
-                                        }
-                                    }
-                                }
+                    val sortedPeriods = periods.sortedBy { it.startTime }
+                    val requiremetsGraph = RequirementsGraph(scheduleRequirements.map { it.id to it }.toMap(), categoryIdsToFightIds, sortedPeriods.map { it.id }.toTypedArray())
+                    val requirementsCapacity = requiremetsGraph.getRequirementsFightsSize()
+                    sortedPeriods.forEach { period ->
+                        unfinishedRequirements.forEach { r ->
+                            log.error("Requirement ${r.id} is from period ${r.periodId} but it is processed in ${period.id} because it could not have been processed in it's own period (wrong order)")
+                            st.flushNonCompletedFights(requiremetsGraph.getFightIdsForRequirement(r.id)).forEach {
+                                log.warn("Marking fight $it as invalid")
+                                accumulator.invalidFights.add(it)
                             }
                         }
+                        val q: Queue<Pair<ScheduleRequirementDTO, List<String>>> = LinkedList()
+                        val rq: Queue<ScheduleRequirementDTO> = LinkedList(requiremetsGraph.orderedRequirements.filter { it.periodId == period.id })
+
+                        while (!rq.isEmpty() || !unfinishedRequirements.isEmpty()) {
+                            val n = st.getNonCompleteCount()
+                            val onlyUnfinished = rq.isEmpty()
+                            var i = 0
+                            while((!rq.isEmpty() && i < initialFightsByMats.size) || !unfinishedRequirements.isEmpty()) {
+                                val sr= unfinishedRequirements.poll() ?: run {
+                                    i++
+                                    rq.poll()
+                                } ?: break
+                                if (sr.entryType == ScheduleRequirementType.RELATIVE_PAUSE && sr.matId != null && sr.durationMinutes != null) {
+                                    q.add(sr to emptyList())
+                                } else {
+                                    if (requirementsCapacity[requiremetsGraph.getIndex(sr.id)] > 0) {
+                                        val fights = st.flushCompletableFights(requiremetsGraph.getFightIdsForRequirement(sr.id))
+                                        q.add(sr to fights)
+                                    }
+                                }
+                            }
+                            while (!q.isEmpty()) {
+                                val req = q.poll()
+                                log.info("Processing requirement: ${req.first.id}")
+                                if (req.first.entryType == ScheduleRequirementType.RELATIVE_PAUSE && req.first.matId != null && req.first.durationMinutes != null) {
+                                    val mat = matsToIds.getValue(req.first.matId)
+                                    log.info("Processing pause at mat ${req.first.matId}, period ${req.first.periodId} at ${mat.currentTime} for ${req.first.durationMinutes} minutes")
+                                    val e = createRelativePauseEntry(req.first, mat.currentTime,
+                                            mat.currentTime.plus(req.first.durationMinutes.toLong(), ChronoUnit.MINUTES))
+                                    accumulator.scheduleEntries.add(ScheduleEntryAccumulator(e))
+                                    mat.currentTime = mat.currentTime.plus(req.first.durationMinutes.toLong(), ChronoUnit.MINUTES)
+                                    continue
+                                }
+                                val capacity = requirementsCapacity[requiremetsGraph.getIndex(req.first.id)]
+                                if (!req.first.matId.isNullOrBlank()) {
+                                    val mat = matsToIds.getValue(req.first.matId)
+                                    req.second.forEach {fightId ->
+                                        updateMatAndSchedule(requirementsCapacity, requiremetsGraph, req, accumulator, mat, fightId, st, period)
+                                        fightsDispatched++
+                                        log.debug("Dispatched $fightsDispatched fights")
+                                    }
+                                } else {
+                                    req.second.forEach {fightId ->
+                                        val mat = accumulator.matSchedules.minBy { it.currentTime.toEpochMilli() }!!
+                                        updateMatAndSchedule(requirementsCapacity, requiremetsGraph, req, accumulator, mat, fightId, st, period)
+                                        fightsDispatched++
+                                        log.debug("Dispatched $fightsDispatched fights")
+                                    }
+                                }
+
+                                if (capacity > 0 && capacity == requirementsCapacity[requiremetsGraph.getIndex(req.first.id)]) {
+                                    log.info("Could not dispatch any of $capacity fights from requirement ${req.first.id}. Moving it to unfinished.")
+                                    unfinishedRequirements.offer(req.first)
+                                } else if (requirementsCapacity[requiremetsGraph.getIndex(req.first.id)] > 0) {
+                                    q.offer(req.first to st.flushCompletableFights(requiremetsGraph.getFightIdsForRequirement(req.first.id)))
+                                }
+                            }
+                            if (onlyUnfinished && n == st.getNonCompleteCount()) {
+                                if (n > 0) {
+                                    log.error("No progress on unfinished requirements and no new ones... breaking out of the loop.")
+                                }
+                                break
+                            }
+                        }
+                    }
+                    if (st.getNonCompleteCount() > 0) {
+                        log.warn("${st.getNonCompleteCount()} fights were not dispatched.")
                     }
                     Tuple3(accumulator.scheduleEntries.map { it.getScheduleEntry() }, accumulator.matSchedules.filterNotNull(), accumulator.invalidFights.toSet())
                 }
@@ -153,7 +174,7 @@ class ScheduleProducer(val competitionId: String,
             mat.currentTime = mat.currentTime.plus(p.durationMinutes.toLong(), ChronoUnit.MINUTES)
         }
         requirementsCapacity[requiremetsGraph.getIndex(req.first.id)]--
-        val e = accumulator.scheduleEntryFromRequirement(req.first, mat.currentTime)
+        val e = accumulator.scheduleEntryFromRequirement(req.first, mat.currentTime, period.id)
         accumulator.scheduleEntries[e].fightIds.add(MatIdAndSomeId(mat.id, fightId))
         accumulator.scheduleEntries[e].categoryIds.add(st.getCategoryId(fightId))
         mat.fights.add(InternalFightStartTime(fightId, st.getCategoryId(fightId), mat.id, mat.totalFights++, mat.currentTime, accumulator.scheduleEntries[e].getId(), period.id))
