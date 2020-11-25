@@ -17,8 +17,7 @@ import java.time.Duration
 
 @RestController
 @RequestMapping("/api/v1")
-class RestApi(private val categoryGeneratorService: CategoryGeneratorService,
-              private val stateQueryService: StateQueryService,
+class RestApi(private val stateQueryService: StateQueryService,
               private val clusterInfoService: ClusterInfoService,
               private val commandProducer: CommandProducer) {
 

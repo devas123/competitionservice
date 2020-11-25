@@ -3,12 +3,12 @@
 #el-curator: leader election with curator's recipe
 #dev - developer's profile (for test instances of zookeeper and kafka)
 spring:
-  jooq.sql-dialect: POSTGRES
+  jooq.sql-dialect: SQLITE
   datasource:
-    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/postgres?serverTimezone=UTC}
+    url: ${POSTGRES_URL:jdbc:sqlite::memory:}
     username: ${POSTGRES_USERNAME:postgres}
     password: ${POSTGRES_PASSWORD:admin}
-    driver-class-name: org.postgresql.Driver
+    driver-class-name: org.sqlite.JDBC
     initialization-mode: never
     continueOnError: true
   cache:
@@ -47,7 +47,6 @@ spring:
       transaction-id-prefix: tx-
   flyway:
     enabled: true
-    schemas: compservice
 
 server:
   servlet.context-path: /competitions

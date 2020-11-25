@@ -9,11 +9,11 @@ import java.time.Duration
 import java.util.concurrent.CompletableFuture
 
 @Component
-class CommandCache {
+class CommandSyncExecutor {
     private val commands = CacheBuilder.newBuilder().expireAfterAccess(Duration.ofSeconds(100))
             .maximumSize(100000).build<String, CompletableFuture<Array<EventDTO>>>()
 
-    private val log = LoggerFactory.getLogger(CommandCache::class.java)
+    private val log = LoggerFactory.getLogger(CommandSyncExecutor::class.java)
 
     fun executeCommand(correlationId: String, block: () -> Any): Mono<Array<EventDTO>> {
         return Mono.fromFuture(commands.get(correlationId) {
@@ -28,8 +28,8 @@ class CommandCache {
     }
 
     fun waitForResult(correlationId: String, timeout: Duration): Array<out EventDTO> {
-        return commands.getIfPresent(correlationId)?.let { cid ->
-            Mono.fromFuture(cid).block(timeout)
+        return commands.getIfPresent(correlationId)?.let { future ->
+            Mono.fromFuture(future).block(timeout)
         }.orEmpty()
     }
 }

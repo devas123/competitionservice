@@ -6,7 +6,7 @@ import arrow.core.extensions.list.foldable.foldM
 import arrow.core.fix
 import com.compmanager.compservice.jooq.tables.daos.*
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.cluster.ClusterSession
+import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
@@ -33,7 +33,7 @@ import java.time.ZoneId
 @Lazy
 @Component
 class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
-                                  private val clusterSession: ClusterSession,
+                                  private val clusterOperations: ClusterOperations,
                                   private val categoryCrudRepository: CategoryDescriptorDao,
                                   private val competitionPropertiesCrudRepository: CompetitionPropertiesDao,
                                   private val registrationGroupCrudRepository: RegistrationGroupDao,
@@ -85,7 +85,7 @@ class CompetitionCommandProcessor(private val scheduleService: ScheduleService,
             return when (command.type) {
                 CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND -> {
                     if (competitionPropertiesCrudRepository.existsById(command.competitionId)) {
-                        clusterSession.createProcessingInfoEvents(command.correlationId, setOf(command.competitionId)).toList()
+                        clusterOperations.createProcessingInfoEvents(command.correlationId, setOf(command.competitionId)).toList()
                     } else {
                         listOf(createErrorEvent("Received INTERNAL_SEND_PROCESSING_INFO_COMMAND but competition does not exist."))
                     }

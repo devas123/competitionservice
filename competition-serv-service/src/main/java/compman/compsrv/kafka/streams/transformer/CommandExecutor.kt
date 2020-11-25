@@ -1,13 +1,13 @@
 package compman.compsrv.kafka.streams.transformer
 
-import compman.compsrv.cluster.ClusterSession
+import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.repository.JooqRepository
-import compman.compsrv.service.CommandCache
+import compman.compsrv.service.CommandSyncExecutor
 import org.apache.kafka.clients.consumer.Consumer
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
@@ -25,8 +25,8 @@ import java.util.concurrent.TimeUnit
 class CommandExecutor(private val commandTransformer: CompetitionCommandTransformer,
                       private val template: KafkaTemplate<String, EventDTO>,
                       private val jooqRepository: JooqRepository,
-                      private val clusterSession: ClusterSession,
-                      private val commandCache: CommandCache) : AcknowledgingConsumerAwareMessageListener<String, CommandDTO> {
+                      private val clusterOperations: ClusterOperations,
+                      private val commandSyncExecutor: CommandSyncExecutor) : AcknowledgingConsumerAwareMessageListener<String, CommandDTO> {
     companion object {
         private val log = LoggerFactory.getLogger("commandProcessingLog")
     }
@@ -75,17 +75,17 @@ class CommandExecutor(private val commandTransformer: CompetitionCommandTransfor
             log.info("Executing post-processing.")
             filteredEvents.asSequence().forEach {
                 if (it.type == EventType.COMPETITION_DELETED) kotlin.runCatching {
-                    clusterSession.broadcastCompetitionProcessingStopped(setOf(m.key()))
+                    clusterOperations.broadcastCompetitionProcessingStopped(setOf(m.key()))
                 }
                 if (it.type == EventType.COMPETITION_CREATED) kotlin.runCatching {
-                    clusterSession.broadcastCompetitionProcessingInfo(setOf(m.key()), m.value().correlationId)
+                    clusterOperations.broadcastCompetitionProcessingInfo(setOf(m.key()), m.value().correlationId)
                 }
             }
             if (!m.value().correlationId.isNullOrBlank()) {
                 if (m.value().type == CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND) {
-                    clusterSession.broadcastCompetitionProcessingInfo(setOf(m.key()), m.value().correlationId)
+                    clusterOperations.broadcastCompetitionProcessingInfo(setOf(m.key()), m.value().correlationId)
                 } else {
-                    commandCache.commandCallback(m.value().correlationId, events.toTypedArray())
+                    commandSyncExecutor.commandCallback(m.value().correlationId, events.toTypedArray())
                 }
             }
         } else {

@@ -35,7 +35,7 @@ import org.springframework.util.backoff.FixedBackOff
 import java.util.*
 
 @Configuration
-class KafkaStreamsConfiguration {
+class KafkaConfiguration {
 
     private val partitions = 2
     private val replication = 1.toShort()

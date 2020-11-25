@@ -1,12 +1,11 @@
 package compman.compsrv.service.resolver
 
-import compman.compsrv.cluster.ClusterSession
+import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.kafka.serde.EventDeserializer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
-import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.CompetitionCleaner
 import compman.compsrv.service.ICommandProcessingService
 import compman.compsrv.util.IDGenerator
@@ -28,7 +27,7 @@ import java.util.*
 @Component
 class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                                private val competitionStateService: ICommandProcessingService<CommandDTO, EventDTO>,
-                               private val clusterSesion: ClusterSession,
+                               private val clusterSesion: ClusterOperations,
                                private val competitionCleaner: CompetitionCleaner) {
 
     companion object {

@@ -11,7 +11,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
-class CommandCacheTest {
+class CommandSyncExecutorTest {
     companion object {
         private val log: Logger = LoggerFactory.getLogger("testlog")
     }
@@ -20,7 +20,7 @@ class CommandCacheTest {
     @Test
     fun testCommandCache() {
         val key = "test"
-        val commandCache = CommandCache()
+        val commandCache = CommandSyncExecutor()
         val mono = commandCache.executeCommand(key) {
             log.info("Execute command")
         }

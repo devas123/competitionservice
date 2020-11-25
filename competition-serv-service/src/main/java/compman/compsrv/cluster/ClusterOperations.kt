@@ -9,7 +9,7 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.CompetitionInfoPayload
-import compman.compsrv.service.CommandCache
+import compman.compsrv.service.CommandSyncExecutor
 import compman.compsrv.service.CommandProducer
 import compman.compsrv.service.CompetitionCleaner
 import io.scalecube.cluster.*
@@ -29,17 +29,17 @@ import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListSet
 
-class ClusterSession(private val clusterConfigurationProperties: ClusterConfigurationProperties,
-                     private val preconfiguredCluster: ClusterConfig,
-                     private val competitionCleaner: CompetitionCleaner,
-                     kafkaProperties: KafkaProperties,
-                     private val serverProperties: ServerProperties,
-                     private val mapper: ObjectMapper,
-                     private val commandCache: CommandCache,
-                     private val kafkaTemplate: KafkaTemplate<String, CommandDTO>) {
+class ClusterOperations(private val clusterConfigurationProperties: ClusterConfigurationProperties,
+                        private val preconfiguredCluster: ClusterConfig,
+                        private val competitionCleaner: CompetitionCleaner,
+                        kafkaProperties: KafkaProperties,
+                        private val serverProperties: ServerProperties,
+                        private val mapper: ObjectMapper,
+                        private val commandSyncExecutor: CommandSyncExecutor,
+                        private val kafkaTemplate: KafkaTemplate<String, CommandDTO>) {
 
     companion object {
-        private val log = LoggerFactory.getLogger(ClusterSession::class.java)
+        private val log = LoggerFactory.getLogger(ClusterOperations::class.java)
         const val COMPETITION_LEADER_KEY = "compservice-leader"
         const val COMPETITION_PROCESSING_STARTED = "competitionProcessingStarted"
         const val COMPETITION_PROCESSING_INFO = "competitionProcessingInfo"
@@ -165,7 +165,7 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
                     clusterMembers[s] = msgData.memberWithRestPort
                 }
                 if (!msgData.correlationId.isNullOrBlank()) {
-                    commandCache.commandCallback(msgData.correlationId, createProcessingInfoEvents(msgData.correlationId, msgData.info.competitionIds))
+                    commandSyncExecutor.commandCallback(msgData.correlationId, createProcessingInfoEvents(msgData.correlationId, msgData.info.competitionIds))
                 }
             }
             if (it?.header(TYPE) == COMPETITION_PROCESSING_STOPPED) {
@@ -198,7 +198,7 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
             } else {
                 Mono.empty()
             }
-        }).switchIfEmpty(commandCache.executeCommand(competitionId) {
+        }).switchIfEmpty(commandSyncExecutor.executeCommand(competitionId) {
             kafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId,
                     CommandProducer.createSendProcessingInfoCommand(competitionId, competitionId)))
         }.map { arr ->
@@ -233,7 +233,7 @@ class ClusterSession(private val clusterConfigurationProperties: ClusterConfigur
             correlationId?.let {
                 val events = createProcessingInfoEvents(it, competitionIds)
                 log.info("Executing command callback, correlation ID: $it, data: $events")
-                commandCache.commandCallback(it, events)
+                commandSyncExecutor.commandCallback(it, events)
             }
         }
     }

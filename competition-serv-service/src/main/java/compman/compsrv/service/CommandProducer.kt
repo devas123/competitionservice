@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component
 class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, CommandDTO>,
                       private val mapper: ObjectMapper,
                       private val stateQueryService: StateQueryService,
-                      private val commandCache: CommandCache) {
+                      private val commandSyncExecutor: CommandSyncExecutor) {
     companion object {
         private val log: Logger = LoggerFactory.getLogger(CommandProducer::class.java)
         fun createSendProcessingInfoCommand(competitionId: String, correlationId: String): CommandDTO =
@@ -67,7 +67,7 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
             return kotlin.runCatching {
                 stateQueryService.localOrRemote(competitionId,
                         {
-                            commandCache.executeCommand(correlationId) {
+                            commandSyncExecutor.executeCommand(correlationId) {
                                 sendCommandAsync(command, competitionId, correlationId)
                             }
                         },

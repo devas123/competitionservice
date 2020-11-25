@@ -1,12 +1,11 @@
 package compman.compsrv.config
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.cluster.ClusterSession
+import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.cluster.MemberMetadata
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.repository.*
 import compman.compsrv.service.ClusterInfoService
-import compman.compsrv.service.CommandCache
+import compman.compsrv.service.CommandSyncExecutor
 import compman.compsrv.service.CompetitionCleaner
 import io.scalecube.cluster.Cluster
 import io.scalecube.cluster.ClusterConfig
@@ -22,7 +21,6 @@ import org.springframework.context.annotation.DependsOn
 import org.springframework.kafka.core.KafkaTemplate
 import java.net.InetAddress
 import java.nio.ByteBuffer
-import javax.persistence.EntityManager
 
 @Configuration
 @EnableConfigurationProperties(ClusterConfigurationProperties::class)
@@ -74,16 +72,16 @@ class ClusterConfiguration {
                        serverProperties: ServerProperties,
                        objectMapper: ObjectMapper,
                        competitionCleaner: CompetitionCleaner,
-                       commandCache: CommandCache,
+                       commandSyncExecutor: CommandSyncExecutor,
                        kafkaTemplate: KafkaTemplate<String, CommandDTO>) =
-            ClusterSession(clusterConfigurationProperties,
+            ClusterOperations(clusterConfigurationProperties,
                     cluster, competitionCleaner,
                     kafkaProperties,
                     serverProperties,
                     objectMapper,
-                    commandCache, kafkaTemplate)
+                    commandSyncExecutor, kafkaTemplate)
 
 
     @Bean
-    fun clusterInfoService(clusterSession: ClusterSession) = ClusterInfoService(clusterSession)
+    fun clusterInfoService(clusterOperations: ClusterOperations) = ClusterInfoService(clusterOperations)
 }

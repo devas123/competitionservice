@@ -1,10 +1,10 @@
 package compman.compsrv.service
 
-import arrow.core.Option
+import arrow.core.Either
 import arrow.core.getOrElse
 import com.compmanager.compservice.jooq.tables.*
 import com.compmanager.compservice.jooq.tables.daos.*
-import compman.compsrv.cluster.ClusterSession
+import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.mapping.toDTO
 import compman.compsrv.model.PageResponse
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
@@ -34,7 +34,7 @@ import java.util.*
 import kotlin.math.max
 
 @Component
-class StateQueryService(private val clusterSession: ClusterSession,
+class StateQueryService(private val clusterOperations: ClusterOperations,
                         restTemplateBuilder: RestTemplateBuilder,
                         private val jooq: JooqRepository,
                         private val jooqQueryProvider: JooqQueryProvider,
@@ -192,7 +192,7 @@ class StateQueryService(private val clusterSession: ClusterSession,
                 })
     }
 
-    fun getCompetitionProperties(competitionId: String): Mono<Option<CompetitionPropertiesDTO>> {
+    fun getCompetitionProperties(competitionId: String): Mono<Either<Unit, CompetitionPropertiesDTO>> {
         return localOrRemoteIo(competitionId,
                 {
                     log.info("Getting competition properties id $competitionId")
@@ -209,20 +209,20 @@ class StateQueryService(private val clusterSession: ClusterSession,
                     log.info("Result: $result")
                     result.toMonoOrEmpty()
                 }
-        ).map { io -> Option.fromNullable(io) }
+        ).map { io -> Either.fromNullable(io) }
     }
 
     fun <T> localOrRemoteIo(competitionId: String?, ifLocal: () -> Mono<T>, ifRemote: (instanceAddress: Address, restTemplate: RestTemplate, urlPrefix: String) -> Mono<T>): Mono<T> =
-            Option.fromNullable(competitionId).map { id ->
-                val instanceAddress = clusterSession.findProcessingMember(id)
+            Either.fromNullable(competitionId).map { id ->
+                val instanceAddress = clusterOperations.findProcessingMember(id)
                 instanceAddress.filter { it != null }.flatMap { address ->
-                    clusterSession.invalidateMemberForCompetitionId(id)
-                    if (clusterSession.isLocal(address!!)) {
+                    clusterOperations.invalidateMemberForCompetitionId(id)
+                    if (clusterOperations.isLocal(address!!)) {
                         log.info("Competition $competitionId is processed locally. Starting executing the logic.")
                         ifLocal()
                     } else {
                         log.debug("Competition $competitionId is processed by $address")
-                        ifRemote(address, restTemplate, clusterSession.getUrlPrefix(address.host(), address.port()))
+                        ifRemote(address, restTemplate, clusterOperations.getUrlPrefix(address.host(), address.port()))
                     }
                 }.retryBackoff(3, Duration.ofMillis(10))
             }.getOrElse { Mono.empty() }

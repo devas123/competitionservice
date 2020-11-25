@@ -164,8 +164,8 @@ public final class ZookeeperSessionTest {
         Runtime.getRuntime().addShutdownHook(new Thread(CLUSTER::stop));
         log.info("Zookeeper Connect: " + CLUSTER.zookeeperConnect());
         log.info("Bootstrap servers: " + CLUSTER.bootstrapServers());
-        Thread.sleep(10000000);
-        log.info("Stopiing.");
+        Thread.sleep(100000000);
+        log.info("Stopping.");
         CLUSTER.stop();
     }
 

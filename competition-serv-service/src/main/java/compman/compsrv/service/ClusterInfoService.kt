@@ -1,10 +1,10 @@
 package compman.compsrv.service
 
 import compman.compsrv.cluster.ClusterMember
-import compman.compsrv.cluster.ClusterSession
+import compman.compsrv.cluster.ClusterOperations
 
-class ClusterInfoService(private val clusterSession: ClusterSession) {
+class ClusterInfoService(private val clusterOperations: ClusterOperations) {
 
-    fun getClusterInfo(): Array<ClusterMember> = clusterSession.getClusterMembers()
+    fun getClusterInfo(): Array<ClusterMember> = clusterOperations.getClusterMembers()
 
 }
