@@ -18,8 +18,6 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.stereotype.Component
-import org.springframework.transaction.annotation.Propagation
-import org.springframework.transaction.annotation.Transactional
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.*
@@ -41,11 +39,11 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
         setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, EventDeserializer::class.java.canonicalName)
     }
 
-    fun resolveLatestCompetitionState(competitionId: String, correlationId: String?, transactional: Boolean = false) {
+    fun resolveLatestCompetitionState(competitionId: String, transactional: Boolean = false) {
         log.info("Retrieving state for the competitionId: $competitionId")
         if (!clusterSesion.isProcessedLocally(competitionId)) {
             log.error("Trying to find the 'COMPETITION_CREATED' event in the events for the past 365 days.")
-            val competitionCreated = if (transactional) { initStateAndSendCommandTransactional(competitionId) } else { initStateAndSendCommand(competitionId) }
+            val competitionCreated = initStateAndSendCommand(competitionId)
             if (competitionCreated) {
                 log.info("We have initialized the state from the first event to the last for $competitionId")
             } else {
@@ -102,11 +100,5 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
             }
         }
         return competitionCreated
-    }
-
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    fun initStateAndSendCommandTransactional(competitionId: String): Boolean {
-        return initStateAndSendCommand(competitionId)
     }
 }

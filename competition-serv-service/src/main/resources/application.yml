@@ -5,12 +5,13 @@
 spring:
   jooq.sql-dialect: SQLITE
   datasource:
-    url: ${POSTGRES_URL:jdbc:sqlite::memory:}
+    url: ${POSTGRES_URL:jdbc:sqlite:compservice.db}
     username: ${POSTGRES_USERNAME:postgres}
     password: ${POSTGRES_PASSWORD:admin}
     driver-class-name: org.sqlite.JDBC
-    initialization-mode: never
-    continueOnError: true
+    initialization-mode: always
+    continueOnError: false
+
   cache:
     ehcache:
       config: classpath:ehcache.xml
@@ -44,9 +45,9 @@ spring:
         buffer.memory: 33554432
         key.serializer: org.apache.kafka.common.serialization.StringSerializer
         value.serializer: org.apache.kafka.common.serialization.StringSerializer
-      transaction-id-prefix: tx-
   flyway:
     enabled: true
+
 
 server:
   servlet.context-path: /competitions

@@ -2,24 +2,27 @@ package compman.compsrv.kafka.streams.transformer
 
 import com.compmanager.compservice.jooq.tables.daos.CompetitionPropertiesDao
 import com.fasterxml.jackson.databind.ObjectMapper
+import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.events.EventDTO
+import compman.compsrv.service.CommandSyncExecutor
 import compman.compsrv.service.ICommandProcessingService
-import compman.compsrv.service.processor.event.IEffects
+import compman.compsrv.service.processor.event.IEventExecutionEffects
 import compman.compsrv.service.resolver.CompetitionStateResolver
 import org.slf4j.LoggerFactory
 
 open class CompetitionCommandTransformer(competitionStateService: ICommandProcessingService<CommandDTO, EventDTO>,
                                          private val competitionStateRepository: CompetitionPropertiesDao,
-                                         private val competitionStateResolver: CompetitionStateResolver,
-                                         effects: IEffects,
-                                         mapper: ObjectMapper)
-    : AbstractCommandTransformer(competitionStateService, effects, mapper) {
+                                         competitionStateResolver: CompetitionStateResolver,
+                                         eventExecutionEffects: IEventExecutionEffects,
+                                         clusterOperations: ClusterOperations,
+                                         commandSyncExecutor: CommandSyncExecutor,
+                                         mapper: ObjectMapper, private val competitionId: String)
+    : AbstractCommandTransformer(competitionStateService, eventExecutionEffects, clusterOperations, commandSyncExecutor, mapper) {
 
-
-    override fun initState(id: String, correlationId: String?, transactional: Boolean) {
-        competitionStateResolver.resolveLatestCompetitionState(id, correlationId, transactional)
+    init {
+        competitionStateResolver.resolveLatestCompetitionState(competitionId)
     }
 
     companion object {
@@ -27,7 +30,10 @@ open class CompetitionCommandTransformer(competitionStateService: ICommandProces
     }
 
     override fun canExecuteCommand(command: CommandDTO?): List<String> {
-        return when (command?.type) {
+        if (command?.competitionId != competitionId) {
+            return listOf("Command has wrong competition id: ${command?.competitionId}, should be $competitionId.")
+        }
+        return when (command.type) {
             CommandType.CREATE_COMPETITION_COMMAND -> if (competitionStateRepository.existsById(command.competitionId)) {
                 log.warn("Competition ${command.competitionId} already exists.")
                 listOf("Competition already exists.")

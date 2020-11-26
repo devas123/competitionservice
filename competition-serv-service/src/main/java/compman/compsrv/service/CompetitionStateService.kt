@@ -12,8 +12,6 @@ import compman.compsrv.util.createErrorEvent
 import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
-import org.springframework.transaction.annotation.Propagation
-import org.springframework.transaction.annotation.Transactional
 
 @Component
 class CompetitionStateService(
@@ -27,7 +25,6 @@ class CompetitionStateService(
         private val log = LoggerFactory.getLogger(CompetitionStateService::class.java)
     }
 
-    @Transactional(propagation = Propagation.REQUIRED)
     override fun apply(event: EventDTO, isBatch: Boolean) {
         log.info("Applying event: $event, batch: $isBatch")
         fun createErrorEvent(error: String?) = mapper.createErrorEvent(event, error)
@@ -40,7 +37,6 @@ class CompetitionStateService(
         }
     }
 
-    @Transactional(propagation = Propagation.REQUIRED)
     override fun process(command: CommandDTO): List<EventDTO> {
 
         fun createErrorEvent(error: String) = mapper.createErrorEvent(command, error)

@@ -20,17 +20,17 @@ import org.springframework.stereotype.Component
 import java.time.Duration
 
 @Component
-class EventEffects(val mapper: ObjectMapper,
-                   val stageDescriptorDao: StageDescriptorDao,
-                   val selectorDao: CompetitorSelectorDao,
-                   val validators: List<PayloadValidator>,
-                   val fightsGenerateService: FightServiceFactory,
-                   val competitorStageResultDao: CompetitorStageResultDao,
-                   val competitorDao: CompetitorDao,
-                   val fightResultOptionDao: FightResultOptionDao,
-                   val jooqRepository: JooqRepository) : IEffects {
+class EventEventExecutionEffects(val mapper: ObjectMapper,
+                                 val stageDescriptorDao: StageDescriptorDao,
+                                 val selectorDao: CompetitorSelectorDao,
+                                 val validators: List<PayloadValidator>,
+                                 val fightsGenerateService: FightServiceFactory,
+                                 val competitorStageResultDao: CompetitorStageResultDao,
+                                 val competitorDao: CompetitorDao,
+                                 val fightResultOptionDao: FightResultOptionDao,
+                                 val jooqRepository: JooqRepository) : IEventExecutionEffects {
     companion object {
-        val log: Logger = LoggerFactory.getLogger(EventEffects::class.java)
+        val log: Logger = LoggerFactory.getLogger(EventEventExecutionEffects::class.java)
     }
 
     private inline fun <reified T : Payload> executeWithEffects(event: EventDTO, payloadClass: Class<T>,

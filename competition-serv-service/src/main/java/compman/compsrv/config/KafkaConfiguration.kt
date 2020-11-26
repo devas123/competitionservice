@@ -2,15 +2,17 @@ package compman.compsrv.config
 
 import com.compmanager.compservice.jooq.tables.daos.CompetitionPropertiesDao
 import com.fasterxml.jackson.databind.ObjectMapper
+import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.kafka.serde.CommandDeserializer
 import compman.compsrv.kafka.serde.CommandSerializer
 import compman.compsrv.kafka.serde.EventSerializer
-import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformer
+import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformerFactory
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
+import compman.compsrv.service.CommandSyncExecutor
 import compman.compsrv.service.ICommandProcessingService
-import compman.compsrv.service.processor.event.IEffects
+import compman.compsrv.service.processor.event.IEventExecutionEffects
 import compman.compsrv.service.resolver.CompetitionStateResolver
 import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -22,15 +24,12 @@ import org.springframework.boot.autoconfigure.kafka.ConcurrentKafkaListenerConta
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory
 import org.springframework.kafka.core.*
 import org.springframework.kafka.listener.AcknowledgingConsumerAwareMessageListener
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer
 import org.springframework.kafka.listener.ContainerProperties
 import org.springframework.kafka.listener.DefaultAfterRollbackProcessor
-import org.springframework.kafka.transaction.ChainedKafkaTransactionManager
-import org.springframework.kafka.transaction.KafkaTransactionManager
 import org.springframework.util.backoff.FixedBackOff
 import java.util.*
 
@@ -79,7 +78,6 @@ class KafkaConfiguration {
     fun eventProducerFactory(kafkaProps: KafkaProperties): ProducerFactory<String, EventDTO> {
         val props = producerProps(kafkaProps, EventSerializer::class.java)
         return DefaultKafkaProducerFactory(props, StringSerializer(), EventSerializer())
-                .apply { setTransactionIdPrefix(kafkaProps.producer.transactionIdPrefix) }
     }
 
 
@@ -108,22 +106,12 @@ class KafkaConfiguration {
         return props
     }
 
-    @Bean
-    fun kafkaTransactionmanager(kafkaProps: KafkaProperties): KafkaTransactionManager<String, EventDTO> {
-        return KafkaTransactionManager(eventProducerFactory(kafkaProps))
-    }
 
 
-    @Bean
-    fun chainedTm(ktm: KafkaTransactionManager<String, EventDTO>,
-                  dstm: DataSourceTransactionManager): ChainedKafkaTransactionManager<Any, Any> {
-        return ChainedKafkaTransactionManager(dstm, ktm)
-    }
 
     @Bean
     fun container(cf: ConsumerFactory<String, CommandDTO>,
                   kafkaProps: KafkaProperties,
-                  trm: ChainedKafkaTransactionManager<Any, Any>,
                   commandExecutor: AcknowledgingConsumerAwareMessageListener<String, CommandDTO>): ConcurrentMessageListenerContainer<String, CommandDTO> {
         val props = ContainerProperties(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME)
         val consumerProps = kafkaProps.buildConsumerProperties()
@@ -131,7 +119,6 @@ class KafkaConfiguration {
         consumerProps[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = CommandDeserializer::class.java
         props.kafkaConsumerProperties = Properties().apply { putAll(consumerProps) }
         props.groupId = kafkaProps.consumer.groupId
-        props.transactionManager = trm
         props.messageListener = commandExecutor
         return ConcurrentMessageListenerContainer(cf, props).apply {
             concurrency = Runtime.getRuntime().availableProcessors()
@@ -142,12 +129,10 @@ class KafkaConfiguration {
     @Bean
     fun kafkaListenerContainerFactory(
             configurer: ConcurrentKafkaListenerContainerFactoryConfigurer,
-            trm: ChainedKafkaTransactionManager<Any, Any>,
             kafkaConsumerFactory: ConsumerFactory<String, CommandDTO>): ConcurrentKafkaListenerContainerFactory<Any, Any> {
         val factory: ConcurrentKafkaListenerContainerFactory<Any, Any> = ConcurrentKafkaListenerContainerFactory()
         @Suppress("UNCHECKED_CAST")
         configurer.configure(factory, kafkaConsumerFactory as ConsumerFactory<Any, Any>)
-        factory.containerProperties.transactionManager = trm
         return factory
     }
 
@@ -155,11 +140,15 @@ class KafkaConfiguration {
     @Bean
     fun commandTransformer(competitionStateService: ICommandProcessingService<CommandDTO, EventDTO>,
                            objectMapper: ObjectMapper,
-                           effects: IEffects,
+                           eventExecutionEffects: IEventExecutionEffects,
                            competitionStateRepository: CompetitionPropertiesDao,
-                           competitionStateResolver: CompetitionStateResolver) = CompetitionCommandTransformer(competitionStateService,
+                           clusterOperations: ClusterOperations,
+                           commandSyncExecutor: CommandSyncExecutor,
+                           competitionStateResolver: CompetitionStateResolver) = CompetitionCommandTransformerFactory(competitionStateService,
             competitionStateRepository,
             competitionStateResolver,
-            effects,
+            eventExecutionEffects,
+            clusterOperations,
+            commandSyncExecutor,
             objectMapper)
 }

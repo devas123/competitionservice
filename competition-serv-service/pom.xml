@@ -410,7 +410,6 @@
                             <generator>
                                 <database>
                                     <name>org.jooq.meta.extensions.ddl.DDLDatabase</name>
-                                    <inputSchema>COMPSERVICE</inputSchema>
                                     <properties>
                                         <property>
                                             <key>sort</key>
@@ -456,10 +455,9 @@
                 <artifactId>kotlin-maven-plugin</artifactId>
                 <configuration>
                     <compilerPlugins>
-                        <plugin>jpa</plugin>
                         <plugin>spring</plugin>
                     </compilerPlugins>
-                    <jvmTarget>1.8</jvmTarget>
+                    <jvmTarget>11</jvmTarget>
                 </configuration>
 <!--
                 <executions>

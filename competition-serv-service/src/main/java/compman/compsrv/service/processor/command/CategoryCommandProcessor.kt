@@ -27,12 +27,13 @@ import compman.compsrv.service.fight.GroupStageGenerateService
 import compman.compsrv.util.*
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Mono
+import reactor.core.scheduler.Schedulers
 import java.math.BigDecimal
 import java.time.Duration
 
 
-data class LabeledFight(val fight: Option<FightDescriptionDTO>, val label: String, val id: Option<String> = None) {
-    constructor(fight: FightDescriptionDTO, label: String): this(fight.some(), label, None)
+data class LabeledFight(val fight: Either<Unit, FightDescriptionDTO>, val label: String, val id: Either<Unit, String> = Either.left(Unit)) {
+    constructor(fight: FightDescriptionDTO, label: String): this(fight.right(), label, Either.left(Unit))
     companion object {
         const val UPDATED = "UPDATED"
         const val NEW = "NEW"
@@ -290,7 +291,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
     private fun createEvent(command: CommandDTO, eventType: EventType, payload: Any?) = mapper.createEvent(command, eventType, payload)
 
     private fun createFightEditorChangesAppliedEvents(command: CommandDTO, newFights: List<FightDescriptionDTO>, updates: List<FightDescriptionDTO>, removeFightIds: List<String>): List<EventDTO> {
-        val allFights = newFights.map { LabeledFight(it, LabeledFight.NEW) } + updates.map { LabeledFight(it, LabeledFight.UPDATED) } + removeFightIds.map { LabeledFight(None, LabeledFight.REMOVED, it.some()) }
+        val allFights = newFights.map { LabeledFight(it, LabeledFight.NEW) } + updates.map { LabeledFight(it, LabeledFight.UPDATED) } + removeFightIds.map { LabeledFight(Either.left(Unit), LabeledFight.REMOVED, it.right()) }
         return allFights.chunked(50) { chunk -> createEvent(command, EventType.FIGHTS_EDITOR_CHANGE_APPLIED, FightEditorChangesAppliedPayload()
                 .setNewFights(chunk.filter { it.label == LabeledFight.NEW }.mapNotNull { it.fight.orNull() }.toTypedArray())
                 .setUpdates(chunk.filter { it.label == LabeledFight.UPDATED }.mapNotNull { it.fight.orNull() }.toTypedArray())
@@ -485,7 +486,7 @@ class CategoryCommandProcessor constructor(private val fightsGenerateService: Fi
         val payload = mapper.convertValue(command.payload, CreateFakeCompetitorsPayload::class.java)
         val numberOfCompetitors = payload?.numberOfCompetitors ?: 50
         val numberOfAcademies = payload?.numberOfAcademies ?: 30
-        val categoryState = jooq.fetchCategoryStateByCompetitionIdAndCategoryId(command.competitionId, command.categoryId!!).block()
+        val categoryState = jooq.fetchCategoryStateByCompetitionIdAndCategoryId(command.competitionId, command.categoryId!!).publishOn(Schedulers.elastic()).block()
         val fakeCompetitors = FightsService.generateRandomCompetitorsForCategory(numberOfCompetitors, numberOfAcademies, categoryState?.category?.id!!, command.competitionId!!)
         return fakeCompetitors.map {
             createEvent(command, EventType.COMPETITOR_ADDED, CompetitorAddedPayload(it))
