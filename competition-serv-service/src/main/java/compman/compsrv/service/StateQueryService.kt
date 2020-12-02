@@ -2,18 +2,14 @@ package compman.compsrv.service
 
 import arrow.core.Either
 import arrow.core.getOrElse
-import com.compmanager.compservice.jooq.tables.*
-import com.compmanager.compservice.jooq.tables.daos.*
 import compman.compsrv.cluster.ClusterOperations
-import compman.compsrv.mapping.toDTO
 import compman.compsrv.model.PageResponse
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
-import compman.compsrv.repository.JooqQueryProvider
-import compman.compsrv.repository.JooqRepository
+import compman.compsrv.repository.RocksDBRepository
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.copy
 import compman.compsrv.util.toMonoOrEmpty
@@ -36,28 +32,21 @@ import kotlin.math.max
 @Component
 class StateQueryService(private val clusterOperations: ClusterOperations,
                         restTemplateBuilder: RestTemplateBuilder,
-                        private val jooq: JooqRepository,
-                        private val jooqQueryProvider: JooqQueryProvider,
-                        private val registrationInfoDao: RegistrationInfoDao,
-                        private val registrationPeriodDao: RegistrationPeriodDao,
-                        private val registrationGroupDao: RegistrationGroupDao,
-                        private val regGroupRegPeriodDao: RegGroupRegPeriodDao,
-                        private val staffDao: CompetitionPropertiesStaffIdsDao,
-                        private val promoCodeDao: PromoCodeDao,
-                        private val competitionPropertiesDao: CompetitionPropertiesDao,
-                        private val fightResultOptionDao: FightResultOptionDao,
-                        private val fightDescriptionDao: FightDescriptionDao,
-                        private val competitorCrudRepository: CompetitorDao) {
+                        rocksDBRepository: RocksDBRepository) {
 
     companion object {
         private val log = LoggerFactory.getLogger(StateQueryService::class.java)
     }
+
+    private val rocksDbOperations = rocksDBRepository.getOperations()
 
     private val restTemplate = restTemplateBuilder
             .setConnectTimeout(Duration.ofSeconds(3))
             .setReadTimeout(Duration.ofSeconds(10)).build()
 
     private fun getLocalCompetitors(competitionId: String, categoryId: String?, searchString: String?, pageSize: Int, page: Int): PageResponse<CompetitorDTO> {
+        TODO()
+/*
         val pageNumber = max(page - 1, 0)
         val fromJoinedTables = jooqQueryProvider.competitorsQuery(competitionId)
         val count = jooq.competitorsCount(competitionId, categoryId)
@@ -103,6 +92,7 @@ class StateQueryService(private val clusterOperations: ClusterOperations,
                     }
                 }
         return PageResponse(competitionId, count.toLong(), page, competitors.toTypedArray())
+*/
     }
 
     fun getCompetitors(competitionId: String, categoryId: String?, searchString: String?, pageSize: Int, pageNumber: Int): PageResponse<CompetitorDTO>? {
@@ -136,32 +126,37 @@ class StateQueryService(private val clusterOperations: ClusterOperations,
                 })
     }
 
-    fun getCompetitor(competitionId: String, fighterId: String) = localOrRemote(competitionId, {
+    fun getCompetitor(competitionId: String, fighterId: String): CompetitorDTO  { TODO() }/*localOrRemote(competitionId, {
         competitorCrudRepository.findById(fighterId)?.toDTO(jooq.getCompetitorCategories(competitionId, fighterId).toTypedArray()).toMonoOrEmpty()
     },
             { _, restTemplate, urlPrefix ->
                 restTemplate.getForObject("$urlPrefix/api/v1/store/competitor?competitionId=$competitionId&fighterId=$fighterId", CompetitorDTO::class.java).toMonoOrEmpty()
             })
-
-    fun getFightResultOptions(competitionId: String, fightId: String) = localOrRemote(competitionId, {
+*/
+    fun getFightResultOptions(competitionId: String, fightId: String): Array<FightResultOptionDTO> { TODO() } /*localOrRemote(competitionId, {
         val fight = fightDescriptionDao.findById(fightId)
         fight?.let { fightResultOptionDao.fetchByStageId(it.stageId)?.map { fr -> fr.toDTO() } }?.toTypedArray().toMonoOrEmpty()
     },
             { _, restTemplate, urlPrefix ->
                 restTemplate.getForObject("$urlPrefix/api/v1/store/fightresultoptions?competitionId=$competitionId&fightId=$fightId", Array<FightResultOptionDTO>::class.java).toMonoOrEmpty()
             })
-
+*/
 
     fun getCompetitionInfoTemplate(competitionId: String?): ByteArray? {
+        TODO()
+/*
         return localOrRemote(competitionId,
                 { competitionPropertiesDao.findById(competitionId)?.competitionInfoTemplate.toMonoOrEmpty() },
                 { _, restTemplate, url ->
                     restTemplate.getForObject("$url/api/v1/store/infotemplate?competitionId=$competitionId", ByteArray::class.java).toMonoOrEmpty()
                 }
         )
+*/
     }
 
     fun getRegistrationInfo(competitionId: String): Mono<RegistrationInfoDTO> {
+        TODO()
+/*
         return localOrRemoteIo(competitionId, {
             Mono.just(registrationInfoDao.findById(competitionId))
                     .flatMap { regInfo ->
@@ -190,9 +185,12 @@ class StateQueryService(private val clusterOperations: ClusterOperations,
                     log.info("Result: $result")
                     result.toMonoOrEmpty()
                 })
+*/
     }
 
     fun getCompetitionProperties(competitionId: String): Mono<Either<Unit, CompetitionPropertiesDTO>> {
+        TODO()
+/*
         return localOrRemoteIo(competitionId,
                 {
                     log.info("Getting competition properties id $competitionId")
@@ -210,6 +208,7 @@ class StateQueryService(private val clusterOperations: ClusterOperations,
                     result.toMonoOrEmpty()
                 }
         ).map { io -> Either.fromNullable(io) }
+*/
     }
 
     fun <T> localOrRemoteIo(competitionId: String?, ifLocal: () -> Mono<T>, ifRemote: (instanceAddress: Address, restTemplate: RestTemplate, urlPrefix: String) -> Mono<T>): Mono<T> =
@@ -232,6 +231,8 @@ class StateQueryService(private val clusterOperations: ClusterOperations,
     }
 
     fun getSchedule(competitionId: String): ScheduleDTO? {
+        TODO()
+/*
         return localOrRemote(competitionId,
                 {
                     jooq.fetchPeriodsByCompetitionId(competitionId).collectList().flatMap { periods ->
@@ -246,22 +247,25 @@ class StateQueryService(private val clusterOperations: ClusterOperations,
                 { _, restTemplate, urlPrefix ->
                     restTemplate.getForObject("$urlPrefix/api/v1/store/schedule?competitionId=$competitionId", ScheduleDTO::class.java).toMonoOrEmpty()
                 })
+*/
     }
 
 
     fun getCategoryState(competitionId: String, categoryId: String): CategoryStateDTO? {
-        log.info("Getting state for category $categoryId")
+        TODO()
+        /*log.info("Getting state for category $categoryId")
         return localOrRemote(competitionId, {
             jooq.fetchCategoryStateByCompetitionIdAndCategoryId(competitionId, categoryId)
         },
                 { _, restTemplate, urlPrefix ->
                     restTemplate.getForObject("$urlPrefix/api/v1/store/categorystate?competitionId=$competitionId&categoryId=$categoryId", CategoryStateDTO::class.java).toMonoOrEmpty()
-                })
+                })*/
     }
 
 
     fun getMats(competitionId: String, periodId: String): Array<MatDescriptionDTO>? {
-        log.info("Getting mats for competition $competitionId and period $periodId")
+        TODO()
+        /*log.info("Getting mats for competition $competitionId and period $periodId")
         return localOrRemote(competitionId, {
             jooq.fetchMatsByCompetitionIdAndPeriodId(competitionId, periodId, getFightStartTimes = false)
                     .collectList().map { mats ->
@@ -270,12 +274,13 @@ class StateQueryService(private val clusterOperations: ClusterOperations,
         },
                 { _, restTemplate, urlPrefix ->
                     restTemplate.getForObject("$urlPrefix/api/v1/store/mats?competitionId=$competitionId&periodId=$periodId", Array<MatDescriptionDTO>::class.java).toMonoOrEmpty()
-                })
+                })*/
     }
 
 
     fun getMatFights(competitionId: String, matId: String, maxResults: Long): FightsWithCompetitors? {
-        log.info("Getting fights for competition $competitionId and mat $matId")
+        TODO()
+        /*log.info("Getting fights for competition $competitionId and mat $matId")
         return localOrRemote(competitionId, {
             jooq.topMatFights(maxResults, competitionId, matId, FightsService.notFinishedStatuses)
                     .collectList().flatMap { fights ->
@@ -289,47 +294,55 @@ class StateQueryService(private val clusterOperations: ClusterOperations,
                     }
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/matfights?competitionId=$competitionId&matId=$matId&maxResults=$maxResults", FightsWithCompetitors::class.java).toMonoOrEmpty()
-        })
+        })*/
     }
 
     fun getStageFights(competitionId: String, stageId: String): Array<FightDescriptionDTO>? {
         log.info("Getting fights for stage $stageId")
-        return localOrRemote(competitionId, {
+        TODO()
+       /* return localOrRemote(competitionId, {
             jooq.fetchFightsByStageId(competitionId, stageId).collectList().map { it.toTypedArray() }
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/stagefights?competitionId=$competitionId&stageId=$stageId", Array<FightDescriptionDTO>::class.java).toMonoOrEmpty()
-        })
+        })*/
     }
 
     fun getFight(competitionId: String, fightId: String): FightDescriptionDTO? {
-        log.info("Getting fight for id $fightId")
+        TODO()
+        /*log.info("Getting fight for id $fightId")
         return localOrRemote(competitionId, {
             jooq.fetchFightById(competitionId, fightId)
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/stagefights?competitionId=$competitionId&stageId=$fightId", FightDescriptionDTO::class.java).toMonoOrEmpty()
-        })
+        })*/
 
     }
 
     fun getStages(competitionId: String, categoryId: String): Array<StageDescriptorDTO>? {
-        log.info("Getting stages for $categoryId")
+        TODO()
+        /*log.info("Getting stages for $categoryId")
         return localOrRemote(competitionId, {
             jooq.fetchStagesForCategory(competitionId, categoryId).collectList().map { it.toTypedArray() }
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/stages?competitionId=$competitionId&categoryId=$categoryId", Array<StageDescriptorDTO>::class.java).toMonoOrEmpty()
-        })
+        })*/
     }
 
 
     fun getCategories(competitionId: String): Array<CategoryStateDTO> {
+        TODO()
+/*
         return localOrRemote(competitionId, {
             jooq.fetchCategoryStatesByCompetitionId(competitionId).collectList().map { it.toTypedArray() }
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/categories?competitionId=$competitionId", Array<CategoryStateDTO>::class.java).toMonoOrEmpty()
         }) ?: emptyArray()
+*/
     }
 
     fun getDashboardState(competitionId: String): CompetitionDashboardStateDTO? {
+        TODO()
+/*
         return localOrRemote(competitionId, {
             jooq.fetchPeriodsByCompetitionId(competitionId).collectList().map { periods ->
                 CompetitionDashboardStateDTO()
@@ -341,12 +354,15 @@ class StateQueryService(private val clusterOperations: ClusterOperations,
         }, { _, restTemplate, urlPrefix ->
             restTemplate.getForObject("$urlPrefix/api/v1/store/dashboardstate?competitionId=$competitionId", CompetitionDashboardStateDTO::class.java).toMonoOrEmpty()
         })
+*/
     }
 
     fun getFightIdsByCategoryIds(competitionId: String): Map<String, Array<String>> {
         fun getLinkedHashMapType(): ParameterizedTypeReference<LinkedHashMap<String, Array<String>>> {
             return object : ParameterizedTypeReference<LinkedHashMap<String, Array<String>>>() {}
         }
+        TODO()
+/*
         return localOrRemote(competitionId, {
             jooq.getCategoryIdsForCompetition(competitionId).flatMap { id ->
                 jooq.getFightIdsForCategory(id).collectList().map { id to it.toTypedArray() }
@@ -361,5 +377,6 @@ class StateQueryService(private val clusterOperations: ClusterOperations,
             }
             body.toMonoOrEmpty()
         }) ?: emptyMap()
+*/
     }
 }

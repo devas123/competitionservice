@@ -1,9 +1,7 @@
 package compman.compsrv.service.processor.event
 
 import arrow.core.fix
-import com.compmanager.compservice.jooq.tables.daos.*
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.mapping.toDTO
 import compman.compsrv.model.commands.payload.Payload
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.brackets.StageStatus
@@ -11,7 +9,6 @@ import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
-import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.util.*
 import org.slf4j.Logger
@@ -21,14 +18,9 @@ import java.time.Duration
 
 @Component
 class EventEventExecutionEffects(val mapper: ObjectMapper,
-                                 val stageDescriptorDao: StageDescriptorDao,
-                                 val selectorDao: CompetitorSelectorDao,
                                  val validators: List<PayloadValidator>,
-                                 val fightsGenerateService: FightServiceFactory,
-                                 val competitorStageResultDao: CompetitorStageResultDao,
-                                 val competitorDao: CompetitorDao,
-                                 val fightResultOptionDao: FightResultOptionDao,
-                                 val jooqRepository: JooqRepository) : IEventExecutionEffects {
+                                 val fightsGenerateService: FightServiceFactory)  {
+/*
     companion object {
         val log: Logger = LoggerFactory.getLogger(EventEventExecutionEffects::class.java)
     }
@@ -107,4 +99,5 @@ class EventEventExecutionEffects(val mapper: ObjectMapper,
                 })
         return competitorDao.fetchById(*propagatedCompetitorIds.toTypedArray()).map { it.toDTO(arrayOf(e.categoryId)) }
     }
+*/
 }

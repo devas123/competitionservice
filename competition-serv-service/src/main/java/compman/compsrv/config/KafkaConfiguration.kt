@@ -1,18 +1,17 @@
 package compman.compsrv.config
 
-import com.compmanager.compservice.jooq.tables.daos.CompetitionPropertiesDao
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.kafka.serde.CommandDeserializer
 import compman.compsrv.kafka.serde.CommandSerializer
 import compman.compsrv.kafka.serde.EventSerializer
-import compman.compsrv.kafka.streams.transformer.CompetitionCommandTransformerFactory
+import compman.compsrv.kafka.streams.transformer.CommandExecutionServiceFactory
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
+import compman.compsrv.repository.RocksDBRepository
 import compman.compsrv.service.CommandSyncExecutor
-import compman.compsrv.service.ICommandProcessingService
-import compman.compsrv.service.processor.event.IEventExecutionEffects
+import compman.compsrv.service.CompetitionStateService
 import compman.compsrv.service.resolver.CompetitionStateResolver
 import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -107,12 +106,12 @@ class KafkaConfiguration {
     }
 
 
-
-
     @Bean
-    fun container(cf: ConsumerFactory<String, CommandDTO>,
-                  kafkaProps: KafkaProperties,
-                  commandExecutor: AcknowledgingConsumerAwareMessageListener<String, CommandDTO>): ConcurrentMessageListenerContainer<String, CommandDTO> {
+    fun container(
+        cf: ConsumerFactory<String, CommandDTO>,
+        kafkaProps: KafkaProperties,
+        commandExecutor: AcknowledgingConsumerAwareMessageListener<String, CommandDTO>
+    ): ConcurrentMessageListenerContainer<String, CommandDTO> {
         val props = ContainerProperties(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME)
         val consumerProps = kafkaProps.buildConsumerProperties()
         consumerProps[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
@@ -128,8 +127,9 @@ class KafkaConfiguration {
 
     @Bean
     fun kafkaListenerContainerFactory(
-            configurer: ConcurrentKafkaListenerContainerFactoryConfigurer,
-            kafkaConsumerFactory: ConsumerFactory<String, CommandDTO>): ConcurrentKafkaListenerContainerFactory<Any, Any> {
+        configurer: ConcurrentKafkaListenerContainerFactoryConfigurer,
+        kafkaConsumerFactory: ConsumerFactory<String, CommandDTO>
+    ): ConcurrentKafkaListenerContainerFactory<Any, Any> {
         val factory: ConcurrentKafkaListenerContainerFactory<Any, Any> = ConcurrentKafkaListenerContainerFactory()
         @Suppress("UNCHECKED_CAST")
         configurer.configure(factory, kafkaConsumerFactory as ConsumerFactory<Any, Any>)
@@ -138,17 +138,19 @@ class KafkaConfiguration {
 
 
     @Bean
-    fun commandTransformer(competitionStateService: ICommandProcessingService<CommandDTO, EventDTO>,
-                           objectMapper: ObjectMapper,
-                           eventExecutionEffects: IEventExecutionEffects,
-                           competitionStateRepository: CompetitionPropertiesDao,
-                           clusterOperations: ClusterOperations,
-                           commandSyncExecutor: CommandSyncExecutor,
-                           competitionStateResolver: CompetitionStateResolver) = CompetitionCommandTransformerFactory(competitionStateService,
-            competitionStateRepository,
-            competitionStateResolver,
-            eventExecutionEffects,
-            clusterOperations,
-            commandSyncExecutor,
-            objectMapper)
+    fun commandTransformer(
+        competitionStateService: CompetitionStateService,
+        objectMapper: ObjectMapper,
+        clusterOperations: ClusterOperations,
+        commandSyncExecutor: CommandSyncExecutor,
+        rocksDBRepository: RocksDBRepository,
+        competitionStateResolver: CompetitionStateResolver
+    ) = CommandExecutionServiceFactory(
+        competitionStateService,
+        competitionStateResolver,
+        clusterOperations,
+        commandSyncExecutor,
+        rocksDBRepository,
+        objectMapper
+    )
 }

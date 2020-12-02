@@ -18,9 +18,14 @@ public class EventDTO {
 
     private String id = null;
 
+    private Long version;
+
+    private Long localEventNumber;
+
     private String correlationId;
 
     private String competitionId;
+    private String competitorId;
 
     private String categoryId;
 

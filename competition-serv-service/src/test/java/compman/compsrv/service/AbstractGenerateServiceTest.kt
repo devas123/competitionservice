@@ -1,6 +1,7 @@
 package compman.compsrv.service
 
 import arrow.core.Tuple4
+import com.google.common.math.DoubleMath
 import compman.compsrv.model.dto.brackets.FightReferenceType
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.brackets.StageRoundType
@@ -9,7 +10,6 @@ import compman.compsrv.model.dto.competition.FightResultDTO
 import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.copy
 import org.slf4j.LoggerFactory
-import org.testcontainers.shaded.com.google.common.math.DoubleMath
 import java.math.BigDecimal
 import kotlin.math.max
 import kotlin.math.pow

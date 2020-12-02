@@ -18,6 +18,13 @@ import org.slf4j.Logger
 class ForCompetitorSelect private constructor() {
     companion object
 }
+typealias CompetitorSelectAOf<A> = Kind<ForCompetitorSelect, A>
+
+@Suppress("NOTHING_TO_INLINE")
+inline fun <A> CompetitorSelectAOf<A>.fix(): CompetitorSelectA<A> =
+        this as CompetitorSelectA<A>
+
+typealias CompetitorSelect<A> = Free<ForCompetitorSelect, A>
 
 @higherkind
 sealed class CompetitorSelectA<out A> : CompetitorSelectAOf<A> {
@@ -30,19 +37,13 @@ sealed class CompetitorSelectA<out A> : CompetitorSelectAOf<A> {
     data class And<A>(val a: CompetitorSelect<A>, val b: CompetitorSelect<A>) : CompetitorSelectA<A>()
 }
 
-typealias CompetitorSelectAOf<A> = Kind<ForCompetitorSelect, A>
 
-@Suppress("NOTHING_TO_INLINE")
-inline fun <A> CompetitorSelectAOf<A>.fix(): CompetitorSelectA<A> =
-        this as CompetitorSelectA<A>
-
-typealias CompetitorSelect<A> = Free<ForCompetitorSelect, A>
 
 fun firstNPlaces(stageId: String, n: Int): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.FirstNPlaces(stageId, n))
 fun lastNPlaces(stageId: String, n: Int): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.LastNPlaces(stageId, n))
 fun manual(stageId: String, ids: Collection<String>): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.Manual(stageId, ids))
-fun winnerOfFight(stageId: String, id: String): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.WinnerOfFight(stageId, id))
-fun loserOfFight(stageId: String, id: String): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.LoserOfFight(stageId, id))
+//fun winnerOfFight(stageId: String, id: String): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.WinnerOfFight(stageId, id))
+//fun loserOfFight(stageId: String, id: String): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.LoserOfFight(stageId, id))
 fun passedToRound(stageId: String, n: Int, roundType: StageRoundType): CompetitorSelect<Array<String>> = Free.liftF(CompetitorSelectA.PassedToRound(stageId, n, roundType))
 inline fun <reified A> and(a: CompetitorSelect<A>, b: CompetitorSelect<A>): CompetitorSelect<A> =
         Free.liftF(CompetitorSelectA.And(a, b))

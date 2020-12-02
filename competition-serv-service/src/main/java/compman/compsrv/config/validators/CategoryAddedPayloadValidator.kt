@@ -14,9 +14,6 @@ class CategoryAddedPayloadValidator : AbstractEventPayloadValidator<CategoryAdde
         return when {
             payload.categoryState == null -> validationRules.raiseError(PayloadValidationError.FieldMissing("categoryState", event.id).nel())
             payload.categoryState.id.isNullOrBlank() -> validationRules.raiseError(PayloadValidationError.FieldMissing("categoryState.id", event.id).nel())
-            payload.categoryState.competitionId.isNullOrBlank() -> validationRules.raiseError(PayloadValidationError.FieldMissing("categoryState.competitionId", event.id).nel())
-            payload.categoryState.category == null -> validationRules.raiseError(PayloadValidationError.FieldMissing("categoryState.category", event.id).nel())
-            payload.categoryState.category.id == null -> validationRules.raiseError(PayloadValidationError.FieldMissing("categoryState.category.id", event.id).nel())
             event.categoryId.isNullOrBlank() -> validationRules.raiseError(PayloadValidationError.FieldMissing("event.categoryId", event.id).nel())
             else -> {
                 validationRules.just(payload)

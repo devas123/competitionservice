@@ -1,7 +1,5 @@
 package compman.compsrv.service.processor.event
 
-import com.compmanager.compservice.jooq.tables.daos.CompScoreDao
-import com.compmanager.compservice.jooq.tables.records.CompScoreRecord
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.model.commands.payload.SetFightResultPayload
 import compman.compsrv.model.dto.brackets.StageStatus
@@ -10,7 +8,6 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.model.exceptions.EventApplyingException
-import compman.compsrv.repository.JooqRepository
 import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.PayloadValidator
 import org.springframework.stereotype.Component
@@ -19,10 +16,9 @@ import kotlin.math.max
 import kotlin.math.min
 
 @Component
-class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
-                              private val jooqRepository: JooqRepository,
-                              validators: List<PayloadValidator>,
-                              mapper: ObjectMapper) : AbstractEventProcessor(mapper, validators) {
+class DashboardEventProcessor(validators: List<PayloadValidator>,
+                              mapper: ObjectMapper) {
+/*
     override fun affectedEvents(): Set<EventType> {
         return setOf(EventType.DASHBOARD_FIGHT_ORDER_CHANGED,
                 EventType.DASHBOARD_FIGHT_RESULT_SET,
@@ -107,4 +103,5 @@ class DashboardEventProcessor(private val compScoreCrudRepository: CompScoreDao,
         }
         jooqRepository.saveCompScores(newScores)
     }
+*/
 }

@@ -3,11 +3,11 @@ package compman.compsrv.service.resolver
 import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.kafka.serde.EventDeserializer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
-import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
+import compman.compsrv.repository.RocksDBOperations
 import compman.compsrv.service.CompetitionCleaner
-import compman.compsrv.service.ICommandProcessingService
+import compman.compsrv.service.CompetitionStateService
 import compman.compsrv.util.IDGenerator
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord
@@ -24,7 +24,7 @@ import java.util.*
 
 @Component
 class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
-                               private val competitionStateService: ICommandProcessingService<CommandDTO, EventDTO>,
+                               private val competitionStateService: CompetitionStateService,
                                private val clusterSesion: ClusterOperations,
                                private val competitionCleaner: CompetitionCleaner) {
 
@@ -39,11 +39,11 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
         setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, EventDeserializer::class.java.canonicalName)
     }
 
-    fun resolveLatestCompetitionState(competitionId: String, transactional: Boolean = false) {
+    fun resolveLatestCompetitionState(competitionId: String, dbOperations: RocksDBOperations) {
         log.info("Retrieving state for the competitionId: $competitionId")
         if (!clusterSesion.isProcessedLocally(competitionId)) {
             log.error("Trying to find the 'COMPETITION_CREATED' event in the events for the past 365 days.")
-            val competitionCreated = initStateAndSendCommand(competitionId)
+            val competitionCreated = initStateAndSendCommand(competitionId, dbOperations)
             if (competitionCreated) {
                 log.info("We have initialized the state from the first event to the last for $competitionId")
             } else {
@@ -54,7 +54,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
         }
     }
 
-    private fun initStateAndSendCommand(competitionId: String): Boolean {
+    private fun initStateAndSendCommand(competitionId: String, dbOperations: RocksDBOperations): Boolean {
         val consumer = KafkaConsumer<String, EventDTO>(consumerProperties())
         var competitionCreated = false
         consumer.use { cons ->
@@ -81,11 +81,11 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                             log.info("Yay! Found the 'COMPETITION_CREATED' event for $competitionId !")
                             competitionCleaner.deleteCompetition(competitionId)
                             competitionCreated = true
-                            competitionStateService.apply(createdEvent.value())
+                            competitionStateService.apply(createdEvent.value(), dbOperations, false)
                             log.info("Finished applying 'COMPETITION_CREATED' event for $competitionId")
                             val events = recSequence.filter { it.value()?.type != EventType.COMPETITION_CREATED }.map { it.value() }.toList()
                             log.debug("Applying batch events: ${events.joinToString("\n")}")
-                            competitionStateService.batchApply(events)
+                            competitionStateService.batchApply(events, dbOperations)
                         } else {
                             log.error("Could not find the 'COMPETITION_CREATED' event for $competitionId, maybe the competition was created more than 365 days ago.")
                             break
@@ -93,7 +93,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                     } else {
                         val events = records.filter { it.key() == competitionId }.map { it.value() }.toList()
                         log.info("Applying batch events: ${events.joinToString("\n")}")
-                        competitionStateService.batchApply(events)
+                        competitionStateService.batchApply(events, dbOperations)
                     }
                     cons.commitSync()
                 } while (!records.isNullOrEmpty())

@@ -6,7 +6,6 @@ import arrow.core.extensions.list.zip.zipWith
 import com.google.common.math.DoubleMath
 import com.google.common.math.IntMath
 import com.google.common.math.LongMath
-import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.CompScoreDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
@@ -257,7 +256,7 @@ class BracketsGenerateService : FightsService() {
         }
 
         val markedUncompletableFights = markAndProcessUncompletableFights(assignedFights, stage.stageStatus) { id ->
-            assignedFights.first { fight -> fight.id == id }.scores?.map { it.toPojo(id) }
+            assignedFights.first { fight -> fight.id == id }.scores?.toList()
         }
 
 

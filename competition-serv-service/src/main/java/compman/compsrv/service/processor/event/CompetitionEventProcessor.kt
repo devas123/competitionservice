@@ -1,32 +1,22 @@
 package compman.compsrv.service.processor.event
 
-import com.compmanager.compservice.jooq.tables.daos.*
-import com.compmanager.compservice.jooq.tables.pojos.RegGroupRegPeriod
-import com.compmanager.compservice.jooq.tables.pojos.RegistrationInfo
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.dto.competition.CompetitionStateDTO
 import compman.compsrv.model.dto.competition.RegistrationInfoDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.model.exceptions.EventApplyingException
-import compman.compsrv.repository.JooqRepository
 import compman.compsrv.service.CompetitionCleaner
 import compman.compsrv.util.PayloadValidator
 import compman.compsrv.util.applyProperties
 import org.springframework.stereotype.Component
 
 @Component
-class CompetitionEventProcessor(private val competitionPropertiesDao: CompetitionPropertiesDao,
-                                private val registrationGroupCrudRepository: RegistrationGroupDao,
-                                private val registrationPeriodCrudRepository: RegistrationPeriodDao,
-                                private val regGroupRegPeriodDao: RegGroupRegPeriodDao,
-                                private val registrationInfoCrudRepository: RegistrationInfoDao,
-                                private val jooqRepository: JooqRepository,
-                                private val competitionCleaner: CompetitionCleaner,
+class CompetitionEventProcessor(private val competitionCleaner: CompetitionCleaner,
                                 mapper: ObjectMapper,
-                                validators: List<PayloadValidator>) : AbstractEventProcessor(mapper, validators) {
+                                validators: List<PayloadValidator>) /*{
+*//*
     override fun affectedEvents(): Set<EventType> {
         return setOf(
                 EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED,
@@ -48,6 +38,7 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
                 EventType.INTERNAL_COMPETITION_INFO
         )
     }
+*//*
 
     override fun applyEvent(event: EventDTO) {
         fun createError(error: String) = EventApplyingException(error, event)
@@ -142,4 +133,4 @@ class CompetitionEventProcessor(private val competitionPropertiesDao: Competitio
             }
         }
     }
-}
+}*/

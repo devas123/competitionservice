@@ -1,8 +1,6 @@
 package compman.compsrv.service
 
 import arrow.core.Tuple2
-import com.compmanager.compservice.jooq.tables.pojos.FightDescription
-import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
@@ -151,12 +149,12 @@ class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGener
 
         val periods = createDefaultPeriods(findFightIdsByCatIds, categories, period1, period2)
         val stages = stagesToFights.map { it.first }
-        val fights = stagesToFights.flatMap { it.second }.map { it.toPojo() }
+        val fights = stagesToFights.flatMap { it.second }
 
         return scheduleService.generateSchedule(competitionId, periods, mats.toList(), Mono.just(StageGraph(stages, fights)), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap())
     }
 
-    fun generateSchedule(competitionId: String, periods: List<PeriodDTO>, mats: List<MatDescriptionDTO>, stages: List<StageDescriptorDTO>, fights: List<FightDescription>,
+    fun generateSchedule(competitionId: String, periods: List<PeriodDTO>, mats: List<MatDescriptionDTO>, stages: List<StageDescriptorDTO>, fights: List<FightDescriptionDTO>,
                          categories: List<Pair<String, CategoryDescriptorDTO>>, competitorNumbers: Int) = scheduleService.generateSchedule(competitionId, periods, mats,
             Mono.just(StageGraph(stages, fights)), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap())
 

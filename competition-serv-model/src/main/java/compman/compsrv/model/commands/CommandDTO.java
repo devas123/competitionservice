@@ -20,6 +20,7 @@ public class CommandDTO {
     private CommandType type;
     private String categoryId;
     private String matId;
+    private String competitorId;
     private LinkedHashMap<String, Object> payload;
     private Map<String, String> metadata;
     private Boolean executed = false;

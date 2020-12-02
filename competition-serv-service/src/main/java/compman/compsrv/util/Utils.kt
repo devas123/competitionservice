@@ -1,6 +1,5 @@
 package compman.compsrv.util
 
-import com.compmanager.compservice.jooq.tables.pojos.CompetitionProperties
 import compman.compsrv.model.dto.competition.AcademyDTO
 import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
@@ -9,7 +8,7 @@ import java.math.BigDecimal
 import java.sql.Timestamp
 import java.time.Instant
 
-private fun parseDate(date: Any?, default: Instant? = null) = if (date != null && !date.toString().isBlank()) {
+private fun parseDate(date: Any?, default: Instant? = null) = if (date != null && date.toString().isNotBlank()) {
     Instant.ofEpochMilli(date.toString().toLong())
 } else {
     default
@@ -71,12 +70,12 @@ fun CompetitorDTO.copy(id: String? = this.id,
 fun Instant.toTimestamp(): Timestamp = Timestamp.from(this)
 
 
-fun CompetitionProperties.applyProperties(props: Map<String, Any?>?) =
+fun CompetitionPropertiesDTO.applyProperties(props: Map<String, Any?>?) =
         if (props != null) {
-            CompetitionProperties(this).also { cp ->
+            this.also { cp ->
                 cp.bracketsPublished = props["bracketsPublished"] as? Boolean ?: this.bracketsPublished
-                cp.startDate = parseDate(props["startDate"])?.toTimestamp() ?: this.startDate
-                cp.endDate = parseDate(props["endDate"])?.toTimestamp() ?: this.endDate
+                cp.startDate = parseDate(props["startDate"]) ?: this.startDate
+                cp.endDate = parseDate(props["endDate"]) ?: this.endDate
                 cp.emailNotificationsEnabled = props["emailNotificationsEnabled"] as? Boolean
                         ?: this.emailNotificationsEnabled
                 cp.competitionName = props["competitionName"] as String? ?: this.competitionName

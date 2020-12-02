@@ -1,26 +1,26 @@
 package compman.compsrv.service.processor.event
 
-import com.compmanager.compservice.jooq.tables.daos.CategoryDescriptorDao
-import com.compmanager.compservice.jooq.tables.daos.CompetitorDao
+
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.mapping.toPojo
+import compman.compsrv.aggregate.AggregateType
+import compman.compsrv.aggregate.Category
 import compman.compsrv.model.commands.payload.CategoryRegistrationStatusChangePayload
 import compman.compsrv.model.commands.payload.ChangeCompetitorCategoryPayload
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.model.exceptions.EventApplyingException
-import compman.compsrv.repository.JooqRepository
+import compman.compsrv.repository.RocksDBOperations
 import compman.compsrv.util.PayloadValidator
 import org.springframework.stereotype.Component
 
 
 @Component
 class CategoryEventProcessor(mapper: ObjectMapper,
-                             validators: List<PayloadValidator>,
-                             private val categoryDescriptorCrudRepository: CategoryDescriptorDao,
-                             private val competitorCrudRepository: CompetitorDao,
-                             private val jooqRepository: JooqRepository) : AbstractEventProcessor(mapper, validators) {
+                             validators: List<PayloadValidator>)  {
+/*
+    override val aggregateType: AggregateType = AggregateType.CATEGORY
+
     override fun affectedEvents(): Set<EventType> {
         return setOf(
                 EventType.COMPETITOR_ADDED,
@@ -38,7 +38,7 @@ class CategoryEventProcessor(mapper: ObjectMapper,
                 EventType.COMPETITOR_CATEGORY_CHANGED)
     }
 
-    override fun applyEvent(event: EventDTO) {
+    fun applyEvent(entityType: Category, event: EventDTO, rocksDBOperations: RocksDBOperations): Category {
         when (event.type) {
             EventType.STAGE_STATUS_UPDATED -> appluStageStatusUpdated(event)
             EventType.CATEGORY_REGISTRATION_STATUS_CHANGED -> applyCategoryRegistrationStatusChanged(event)
@@ -165,4 +165,5 @@ class CategoryEventProcessor(mapper: ObjectMapper,
             throw EventApplyingException("Category ID is null.", event)
         }
     }
+*/
 }

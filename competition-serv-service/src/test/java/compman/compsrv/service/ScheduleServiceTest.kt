@@ -1,7 +1,6 @@
 package compman.compsrv.service
 
 import arrow.core.Tuple2
-import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.schedule.*
@@ -38,8 +37,8 @@ class ScheduleServiceTest {
             val competitors = FightsService.generateRandomCompetitorsForCategory(competitorNumbers, competitorNumbers, it.second.id, competitionId)
             val stage = testBracketsDataGenerationUtils.createSingleEliminationStage(competitionId, it.second.id, it.first, competitorNumbers)
             stage to testBracketsDataGenerationUtils.generateFilledFights(competitionId, it.second, stage, competitors, BigDecimal.valueOf(fightDuration))
-        }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }) }
-        val flatFights = stagesToFights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }
+        }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f, f.scores.toList()) }) }
+        val flatFights = stagesToFights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f, f.scores.toList()) }
 
         val period1 = "P1"
         val period2 = "P2"
@@ -57,7 +56,7 @@ class ScheduleServiceTest {
         periods[1].scheduleRequirements[lastIndex] = tmp
         periods[1].scheduleRequirements.forEachIndexed { index, scheduleRequirementDTO -> scheduleRequirementDTO.entryOrder = index }
         val stages = stagesToFights.map { it.first }
-        val fights = stagesToFights.flatMap { it.second }.map { it.toPojo() }
+        val fights = stagesToFights.flatMap { it.second }
         val mats = testBracketsDataGenerationUtils.createDefaultMats(period1, period2)
         val tuple2 = testBracketsDataGenerationUtils.generateSchedule(competitionId, periods, mats.toList(), stages, fights, categories, competitorNumbers)
         val (schedule, fstms) = printSchedule(tuple2, stagesToFights)
@@ -81,8 +80,8 @@ class ScheduleServiceTest {
             val competitors = FightsService.generateRandomCompetitorsForCategory(competitorNumbers, competitorNumbers, it.second.id, competitionId)
             val stage = testBracketsDataGenerationUtils.createSingleEliminationStage(competitionId, it.second.id, it.first, competitorNumbers)
             stage to testBracketsDataGenerationUtils.generateFilledFights(competitionId, it.second, stage, competitors, BigDecimal.valueOf(fightDuration))
-        }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }) }
-        val flatFights = stagesToFights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }
+        }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f, f.scores.toList()) }) }
+        val flatFights = stagesToFights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f, f.scores.toList()) }
 
         val period1 = "P1"
         val period2 = "P2"
@@ -101,7 +100,7 @@ class ScheduleServiceTest {
         periods[1].scheduleRequirements[lastIndex] = tmp
         periods[1].scheduleRequirements.forEachIndexed { index, scheduleRequirementDTO -> scheduleRequirementDTO.entryOrder = index }
         val stages = stagesToFights.map { it.first }
-        val fights = stagesToFights.flatMap { it.second }.map { it.toPojo() }
+        val fights = stagesToFights.flatMap { it.second }
         val mats = testBracketsDataGenerationUtils.createDefaultMats(period1, period2)
         val tuple2 = testBracketsDataGenerationUtils.generateSchedule(competitionId, periods, mats.toList(), stages, fights, categories, competitorNumbers)
         val (schedule, fstms) = printSchedule(tuple2, stagesToFights)
@@ -125,8 +124,8 @@ class ScheduleServiceTest {
             val competitors = FightsService.generateRandomCompetitorsForCategory(competitorNumbers, competitorNumbers, it.second.id, competitionId)
             val stage = testBracketsDataGenerationUtils.createSingleEliminationStage(competitionId, it.second.id, it.first, competitorNumbers)
             stage to testBracketsDataGenerationUtils.generateFilledFights(competitionId, it.second, stage, competitors, BigDecimal.valueOf(fightDuration))
-        }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }) }
-        val flatFights = stagesToFights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }
+        }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f, f.scores.toList()) }) }
+        val flatFights = stagesToFights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f, f.scores.toList()) }
 
         val period1 = "P1"
         val period2 = "P2"
@@ -143,7 +142,7 @@ class ScheduleServiceTest {
             scheduleRequirementDTO.id = "Period1-req-$index"
         }
         val stages = stagesToFights.map { it.first }
-        val fights = stagesToFights.flatMap { it.second }.map { it.toPojo() }
+        val fights = stagesToFights.flatMap { it.second }
         val mats = testBracketsDataGenerationUtils.createDefaultMats(period1, period2)
         val tuple2 = testBracketsDataGenerationUtils.generateSchedule(competitionId, periods, mats.toList(), stages, fights, categories, competitorNumbers)
         val (schedule, fstms) = printSchedule(tuple2, stagesToFights)
@@ -167,8 +166,8 @@ class ScheduleServiceTest {
             val competitors = FightsService.generateRandomCompetitorsForCategory(competitorNumbers, competitorNumbers, it.second.id, competitionId)
             val stage = testBracketsDataGenerationUtils.createSingleEliminationStage(competitionId, it.second.id, it.first, competitorNumbers)
             stage to testBracketsDataGenerationUtils.generateFilledFights(competitionId, it.second, stage, competitors, BigDecimal.valueOf(fightDuration))
-        }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }) }
-        val flatFights = fights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }
+        }.map { dto -> dto.copy(second = dto.second.filter { f -> !ScheduleService.obsoleteFight(f, f.scores.toList()) }) }
+        val flatFights = fights.flatMap { it.second }.filter { f -> !ScheduleService.obsoleteFight(f, f.scores.toList()) }
 
         val tuple = testBracketsDataGenerationUtils.generateSchedule(categories, fights, competitionId, competitorNumbers)
         val (schedule, fstms) = printSchedule(tuple, fights)
@@ -215,7 +214,7 @@ class ScheduleServiceTest {
 
         println("Fights: ")
         fights.forEach { pair ->
-            println("${pair.first.id} -> ${pair.second.filter { dto -> !ScheduleService.obsoleteFight(dto.toPojo(), dto.scores.map { it.toPojo(dto.id) }) }.size}")
+            println("${pair.first.id} -> ${pair.second.filter { f -> !ScheduleService.obsoleteFight(f, f.scores.toList()) }.size}")
         }
 
         println("FightStartTimes: ")
@@ -241,7 +240,7 @@ class ScheduleServiceTest {
                     categoryId = it.second.id,
                     groupSizes = listOf(competitorNumbers)
             )
-        }.map { stageToFights -> stageToFights.copy(second = stageToFights.second.filter { f -> !ScheduleService.obsoleteFight(f.toPojo(), f.scores.map { it.toPojo(f.id) }) }) }
+        }.map { stageToFights -> stageToFights.copy(second = stageToFights.second.filter { f -> !ScheduleService.obsoleteFight(f, f.scores.toList()) }) }
         val flatFights = fights.flatMap { it.second }
 
         val start = System.currentTimeMillis()
@@ -253,7 +252,7 @@ class ScheduleServiceTest {
 
         println("Fights: ")
         fights.forEach { pair ->
-            println("${pair.first} -> ${pair.second.filter { dto -> !ScheduleService.obsoleteFight(dto.toPojo(), dto.scores.map { it.toPojo(dto.id) }) }.size}")
+            println("${pair.first} -> ${pair.second.filter { f -> !ScheduleService.obsoleteFight(f, f.scores.toList()) }.size}")
         }
 
         assertNotNull(schedule)

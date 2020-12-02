@@ -1,65 +1,69 @@
 package compman.compsrv.service
 
-import com.compmanager.compservice.jooq.tables.Event
-import com.compmanager.compservice.jooq.tables.daos.EventDao
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.google.common.cache.CacheBuilder
+import compman.compsrv.aggregate.AbstractAggregate
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.service.processor.command.ICommandProcessor
-import compman.compsrv.service.processor.event.IEventProcessor
+import compman.compsrv.model.exceptions.CommandProcessingException
+import compman.compsrv.model.exceptions.EventApplyingException
+import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.service.processor.command.AggregateServiceFactory
+import compman.compsrv.service.processor.command.AggregatesWithEvents
+import compman.compsrv.service.processor.sagas.SagaExecutionService
 import compman.compsrv.util.IDGenerator
-import compman.compsrv.util.createErrorEvent
-import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import java.time.Duration
 
 @Component
 class CompetitionStateService(
-        private val eventDao: EventDao,
-        private val dslContext: DSLContext,
-        private val eventProcessors: List<IEventProcessor>,
-        private val commandProcessors: List<ICommandProcessor>,
-        private val mapper: ObjectMapper) : ICommandProcessingService<CommandDTO, EventDTO> {
+        private val aggregateServiceFactory: AggregateServiceFactory,
+        private val sagaExecutionService: SagaExecutionService) {
 
     companion object {
         private val log = LoggerFactory.getLogger(CompetitionStateService::class.java)
     }
 
-    override fun apply(event: EventDTO, isBatch: Boolean) {
-        log.info("Applying event: $event, batch: $isBatch")
-        fun createErrorEvent(error: String?) = mapper.createErrorEvent(event, error)
-        val eventWithId = event.setId(event.id ?: IDGenerator.uid())
-        if (isBatch || !duplicateCheck(event)) {
-            eventProcessors.filter { it.affectedEvents().contains(event.type) }.forEach { it.applyEvent(eventWithId) }
-            listOf(eventWithId)
-        } else {
-            listOf(createErrorEvent("Duplicate event: CorrelationId: ${eventWithId.correlationId}"))
+    private val commandDedupCache = CacheBuilder.newBuilder().maximumSize(10000).expireAfterAccess(Duration.ofSeconds(10))
+            .concurrencyLevel(Runtime.getRuntime().availableProcessors()).weakValues().build<String, Boolean>()
+
+    private val eventDedupCache = CacheBuilder.newBuilder().maximumSize(10000).expireAfterAccess(Duration.ofSeconds(10))
+            .concurrencyLevel(Runtime.getRuntime().availableProcessors()).weakValues().build<String, Boolean>()
+
+    fun batchApply(events: List<EventDTO>, dbOperations: RocksDBOperations) {
+        events.filter {
+            log.info("Check if event is duplicate: $it")
+            !duplicateCheck(it)
+        }.fold(Unit) { _, eventHolder ->
+            val start = System.currentTimeMillis()
+            log.info("Batch applying start")
+            apply(eventHolder, dbOperations, isBatch = true)
+            val finishApply = System.currentTimeMillis()
+            log.info("Batch apply finish, took ${Duration.ofMillis(finishApply - start)}. Starting flush")
+            log.info("Flush finish, took ${Duration.ofMillis(System.currentTimeMillis() - finishApply)}.")
         }
     }
 
-    override fun process(command: CommandDTO): List<EventDTO> {
 
-        fun createErrorEvent(error: String) = mapper.createErrorEvent(command, error)
-        return kotlin.runCatching {
-            when {
-                command.competitionId.isNullOrBlank() -> {
-                    log.error("Competition id is empty, command $command")
-                    listOf(createErrorEvent("Competition ID is empty."))
-                }
-                dslContext.fetchExists(dslContext.select()
-                        .from(Event.EVENT).where(Event.EVENT.CORRELATION_ID.equal(command.correlationId))) -> {
-                    log.error("Duplicate command.")
-                    listOf(createErrorEvent("Duplicate command."))
-                }
-                else -> {
-                    commandProcessors.filter { it.affectedCommands().contains(command.type) }.flatMap { it.executeCommand(command) }
-                }
-            }
-        }.recover {
-            log.error("Error while applying event.", it)
-            listOf(createErrorEvent(it.localizedMessage ?: it.message ?: ""))
-        }.getOrDefault(emptyList())
+    fun apply(event: EventDTO, dbOperations: RocksDBOperations, isBatch: Boolean) {
+        log.info("Applying event: $event, batch: $isBatch")
+        val eventWithId = event.setId(event.id ?: IDGenerator.uid())
+        if (isBatch || !duplicateCheck(event)) {
+            aggregateServiceFactory.getAggregateService(event).getAggregate(event, dbOperations).applyEvent(event, dbOperations)
+            listOf(eventWithId)
+        } else {
+            throw EventApplyingException("Duplicate event: correlationId: ${eventWithId.correlationId}", eventWithId)
+        }
     }
 
-    override fun duplicateCheck(event: EventDTO): Boolean = event.id?.let { eventDao.existsById(it) } == true
+    fun process(command: CommandDTO, dbOperations: RocksDBOperations): AggregatesWithEvents<AbstractAggregate> {
+        if (command.competitionId.isNullOrBlank()) {
+            log.error("Competition id is empty, command $command")
+            throw CommandProcessingException("Competition ID is empty.", command)
+        }
+        if (commandDedupCache.asMap().put(command.id, true) != null) { throw CommandProcessingException("Duplicate command.", command) }
+        return aggregateServiceFactory.getAggregateService(command).processCommand(command, rocksDBOperations = dbOperations)
+    }
+
+    fun duplicateCheck(event: EventDTO): Boolean = eventDedupCache.asMap().put(event.id, true) == null
 }

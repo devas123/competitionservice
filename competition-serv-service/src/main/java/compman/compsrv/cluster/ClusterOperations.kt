@@ -12,6 +12,7 @@ import compman.compsrv.model.events.payload.CompetitionInfoPayload
 import compman.compsrv.service.CommandSyncExecutor
 import compman.compsrv.service.CommandProducer
 import compman.compsrv.service.CompetitionCleaner
+import compman.compsrv.util.IDGenerator
 import io.scalecube.cluster.*
 import io.scalecube.cluster.membership.MembershipEvent
 import io.scalecube.cluster.transport.api.Message
@@ -146,10 +147,9 @@ class ClusterOperations(private val clusterConfigurationProperties: ClusterConfi
     fun createProcessingInfoEvents(correlationId: String, competitionIds: Set<String>): Array<EventDTO> {
         val member = MemberWithRestPort(cluster.member(), serverProperties.port)
         return competitionIds.map {
-            EventDTO(null, correlationId, it, null, null, EventType.INTERNAL_COMPETITION_INFO,
-                    mapper.writeValueAsString(CompetitionInfoPayload().setHost(member.host).setPort(member.restPort)
-                            .setCompetitionId(it).setMemberId(member.id)),
-                    emptyMap())
+            EventDTO().setId(IDGenerator.uid()).setCorrelationId(correlationId).setCompetitionId(it).setType(EventType.INTERNAL_COMPETITION_INFO)
+                .setPayload(mapper.writeValueAsString(CompetitionInfoPayload().setHost(member.host).setPort(member.restPort)
+                            .setCompetitionId(it).setMemberId(member.id)))
         }.toTypedArray()
     }
 

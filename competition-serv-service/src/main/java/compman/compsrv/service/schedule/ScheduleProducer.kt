@@ -3,7 +3,6 @@ package compman.compsrv.service.schedule
 import arrow.core.Tuple3
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.*
-import compman.compsrv.repository.collectors.ScheduleEntryAccumulator
 import compman.compsrv.service.schedule.internal.InternalFightStartTime
 import compman.compsrv.service.schedule.internal.InternalMatScheduleContainer
 import compman.compsrv.service.schedule.internal.ScheduleAccumulator
@@ -117,7 +116,7 @@ class ScheduleProducer(val competitionId: String,
                                         log.info("Processing pause at mat ${req.first.matId}, period ${req.first.periodId} at ${mat.currentTime} for ${req.first.durationMinutes} minutes")
                                         val e = createRelativePauseEntry(req.first, mat.currentTime,
                                                 mat.currentTime.plus(req.first.durationMinutes.toLong(), ChronoUnit.MINUTES))
-                                        accumulator.scheduleEntries.add(ScheduleEntryAccumulator(e))
+                                        accumulator.scheduleEntries.add(e)
                                         mat.currentTime = mat.currentTime.plus(req.first.durationMinutes.toLong(), ChronoUnit.MINUTES)
                                     } else {
                                         log.warn("Relative pause ${req.first.id} not dispatched because either mat ${req.first.matId} not found or mat is from another period: ${matsToIds[req.first.matId]?.periodId}/${period.id}")
@@ -165,7 +164,7 @@ class ScheduleProducer(val competitionId: String,
                     if (st.getNonCompleteCount() > 0) {
                         log.warn("${st.getNonCompleteCount()} fights were not dispatched.")
                     }
-                    Tuple3(accumulator.scheduleEntries.map { it.getScheduleEntry() }, accumulator.matSchedules.filterNotNull(), accumulator.invalidFights.toSet())
+                    Tuple3(accumulator.scheduleEntries, accumulator.matSchedules.filterNotNull(), accumulator.invalidFights.toSet())
                 }
     }
 
@@ -193,13 +192,13 @@ class ScheduleProducer(val competitionId: String,
             val p = pauses.getValue(mat.id).removeAt(0)
             log.info("Processing a fixed pause, required: ${p.startTime}, actual: ${mat.currentTime}, mat: ${mat.id}, duration: ${p.durationMinutes}. Period starts: ${period.startTime}")
             val e = createFixedPauseEntry(p, p.startTime.plus(p.durationMinutes.toLong(), ChronoUnit.MINUTES))
-            accumulator.scheduleEntries.add(ScheduleEntryAccumulator(e))
+            accumulator.scheduleEntries.add(e)
             mat.currentTime = mat.currentTime.plus(p.durationMinutes.toLong(), ChronoUnit.MINUTES)
         }
         requirementsCapacity[requiremetsGraph.getIndex(req.first.id)]--
         val e = accumulator.scheduleEntryFromRequirement(req.first, mat.currentTime, period.id)
-        accumulator.scheduleEntries[e].fightIds.add(MatIdAndSomeId(mat.id, fightId))
-        accumulator.scheduleEntries[e].categoryIds.add(st.getCategoryId(fightId))
+        accumulator.scheduleEntries[e].fightIds += MatIdAndSomeId(mat.id, fightId)
+        accumulator.scheduleEntries[e].categoryIds += st.getCategoryId(fightId)
         mat.fights.add(InternalFightStartTime(fightId, st.getCategoryId(fightId), mat.id, mat.totalFights++, mat.currentTime, accumulator.scheduleEntries[e].getId(), period.id))
         log.info("Period: ${period.id}, category: ${st.getCategoryId(fightId)}, fight: $fightId, starts: ${mat.currentTime}, mat: ${mat.id}, numberOnMat: ${mat.totalFights - 1}")
         mat.currentTime = mat.currentTime.plus(duration.multiply(BigDecimal.valueOf(60L)).toLong(), ChronoUnit.SECONDS)
