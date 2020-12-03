@@ -15,7 +15,7 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.exceptions.CommandProcessingException
 import compman.compsrv.model.exceptions.EventApplyingException
-import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.util.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -49,21 +49,21 @@ abstract class AbstractAggregateService<AT : AbstractAggregate>(val mapper: Obje
 
     protected abstract val commandsToHandlers: Map<CommandType, CommandExecutor<AT>>
 
-    fun processCommand(command: CommandDTO, rocksDBOperations: RocksDBOperations): AggregatesWithEvents<AT> {
+    fun processCommand(command: CommandDTO, rocksDBOperations: DBOperations): AggregatesWithEvents<AT> {
         val aggregateList = getAggregate(command, rocksDBOperations)
         return aggregateList.fold({
             it.flatMap(this::generateEventsFromAggregate.curried()(command)(rocksDBOperations))
         }, this::generateEventsFromAggregate.curried()(command)(rocksDBOperations))
     }
 
-    private fun generateEventsFromAggregate(command: CommandDTO, rocksDBOperations: RocksDBOperations, aggregate: AT): AggregatesWithEvents<AT> {
+    private fun generateEventsFromAggregate(command: CommandDTO, rocksDBOperations: DBOperations, aggregate: AT): AggregatesWithEvents<AT> {
         val version = aggregate.getVersion()
         return commandsToHandlers[command.type]?.invoke(aggregate, rocksDBOperations, command)
                 ?.map { events -> events.first to events.second.mapIndexed { _, e -> e.setId(IDGenerator.uid()) }.setVersion(version, aggregate) }
-                ?: throw CommandProcessingException("Unknown command type: ${command.type}", command)
+                ?: throw CommandProcessingException("Command handler not implemented for type ${command.type}", command)
     }
 
-    abstract fun getAggregate(command: CommandDTO, rocksDBOperations: RocksDBOperations): Either<List<AT>, AT>
-    abstract fun getAggregate(event: EventDTO, rocksDBOperations: RocksDBOperations): AT
+    abstract fun getAggregate(command: CommandDTO, rocksDBOperations: DBOperations): Either<List<AT>, AT>
+    abstract fun getAggregate(event: EventDTO, rocksDBOperations: DBOperations): AT
 
 }

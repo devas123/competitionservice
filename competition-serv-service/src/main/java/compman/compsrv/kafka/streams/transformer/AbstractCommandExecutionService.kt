@@ -7,7 +7,7 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
-import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.repository.RocksDBRepository
 import compman.compsrv.service.CommandSyncExecutor
 import compman.compsrv.service.CompetitionStateService
@@ -81,7 +81,7 @@ abstract class AbstractCommandExecutionService(
     private fun createErrorEvent(command: CommandDTO, message: String?) = listOf(mapper.createErrorEvent(command, message))
 
 
-    private fun commandExecutionLogic(command: CommandDTO, rocksDBOperations: RocksDBOperations): List<EventDTO> {
+    private fun commandExecutionLogic(command: CommandDTO, rocksDBOperations: DBOperations): List<EventDTO> {
         val aggregatesAndEvents = executionService.process(command, rocksDBOperations)
         aggregatesAndEvents.forEach { it.first.applyEvents(it.second, rocksDBOperations) }
         return aggregatesAndEvents.flatMap { it.second }

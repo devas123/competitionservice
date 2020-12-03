@@ -5,7 +5,7 @@ import compman.compsrv.kafka.serde.EventDeserializer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
-import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.CompetitionCleaner
 import compman.compsrv.service.CompetitionStateService
 import compman.compsrv.util.IDGenerator
@@ -39,7 +39,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
         setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, EventDeserializer::class.java.canonicalName)
     }
 
-    fun resolveLatestCompetitionState(competitionId: String, dbOperations: RocksDBOperations) {
+    fun resolveLatestCompetitionState(competitionId: String, dbOperations: DBOperations) {
         log.info("Retrieving state for the competitionId: $competitionId")
         if (!clusterSesion.isProcessedLocally(competitionId)) {
             log.error("Trying to find the 'COMPETITION_CREATED' event in the events for the past 365 days.")
@@ -54,7 +54,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
         }
     }
 
-    private fun initStateAndSendCommand(competitionId: String, dbOperations: RocksDBOperations): Boolean {
+    private fun initStateAndSendCommand(competitionId: String, dbOperations: DBOperations): Boolean {
         val consumer = KafkaConsumer<String, EventDTO>(consumerProperties())
         var competitionCreated = false
         consumer.use { cons ->

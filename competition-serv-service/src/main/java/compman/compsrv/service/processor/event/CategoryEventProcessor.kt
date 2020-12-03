@@ -10,7 +10,7 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.model.exceptions.EventApplyingException
-import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.util.PayloadValidator
 import org.springframework.stereotype.Component
 

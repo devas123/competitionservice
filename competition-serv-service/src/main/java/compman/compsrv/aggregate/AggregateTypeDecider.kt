@@ -54,6 +54,7 @@ object AggregateTypeDecider {
             CommandType.UPDATE_COMPETITOR_COMMAND -> AggregateType.COMPETITOR
             CommandType.REMOVE_COMPETITOR_COMMAND -> AggregateType.COMPETITOR
             CommandType.PROPAGATE_COMPETITORS_COMMAND -> AggregateType.CATEGORY
+            else -> throw IllegalArgumentException("Unknown type: $commandType")
         }
     }
 
@@ -98,6 +99,7 @@ object AggregateTypeDecider {
             EventType.INTERNAL_COMPETITION_INFO -> AggregateType.SAGA
             EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED -> AggregateType.CATEGORY
             EventType.CATEGORY_NUMBER_OF_COMPETITORS_DECREASED -> AggregateType.CATEGORY
+            else -> throw IllegalArgumentException("Unknown type: $eventType")
         }
     }
 }

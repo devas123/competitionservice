@@ -30,7 +30,7 @@ import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentSkipListSet
 
-class ClusterOperations(private val clusterConfigurationProperties: ClusterConfigurationProperties,
+open class ClusterOperations(private val clusterConfigurationProperties: ClusterConfigurationProperties,
                         private val preconfiguredCluster: ClusterConfig,
                         private val competitionCleaner: CompetitionCleaner,
                         kafkaProperties: KafkaProperties,

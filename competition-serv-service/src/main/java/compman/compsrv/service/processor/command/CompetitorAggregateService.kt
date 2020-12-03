@@ -15,7 +15,7 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.CompetitorAddedPayload
 import compman.compsrv.model.events.payload.CompetitorRemovedPayload
-import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.util.PayloadValidator
 import org.springframework.stereotype.Component
@@ -70,7 +70,7 @@ class CompetitorAggregateService constructor(mapper: ObjectMapper,
             CommandType.CREATE_FAKE_COMPETITORS_COMMAND to doCreateFakeCompetitors)
 
 
-    override fun getAggregate(command: CommandDTO, rocksDBOperations: RocksDBOperations): Either<List<Competitor>, Competitor> {
+    override fun getAggregate(command: CommandDTO, rocksDBOperations: DBOperations): Either<List<Competitor>, Competitor> {
         return when (command.type) {
             CommandType.ADD_COMPETITOR_COMMAND -> {
                 Competitor(CompetitorDTO()).right()
@@ -84,6 +84,6 @@ class CompetitorAggregateService constructor(mapper: ObjectMapper,
         }
     }
 
-    override fun getAggregate(event: EventDTO, rocksDBOperations: RocksDBOperations): Competitor = rocksDBOperations.getCompetitor(event.competitorId, true)
+    override fun getAggregate(event: EventDTO, rocksDBOperations: DBOperations): Competitor = rocksDBOperations.getCompetitor(event.competitorId, true)
 
 }

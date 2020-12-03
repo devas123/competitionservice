@@ -11,7 +11,7 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
 import compman.compsrv.model.exceptions.EventApplyingException
-import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.service.processor.command.*
@@ -53,13 +53,13 @@ class Category(val id: String, private val descriptor: CategoryDescriptorDTO, va
         }
     }
 
-    override fun applyEvent(eventDTO: EventDTO, rocksDBOperations: RocksDBOperations) {
+    override fun applyEvent(eventDTO: EventDTO, rocksDBOperations: DBOperations) {
         if (eventDTO.version != version.get()) {
             throw EventApplyingException("Version mismatch: ${eventDTO.version} != ${version.get()}", eventDTO)
         }
     }
 
-    override fun applyEvents(events: List<EventDTO>, rocksDBOperations: RocksDBOperations) {
+    override fun applyEvents(events: List<EventDTO>, rocksDBOperations: DBOperations) {
         events.forEach { e -> applyEvent(e, rocksDBOperations) }
     }
 

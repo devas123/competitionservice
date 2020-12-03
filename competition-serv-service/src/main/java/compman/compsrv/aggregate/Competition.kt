@@ -15,7 +15,7 @@ import compman.compsrv.model.dto.schedule.PeriodDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
-import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.schedule.ScheduleService
 import compman.compsrv.service.schedule.StageGraph
 import compman.compsrv.util.IDGenerator
@@ -26,11 +26,11 @@ import java.util.concurrent.atomic.AtomicLong
 
 class Competition(val id: String, val properties: CompetitionPropertiesDTO, val categories: Array<String> = emptyArray(), val competitors: Array<String> = emptyArray(),
                   private val periods: Array<PeriodDTO> = emptyArray(), private val mats: Array<MatDescriptionDTO> = emptyArray(), private val registrationInfo: RegistrationInfoDTO) : AbstractAggregate(AtomicLong(0), AtomicLong(0)) {
-    override fun applyEvent(eventDTO: EventDTO, rocksDBOperations: RocksDBOperations) {
+    override fun applyEvent(eventDTO: EventDTO, rocksDBOperations: DBOperations) {
         TODO("Not yet implemented")
     }
 
-    override fun applyEvents(events: List<EventDTO>, rocksDBOperations: RocksDBOperations) {
+    override fun applyEvents(events: List<EventDTO>, rocksDBOperations: DBOperations) {
         TODO("Not yet implemented")
     }
 

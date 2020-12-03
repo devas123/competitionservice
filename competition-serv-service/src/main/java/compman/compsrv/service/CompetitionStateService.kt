@@ -9,7 +9,7 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.exceptions.CommandProcessingException
 import compman.compsrv.model.exceptions.EventApplyingException
-import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.processor.command.AggregateServiceFactory
 import compman.compsrv.service.processor.command.AggregatesWithEvents
 import compman.compsrv.service.processor.sagas.SagaExecutionService
@@ -35,7 +35,7 @@ class CompetitionStateService(
     private val eventDedupCache = CacheBuilder.newBuilder().maximumSize(10000).expireAfterAccess(Duration.ofSeconds(10))
         .concurrencyLevel(Runtime.getRuntime().availableProcessors()).weakValues().build<String, Boolean>()
 
-    fun batchApply(events: List<EventDTO>, dbOperations: RocksDBOperations) {
+    fun batchApply(events: List<EventDTO>, dbOperations: DBOperations) {
         events.filter {
             log.info("Check if event is duplicate: $it")
             !duplicateCheck(it)
@@ -50,7 +50,7 @@ class CompetitionStateService(
     }
 
 
-    fun apply(event: EventDTO, dbOperations: RocksDBOperations, isBatch: Boolean) {
+    fun apply(event: EventDTO, dbOperations: DBOperations, isBatch: Boolean) {
         log.info("Applying event: $event, batch: $isBatch")
         val eventWithId = event.setId(event.id ?: IDGenerator.uid())
         if (isBatch || !duplicateCheck(event)) {
@@ -62,7 +62,7 @@ class CompetitionStateService(
         }
     }
 
-    fun process(command: CommandDTO, dbOperations: RocksDBOperations): AggregatesWithEvents<AbstractAggregate> {
+    fun process(command: CommandDTO, dbOperations: DBOperations): AggregatesWithEvents<AbstractAggregate> {
         if (command.competitionId.isNullOrBlank()) {
             log.error("Competition id is empty, command $command")
             throw CommandProcessingException("Competition ID is empty.", command)

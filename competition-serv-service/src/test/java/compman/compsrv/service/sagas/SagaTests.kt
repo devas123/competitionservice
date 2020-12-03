@@ -2,22 +2,37 @@ package compman.compsrv.service.sagas
 
 import arrow.core.*
 import arrow.core.extensions.either.monad.monad
+import arrow.core.extensions.mapk.align.empty
+import com.fasterxml.jackson.core.type.TypeReference
+import com.nhaarman.mockitokotlin2.whenever
+import compman.compsrv.aggregate.Category
+import compman.compsrv.aggregate.Competition
+import compman.compsrv.aggregate.Competitor
+import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.errors.show
+import compman.compsrv.json.ObjectMapperFactory
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
+import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
+import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
+import compman.compsrv.model.dto.competition.CompetitorDTO
+import compman.compsrv.model.dto.competition.RegistrationInfoDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.service.CategoryGeneratorService
+import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.service.processor.command.AggregateServiceFactory
 import compman.compsrv.service.processor.command.CategoryAggregateService
 import compman.compsrv.service.processor.command.CompetitionAggregateService
 import compman.compsrv.service.processor.command.CompetitorAggregateService
 import compman.compsrv.service.processor.sagas.*
 import compman.compsrv.service.processor.sagas.fix
+import compman.compsrv.service.schedule.ScheduleService
 import org.junit.runner.RunWith
 import org.mockito.Mockito
-import org.mockito.Mockito.`when`
-import org.mockito.Mockito.any
+import org.mockito.Mockito.*
 import org.mockito.junit.MockitoJUnitRunner
 import org.slf4j.LoggerFactory
 import kotlin.test.Test
@@ -46,20 +61,38 @@ class SagaTests {
     }
     @Test
     fun testCompetitorAddSaga() {
-        val rocksDbOps = Mockito.mock(RocksDBOperations::class.java)
-        val catas = Mockito.mock(CategoryAggregateService::class.java)
-        val comas = Mockito.mock(CompetitionAggregateService::class.java)
-        val compas = Mockito.mock(CompetitorAggregateService::class.java)
+        val mapper = ObjectMapperFactory.createObjectMapper()
+        val rocksDbOps = mock(DBOperations::class.java)
+        val catas = CategoryAggregateService(mock(FightServiceFactory::class.java), mock(CategoryGeneratorService::class.java), mapper, emptyList())
+        val comas = CompetitionAggregateService(mock(ScheduleService::class.java), mock(ClusterOperations::class.java), emptyList(), mapper)
+        val compas = CompetitorAggregateService(mapper, emptyList())
         val asf = AggregateServiceFactory(catas, comas, compas)
-
-        val commandDTO = CommandDTO().setId("id").setCategoryId("categoryId").setCompetitionId("competitionId").setCompetitorId("competitorId").setType(CommandType.ADD_COMPETITOR_COMMAND)
+        val commandDTO = CommandDTO().setId("id").setCategoryId("categoryId").setCompetitionId("competitionId").setCompetitorId("competitorId")
+            .setType(CommandType.ADD_COMPETITOR_COMMAND)
+            .setPayload(CompetitorDTO().setId("competitorId").setCategories(arrayOf("categoryId"))
+                .setEmail("email").setFirstName("Vasya").setLastName("Pupoken"))
+        `when`(rocksDbOps.getCategory("categoryId1", true)).thenReturn(Category("categoryId1", CategoryDescriptorDTO()))
+        `when`(rocksDbOps.getCategory("categoryId2", true)).thenReturn(Category("categoryId2", CategoryDescriptorDTO()))
+        `when`(rocksDbOps.getCategory("categoryId3", true)).thenReturn(Category("categoryId3", CategoryDescriptorDTO()))
+        `when`(rocksDbOps.getCompetition("competitionId", true)).thenReturn(Competition(id = "competitionId", properties = CompetitionPropertiesDTO(), registrationInfo = RegistrationInfoDTO()))
+        `when`(rocksDbOps.getCompetitor("competitorId", true)).thenReturn(Competitor(CompetitorDTO().setId("competitorId")))
         val saga = processCommand(commandDTO)
-                .andThen({ applyEvent(Unit.left(), EventDTO().setId("id").setType(EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED)) },
+                .andThen({ applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setCompetitionId("competitionId").setCategoryId("categoryId").setType(EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED)) },
                     { agg, _ ->
                         applyEvent(Either.fromNullable(agg.firstOrNull()?.first), EventDTO().setId("id").setType(EventType.COMPETITOR_REMOVED)) } )
 
         saga.log(log)
         val l = saga.accumulate(rocksDbOps, asf).doRun()
         l.mapLeft { log.error(it.show()) }
+
+        val s = listOf(
+             applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setVersion(0).setCompetitionId("competitionId").setCategoryId("categoryId1").setType(EventType.CATEGORY_DELETED)),
+             applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setVersion(0).setCompetitionId("competitionId").setCategoryId("categoryId2").setType(EventType.CATEGORY_DELETED)),
+             applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setVersion(0).setCompetitionId("competitionId").setCategoryId("categoryId3").setType(EventType.CATEGORY_DELETED))
+        ).reduce { acc, f -> acc.andStep(f) }
+
+        val m = s.accumulate(rocksDbOps, asf).doRun()
+
+        m.mapLeft { log.error(it.show()) }
     }
 }

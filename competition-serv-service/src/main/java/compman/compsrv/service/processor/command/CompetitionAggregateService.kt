@@ -14,7 +14,7 @@ import compman.compsrv.model.dto.competition.RegistrationInfoDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
-import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.schedule.ScheduleService
 import compman.compsrv.service.schedule.StageGraph
 import compman.compsrv.util.*
@@ -27,7 +27,7 @@ class CompetitionAggregateService(private val scheduleService: ScheduleService,
                                   validators: List<PayloadValidator>,
                                   mapper: ObjectMapper) : AbstractAggregateService<Competition>(mapper, validators) {
 
-    private fun getAllBrackets(competitionId: String, rocksDBOperations: RocksDBOperations): Mono<StageGraph> {
+    private fun getAllBrackets(competitionId: String, rocksDBOperations: DBOperations): Mono<StageGraph> {
         val competition = rocksDBOperations.getCompetition(competitionId, true)
         val categories = rocksDBOperations.getCategories(competition.categories.toList(), true)
         val stages = categories.flatMap { it.stages.toList() }
@@ -35,7 +35,7 @@ class CompetitionAggregateService(private val scheduleService: ScheduleService,
         return StageGraph(stages, fights).toMonoOrEmpty()
     }
 
-    private fun getNumberOfCompetitorsByCategoryId(competitionId: String, rocksDBOperations: RocksDBOperations): Map<String, Int> {
+    private fun getNumberOfCompetitorsByCategoryId(competitionId: String, rocksDBOperations: DBOperations): Map<String, Int> {
         val competition = rocksDBOperations.getCompetition(competitionId, true)
         val categories = rocksDBOperations.getCategories(competition.categories.toList(), true)
         return categories.map { it.id to it.numberOfCompetitors }.toMap()
@@ -53,7 +53,17 @@ class CompetitionAggregateService(private val scheduleService: ScheduleService,
     }
 
     private val deleteRegistrationPeriod: CommandExecutor<Competition> = { competition, _, command ->
-        listOf(competition to listOf(createEvent(command, EventType.REGISTRATION_PERIOD_DELETED, RegistrationPeriodDeletedPayload(command.payload["periodId"]?.toString()))))
+        executeValidated(command, DeleteRegistrationPeriodPayload::class.java) { payload, c ->
+            listOf(
+                competition to listOf(
+                    createEvent(
+                        command,
+                        EventType.REGISTRATION_PERIOD_DELETED,
+                        RegistrationPeriodDeletedPayload(payload.periodId)
+                    )
+                )
+            )
+        }.unwrap(command)
     }
     private val dropAllBrackets: CommandExecutor<Competition> = { competition, _, command ->
         if (competition.properties.bracketsPublished != true) {
@@ -144,7 +154,7 @@ class CompetitionAggregateService(private val scheduleService: ScheduleService,
     )
 
 
-    override fun getAggregate(command: CommandDTO, rocksDBOperations: RocksDBOperations): Either<List<Competition>, Competition> {
+    override fun getAggregate(command: CommandDTO, rocksDBOperations: DBOperations): Either<List<Competition>, Competition> {
         return when(command.type) {
             CommandType.CREATE_COMPETITION_COMMAND -> {
                 Competition(id = command.competitionId, properties = CompetitionPropertiesDTO().setId(command.competitionId), registrationInfo = RegistrationInfoDTO().setId(command.competitionId)).right()
@@ -155,6 +165,6 @@ class CompetitionAggregateService(private val scheduleService: ScheduleService,
         }
     }
 
-    override fun getAggregate(event: EventDTO, rocksDBOperations: RocksDBOperations): Competition = rocksDBOperations.getCompetition(event.competitionId, true)
+    override fun getAggregate(event: EventDTO, rocksDBOperations: DBOperations): Competition = rocksDBOperations.getCompetition(event.competitionId, true)
 
 }

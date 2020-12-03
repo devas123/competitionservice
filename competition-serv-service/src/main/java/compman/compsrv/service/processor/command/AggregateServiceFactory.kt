@@ -15,13 +15,13 @@ class AggregateServiceFactory(private val categoryAggregateService: CategoryAggr
             AggregateType.CATEGORY -> categoryAggregateService
             AggregateType.COMPETITION -> competitionAggregateService
             AggregateType.COMPETITOR -> competitorAggregateService
-            AggregateType.SAGA -> throw IllegalArgumentException("No aggregator for SAGA events")
+            else -> throw IllegalArgumentException("No aggregator for SAGA events")
         }
     fun getAggregateService(command: CommandDTO): AbstractAggregateService<*> =
         when(AggregateTypeDecider.getCommandAggregateType(command.type)) {
             AggregateType.CATEGORY -> categoryAggregateService
             AggregateType.COMPETITION -> competitionAggregateService
             AggregateType.COMPETITOR -> competitorAggregateService
-            AggregateType.SAGA -> throw IllegalArgumentException("No aggregator for SAGA events")
+            else -> throw IllegalArgumentException("No aggregator for SAGA events")
         }
 }

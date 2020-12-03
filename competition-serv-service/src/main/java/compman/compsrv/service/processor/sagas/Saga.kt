@@ -17,7 +17,7 @@ import compman.compsrv.aggregate.AbstractAggregate
 import compman.compsrv.errors.SagaExecutionError
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.processor.command.AggregateServiceFactory
 import compman.compsrv.service.processor.command.AggregatesWithEvents
 import compman.compsrv.service.processor.command.executeInAppropriateService
@@ -93,6 +93,7 @@ inline fun <reified A> SagaStep<AggregatesWithEvents<AbstractAggregate>>.andThen
     noinline ifError: (AggregatesWithEvents<AbstractAggregate>, SagaExecutionError) -> SagaStep<A>
 ) = commandAndThen(this, ifSuccess, ifError)
 
+inline fun <reified A> SagaStep<A>.andStep(b: SagaStep<A>) = and(this, b)
 
 fun SagaStep<AggregatesWithEvents<AbstractAggregate>>.execute() = this.andThen({ list ->
     if (list.isEmpty()) {
@@ -109,18 +110,18 @@ inline fun <reified A> SagaStep<Either<Unit, AbstractAggregate>>.eventAndThen(
 ) =
     andThenForEvent(this, next, ifError)
 
-fun sagaInterpreterEither(rocksDBOperations: RocksDBOperations, aggregateServiceFactory: AggregateServiceFactory) =
+fun sagaInterpreterEither(rocksDBOperations: DBOperations, aggregateServiceFactory: AggregateServiceFactory) =
     SagaExecutionFailFast(rocksDBOperations, aggregateServiceFactory)
 
 fun <A> SagaStep<A>.failFast(
-    rocksDBOperations: RocksDBOperations,
+    rocksDBOperations: DBOperations,
     aggregateServiceFactory: AggregateServiceFactory
 ): Either<SagaExecutionError, A> {
     return foldMap(sagaInterpreterEither(rocksDBOperations, aggregateServiceFactory), Either.monad()).fix()
 }
 
 fun <A> SagaStep<A>.accumulate(
-    rocksDBOperations: RocksDBOperations,
+    rocksDBOperations: DBOperations,
     aggregateServiceFactory: AggregateServiceFactory
 ): StateT<Either<SagaExecutionError, AggregatesWithEvents<AbstractAggregate>>, Kind<ForEither, SagaExecutionError>, A> {
     return foldMap(
@@ -142,7 +143,7 @@ fun <R> cCatch(block: () -> R): Either<SagaExecutionError, R> = catch({ SagaExec
 
 @Suppress("UNCHECKED_CAST")
 class SagaExecutionAccumulateEvents(
-    private val rocksDBOperations: RocksDBOperations,
+    private val rocksDBOperations: DBOperations,
     private val aggregateServiceFactory: AggregateServiceFactory
 ) : FunctionK<ForSagaStep, StateTPartialOf<Either<SagaExecutionError, AggregatesWithEvents<AbstractAggregate>>, EitherPartialOf<SagaExecutionError>>> {
     override fun <A> invoke(fa: SagaStepAOf<A>): Kind<StateTPartialOf<Either<SagaExecutionError, AggregatesWithEvents<AbstractAggregate>>, EitherPartialOf<SagaExecutionError>>, A> {
@@ -154,27 +155,25 @@ class SagaExecutionAccumulateEvents(
                         rocksDBOperations,
                         aggregateServiceFactory
                     ) }
-                    either.flatMap { list -> aggregates.map { agg -> (list + agg).right() toT (agg as A) } }
+                    either.flatMap { list -> aggregates.map { agg ->
+                        val a = list + agg
+                        a.right() toT (a as A) } }
                 }
             }
             is SagaStepA.ApplyEvent -> {
                 StateT { either ->
                     val aggregate = eCatch {
-                        val a = aggregateServiceFactory.getAggregateService(saga.event).getAggregate(saga.event, rocksDBOperations)
+                        val a = saga.aggregate.fold ({ aggregateServiceFactory.getAggregateService(saga.event).getAggregate(saga.event, rocksDBOperations) }, { it })
                         a.applyEvent(saga.event, rocksDBOperations)
                         a
                     }
                     either.flatMap { list ->
                         aggregate.map { agg ->
-                            (list + (agg to listOf(saga.event))).right() toT (listOf(
-                                agg to listOf(
-                                    saga.event
-                                )
-                            ) as A)
+                            val a = list + (agg to listOf(saga.event))
+                            a.right() toT (a as A)
                         }
                     }
                 }
-//                StateT { list -> ((list + (aggregate to listOf(saga.event))) toT (listOf(aggregate to listOf(saga.event)) as A)).right() }
             }
             is SagaStepA.ApplyEvents -> {
                 if (saga.events.isEmpty()) {
@@ -192,7 +191,7 @@ class SagaExecutionAccumulateEvents(
                         either.flatMap { list ->
                             agg.map { aggregate ->
                                 val accumulated = list + (aggregate to saga.events)
-                                accumulated.right() toT (listOf(agg to saga.events) as A)
+                                accumulated.right() toT (accumulated as A)
                             }
                         }
                     }
@@ -207,9 +206,12 @@ class SagaExecutionAccumulateEvents(
                                 saga.ifError(list, it).accumulate(rocksDBOperations, aggregateServiceFactory)
                                     .doRun()
                             }
+                                .map { list + it }
                         }
                     either.flatMap { list -> res.map {
-                        list1 -> (list + list1).right() toT (list1 as A)  } }}
+                        list1 ->
+                        val agg = list + list1
+                        agg.right() toT (agg as A)  } }}
             }
 
             is SagaStepA.And -> {
@@ -241,7 +243,9 @@ class SagaExecutionAccumulateEvents(
                             m.handleErrorWith { saga.ifError(agg, it).accumulate(rocksDBOperations, aggregateServiceFactory).doRun() }
                         }
                     either.flatMap { list -> res.map {
-                            list1 -> (list + list1).right() toT (list1 as A)  } }}
+                            list1 ->
+                        val agg = list + list1
+                        agg.right() toT (agg as A)  } }}
             }
         }
 
@@ -256,7 +260,7 @@ class SagaExecutionAccumulateEvents(
 
 @Suppress("UNCHECKED_CAST")
 class SagaExecutionFailFast(
-    private val rocksDBOperations: RocksDBOperations,
+    private val rocksDBOperations: DBOperations,
     private val aggregateServiceFactory: AggregateServiceFactory
 ) : FunctionK<ForSagaStep, EitherPartialOf<SagaExecutionError>> {
     override fun <A> invoke(fa: SagaStepAOf<A>): EitherOf<SagaExecutionError, A> {

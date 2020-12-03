@@ -13,7 +13,7 @@ import compman.compsrv.model.dto.competition.CategoryRestrictionDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.CategoryAddedPayload
-import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.CategoryGeneratorService
 import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.util.IDGenerator
@@ -112,7 +112,7 @@ class CategoryAggregateService constructor(private val fightsGenerateService: Fi
         }
     }
 
-    private val doDeleteCategoryState: CommandExecutor<Category> = { category, rocksDBOperations: RocksDBOperations, command: CommandDTO ->
+    private val doDeleteCategoryState: CommandExecutor<Category> = { category, rocksDBOperations: DBOperations, command: CommandDTO ->
         if (rocksDBOperations.getCategoryCompetitors(command.competitionId, command.categoryId, false).isNullOrEmpty() && category.fights.isNullOrEmpty()) {
             listOf(category to listOf(createEvent(command, EventType.CATEGORY_DELETED, command.payload)))
         } else {
@@ -158,7 +158,7 @@ class CategoryAggregateService constructor(private val fightsGenerateService: Fi
             CommandType.DASHBOARD_FIGHT_ORDER_CHANGE_COMMAND to changeFightOrder,
             CommandType.DASHBOARD_SET_FIGHT_RESULT_COMMAND to setFightResult)
 
-    override fun getAggregate(command: CommandDTO, rocksDBOperations: RocksDBOperations): Either<List<Category>, Category> {
+    override fun getAggregate(command: CommandDTO, rocksDBOperations: DBOperations): Either<List<Category>, Category> {
         return when (command.type) {
             CommandType.ADD_CATEGORY_COMMAND, CommandType.GENERATE_CATEGORIES_COMMAND -> {
                 emptyList<Category>().left()
@@ -169,5 +169,5 @@ class CategoryAggregateService constructor(private val fightsGenerateService: Fi
         }
     }
 
-    override fun getAggregate(event: EventDTO, rocksDBOperations: RocksDBOperations): Category = rocksDBOperations.getCategory(event.categoryId, true)
+    override fun getAggregate(event: EventDTO, rocksDBOperations: DBOperations): Category = rocksDBOperations.getCategory(event.categoryId, true)
 }

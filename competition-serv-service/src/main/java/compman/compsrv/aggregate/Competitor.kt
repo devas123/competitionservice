@@ -8,17 +8,15 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.CompetitorAddedPayload
 import compman.compsrv.model.events.payload.CompetitorUpdatedPayload
-import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.util.IDGenerator
 import java.util.concurrent.atomic.AtomicLong
 
 class Competitor(val competitorDTO: CompetitorDTO): AbstractAggregate(AtomicLong(0), AtomicLong(0)) {
-    override fun applyEvent(eventDTO: EventDTO, rocksDBOperations: RocksDBOperations) {
-        TODO("Not yet implemented")
+    override fun applyEvent(eventDTO: EventDTO, rocksDBOperations: DBOperations) {
     }
 
-    override fun applyEvents(events: List<EventDTO>, rocksDBOperations: RocksDBOperations) {
-        TODO("Not yet implemented")
+    override fun applyEvents(events: List<EventDTO>, rocksDBOperations: DBOperations) {
     }
 
     fun process(payload: CompetitorDTO, command: CommandDTO, createEvent: (command: CommandDTO, eventType: EventType, payload: Any?) -> EventDTO): List<EventDTO> {

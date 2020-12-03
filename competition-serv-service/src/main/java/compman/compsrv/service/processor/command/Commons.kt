@@ -14,17 +14,17 @@ import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
-import compman.compsrv.repository.RocksDBOperations
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.service.fight.GroupStageGenerateService
 import compman.compsrv.util.IDGenerator
 import org.slf4j.LoggerFactory
 
 typealias AggregatesWithEvents<EntityType> = List<Pair<EntityType, List<EventDTO>>>
-typealias CommandExecutor<EntityType> = (EntityType, RocksDBOperations, CommandDTO) -> AggregatesWithEvents<EntityType>
+typealias CommandExecutor<EntityType> = (EntityType, DBOperations, CommandDTO) -> AggregatesWithEvents<EntityType>
 typealias CreateEvent = (CommandDTO, EventType, Any) -> EventDTO
 
-fun executeInAppropriateService(command: CommandDTO, rocksDBOperations: RocksDBOperations, aggregateServiceFactory: AggregateServiceFactory): AggregatesWithEvents<AbstractAggregate> {
+fun executeInAppropriateService(command: CommandDTO, rocksDBOperations: DBOperations, aggregateServiceFactory: AggregateServiceFactory): AggregatesWithEvents<AbstractAggregate> {
     return aggregateServiceFactory.getAggregateService(command).processCommand(command, rocksDBOperations)
 }
 
