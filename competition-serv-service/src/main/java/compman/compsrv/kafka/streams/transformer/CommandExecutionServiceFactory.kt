@@ -8,6 +8,7 @@ import compman.compsrv.service.CompetitionStateService
 import compman.compsrv.service.resolver.CompetitionStateResolver
 import java.util.concurrent.ConcurrentHashMap
 
+
 class CommandExecutionServiceFactory(private val competitionStateService: CompetitionStateService,
                                      private val competitionStateResolver: CompetitionStateResolver,
                                      private val clusterOperations: ClusterOperations,

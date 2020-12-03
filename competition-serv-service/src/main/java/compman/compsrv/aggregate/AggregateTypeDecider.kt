@@ -96,6 +96,8 @@ object AggregateTypeDecider {
             EventType.DASHBOARD_STAGE_RESULT_SET -> AggregateType.CATEGORY
             EventType.DUMMY -> AggregateType.SAGA
             EventType.INTERNAL_COMPETITION_INFO -> AggregateType.SAGA
+            EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED -> AggregateType.CATEGORY
+            EventType.CATEGORY_NUMBER_OF_COMPETITORS_DECREASED -> AggregateType.CATEGORY
         }
     }
 }

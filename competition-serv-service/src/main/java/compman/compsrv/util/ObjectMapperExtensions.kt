@@ -14,7 +14,6 @@ fun ObjectMapper.createErrorEvent(command: CommandDTO, payload: ErrorEventPayloa
     .setCorrelationId(command.correlationId)
     .setCompetitionId(command.competitionId)
     .setCompetitorId(command.competitorId)
-
     .setMatId(command.matId)
     .setType(EventType.ERROR_EVENT)
     .setPayload(writeValueAsString(payload))
@@ -25,7 +24,8 @@ fun ObjectMapper.createErrorEvent(event: EventDTO, payload: ErrorEventPayload): 
     .setCorrelationId(event.correlationId)
     .setCompetitionId(event.competitionId)
     .setCompetitorId(event.competitorId)
-
+    .setVersion(event.version)
+    .setLocalEventNumber(event.localEventNumber)
     .setMatId(event.matId)
     .setType(EventType.ERROR_EVENT)
     .setPayload(writeValueAsString(payload))
@@ -51,6 +51,8 @@ fun ObjectMapper.createEffect(event: EventDTO, type: EventType, payload: Any?): 
         .setCompetitionId(event.competitionId)
         .setCompetitorId(event.competitorId)
         .setMatId(event.matId)
+        .setVersion(event.version)
+        .setLocalEventNumber(event.localEventNumber)
         .setType(type)
         .setPayload(writeValueAsString(payload))
 

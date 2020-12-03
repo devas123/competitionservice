@@ -2,6 +2,9 @@ package compman.compsrv.service
 
 import com.google.common.cache.CacheBuilder
 import compman.compsrv.aggregate.AbstractAggregate
+import compman.compsrv.aggregate.AggregateType
+import compman.compsrv.aggregate.AggregateTypeDecider
+import compman.compsrv.errors.show
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.exceptions.CommandProcessingException
@@ -17,18 +20,20 @@ import java.time.Duration
 
 @Component
 class CompetitionStateService(
-        private val aggregateServiceFactory: AggregateServiceFactory,
-        private val sagaExecutionService: SagaExecutionService) {
+    private val aggregateServiceFactory: AggregateServiceFactory,
+    private val sagaExecutionService: SagaExecutionService
+) {
 
     companion object {
         private val log = LoggerFactory.getLogger(CompetitionStateService::class.java)
     }
 
-    private val commandDedupCache = CacheBuilder.newBuilder().maximumSize(10000).expireAfterAccess(Duration.ofSeconds(10))
+    private val commandDedupCache =
+        CacheBuilder.newBuilder().maximumSize(10000).expireAfterAccess(Duration.ofSeconds(10))
             .concurrencyLevel(Runtime.getRuntime().availableProcessors()).weakValues().build<String, Boolean>()
 
     private val eventDedupCache = CacheBuilder.newBuilder().maximumSize(10000).expireAfterAccess(Duration.ofSeconds(10))
-            .concurrencyLevel(Runtime.getRuntime().availableProcessors()).weakValues().build<String, Boolean>()
+        .concurrencyLevel(Runtime.getRuntime().availableProcessors()).weakValues().build<String, Boolean>()
 
     fun batchApply(events: List<EventDTO>, dbOperations: RocksDBOperations) {
         events.filter {
@@ -49,7 +54,8 @@ class CompetitionStateService(
         log.info("Applying event: $event, batch: $isBatch")
         val eventWithId = event.setId(event.id ?: IDGenerator.uid())
         if (isBatch || !duplicateCheck(event)) {
-            aggregateServiceFactory.getAggregateService(event).getAggregate(event, dbOperations).applyEvent(event, dbOperations)
+            aggregateServiceFactory.getAggregateService(event).getAggregate(event, dbOperations)
+                .applyEvent(event, dbOperations)
             listOf(eventWithId)
         } else {
             throw EventApplyingException("Duplicate event: correlationId: ${eventWithId.correlationId}", eventWithId)
@@ -61,9 +67,15 @@ class CompetitionStateService(
             log.error("Competition id is empty, command $command")
             throw CommandProcessingException("Competition ID is empty.", command)
         }
-        if (commandDedupCache.asMap().put(command.id, true) != null) { throw CommandProcessingException("Duplicate command.", command) }
-        return aggregateServiceFactory.getAggregateService(command).processCommand(command, rocksDBOperations = dbOperations)
+        if (commandDedupCache.asMap().put(command.id, true) != null) {
+            throw CommandProcessingException("Duplicate command.", command)
+        }
+        return when (AggregateTypeDecider.getCommandAggregateType(command.type)) {
+            AggregateType.SAGA -> sagaExecutionService.executeSaga(command, dbOperations)
+                .fold({ throw CommandProcessingException("Errors during saga execution: ${it.show()}", command) }, { it })
+            else -> aggregateServiceFactory.getAggregateService(command)
+                .processCommand(command, rocksDBOperations = dbOperations)
+        }
     }
-
     fun duplicateCheck(event: EventDTO): Boolean = eventDedupCache.asMap().put(event.id, true) == null
 }

@@ -82,8 +82,8 @@ abstract class AbstractCommandExecutionService(
 
 
     private fun commandExecutionLogic(command: CommandDTO, rocksDBOperations: RocksDBOperations): List<EventDTO> {
-        val aggregateAndEvents = executionService.process(command, rocksDBOperations)
-        aggregateAndEvents.forEach { it.first.applyEvents(it.second, rocksDBOperations) }
-        return aggregateAndEvents.flatMap { it.second }
+        val aggregatesAndEvents = executionService.process(command, rocksDBOperations)
+        aggregatesAndEvents.forEach { it.first.applyEvents(it.second, rocksDBOperations) }
+        return aggregatesAndEvents.flatMap { it.second }
     }
 }

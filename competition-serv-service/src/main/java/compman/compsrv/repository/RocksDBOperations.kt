@@ -8,7 +8,7 @@ import compman.compsrv.aggregate.Competitor
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import org.rocksdb.*
 
-class RocksDBOperations(private val db: Either<Transaction, OptimisticTransactionDB>,
+open class RocksDBOperations(private val db: Either<Transaction, OptimisticTransactionDB>,
                         private val mapper: ObjectMapper,
                         private val competitors: ColumnFamilyHandle,
                         private val competitions: ColumnFamilyHandle,
