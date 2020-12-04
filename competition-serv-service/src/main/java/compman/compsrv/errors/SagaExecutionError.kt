@@ -32,12 +32,22 @@ fun SagaExecutionError.getEvents(): List<AggregateWithEvents<AbstractAggregate>>
         is SagaExecutionError.ErrorWithCompensatingActions -> error.getEvents() + actions + compensatingActions
     }
 
+fun SagaExecutionError.getCompensatingActions(): List<AggregateWithEvents<AbstractAggregate>> =
+    when(this) {
+        is SagaExecutionError.CommandProcessingFailed -> emptyList()
+        is SagaExecutionError.EventApplicationFailed -> emptyList()
+        is SagaExecutionError.GenericError -> emptyList()
+        is SagaExecutionError.PayloadValidationFailed -> emptyList()
+        is SagaExecutionError.ErrorWithCompensatingActions -> error.getCompensatingActions() + compensatingActions
+    }
+
+
 fun SagaExecutionError.show(): String {
     return when(this) {
         is SagaExecutionError.CommandProcessingFailed -> "Command processing failed: \n${stackTraceToStr(e)}"
         is SagaExecutionError.EventApplicationFailed -> "Event processing failed: \n${stackTraceToStr(e)}"
         is SagaExecutionError.GenericError -> "An error occurred: ${this.m}"
         is SagaExecutionError.PayloadValidationFailed -> "Payload validation failed: ${this.errors}"
-        is SagaExecutionError.ErrorWithCompensatingActions -> "There was an error: [${error.show()}] and compensating actions were taken: $compensatingActions"
+        is SagaExecutionError.ErrorWithCompensatingActions -> "There was an error: [${error.show()}] and compensating actions were taken: ${this.getCompensatingActions()}"
     }
 }

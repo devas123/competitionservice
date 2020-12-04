@@ -65,9 +65,13 @@ class SagaTests {
         `when`(rocksDbOps.getCompetition("competitionId", true)).thenReturn(Competition(id = "competitionId", properties = CompetitionPropertiesDTO(), registrationInfo = RegistrationInfoDTO()))
         `when`(rocksDbOps.getCompetitor("competitorId", true)).thenReturn(Competitor(CompetitorDTO().setId("competitorId")))
         val saga = processCommand(commandDTO)
-                .andThen({ applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setCompetitionId("competitionId").setCategoryId("categoryId").setType(EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED)) },
+                .andThen({ applyEvent(Unit.left(), EventDTO().setId("id").setVersion(0).setCompetitorId("competitorId").setCompetitionId("competitionId").setCategoryId("categoryId1").setType(EventType.CATEGORY_DELETED))
+                    .eventAndThen({ applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setCompetitionId("competitionId").setCategoryId("categoryId").setType(EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED)) },
+                        { aaa, _ ->
+                            applyEvent(aaa, EventDTO().setVersion(0).setCompetitorId("competitorId").setId("id").setType(EventType.COMPETITOR_REMOVED)) } )},
                     { agg, _ ->
-                        applyEvent(Either.fromNullable(agg.first), EventDTO().setId("id").setType(EventType.COMPETITOR_REMOVED)) } )
+                        applyEvent(Either.fromNullable(agg.first), EventDTO().setId("id").setVersion(0).setCompetitorId("competitorId").setType(EventType.COMPETITOR_REMOVED)) } )
+
 
         saga.log(log)
         val l = saga.accumulate(rocksDbOps, asf).doRun()
@@ -76,8 +80,10 @@ class SagaTests {
         val s = listOf(
              applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setVersion(0).setCompetitionId("competitionId").setCategoryId("categoryId1").setType(EventType.CATEGORY_DELETED)),
              applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setVersion(0).setCompetitionId("competitionId").setCategoryId("categoryId2").setType(EventType.CATEGORY_DELETED)),
-             applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setVersion(0).setCompetitionId("competitionId").setCategoryId("categoryId3").setType(EventType.CATEGORY_DELETED))
+             applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setCompetitionId("competitionId").setCategoryId("categoryId3").setType(EventType.CATEGORY_DELETED))
         ).reduce { acc, f -> acc.andStep(f) }
+
+
 
         val m = s.accumulate(rocksDbOps, asf).doRun()
 
