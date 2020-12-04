@@ -4,14 +4,13 @@ import com.google.common.cache.CacheBuilder
 import compman.compsrv.aggregate.AbstractAggregate
 import compman.compsrv.aggregate.AggregateType
 import compman.compsrv.aggregate.AggregateTypeDecider
-import compman.compsrv.errors.show
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.exceptions.CommandProcessingException
 import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.processor.command.AggregateServiceFactory
-import compman.compsrv.service.processor.command.AggregatesWithEvents
+import compman.compsrv.service.processor.command.AggregateWithEvents
 import compman.compsrv.service.processor.sagas.SagaExecutionService
 import compman.compsrv.util.IDGenerator
 import org.slf4j.LoggerFactory
@@ -62,7 +61,7 @@ class CompetitionStateService(
         }
     }
 
-    fun process(command: CommandDTO, dbOperations: DBOperations): AggregatesWithEvents<AbstractAggregate> {
+    fun process(command: CommandDTO, dbOperations: DBOperations): List<AggregateWithEvents<AbstractAggregate>> {
         if (command.competitionId.isNullOrBlank()) {
             log.error("Competition id is empty, command $command")
             throw CommandProcessingException("Competition ID is empty.", command)
@@ -72,9 +71,9 @@ class CompetitionStateService(
         }
         return when (AggregateTypeDecider.getCommandAggregateType(command.type)) {
             AggregateType.SAGA -> sagaExecutionService.executeSaga(command, dbOperations)
-                .fold({ throw CommandProcessingException("Errors during saga execution: ${it.show()}", command) }, { it })
-            else -> aggregateServiceFactory.getAggregateService(command)
-                .processCommand(command, rocksDBOperations = dbOperations)
+                .fold({ throw CommandProcessingException("Errors during saga execution: $it", command) }, { it })
+            else -> listOf(aggregateServiceFactory.getAggregateService(command)
+                .processCommand(command, rocksDBOperations = dbOperations))
         }
     }
     fun duplicateCheck(event: EventDTO): Boolean = eventDedupCache.asMap().put(event.id, true) == null

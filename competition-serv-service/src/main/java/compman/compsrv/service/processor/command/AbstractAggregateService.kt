@@ -3,7 +3,6 @@ package compman.compsrv.service.processor.command
 import arrow.core.Either
 import arrow.core.curry
 import arrow.core.fix
-import arrow.syntax.function.curried
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.aggregate.AbstractAggregate
 import compman.compsrv.errors.CommandProcessingError
@@ -20,50 +19,29 @@ import compman.compsrv.util.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
-abstract class AbstractAggregateService<AT : AbstractAggregate>(val mapper: ObjectMapper, val validators: List<PayloadValidator>) {
+abstract class AbstractAggregateService<AT : AbstractAggregate>(mapper: ObjectMapper, validators: List<PayloadValidator>): ValidatedExecutor<AT>(mapper, validators) {
     val log: Logger = LoggerFactory.getLogger(AbstractAggregateService::class.java)
-    inline fun <reified T : Payload> executeValidated(command: CommandDTO, payloadClass: Class<T>,
-                                                      crossinline logic: (payload: T, com: CommandDTO) -> AggregatesWithEvents<AT>): Either<CommandProcessingError, AggregatesWithEvents<AT>> {
-        val payload = mapper.getPayloadAs(command, payloadClass)!!
-        return PayloadValidationRules
-                .accumulateErrors { payload.validate(command, validators).fix() }
-                .map { logic(payload, command) }
-                .toEither()
-                .mapLeft { CommandProcessingError.PayloadValidationFailed(it) }
-    }
 
-    inline fun <reified T : Payload> executeValidated(event: EventDTO, payloadClass: Class<T>,
-                                                      crossinline logic: (payload: T, event: EventDTO) -> Unit) {
-        val payload = mapper.getPayloadAs(event, payloadClass)!!
-        PayloadValidationRules
-                .accumulateErrors { payload.validate(event, validators).fix() }
-                .map { logic(payload, event) }
-                .toEither()
-                .mapLeft { EventApplicationError.PayloadValidationFailed(it) }
-    }
 
-    protected fun createEvent(command: CommandDTO, eventType: EventType, payload: Any?) = mapper.createEvent(command, eventType, payload)
-    protected fun Either<CommandProcessingError, AggregatesWithEvents<AT>>.unwrap(command: CommandDTO) = this.fold({ throw CommandProcessingException(it.message, command) }, { it })
-    protected fun Either<EventApplicationError, AggregatesWithEvents<AT>>.unwrap(event: EventDTO) = this.fold({ throw EventApplyingException(it.message, event) }, { it })
+    protected fun Either<CommandProcessingError, AggregateWithEvents<AT>>.unwrap(command: CommandDTO) = this.fold({ throw CommandProcessingException(it.message, command) }, { it })
+    protected fun Either<EventApplicationError, AggregateWithEvents<AT>>.unwrap(event: EventDTO) = this.fold({ throw EventApplyingException(it.message, event) }, { it })
     private fun List<EventDTO>.setVersion(version: Long, agg: AT) = this.map(agg::enrichWithVersionAndNumber.curry()(version))
 
     protected abstract val commandsToHandlers: Map<CommandType, CommandExecutor<AT>>
 
-    fun processCommand(command: CommandDTO, rocksDBOperations: DBOperations): AggregatesWithEvents<AT> {
-        val aggregateList = getAggregate(command, rocksDBOperations)
-        return aggregateList.fold({
-            it.flatMap(this::generateEventsFromAggregate.curried()(command)(rocksDBOperations))
-        }, this::generateEventsFromAggregate.curried()(command)(rocksDBOperations))
+    fun processCommand(command: CommandDTO, rocksDBOperations: DBOperations): AggregateWithEvents<AT> {
+        val aggregate = getAggregate(command, rocksDBOperations)
+        return generateEventsFromAggregate(command, rocksDBOperations, aggregate)
     }
 
-    private fun generateEventsFromAggregate(command: CommandDTO, rocksDBOperations: DBOperations, aggregate: AT): AggregatesWithEvents<AT> {
+    private fun generateEventsFromAggregate(command: CommandDTO, rocksDBOperations: DBOperations, aggregate: AT): AggregateWithEvents<AT> {
         val version = aggregate.getVersion()
-        return commandsToHandlers[command.type]?.invoke(aggregate, rocksDBOperations, command)
-                ?.map { events -> events.first to events.second.mapIndexed { _, e -> e.setId(IDGenerator.uid()) }.setVersion(version, aggregate) }
+        val aggWithEvents = commandsToHandlers[command.type]?.invoke(aggregate, rocksDBOperations, command)
                 ?: throw CommandProcessingException("Command handler not implemented for type ${command.type}", command)
+        return aggWithEvents.first to aggWithEvents.second.mapIndexed { _, e -> e.setId(IDGenerator.uid()) }.setVersion(version, aggregate)
     }
 
-    abstract fun getAggregate(command: CommandDTO, rocksDBOperations: DBOperations): Either<List<AT>, AT>
+    abstract fun getAggregate(command: CommandDTO, rocksDBOperations: DBOperations): AT
     abstract fun getAggregate(event: EventDTO, rocksDBOperations: DBOperations): AT
 
 }

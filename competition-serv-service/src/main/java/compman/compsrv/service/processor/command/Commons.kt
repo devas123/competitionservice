@@ -4,9 +4,6 @@ import arrow.core.Either
 import arrow.core.Tuple2
 import arrow.core.right
 import compman.compsrv.aggregate.AbstractAggregate
-import compman.compsrv.aggregate.AggregateType
-import compman.compsrv.aggregate.AggregateTypeDecider
-import compman.compsrv.aggregate.Competitor
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.payload.CompetitorGroupChange
 import compman.compsrv.model.dto.brackets.GroupDescriptorDTO
@@ -20,11 +17,11 @@ import compman.compsrv.service.fight.GroupStageGenerateService
 import compman.compsrv.util.IDGenerator
 import org.slf4j.LoggerFactory
 
-typealias AggregatesWithEvents<EntityType> = List<Pair<EntityType, List<EventDTO>>>
-typealias CommandExecutor<EntityType> = (EntityType, DBOperations, CommandDTO) -> AggregatesWithEvents<EntityType>
+typealias AggregateWithEvents<EntityType> = Pair<EntityType, List<EventDTO>>
+typealias CommandExecutor<EntityType> = (EntityType, DBOperations, CommandDTO) -> AggregateWithEvents<EntityType>
 typealias CreateEvent = (CommandDTO, EventType, Any) -> EventDTO
 
-fun executeInAppropriateService(command: CommandDTO, rocksDBOperations: DBOperations, aggregateServiceFactory: AggregateServiceFactory): AggregatesWithEvents<AbstractAggregate> {
+fun executeInAppropriateService(command: CommandDTO, rocksDBOperations: DBOperations, aggregateServiceFactory: AggregateServiceFactory): AggregateWithEvents<AbstractAggregate> {
     return aggregateServiceFactory.getAggregateService(command).processCommand(command, rocksDBOperations)
 }
 

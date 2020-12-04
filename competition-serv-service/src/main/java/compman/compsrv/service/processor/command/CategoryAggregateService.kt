@@ -9,6 +9,7 @@ import compman.compsrv.aggregate.Category
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.*
+import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
 import compman.compsrv.model.dto.competition.CategoryRestrictionDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
@@ -39,16 +40,16 @@ class CategoryAggregateService constructor(private val fightsGenerateService: Fi
     }
 
     private val doChangeCategoryRegistrationStatus: CommandExecutor<Category> = { category, _, com ->
-        listOf(category to listOf(createEvent(com, EventType.CATEGORY_REGISTRATION_STATUS_CHANGED, com.payload)))
+        category to listOf(createEvent(com, EventType.CATEGORY_REGISTRATION_STATUS_CHANGED, com.payload))
     }
 
     private val doDropCategoryBrackets: CommandExecutor<Category> = { category, _, com ->
-        listOf(category to listOf(createEvent(com, EventType.CATEGORY_BRACKETS_DROPPED, com.payload)))
+        category to listOf(createEvent(com, EventType.CATEGORY_BRACKETS_DROPPED, com.payload))
     }
 
     private val doApplyFightsEditorChanges: CommandExecutor<Category> = { category, _, com ->
         executeValidated(com, FightEditorApplyChangesPayload::class.java) { payload, command ->
-            listOf(category to category.process(payload, command, this::createEvent))
+            category to category.process(payload, command, this::createEvent)
         }.unwrap(com)
     }
 
@@ -56,7 +57,7 @@ class CategoryAggregateService constructor(private val fightsGenerateService: Fi
         executeValidated(com, GenerateBracketsPayload::class.java) { payload, command ->
             val competitors = rocksDB.getCategoryCompetitors(command.competitionId, command.categoryId, false)
             if (!competitors.isNullOrEmpty()) {
-                listOf(category to category.process(payload, command, fightsGenerateService, competitors.map { it.competitorDTO }, this::createEvent))
+                category to category.process(payload, command, fightsGenerateService, competitors.map { it.competitorDTO }, this::createEvent)
             } else {
                 throw IllegalArgumentException("No competitors or category not found.")
             }
@@ -66,25 +67,12 @@ class CategoryAggregateService constructor(private val fightsGenerateService: Fi
 
     private val updateStageStatus: CommandExecutor<Category> = { category, _, command ->
         executeValidated(command, UpdateStageStatusPayload::class.java) { payload, c ->
-            listOf(category to category.process(payload, c, this::createEvent))
+            category to category.process(payload, c, this::createEvent)
         }.unwrap(command)
     }
 
 
     private fun CategoryRestrictionDTO.withId(): CategoryRestrictionDTO = this.setId(IDGenerator.restrictionId(this))
-
-    private val processGenerateCategoriesCommand: CommandExecutor<Category> = { _, _, c ->
-        executeValidated(c, GenerateCategoriesFromRestrictionsPayload::class.java) { payload, com ->
-            val categories = payload.idTrees.flatMap { idTree ->
-                val restrNamesOrder = payload.restrictionNames.mapIndexed { index, s -> s to index }.toMap()
-                categoryGeneratorService.generateCategoriesFromRestrictions(com.competitionId, payload.restrictions, idTree, restrNamesOrder)
-            }
-            categories.map { Category(it.id, it) to
-                listOf(createEvent(com, EventType.CATEGORY_ADDED, CategoryAddedPayload(it))
-                        .setCategoryId(it.id))
-            }
-        }.unwrap(c)
-    }
 
     private val processAddCategoryCommandDTO: CommandExecutor<Category> = { _, rocksDb, command ->
         val c = mapper.convertValue(command.payload, AddCategoryPayload::class.java)?.category
@@ -100,7 +88,7 @@ class CategoryAggregateService constructor(private val fightsGenerateService: Fi
                     val state = c
                             .setRestrictions(c.restrictions.map { it.withId() }.toTypedArray())
                             .setId(categoryId).setRegistrationOpen(registrationOpen)
-                    listOf(Category(categoryId, state) to listOf(createEvent(command, EventType.CATEGORY_ADDED, CategoryAddedPayload(state)).setCategoryId(categoryId)))
+                    Category(categoryId, state) to listOf(createEvent(command, EventType.CATEGORY_ADDED, CategoryAddedPayload(state)).setCategoryId(categoryId))
                 } else {
                     throw IllegalArgumentException(restrictionsValid.fold(StringBuilder()) { acc, r -> acc.append(r.fold({ it.toList().joinToString(",") }, { "" })) }.toString())
                 }
@@ -114,7 +102,7 @@ class CategoryAggregateService constructor(private val fightsGenerateService: Fi
 
     private val doDeleteCategoryState: CommandExecutor<Category> = { category, rocksDBOperations: DBOperations, command: CommandDTO ->
         if (rocksDBOperations.getCategoryCompetitors(command.competitionId, command.categoryId, false).isNullOrEmpty() && category.fights.isNullOrEmpty()) {
-            listOf(category to listOf(createEvent(command, EventType.CATEGORY_DELETED, command.payload)))
+            category to listOf(createEvent(command, EventType.CATEGORY_DELETED, command.payload))
         } else {
             throw IllegalArgumentException("There are already competitors registered to this category. Please move them to another category first.")
         }
@@ -125,20 +113,20 @@ class CategoryAggregateService constructor(private val fightsGenerateService: Fi
     private val propagateCompetitors: CommandExecutor<Category> = { category, rocksDBOperations, command ->
         executeValidated(command, PropagateCompetitorsPayload::class.java) { p, com ->
             val competitors = rocksDBOperations.getCategoryCompetitors(command.competitionId, command.categoryId, false)
-            listOf(category to category.process(p, com, competitors.map { it.competitorDTO }, fightsGenerateService, this::createEvent))
+            category to category.process(p, com, competitors.map { it.competitorDTO }, fightsGenerateService, this::createEvent)
         }.unwrap(command)
     }
 
     private val setFightResult: CommandExecutor<Category> =  { category, _, com ->
         executeValidated(com, SetFightResultPayload::class.java) { payload, command ->
-            listOf(category to category.process(payload, command, fightsGenerateService,  this::createEvent))
+            category to category.process(payload, command, fightsGenerateService,  this::createEvent)
         }.unwrap(com)
     }
 
 
     private val changeFightOrder: CommandExecutor<Category> = { category, _, command ->
         executeValidated(command, DashboardFightOrderChangePayload::class.java) { payload, _ ->
-            listOf(category to category.process(payload, command, this::createEvent))
+            category to category.process(payload, command, this::createEvent)
         }.unwrap(command)
     }
 
@@ -148,7 +136,6 @@ class CategoryAggregateService constructor(private val fightsGenerateService: Fi
     override val commandsToHandlers: Map<CommandType, CommandExecutor<Category>> = mapOf(
             CommandType.UPDATE_STAGE_STATUS_COMMAND to updateStageStatus,
             CommandType.ADD_CATEGORY_COMMAND to processAddCategoryCommandDTO,
-            CommandType.GENERATE_CATEGORIES_COMMAND to processGenerateCategoriesCommand,
             CommandType.FIGHTS_EDITOR_APPLY_CHANGE to doApplyFightsEditorChanges,
             CommandType.GENERATE_BRACKETS_COMMAND to doGenerateBrackets,
             CommandType.DELETE_CATEGORY_COMMAND to doDeleteCategoryState,
@@ -158,13 +145,13 @@ class CategoryAggregateService constructor(private val fightsGenerateService: Fi
             CommandType.DASHBOARD_FIGHT_ORDER_CHANGE_COMMAND to changeFightOrder,
             CommandType.DASHBOARD_SET_FIGHT_RESULT_COMMAND to setFightResult)
 
-    override fun getAggregate(command: CommandDTO, rocksDBOperations: DBOperations): Either<List<Category>, Category> {
+    override fun getAggregate(command: CommandDTO, rocksDBOperations: DBOperations): Category {
         return when (command.type) {
             CommandType.ADD_CATEGORY_COMMAND, CommandType.GENERATE_CATEGORIES_COMMAND -> {
-                emptyList<Category>().left()
+                Category(command.categoryId ?: "", CategoryDescriptorDTO().setId(command.categoryId))
             }
             else -> {
-                rocksDBOperations.getCategory(command.categoryId, true).right()
+                rocksDBOperations.getCategory(command.categoryId, true)
             }
         }
     }

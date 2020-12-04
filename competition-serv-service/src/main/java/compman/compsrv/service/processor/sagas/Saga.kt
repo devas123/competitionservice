@@ -19,13 +19,14 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.processor.command.AggregateServiceFactory
-import compman.compsrv.service.processor.command.AggregatesWithEvents
+import compman.compsrv.service.processor.command.AggregateWithEvents
 import compman.compsrv.service.processor.command.executeInAppropriateService
 import org.slf4j.Logger
+import java.util.concurrent.atomic.AtomicLong
 
 @higherkind
 sealed class SagaStepA<out A> : SagaStepAOf<A> {
-    data class ProcessCommand(val commandDTO: CommandDTO) : SagaStepA<AggregatesWithEvents<AbstractAggregate>>()
+    data class ProcessCommand(val commandDTO: CommandDTO) : SagaStepA<AggregateWithEvents<AbstractAggregate>>()
     data class ApplyEvent(val aggregate: Either<Unit, AbstractAggregate>, val event: EventDTO) :
         SagaStepA<Either<Unit, AbstractAggregate>>()
 
@@ -33,9 +34,9 @@ sealed class SagaStepA<out A> : SagaStepAOf<A> {
         SagaStepA<Either<Unit, AbstractAggregate>>()
 
     data class CommandAndThen<A>(
-        val saga: SagaStep<AggregatesWithEvents<AbstractAggregate>>,
-        val next: (AggregatesWithEvents<AbstractAggregate>) -> SagaStep<A>,
-        val ifError: (AggregatesWithEvents<AbstractAggregate>, SagaExecutionError) -> SagaStep<A>
+        val saga: SagaStep<AggregateWithEvents<AbstractAggregate>>,
+        val next: (AggregateWithEvents<AbstractAggregate>) -> SagaStep<A>,
+        val ifError: (AggregateWithEvents<AbstractAggregate>, SagaExecutionError) -> SagaStep<A>
     ) : SagaStepA<A>()
 
     data class EventAndThen<A>(
@@ -46,7 +47,8 @@ sealed class SagaStepA<out A> : SagaStepAOf<A> {
 
     data class And<A>(val a: SagaStep<A>, val b: SagaStep<A>) : SagaStepA<A>()
     data class ExitWithError(val error: SagaExecutionError) : SagaStepA<SagaExecutionError>()
-    data class ReturnEvents(val events: AggregatesWithEvents<AbstractAggregate>) : SagaStepA<AggregatesWithEvents<AbstractAggregate>>()
+    data class ReturnEvents(val events: AggregateWithEvents<AbstractAggregate>) :
+        SagaStepA<AggregateWithEvents<AbstractAggregate>>()
 }
 
 class ForSagaStep private constructor() {
@@ -62,7 +64,7 @@ inline fun <A> SagaStepAOf<A>.fix(): SagaStepA<A> =
 
 typealias SagaStep<A> = Free<ForSagaStep, A>
 
-fun processCommand(commandDTO: CommandDTO): SagaStep<AggregatesWithEvents<AbstractAggregate>> =
+fun processCommand(commandDTO: CommandDTO): SagaStep<AggregateWithEvents<AbstractAggregate>> =
     Free.liftF(SagaStepA.ProcessCommand(commandDTO))
 
 fun applyEvent(aggregate: Either<Unit, AbstractAggregate>, event: EventDTO): SagaStep<Either<Unit, AbstractAggregate>> =
@@ -74,12 +76,14 @@ fun applyEvents(
 ): SagaStep<Either<Unit, AbstractAggregate>> = Free.liftF(SagaStepA.ApplyEvents(aggregate, events))
 
 fun error(err: SagaExecutionError): SagaStep<SagaExecutionError> = Free.liftF(SagaStepA.ExitWithError(err))
-fun returnEvents(events: AggregatesWithEvents<AbstractAggregate>): SagaStep<AggregatesWithEvents<AbstractAggregate>> = Free.liftF(SagaStepA.ReturnEvents(events))
-inline fun <reified A> and(a: SagaStep<A>, b: SagaStep<A>): SagaStep<A> = Free.liftF(SagaStepA.And(a, b))
+fun returnEvents(events: AggregateWithEvents<AbstractAggregate>): SagaStep<AggregateWithEvents<AbstractAggregate>> =
+    Free.liftF(SagaStepA.ReturnEvents(events))
+
+fun <A> and(a: SagaStep<A>, b: SagaStep<A>): SagaStep<A> = Free.liftF(SagaStepA.And(a, b))
 inline fun <reified A> commandAndThen(
-    saga: SagaStep<AggregatesWithEvents<AbstractAggregate>>,
-    noinline next: (AggregatesWithEvents<AbstractAggregate>) -> SagaStep<A>,
-    noinline ifError: (AggregatesWithEvents<AbstractAggregate>, SagaExecutionError) -> SagaStep<A>
+    saga: SagaStep<AggregateWithEvents<AbstractAggregate>>,
+    noinline next: (AggregateWithEvents<AbstractAggregate>) -> SagaStep<A>,
+    noinline ifError: (AggregateWithEvents<AbstractAggregate>, SagaExecutionError) -> SagaStep<A>
 ): SagaStep<A> = Free.liftF(SagaStepA.CommandAndThen(saga, next, ifError))
 
 inline fun <reified A> andThenForEvent(
@@ -88,20 +92,15 @@ inline fun <reified A> andThenForEvent(
     noinline ifError: (Either<Unit, AbstractAggregate>, SagaExecutionError) -> SagaStep<A>
 ): SagaStep<A> = Free.liftF(SagaStepA.EventAndThen(saga, next, ifError))
 
-inline fun <reified A> SagaStep<AggregatesWithEvents<AbstractAggregate>>.andThen(
-    noinline ifSuccess: (AggregatesWithEvents<AbstractAggregate>) -> SagaStep<A>,
-    noinline ifError: (AggregatesWithEvents<AbstractAggregate>, SagaExecutionError) -> SagaStep<A>
+inline fun <reified A> SagaStep<AggregateWithEvents<AbstractAggregate>>.andThen(
+    noinline ifSuccess: (AggregateWithEvents<AbstractAggregate>) -> SagaStep<A>,
+    noinline ifError: (AggregateWithEvents<AbstractAggregate>, SagaExecutionError) -> SagaStep<A>
 ) = commandAndThen(this, ifSuccess, ifError)
 
-inline fun <reified A> SagaStep<A>.andStep(b: SagaStep<A>) = and(this, b)
+fun <A> SagaStep<A>.andStep(b: SagaStep<A>) = and(this, b)
 
-fun SagaStep<AggregatesWithEvents<AbstractAggregate>>.execute() = this.andThen({ list ->
-    if (list.isEmpty()) {
-        applyEvents(Unit.left(), emptyList())
-    } else {
-        list.map { applyEvents(it.first.right(), it.second) }
-            .reduce { acc, free -> and(acc, free) }
-    }
+fun SagaStep<AggregateWithEvents<AbstractAggregate>>.execute() = this.andThen({ list ->
+    applyEvents(Either.fromNullable(list.first), list.second)
 }, { _, SagaExecutionError -> error(SagaExecutionError) })
 
 inline fun <reified A> SagaStep<Either<Unit, AbstractAggregate>>.eventAndThen(
@@ -123,47 +122,59 @@ fun <A> SagaStep<A>.failFast(
 fun <A> SagaStep<A>.accumulate(
     rocksDBOperations: DBOperations,
     aggregateServiceFactory: AggregateServiceFactory
-): StateT<Either<SagaExecutionError, AggregatesWithEvents<AbstractAggregate>>, Kind<ForEither, SagaExecutionError>, A> {
+): StateT<Either<SagaExecutionError, List<AggregateWithEvents<AbstractAggregate>>>, Kind<ForEither, SagaExecutionError>, A> {
     return foldMap(
         SagaExecutionAccumulateEvents(rocksDBOperations, aggregateServiceFactory),
-        StateT.monad<Either<SagaExecutionError, AggregatesWithEvents<AbstractAggregate>>, EitherPartialOf<SagaExecutionError>>(
+        StateT.monad<Either<SagaExecutionError, List<AggregateWithEvents<AbstractAggregate>>>, EitherPartialOf<SagaExecutionError>>(
             Either.monad()
         )
     ).fix()
 }
 
-fun <A> StateT<Either<SagaExecutionError, AggregatesWithEvents<AbstractAggregate>>, Kind<ForEither, SagaExecutionError>, A>.doRun() = this.run(emptyList<Pair<AbstractAggregate, List<EventDTO>>>().right()).fix().flatMap { it.a }
+fun <A> StateT<Either<SagaExecutionError, List<AggregateWithEvents<AbstractAggregate>>>, Kind<ForEither, SagaExecutionError>, A>.doRun() =
+    this.run(emptyList<Pair<AbstractAggregate, List<EventDTO>>>().right()).fix().flatMap { it.a }
 
 fun <A> SagaStep<A>.log(log: Logger, level: Int = 0): Id<A> {
     return foldMap(LoggingInterpreter(log, level), Id.monad()).fix()
 }
 
-fun <R> eCatch(block: () -> R): Either<SagaExecutionError, R> = catch({ SagaExecutionError.EventApplicationFailed(it) }, block)
-fun <R> cCatch(block: () -> R): Either<SagaExecutionError, R> = catch({ SagaExecutionError.CommandProcessingFailed(it) }, block)
+fun <R> eCatch(block: () -> R): Either<SagaExecutionError, R> =
+    catch({ SagaExecutionError.EventApplicationFailed(it) }, block)
+
+fun <R> cCatch(block: () -> R): Either<SagaExecutionError, R> =
+    catch({ SagaExecutionError.CommandProcessingFailed(it) }, block)
 
 @Suppress("UNCHECKED_CAST")
 class SagaExecutionAccumulateEvents(
     private val rocksDBOperations: DBOperations,
     private val aggregateServiceFactory: AggregateServiceFactory
-) : FunctionK<ForSagaStep, StateTPartialOf<Either<SagaExecutionError, AggregatesWithEvents<AbstractAggregate>>, EitherPartialOf<SagaExecutionError>>> {
-    override fun <A> invoke(fa: SagaStepAOf<A>): Kind<StateTPartialOf<Either<SagaExecutionError, AggregatesWithEvents<AbstractAggregate>>, EitherPartialOf<SagaExecutionError>>, A> {
+) : FunctionK<ForSagaStep, StateTPartialOf<Either<SagaExecutionError, List<AggregateWithEvents<AbstractAggregate>>>, EitherPartialOf<SagaExecutionError>>> {
+    override fun <A> invoke(fa: SagaStepAOf<A>): Kind<StateTPartialOf<Either<SagaExecutionError, List<AggregateWithEvents<AbstractAggregate>>>, EitherPartialOf<SagaExecutionError>>, A> {
         return when (val saga = fa.fix()) {
             is SagaStepA.ProcessCommand -> {
                 StateT { either ->
-                    val aggregates = cCatch { executeInAppropriateService(
-                        saga.commandDTO,
-                        rocksDBOperations,
-                        aggregateServiceFactory
-                    ) }
-                    either.flatMap { list -> aggregates.map { agg ->
-                        val a = list + agg
-                        a.right() toT (a as A) } }
+                    val aggregates = cCatch {
+                        executeInAppropriateService(
+                            saga.commandDTO,
+                            rocksDBOperations,
+                            aggregateServiceFactory
+                        )
+                    }
+                    either.flatMap { list ->
+                        aggregates.map { agg ->
+                            val a = list + agg
+                            a.right() toT (a as A)
+                        }
+                    }
                 }
             }
             is SagaStepA.ApplyEvent -> {
                 StateT { either ->
                     val aggregate = eCatch {
-                        val a = saga.aggregate.fold ({ aggregateServiceFactory.getAggregateService(saga.event).getAggregate(saga.event, rocksDBOperations) }, { it })
+                        val a = saga.aggregate.fold({
+                            aggregateServiceFactory.getAggregateService(saga.event)
+                                .getAggregate(saga.event, rocksDBOperations)
+                        }, { it })
                         a.applyEvent(saga.event, rocksDBOperations)
                         a
                     }
@@ -200,27 +211,40 @@ class SagaExecutionAccumulateEvents(
             is SagaStepA.CommandAndThen -> {
                 StateT { either ->
                     val res = saga.saga.accumulate(rocksDBOperations, aggregateServiceFactory).doRun()
-                        .flatMap { list: AggregatesWithEvents<AbstractAggregate> ->
-                            val m = saga.next(list).accumulate(rocksDBOperations, aggregateServiceFactory).doRun()
-                            m.handleErrorWith {
-                                saga.ifError(list, it).accumulate(rocksDBOperations, aggregateServiceFactory)
-                                    .doRun()
+                        .flatMap { list: List<AggregateWithEvents<AbstractAggregate>> ->
+                            if (list.isEmpty()) {
+                                SagaExecutionError.GenericError("No events generated").left()
+                            } else {
+                                list.map { saga.next(it) }.reduce { a, b -> a.andStep(b) }
+                                    .accumulate(rocksDBOperations, aggregateServiceFactory).doRun()
+                                    .handleErrorWith { error ->
+                                        list.map { saga.ifError(it, error) }.reduce { a, b -> a.andStep(b) }
+                                            .accumulate(rocksDBOperations, aggregateServiceFactory)
+                                            .doRun()
+                                    }
+                                    .map { list + it }
                             }
-                                .map { list + it }
                         }
-                    either.flatMap { list -> res.map {
-                        list1 ->
-                        val agg = list + list1
-                        agg.right() toT (agg as A)  } }}
+                    either.flatMap { list ->
+                        res.map { list1 ->
+                            val agg = list + list1
+                            agg.right() toT (agg as A)
+                        }
+                    }
+                }
             }
 
             is SagaStepA.And -> {
                 StateT { either ->
                     val resA = saga.a.accumulate(rocksDBOperations, aggregateServiceFactory)
-                    val t = resA.flatMap(Either.monad()) { saga.b.accumulate(rocksDBOperations, aggregateServiceFactory) }
-                    either.flatMap { list -> t.doRun().map { list1 ->
-                    val accumulated = list + list1
-                    (accumulated).right() toT (accumulated as A)  } }
+                    val t =
+                        resA.flatMap(Either.monad()) { saga.b.accumulate(rocksDBOperations, aggregateServiceFactory) }
+                    either.flatMap { list ->
+                        t.doRun().map { list1 ->
+                            val accumulated = list + list1
+                            (accumulated).right() toT (accumulated as A)
+                        }
+                    }
                 }
 
             }
@@ -229,23 +253,36 @@ class SagaExecutionAccumulateEvents(
             }
 
             is SagaStepA.ReturnEvents -> {
-                StateT { it.map { list ->
-                    val collected = list + saga.events
-                    collected.right() toT (collected as A)
-                } }
+                StateT {
+                    it.map { list ->
+                        val collected = list + saga.events
+                        collected.right() toT (collected as A)
+                    }
+                }
             }
             is SagaStepA.EventAndThen -> {
                 StateT { either ->
                     val res = saga.saga.accumulate(rocksDBOperations, aggregateServiceFactory).doRun()
-                        .flatMap { list: AggregatesWithEvents<AbstractAggregate> ->
-                            val agg = Either.fromNullable(list.firstOrNull()?.first)
-                            val m = saga.next(agg).accumulate(rocksDBOperations, aggregateServiceFactory).doRun()
-                            m.handleErrorWith { saga.ifError(agg, it).accumulate(rocksDBOperations, aggregateServiceFactory).doRun() }
+                        .flatMap { list: List<AggregateWithEvents<AbstractAggregate>> ->
+                            if (list.isEmpty()) {
+                                SagaExecutionError.GenericError("No events applied").left()
+                            } else {
+                                list.map { saga.next(it.first.right()) }.reduce { acc, free -> acc.andStep(free) }
+                                    .accumulate(rocksDBOperations, aggregateServiceFactory).doRun()
+                                    .handleErrorWith { error ->
+                                        list.map { saga.ifError(it.first.right(), error) }.reduce { a, b -> a.andStep(b) }
+                                            .accumulate(rocksDBOperations, aggregateServiceFactory)
+                                            .doRun()
+                                    }.map { list + it }
+                            }
                         }
-                    either.flatMap { list -> res.map {
-                            list1 ->
-                        val agg = list + list1
-                        agg.right() toT (agg as A)  } }}
+                    either.flatMap { list ->
+                        res.map { list1 ->
+                            val agg = list + list1
+                            agg.right() toT (agg as A)
+                        }
+                    }
+                }
             }
         }
 
@@ -332,15 +369,22 @@ class LoggingInterpreter(private val log: Logger, private val level: Int = 0) : 
         log.info("${".".repeat(level * 2)}$text")
     }
 
+    private val mockAggregate: AggregateWithEvents<AbstractAggregate> = (object : AbstractAggregate(AtomicLong(0), AtomicLong(0)) {
+        override fun applyEvent(eventDTO: EventDTO, rocksDBOperations: DBOperations) {
+        }
+        override fun applyEvents(events: List<EventDTO>, rocksDBOperations: DBOperations) {
+        }
+    }) to emptyList()
+
     @Suppress("UNCHECKED_CAST")
     override fun <A> invoke(fa: Kind<ForSagaStep, A>): IdOf<A> {
         when (val g = fa.fix()) {
             is SagaStepA.CommandAndThen -> {
                 g.saga.log(log)
                 info("And then {")
-                g.next(emptyList()).log(log, level + 1)
+                g.next(mockAggregate).log(log, level + 1)
                 info("} handle error: {")
-                g.ifError(emptyList(), SagaExecutionError.GenericError("Some error")).log(log, level + 1)
+                g.ifError(mockAggregate, SagaExecutionError.GenericError("Some error")).log(log, level + 1)
                 info("}")
             }
             is SagaStepA.ProcessCommand -> info("Process command ${g.commandDTO}")

@@ -25,7 +25,7 @@ object AggregateTypeDecider {
             CommandType.UNPUBLISH_COMPETITION_COMMAND -> AggregateType.COMPETITION
             CommandType.DELETE_COMPETITION_COMMAND -> AggregateType.COMPETITION
             CommandType.ADD_CATEGORY_COMMAND -> AggregateType.CATEGORY
-            CommandType.GENERATE_CATEGORIES_COMMAND -> AggregateType.CATEGORY
+            CommandType.GENERATE_CATEGORIES_COMMAND -> AggregateType.SAGA
             CommandType.DELETE_CATEGORY_COMMAND -> AggregateType.CATEGORY
             CommandType.FIGHTS_EDITOR_APPLY_CHANGE -> AggregateType.CATEGORY
             CommandType.ADD_REGISTRATION_PERIOD_COMMAND -> AggregateType.COMPETITION
@@ -50,7 +50,7 @@ object AggregateTypeDecider {
             CommandType.CHECK_MAT_OBSOLETE -> AggregateType.COMPETITION
             CommandType.SET_CATEGORY_BRACKETS_COMMAND -> AggregateType.CATEGORY
             CommandType.ADD_COMPETITOR_COMMAND -> AggregateType.COMPETITOR
-            CommandType.CREATE_FAKE_COMPETITORS_COMMAND -> AggregateType.COMPETITOR
+            CommandType.CREATE_FAKE_COMPETITORS_COMMAND -> AggregateType.SAGA
             CommandType.UPDATE_COMPETITOR_COMMAND -> AggregateType.COMPETITOR
             CommandType.REMOVE_COMPETITOR_COMMAND -> AggregateType.COMPETITOR
             CommandType.PROPAGATE_COMPETITORS_COMMAND -> AggregateType.CATEGORY
