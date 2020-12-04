@@ -6,8 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.aggregate.AbstractAggregate
 import compman.compsrv.aggregate.Category
 import compman.compsrv.aggregate.Competitor
-import compman.compsrv.errors.CommandProcessingError
-import compman.compsrv.errors.show
+import compman.compsrv.errors.SagaExecutionError
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.CreateFakeCompetitorsPayload
@@ -15,7 +14,6 @@ import compman.compsrv.model.commands.payload.GenerateCategoriesFromRestrictions
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.CategoryAddedPayload
 import compman.compsrv.model.events.payload.CompetitorAddedPayload
-import compman.compsrv.model.exceptions.CommandProcessingException
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.CategoryGeneratorService
 import compman.compsrv.service.fight.FightsService
@@ -27,7 +25,7 @@ import org.springframework.stereotype.Component
 
 @Component
 class SagaExecutionService(private val aggregateServiceFactory: AggregateServiceFactory, private val categoryGeneratorService: CategoryGeneratorService, mapper: ObjectMapper, validators: List<PayloadValidator>) : ValidatedExecutor<AbstractAggregate>(mapper, validators) {
-    fun executeSaga(c: CommandDTO, rocksDBOperations: DBOperations): Either<CommandProcessingError, List<AggregateWithEvents<AbstractAggregate>>> {
+    fun executeSaga(c: CommandDTO, rocksDBOperations: DBOperations): Either<SagaExecutionError, List<AggregateWithEvents<AbstractAggregate>>> {
         return when(c.type) {
          CommandType.GENERATE_CATEGORIES_COMMAND -> {
              executeValidatedMultiple(c, GenerateCategoriesFromRestrictionsPayload::class.java) { payload, com ->
@@ -38,7 +36,6 @@ class SagaExecutionService(private val aggregateServiceFactory: AggregateService
                  val sagas = categories.map { applyEvent(Category(it.id, it).right(), createEvent(com, EventType.CATEGORY_ADDED, CategoryAddedPayload(it))
                      .setCategoryId(it.id)) }.reduce { acc, f -> acc.andStep(f) }
                  sagas.accumulate(rocksDBOperations, aggregateServiceFactory).doRun()
-                     .fold({throw CommandProcessingException("Errors during saga execution: ${it.show()}", c)}, {it})
              }
          }
             CommandType.CREATE_FAKE_COMPETITORS_COMMAND -> {
@@ -49,11 +46,11 @@ class SagaExecutionService(private val aggregateServiceFactory: AggregateService
                 val sagas = fakeCompetitors.map {
                     applyEvent(Competitor(it).right(), createEvent(c, EventType.COMPETITOR_ADDED, CompetitorAddedPayload(it)) )
                 }.reduce { a, b -> a.andStep(b) }
-                    sagas.accumulate(rocksDBOperations, aggregateServiceFactory).doRun().mapLeft { CommandProcessingError.GenericError("Errors during saga execution: ${it.show()}") }
+                    sagas.accumulate(rocksDBOperations, aggregateServiceFactory).doRun()
             }
             else -> {
              val saga = processCommand(c).execute()
-             saga.accumulate(rocksDBOperations, aggregateServiceFactory).doRun().mapLeft { CommandProcessingError.GenericError("Errors during saga execution: ${it.show()}") }
+             saga.accumulate(rocksDBOperations, aggregateServiceFactory).doRun()
          }
         }
     }

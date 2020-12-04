@@ -4,6 +4,8 @@ import com.google.common.cache.CacheBuilder
 import compman.compsrv.aggregate.AbstractAggregate
 import compman.compsrv.aggregate.AggregateType
 import compman.compsrv.aggregate.AggregateTypeDecider
+import compman.compsrv.errors.getEvents
+import compman.compsrv.errors.show
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.exceptions.CommandProcessingException
@@ -71,10 +73,16 @@ class CompetitionStateService(
         }
         return when (AggregateTypeDecider.getCommandAggregateType(command.type)) {
             AggregateType.SAGA -> sagaExecutionService.executeSaga(command, dbOperations)
-                .fold({ throw CommandProcessingException("Errors during saga execution: $it", command) }, { it })
-            else -> listOf(aggregateServiceFactory.getAggregateService(command)
-                .processCommand(command, rocksDBOperations = dbOperations))
+                .fold({
+                    log.error("Errors during saga execution: ${it.show()}")
+                    it.getEvents()
+                }, { it })
+            else -> listOf(
+                aggregateServiceFactory.getAggregateService(command)
+                    .processCommand(command, rocksDBOperations = dbOperations)
+            )
         }
     }
+
     fun duplicateCheck(event: EventDTO): Boolean = eventDedupCache.asMap().put(event.id, true) == null
 }

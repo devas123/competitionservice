@@ -83,10 +83,4 @@ class SagaTests {
 
         m.mapLeft { log.error(it.show()) }
     }
-
-    @Test
-    fun testEither() {
-        val k = "Privet".left().handleErrorWith { "Poka".right() }
-        log.info(k.toString())
-    }
 }

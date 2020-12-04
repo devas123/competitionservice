@@ -218,9 +218,10 @@ class SagaExecutionAccumulateEvents(
                                 list.map { saga.next(it) }.reduce { a, b -> a.andStep(b) }
                                     .accumulate(rocksDBOperations, aggregateServiceFactory).doRun()
                                     .handleErrorWith { error ->
-                                        list.map { saga.ifError(it, error) }.reduce { a, b -> a.andStep(b) }
+                                        val compensate = list.map { saga.ifError(it, error) }.reduce { a, b -> a.andStep(b) }
                                             .accumulate(rocksDBOperations, aggregateServiceFactory)
                                             .doRun()
+                                        SagaExecutionError.ErrorWithCompensatingActions(error, list, compensate.fold ({ emptyList<AggregateWithEvents<AbstractAggregate>>() }, { it })).left()
                                     }
                                     .map { list + it }
                             }
