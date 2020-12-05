@@ -24,6 +24,19 @@ fun <T> List<T>.applyConditionalUpdate(condition: (T) -> Boolean, update: (T) ->
     }
 }
 
+inline fun <reified T> Array<T>.applyConditionalUpdateArray(condition: (T) -> Boolean, update: (T) -> T): Array<T> {
+    val result = Array(this.size) { this[it] }
+    var i = 0
+    for (t in this) {
+        if (condition(t)) {
+            result[i++] = update(t)
+        } else {
+            result[i++] = t
+        }
+    }
+    return result
+}
+
 fun <T> T?.toMonoOrEmpty(): Mono<T> = Mono.justOrEmpty(this)
 
 

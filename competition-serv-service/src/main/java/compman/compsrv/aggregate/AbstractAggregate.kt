@@ -4,8 +4,9 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.repository.DBOperations
 import java.util.concurrent.atomic.AtomicLong
 
-abstract class AbstractAggregate(protected val version: AtomicLong, protected val eventNumber: AtomicLong) {
+abstract class AbstractAggregate(private val version: AtomicLong, private val eventNumber: AtomicLong) {
     fun getVersion() = version.get()
+    fun inctementVersion() = version.incrementAndGet()
 
     abstract fun applyEvent(eventDTO: EventDTO, rocksDBOperations: DBOperations)
     abstract fun applyEvents(events: List<EventDTO>, rocksDBOperations: DBOperations)

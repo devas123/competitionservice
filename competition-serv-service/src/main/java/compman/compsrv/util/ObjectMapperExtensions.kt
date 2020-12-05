@@ -56,7 +56,7 @@ fun ObjectMapper.createEffect(event: EventDTO, type: EventType, payload: Any?): 
         .setType(type)
         .setPayload(writeValueAsString(payload))
 
-inline fun <reified T : Payload> ObjectMapper.getPayloadAs(event: EventDTO, clazz: Class<T>): T? {
+fun <T : Payload> ObjectMapper.getPayloadAs(event: EventDTO, clazz: Class<T>): T? {
     return event.payload?.let {
         readValue(it, clazz)
     }
