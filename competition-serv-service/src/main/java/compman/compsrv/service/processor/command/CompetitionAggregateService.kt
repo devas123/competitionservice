@@ -213,4 +213,15 @@ class CompetitionAggregateService(
     override fun getAggregate(event: EventDTO, rocksDBOperations: DBOperations): Competition =
         rocksDBOperations.getCompetition(event.competitionId, true)
 
+    override val eventsToPayloads: Map<EventType, Class<out Payload>>
+        get() = TODO("Not yet implemented")
+
+    override fun Payload.accept(aggregate: Competition, event: EventDTO): Competition {
+        TODO("Not yet implemented")
+    }
+
+    override fun saveAggregate(aggregate: Competition, rocksDBOperations: DBOperations): Competition {
+        TODO("Not yet implemented")
+    }
+
 }

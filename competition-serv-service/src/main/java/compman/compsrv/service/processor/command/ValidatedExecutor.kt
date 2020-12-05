@@ -39,10 +39,10 @@ open class ValidatedExecutor<AT : AbstractAggregate>(val mapper: ObjectMapper, v
             .toEither()
             .mapLeft { CommandProcessingError.PayloadValidationFailed(it) }
     }
-    inline fun <T : Payload> executeValidated(event: EventDTO, payloadClass: Class<T>,
-                                                      crossinline logic: (payload: T, event: EventDTO) -> Unit) {
+    inline fun <T : Payload, V> executeValidated(event: EventDTO, payloadClass: Class<T>,
+                                                      crossinline logic: (payload: T, event: EventDTO) -> V): Either<EventApplicationError, V> {
         val payload = mapper.getPayloadAs(event, payloadClass)!!
-        PayloadValidationRules
+        return PayloadValidationRules
             .accumulateErrors { payload.validate(event, validators).fix() }
             .map { logic(payload, event) }
             .toEither()

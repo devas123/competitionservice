@@ -75,16 +75,6 @@ data class Category(
         }
     }
 
-    override fun applyEvent(eventDTO: EventDTO, rocksDBOperations: DBOperations) {
-        if (eventDTO.version != getVersion()) {
-            throw EventApplyingException("Version mismatch: ${eventDTO.version} != ${getVersion()}", eventDTO)
-        }
-    }
-
-    override fun applyEvents(events: List<EventDTO>, rocksDBOperations: DBOperations) {
-        events.forEach { e -> applyEvent(e, rocksDBOperations) }
-    }
-
     fun process(payload: UpdateStageStatusPayload, c: CommandDTO, createEvent: CreateEvent): List<EventDTO> {
         val stage = stages.first { it.id == payload.stageId }
         val stageFights = fights.filter { it.stageId == stage.id }

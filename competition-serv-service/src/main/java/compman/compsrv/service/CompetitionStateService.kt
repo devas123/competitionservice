@@ -36,34 +36,35 @@ class CompetitionStateService(
     private val eventDedupCache = CacheBuilder.newBuilder().maximumSize(10000).expireAfterAccess(Duration.ofSeconds(10))
         .concurrencyLevel(Runtime.getRuntime().availableProcessors()).weakValues().build<String, Boolean>()
 
-    fun batchApply(events: List<EventDTO>, dbOperations: DBOperations) {
-        events.filter {
+    fun <AG: AbstractAggregate> batchApply(aggregate: AG, events: List<EventDTO>, dbOperations: DBOperations): AG {
+        log.info("Batch applying start")
+        val start = System.currentTimeMillis()
+        val result = events.filter {
             log.info("Check if event is duplicate: $it")
             !duplicateCheck(it)
-        }.fold(Unit) { _, eventHolder ->
-            val start = System.currentTimeMillis()
-            log.info("Batch applying start")
-            apply(eventHolder, dbOperations, isBatch = true)
-            val finishApply = System.currentTimeMillis()
-            log.info("Batch apply finish, took ${Duration.ofMillis(finishApply - start)}. Starting flush")
-            log.info("Flush finish, took ${Duration.ofMillis(System.currentTimeMillis() - finishApply)}.")
+        }.fold(aggregate) { agg , eventHolder ->
+            val newAgg = apply(agg, eventHolder, dbOperations, isBatch = true)
+            newAgg
         }
+        val finishApply = System.currentTimeMillis()
+        log.info("Batch apply finish, took ${Duration.ofMillis(finishApply - start)}. Starting flush")
+        log.info("Flush finish, took ${Duration.ofMillis(System.currentTimeMillis() - finishApply)}.")
+        return result
     }
 
 
-    fun apply(event: EventDTO, dbOperations: DBOperations, isBatch: Boolean) {
+    @Suppress("UNCHECKED_CAST")
+    fun <AG: AbstractAggregate> apply(aggregate: AG, event: EventDTO, dbOperations: DBOperations, isBatch: Boolean): AG {
         log.info("Applying event: $event, batch: $isBatch")
         val eventWithId = event.setId(event.id ?: IDGenerator.uid())
-        if (isBatch || !duplicateCheck(event)) {
-            aggregateServiceFactory.getAggregateService(event).getAggregate(event, dbOperations)
-                .applyEvent(event, dbOperations)
-            listOf(eventWithId)
+        return if (isBatch || !duplicateCheck(event)) {
+            aggregateServiceFactory.applyEvent(aggregate, event, dbOperations) as AG
         } else {
             throw EventApplyingException("Duplicate event: correlationId: ${eventWithId.correlationId}", eventWithId)
         }
     }
 
-    fun process(command: CommandDTO, dbOperations: DBOperations): List<AggregateWithEvents<AbstractAggregate>> {
+    fun execute(command: CommandDTO, dbOperations: DBOperations): List<AggregateWithEvents<AbstractAggregate>> {
         if (command.competitionId.isNullOrBlank()) {
             log.error("Competition id is empty, command $command")
             throw CommandProcessingException("Competition ID is empty.", command)
@@ -77,10 +78,12 @@ class CompetitionStateService(
                     log.error("Errors during saga execution: ${it.show()}")
                     it.getEvents()
                 }, { it })
-            else -> listOf(
-                aggregateServiceFactory.getAggregateService(command)
+            else -> {
+                val results = aggregateServiceFactory.getAggregateService(command)
                     .processCommand(command, rocksDBOperations = dbOperations)
-            )
+                val updatedAggregate = aggregateServiceFactory.applyEvents(results.first, results.second, dbOperations)
+                return listOf(updatedAggregate to results.second)
+            }
         }
     }
 

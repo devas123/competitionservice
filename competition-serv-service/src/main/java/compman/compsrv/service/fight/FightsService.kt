@@ -176,7 +176,7 @@ abstract class FightsService {
                         FightReferenceType.WINNER -> {
                             parentFights.any { checkIfFightCanProduceReference(it.second, it.first!!, getFightScores) }
                         }
-                        FightReferenceType.LOSER -> {
+                        else -> {
                             parentFights.filter { checkIfFightCanProduceReference(it.second, it.first!!, getFightScores) }.size >= 2
                         }
                     }
@@ -186,7 +186,7 @@ abstract class FightsService {
                         FightReferenceType.WINNER -> {
                             true
                         }
-                        FightReferenceType.LOSER -> {
+                        else -> {
                             parentFights.any { checkIfFightCanProduceReference(it.second, it.first!!, getFightScores) }
                         }
                     }

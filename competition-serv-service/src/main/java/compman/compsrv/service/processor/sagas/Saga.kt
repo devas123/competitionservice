@@ -175,8 +175,7 @@ class SagaExecutionAccumulateEvents(
                             aggregateServiceFactory.getAggregateService(saga.event)
                                 .getAggregate(saga.event, rocksDBOperations)
                         }, { it })
-                        a.applyEvent(saga.event, rocksDBOperations)
-                        a
+                        aggregateServiceFactory.applyEvent(a, saga.event, rocksDBOperations)
                     }
                     either.flatMap { list ->
                         aggregate.map { agg ->
@@ -196,8 +195,7 @@ class SagaExecutionAccumulateEvents(
                                 aggregateServiceFactory.getAggregateService(saga.events.first())
                                     .getAggregate(saga.events.first(), rocksDBOperations)
                             }, { it })
-                            a.applyEvents(saga.events, rocksDBOperations)
-                            a
+                            aggregateServiceFactory.applyEvents(a, saga.events, rocksDBOperations)
                         }
                         either.flatMap { list ->
                             agg.map { aggregate ->
@@ -218,10 +216,16 @@ class SagaExecutionAccumulateEvents(
                                 list.map { saga.next(it) }.reduce { a, b -> a.andStep(b) }
                                     .accumulate(rocksDBOperations, aggregateServiceFactory).doRun()
                                     .handleErrorWith { error ->
-                                        val compensate = list.map { saga.ifError(it, error) }.reduce { a, b -> a.andStep(b) }
-                                            .accumulate(rocksDBOperations, aggregateServiceFactory)
-                                            .doRun()
-                                        SagaExecutionError.ErrorWithCompensatingActions(error, list, compensate.fold ({ emptyList<AggregateWithEvents<AbstractAggregate>>() }, { it })).left()
+                                        val compensate =
+                                            list.map { saga.ifError(it, error) }.reduce { a, b -> a.andStep(b) }
+                                                .accumulate(rocksDBOperations, aggregateServiceFactory)
+                                                .doRun()
+                                        SagaExecutionError.ErrorWithCompensatingActions(
+                                            error,
+                                            list,
+                                            compensate.fold({ emptyList<AggregateWithEvents<AbstractAggregate>>() },
+                                                { it })
+                                        ).left()
                                     }
                                     .map { list + it }
                             }
@@ -271,10 +275,16 @@ class SagaExecutionAccumulateEvents(
                                 list.map { saga.next(it.first.right()) }.reduce { acc, free -> acc.andStep(free) }
                                     .accumulate(rocksDBOperations, aggregateServiceFactory).doRun()
                                     .handleErrorWith { error ->
-                                        val compensate = list.map { saga.ifError(it.first.right(), error) }.reduce { a, b -> a.andStep(b) }
+                                        val compensate = list.map { saga.ifError(it.first.right(), error) }
+                                            .reduce { a, b -> a.andStep(b) }
                                             .accumulate(rocksDBOperations, aggregateServiceFactory)
                                             .doRun()
-                                        SagaExecutionError.ErrorWithCompensatingActions(error, list, compensate.fold ({ emptyList<AggregateWithEvents<AbstractAggregate>>() }, { it })).left()
+                                        SagaExecutionError.ErrorWithCompensatingActions(
+                                            error,
+                                            list,
+                                            compensate.fold({ emptyList<AggregateWithEvents<AbstractAggregate>>() },
+                                                { it })
+                                        ).left()
                                     }.map { list + it }
                             }
                         }
@@ -315,15 +325,16 @@ class SagaExecutionFailFast(
                     )
                 }
                 is SagaStepA.ApplyEvent -> {
-                    aggregateServiceFactory.getAggregateService(saga.event).getAggregate(saga.event, rocksDBOperations)
-                        .applyEvent(saga.event, rocksDBOperations).right()
+                    val aggregate = aggregateServiceFactory.getAggregateService(saga.event)
+                        .getAggregate(saga.event, rocksDBOperations)
+                    aggregateServiceFactory.applyEvent(aggregate, saga.event, rocksDBOperations).right()
                 }
                 is SagaStepA.ApplyEvents -> {
                     if (saga.events.isEmpty()) {
                         Either.left(SagaExecutionError.GenericError("No events to apply."))
                     } else {
-                        val agg = aggregateServiceFactory.getAggregateService(saga.events[0])
-                        agg.getAggregate(saga.events[0], rocksDBOperations).applyEvents(saga.events, rocksDBOperations)
+                        val agg = aggregateServiceFactory.getAggregateService(saga.events.first()).getAggregate(saga.events.first(), rocksDBOperations)
+                        aggregateServiceFactory.applyEvents(agg, saga.events, rocksDBOperations)
                             .right()
                     }
                 }
@@ -371,12 +382,8 @@ class LoggingInterpreter(private val log: Logger, private val level: Int = 0) : 
         log.info("${".".repeat(level * 2)}$text")
     }
 
-    private val mockAggregate: AggregateWithEvents<AbstractAggregate> = (object : AbstractAggregate(AtomicLong(0), AtomicLong(0)) {
-        override fun applyEvent(eventDTO: EventDTO, rocksDBOperations: DBOperations) {
-        }
-        override fun applyEvents(events: List<EventDTO>, rocksDBOperations: DBOperations) {
-        }
-    }) to emptyList()
+    private val mockAggregate: AggregateWithEvents<AbstractAggregate> =
+        (object : AbstractAggregate(AtomicLong(0), AtomicLong(0)) {}) to emptyList()
 
     @Suppress("UNCHECKED_CAST")
     override fun <A> invoke(fa: Kind<ForSagaStep, A>): IdOf<A> {

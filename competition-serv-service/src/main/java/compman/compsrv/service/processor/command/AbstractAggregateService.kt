@@ -46,10 +46,20 @@ abstract class AbstractAggregateService<AT : AbstractAggregate>(
 
     protected abstract fun Payload.accept(aggregate: AT, event: EventDTO): AT
 
-    fun applyEvent(aggregate: AT, event: EventDTO, rocksDBOperations: DBOperations) {
-        executeValidated(event, eventsToPayloads.getValue(event.type)) { payload, e ->
-            saveAggregate(payload.accept(aggregate, e), rocksDBOperations)
-        }
+    fun applyEvent(aggregate: AT, event: EventDTO, rocksDBOperations: DBOperations, save: Boolean = true): AT {
+        return executeValidated(event, eventsToPayloads.getValue(event.type)) { payload, e ->
+            val updatedAggregate = payload.accept(aggregate, e)
+            if (save) {
+                saveAggregate(updatedAggregate, rocksDBOperations)
+            }
+            updatedAggregate
+        }.fold({ throw EventApplyingException(it.message, event) }, { it })
+    }
+
+    fun applyEvents(aggregate: AT, events: List<EventDTO>, rocksDBOperations: DBOperations): AT {
+        val updatedAggregate = events.fold(aggregate) { acc, event -> applyEvent(acc, event, rocksDBOperations, false) }
+        saveAggregate(updatedAggregate, rocksDBOperations)
+        return updatedAggregate
     }
 
     private fun generateEventsFromAggregate(

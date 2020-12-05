@@ -51,7 +51,7 @@ class SagaTests {
     fun testCompetitorAddSaga() {
         val mapper = ObjectMapperFactory.createObjectMapper()
         val rocksDbOps = mock(DBOperations::class.java)
-        val catas = CategoryAggregateService(mock(FightServiceFactory::class.java), mock(CategoryGeneratorService::class.java), mapper, emptyList())
+        val catas = CategoryAggregateService(mock(FightServiceFactory::class.java), mapper, emptyList())
         val comas = CompetitionAggregateService(mock(ScheduleService::class.java), mock(ClusterOperations::class.java), emptyList(), mapper)
         val compas = CompetitorAggregateService(mapper, emptyList())
         val asf = AggregateServiceFactory(catas, comas, compas)
@@ -59,11 +59,15 @@ class SagaTests {
             .setType(CommandType.ADD_COMPETITOR_COMMAND)
             .setPayload(CompetitorDTO().setId("competitorId").setCategories(arrayOf("categoryId"))
                 .setEmail("email").setFirstName("Vasya").setLastName("Pupoken"))
-        `when`(rocksDbOps.getCategory("categoryId1", true)).thenReturn(Category("categoryId1", CategoryDescriptorDTO()))
-        `when`(rocksDbOps.getCategory("categoryId2", true)).thenReturn(Category("categoryId2", CategoryDescriptorDTO()))
-        `when`(rocksDbOps.getCategory("categoryId3", true)).thenReturn(Category("categoryId3", CategoryDescriptorDTO()))
-        `when`(rocksDbOps.getCompetition("competitionId", true)).thenReturn(Competition(id = "competitionId", properties = CompetitionPropertiesDTO(), registrationInfo = RegistrationInfoDTO()))
-        `when`(rocksDbOps.getCompetitor("competitorId", true)).thenReturn(Competitor(CompetitorDTO().setId("competitorId")))
+//        `when`(rocksDbOps.getCategory("categoryId1", true)).thenReturn(Category("categoryId1", CategoryDescriptorDTO()))
+//        `when`(rocksDbOps.getCategory("categoryId2", true)).thenReturn(Category("categoryId2", CategoryDescriptorDTO()))
+//        `when`(rocksDbOps.getCategory("categoryId3", true)).thenReturn(Category("categoryId3", CategoryDescriptorDTO()))
+//        `when`(rocksDbOps.getCompetition("competitionId", true)).thenReturn(Competition(
+//            id = "competitionId",
+//            properties = CompetitionPropertiesDTO(),
+//            registrationInfo = RegistrationInfoDTO()
+//        ))
+//        `when`(rocksDbOps.getCompetitor("competitorId", true)).thenReturn(Competitor(CompetitorDTO().setId("competitorId")))
         val saga = processCommand(commandDTO)
                 .andThen({ applyEvent(Unit.left(), EventDTO().setId("id").setVersion(0).setCompetitorId("competitorId").setCompetitionId("competitionId").setCategoryId("categoryId1").setType(EventType.CATEGORY_DELETED))
                     .eventAndThen({ applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setCompetitionId("competitionId").setCategoryId("categoryId").setType(EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED)) },

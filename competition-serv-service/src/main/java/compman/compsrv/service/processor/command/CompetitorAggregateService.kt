@@ -5,6 +5,7 @@ import compman.compsrv.aggregate.Competitor
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.ChangeCompetitorCategoryPayload
+import compman.compsrv.model.commands.payload.Payload
 import compman.compsrv.model.commands.payload.UpdateCompetitorPayload
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
@@ -66,5 +67,15 @@ class CompetitorAggregateService constructor(mapper: ObjectMapper,
     }
 
     override fun getAggregate(event: EventDTO, rocksDBOperations: DBOperations): Competitor = rocksDBOperations.getCompetitor(event.competitorId, true)
+    override val eventsToPayloads: Map<EventType, Class<out Payload>>
+        get() = TODO("Not yet implemented")
+
+    override fun Payload.accept(aggregate: Competitor, event: EventDTO): Competitor {
+        TODO("Not yet implemented")
+    }
+
+    override fun saveAggregate(aggregate: Competitor, rocksDBOperations: DBOperations): Competitor {
+        TODO("Not yet implemented")
+    }
 
 }

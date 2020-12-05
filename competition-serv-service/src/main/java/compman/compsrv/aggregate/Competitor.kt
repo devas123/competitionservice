@@ -13,11 +13,6 @@ import compman.compsrv.util.IDGenerator
 import java.util.concurrent.atomic.AtomicLong
 
 class Competitor(val competitorDTO: CompetitorDTO): AbstractAggregate(AtomicLong(0), AtomicLong(0)) {
-    override fun applyEvent(eventDTO: EventDTO, rocksDBOperations: DBOperations) {
-    }
-
-    override fun applyEvents(events: List<EventDTO>, rocksDBOperations: DBOperations) {
-    }
 
     fun process(payload: CompetitorDTO, command: CommandDTO, createEvent: (command: CommandDTO, eventType: EventType, payload: Any?) -> EventDTO): List<EventDTO> {
         val competitorId = IDGenerator.hashString("${command.competitionId}/${command.categoryId}/${payload.email}")

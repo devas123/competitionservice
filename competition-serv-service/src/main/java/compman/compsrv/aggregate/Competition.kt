@@ -15,7 +15,6 @@ import compman.compsrv.model.dto.schedule.PeriodDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.*
-import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.schedule.ScheduleService
 import compman.compsrv.service.schedule.StageGraph
 import compman.compsrv.util.IDGenerator
@@ -24,16 +23,8 @@ import java.time.Instant
 import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicLong
 
-class Competition(val id: String, val properties: CompetitionPropertiesDTO, val categories: Array<String> = emptyArray(), val competitors: Array<String> = emptyArray(),
-                  private val periods: Array<PeriodDTO> = emptyArray(), private val mats: Array<MatDescriptionDTO> = emptyArray(), private val registrationInfo: RegistrationInfoDTO) : AbstractAggregate(AtomicLong(0), AtomicLong(0)) {
-    override fun applyEvent(eventDTO: EventDTO, rocksDBOperations: DBOperations) {
-        TODO("Not yet implemented")
-    }
-
-    override fun applyEvents(events: List<EventDTO>, rocksDBOperations: DBOperations) {
-        TODO("Not yet implemented")
-    }
-
+class Competition(val id: String, val properties: CompetitionPropertiesDTO, private val registrationInfo: RegistrationInfoDTO, val categories: Array<String> = emptyArray(), val competitors: Array<String> = emptyArray(),
+                  private val periods: Array<PeriodDTO> = emptyArray(), private val mats: Array<MatDescriptionDTO> = emptyArray()) : AbstractAggregate(AtomicLong(0), AtomicLong(0)) {
     fun process(payload: UpdateRegistrationInfoPayload, command: CommandDTO, createEvent: (CommandDTO, EventType, Any?) -> EventDTO): List<EventDTO> {
         if (!payload.registrationInfo?.id.isNullOrBlank() && registrationInfo.id == payload.registrationInfo.id) {
             return listOf(createEvent(command, EventType.REGISTRATION_INFO_UPDATED, RegistrationInfoUpdatedPayload(payload.registrationInfo)))
