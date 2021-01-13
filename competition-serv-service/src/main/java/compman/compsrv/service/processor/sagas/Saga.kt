@@ -187,7 +187,7 @@ class SagaExecutionAccumulateEvents(
             }
             is SagaStepA.ApplyEvents -> {
                 if (saga.events.isEmpty()) {
-                    StateT { (SagaExecutionError.GenericError("Events list is empty")).left() }
+                    StateT { SagaExecutionError.GenericError("Events list is empty").left() }
                 } else {
                     StateT { either ->
                         val agg = eCatch {
