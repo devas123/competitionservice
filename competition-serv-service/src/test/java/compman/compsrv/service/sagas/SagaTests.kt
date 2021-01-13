@@ -1,22 +1,17 @@
 package compman.compsrv.service.sagas
 
-import arrow.core.*
-import compman.compsrv.aggregate.Category
-import compman.compsrv.aggregate.Competition
-import compman.compsrv.aggregate.Competitor
+import arrow.core.Either
+import arrow.core.left
+import arrow.core.right
 import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.errors.show
 import compman.compsrv.json.ObjectMapperFactory
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
-import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
-import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
-import compman.compsrv.model.dto.competition.RegistrationInfoDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.repository.DBOperations
-import compman.compsrv.service.CategoryGeneratorService
 import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.service.processor.command.AggregateServiceFactory
 import compman.compsrv.service.processor.command.CategoryAggregateService
@@ -25,7 +20,7 @@ import compman.compsrv.service.processor.command.CompetitorAggregateService
 import compman.compsrv.service.processor.sagas.*
 import compman.compsrv.service.schedule.ScheduleService
 import org.junit.runner.RunWith
-import org.mockito.Mockito.*
+import org.mockito.Mockito.mock
 import org.mockito.junit.MockitoJUnitRunner
 import org.slf4j.LoggerFactory
 import kotlin.test.Test
@@ -87,10 +82,7 @@ class SagaTests {
              applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setCompetitionId("competitionId").setCategoryId("categoryId3").setType(EventType.CATEGORY_DELETED))
         ).reduce { acc, f -> acc.andStep(f) }
 
-
-
         val m = s.accumulate(rocksDbOps, asf).doRun()
-
         m.mapLeft { log.error(it.show()) }
     }
 }
