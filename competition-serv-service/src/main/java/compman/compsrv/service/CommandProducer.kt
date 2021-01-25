@@ -7,8 +7,8 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.events.EventDTO
+import compman.compsrv.service.processor.command.AbstractAggregateService.Companion.createErrorEvent
 import compman.compsrv.util.IDGenerator
-import compman.compsrv.util.createErrorEvent
 import compman.compsrv.util.toMonoOrEmpty
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.slf4j.Logger
@@ -24,8 +24,13 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
     companion object {
         private val log: Logger = LoggerFactory.getLogger(CommandProducer::class.java)
         fun createSendProcessingInfoCommand(competitionId: String, correlationId: String): CommandDTO =
-                CommandDTO().setCorrelationId(correlationId).setCompetitionId(competitionId)
-                        .setType(CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND).setId(IDGenerator.uid())
+                CommandDTO().apply {
+                    this.correlationId = correlationId
+                    this.competitionId = competitionId
+                    type = CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND
+                    id = IDGenerator.uid()
+                }
+
     }
 
     fun sendCommandAsync(command: CommandDTO, competitionId: String?, correlationId: String = IDGenerator.uid()): CommonResponse {
@@ -40,12 +45,12 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
                     CommonResponse(400, "Empty competition name, skipping create command", correlationId.toByteArray())
                 } else {
                     val id = IDGenerator.hashString(payload.properties.competitionName)
-                    commandKafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, id, command.setCorrelationId(correlationId).setCompetitionId(id)))
+                    commandKafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, id, command.apply { setCorrelationId(correlationId); setCompetitionId(id) }))
                     CommonResponse(0, "", correlationId.toByteArray())
                 }
             } else {
                 log.info("Received a command: $command for competitionId: $competitionId")
-                commandKafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId, command.setCorrelationId(correlationId)))
+                commandKafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId, command.apply { setCorrelationId(correlationId) }))
                 CommonResponse(0, "", correlationId.toByteArray())
             }
         } catch (e: Exception) {
@@ -55,7 +60,6 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
     }
 
     fun sendCommandSync(command: CommandDTO, competitionId: String?): Array<out EventDTO> {
-        fun createErrorEvent(errorMsg: String) = arrayOf(mapper.createErrorEvent(command, errorMsg))
         command.id = command.id ?: IDGenerator.uid()
         if (competitionId.isNullOrBlank()) {
             //this is a global command, can process anywhere
@@ -77,7 +81,7 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
             }
                     .recover { e ->
                         log.error("Error in sync command.", e)
-                        createErrorEvent(e.message ?: "")
+                        arrayOf(createErrorEvent(command, e.message ?: ""))
                     }.getOrDefault(emptyArray())!!
         }
     }

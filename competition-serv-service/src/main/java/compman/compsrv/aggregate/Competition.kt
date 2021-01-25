@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 class Competition(val id: String, val properties: CompetitionPropertiesDTO, private val registrationInfo: RegistrationInfoDTO, val categories: Array<String> = emptyArray(), val competitors: Array<String> = emptyArray(),
                   private val periods: Array<PeriodDTO> = emptyArray(), private val mats: Array<MatDescriptionDTO> = emptyArray()) : AbstractAggregate(AtomicLong(0), AtomicLong(0)) {
-    fun process(payload: UpdateRegistrationInfoPayload, command: CommandDTO, createEvent: (CommandDTO, EventType, Any?) -> EventDTO): List<EventDTO> {
+    fun process(payload: UpdateRegistrationInfoPayload, command: CommandDTO, createEvent: (CommandDTO, EventType, Payload?) -> EventDTO): List<EventDTO> {
         if (!payload.registrationInfo?.id.isNullOrBlank() && registrationInfo.id == payload.registrationInfo.id) {
             return listOf(createEvent(command, EventType.REGISTRATION_INFO_UPDATED, RegistrationInfoUpdatedPayload(payload.registrationInfo)))
         } else {
@@ -33,7 +33,7 @@ class Competition(val id: String, val properties: CompetitionPropertiesDTO, priv
         }
     }
 
-    fun process(payload: AssignRegistrationGroupCategoriesPayload, command: CommandDTO, createEvent: (CommandDTO, EventType, Any?) -> EventDTO): List<EventDTO> {
+    fun process(payload: AssignRegistrationGroupCategoriesPayload, command: CommandDTO, createEvent: (CommandDTO, EventType, Payload?) -> EventDTO): List<EventDTO> {
         return if (periodExists(payload.periodId)) {
             if (groupExists(payload.groupId)) {
                 listOf(createEvent(command, EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED, RegistrationGroupCategoriesAssignedPayload(payload.periodId, payload.groupId, payload.categories)))
@@ -48,7 +48,7 @@ class Competition(val id: String, val properties: CompetitionPropertiesDTO, priv
     private fun groupExists(id: String) = registrationInfo.registrationGroups?.any { it.id == id } == true
     private fun periodExists(id: String) = registrationInfo.registrationPeriods?.any { it.id == id } == true
 
-    fun process(payload: DeleteRegistrationGroupPayload, com: CommandDTO, createEvent: (CommandDTO, EventType, Any?) -> EventDTO): List<EventDTO> {
+    fun process(payload: DeleteRegistrationGroupPayload, com: CommandDTO, createEvent: (CommandDTO, EventType, Payload?) -> EventDTO): List<EventDTO> {
         return if (groupExists(payload.groupId)
                 && periodExists(payload.periodId)) {
             listOf(createEvent(com, EventType.REGISTRATION_GROUP_DELETED, RegistrationGroupDeletedPayload(payload.periodId, payload.groupId)))
@@ -57,7 +57,7 @@ class Competition(val id: String, val properties: CompetitionPropertiesDTO, priv
         }
     }
 
-    fun process(payload: AddRegistrationGroupPayload, com: CommandDTO, createEvent: (CommandDTO, EventType, Any?) -> EventDTO): List<EventDTO> {
+    fun process(payload: AddRegistrationGroupPayload, com: CommandDTO, createEvent: (CommandDTO, EventType, Payload?) -> EventDTO): List<EventDTO> {
         return if (!payload.periodId.isNullOrBlank() && !payload.groups.isNullOrEmpty()) {
             val groupsList = payload.groups.toList()
             val k = groupsList.foldM(Either.monad(), emptyList<RegistrationGroupDTO>()) { acc, group ->
@@ -97,7 +97,7 @@ class Competition(val id: String, val properties: CompetitionPropertiesDTO, priv
         }
     }
 
-    fun process(payload: AddRegistrationPeriodPayload, com: CommandDTO, createEvent: (CommandDTO, EventType, Any?) -> EventDTO): List<EventDTO> {
+    fun process(payload: AddRegistrationPeriodPayload, com: CommandDTO, createEvent: (CommandDTO, EventType, Payload?) -> EventDTO): List<EventDTO> {
         return if (payload.period != null) {
             val periodId = IDGenerator.hashString("${com.competitionId}/${payload.period.name}")
             if (registrationInfo.registrationPeriods?.any { it.id == periodId } != true) {
@@ -110,7 +110,7 @@ class Competition(val id: String, val properties: CompetitionPropertiesDTO, priv
         }
     }
 
-    fun process(payload: CreateCompetitionPayload, com: CommandDTO, createEvent: (command: CommandDTO, eventType: EventType, payload: Any?) -> EventDTO): List<EventDTO> {
+    fun process(payload: CreateCompetitionPayload, com: CommandDTO, createEvent: (command: CommandDTO, eventType: EventType, payload: Payload?) -> EventDTO): List<EventDTO> {
         val newProperties = payload.properties
         return if (newProperties != null) {
             if (!newProperties.competitionName.isNullOrBlank()) {
@@ -139,7 +139,7 @@ class Competition(val id: String, val properties: CompetitionPropertiesDTO, priv
         }
     }
 
-    fun process(payload: GenerateSchedulePayload, com: CommandDTO, scheduleService: ScheduleService, allBrackets: Mono<StageGraph>, competitorNumbersByCategoryIds: Map<String, Int>, createEvent: (command: CommandDTO, eventType: EventType, payload: Any?) -> EventDTO): List<EventDTO> {
+    fun process(payload: GenerateSchedulePayload, com: CommandDTO, scheduleService: ScheduleService, allBrackets: Mono<StageGraph>, competitorNumbersByCategoryIds: Map<String, Int>, createEvent: (command: CommandDTO, eventType: EventType, payload: Payload?) -> EventDTO): List<EventDTO> {
         val periods = payload.periods?.toList()
         val mats = payload.mats?.map {
             it.setId(it.id ?: IDGenerator.createMatId(it.periodId))
@@ -174,5 +174,19 @@ class Competition(val id: String, val properties: CompetitionPropertiesDTO, priv
         } else {
             throw IllegalArgumentException("Could not find competition with ID: ${com.competitionId}")
         }
+    }
+
+    fun registrationGroupCategoriesAssigned(payload: RegistrationGroupCategoriesAssignedPayload): Competition {
+        this.registrationInfo.registrationGroups
+            ?.find { it.id == payload.groupId && it.registrationPeriodIds?.contains(payload.periodId) == true }
+            ?.categories = payload.categories
+        return this
+    }
+
+    fun registrationInfoUpdated(payload: RegistrationInfoUpdatedPayload): Competition {
+        this.registrationInfo.registrationGroups = payload.registrationInfo.registrationGroups
+        this.registrationInfo.registrationOpen = payload.registrationInfo.registrationOpen
+        this.registrationInfo.registrationPeriods = payload.registrationInfo.registrationPeriods
+        return this
     }
 }

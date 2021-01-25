@@ -2,6 +2,7 @@ package compman.compsrv.aggregate
 
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.payload.ChangeCompetitorCategoryPayload
+import compman.compsrv.model.commands.payload.Payload
 import compman.compsrv.model.commands.payload.UpdateCompetitorPayload
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
@@ -14,7 +15,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 class Competitor(val competitorDTO: CompetitorDTO): AbstractAggregate(AtomicLong(0), AtomicLong(0)) {
 
-    fun process(payload: CompetitorDTO, command: CommandDTO, createEvent: (command: CommandDTO, eventType: EventType, payload: Any?) -> EventDTO): List<EventDTO> {
+    fun process(payload: CompetitorDTO, command: CommandDTO, createEvent: (command: CommandDTO, eventType: EventType, payload: Payload?) -> EventDTO): List<EventDTO> {
         val competitorId = IDGenerator.hashString("${command.competitionId}/${command.categoryId}/${payload.email}")
         return if (payload.categories?.contains(command.categoryId) == true) {
             listOf(createEvent(command, EventType.COMPETITOR_ADDED, CompetitorAddedPayload(payload.setId(competitorId))))
@@ -23,11 +24,11 @@ class Competitor(val competitorDTO: CompetitorDTO): AbstractAggregate(AtomicLong
         }
     }
 
-    fun process(payload: UpdateCompetitorPayload, command: CommandDTO, createEvent: (command: CommandDTO, eventType: EventType, payload: Any?) -> EventDTO): List<EventDTO> {
+    fun process(payload: UpdateCompetitorPayload, command: CommandDTO, createEvent: (command: CommandDTO, eventType: EventType, payload: Payload?) -> EventDTO): List<EventDTO> {
         return listOf(createEvent(command, EventType.COMPETITOR_UPDATED, CompetitorUpdatedPayload(payload.competitor)))
     }
 
-    fun process(payload: ChangeCompetitorCategoryPayload, com: CommandDTO, createEvent: (command: CommandDTO, eventType: EventType, payload: Any?) -> EventDTO): List<EventDTO> {
+    fun process(payload: ChangeCompetitorCategoryPayload, com: CommandDTO, createEvent: (command: CommandDTO, eventType: EventType, payload: Payload?) -> EventDTO): List<EventDTO> {
         val competitorId = payload.fighterId
         val newCategoryId = payload.newCategoryId
         return if (!newCategoryId.isNullOrBlank() && !competitorId.isNullOrBlank()) {

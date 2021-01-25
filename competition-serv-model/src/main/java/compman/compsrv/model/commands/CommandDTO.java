@@ -1,27 +1,18 @@
 package compman.compsrv.model.commands;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
+import compman.compsrv.model.events.MessageInfo;
+import lombok.*;
 import lombok.experimental.Accessors;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-public class CommandDTO {
-    private String id;
-    private String correlationId;
-    private String competitionId;
+public class CommandDTO  extends MessageInfo {
     private CommandType type;
-    private String categoryId;
-    private String matId;
-    private String competitorId;
-    private Object payload;
-    private Map<String, String> metadata;
     private Boolean executed = false;
 }

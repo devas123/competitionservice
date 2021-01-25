@@ -12,6 +12,7 @@ import compman.compsrv.model.events.payload.CompetitionInfoPayload
 import compman.compsrv.service.CommandSyncExecutor
 import compman.compsrv.service.CommandProducer
 import compman.compsrv.service.CompetitionCleaner
+import compman.compsrv.service.processor.command.AbstractAggregateService
 import compman.compsrv.util.IDGenerator
 import io.scalecube.cluster.*
 import io.scalecube.cluster.membership.MembershipEvent
@@ -147,9 +148,14 @@ open class ClusterOperations(private val clusterConfigurationProperties: Cluster
     fun createProcessingInfoEvents(correlationId: String, competitionIds: Set<String>): Array<EventDTO> {
         val member = MemberWithRestPort(cluster.member(), serverProperties.port)
         return competitionIds.map {
-            EventDTO().setId(IDGenerator.uid()).setCorrelationId(correlationId).setCompetitionId(it).setType(EventType.INTERNAL_COMPETITION_INFO)
-                .setPayload(mapper.writeValueAsString(CompetitionInfoPayload().setHost(member.host).setPort(member.restPort)
-                            .setCompetitionId(it).setMemberId(member.id)))
+            EventDTO().apply {
+                id = IDGenerator.uid()
+                this.correlationId  = correlationId
+                competitionId = it
+                type = EventType.INTERNAL_COMPETITION_INFO
+                payload = CompetitionInfoPayload().setHost(member.host).setPort(member.restPort)
+                    .setCompetitionId(it).setMemberId(member.id)
+            }
         }.toTypedArray()
     }
 
@@ -205,7 +211,7 @@ open class ClusterOperations(private val clusterConfigurationProperties: Cluster
             arr.find { e -> e.type == EventType.INTERNAL_COMPETITION_INFO }?.let { event ->
                 log.info("Received a callback with processing info for $competitionId: $event")
                 kotlin.runCatching {
-                    val payload = mapper.readValue(event.payload, CompetitionInfoPayload::class.java)
+                    val payload = AbstractAggregateService.getPayloadAs<CompetitionInfoPayload>(event)!!
                     Address.create(payload.host, payload.port)
                 }.getOrElse {
                     log.warn("Error while processing callback.", it)

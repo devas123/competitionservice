@@ -1,6 +1,5 @@
 package compman.compsrv.kafka.streams.transformer
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
 import compman.compsrv.model.commands.CommandDTO
@@ -11,7 +10,7 @@ import compman.compsrv.repository.DBOperations
 import compman.compsrv.repository.RocksDBRepository
 import compman.compsrv.service.CommandSyncExecutor
 import compman.compsrv.service.CompetitionStateService
-import compman.compsrv.util.createErrorEvent
+import compman.compsrv.service.processor.command.AbstractAggregateService.Companion.createErrorEvent
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
@@ -20,10 +19,10 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 abstract class AbstractCommandExecutionService(
-        private val executionService: CompetitionStateService,
-        private val clusterOperations: ClusterOperations,
-        private val commandSyncExecutor: CommandSyncExecutor,
-        private val mapper: ObjectMapper) {
+    private val executionService: CompetitionStateService,
+    private val clusterOperations: ClusterOperations,
+    private val commandSyncExecutor: CommandSyncExecutor
+) {
 
 
     private val log = LoggerFactory.getLogger(this.javaClass)
@@ -73,12 +72,10 @@ abstract class AbstractCommandExecutionService(
             }.getOrElse { exception ->
                 log.error("Error while processing events.", exception)
                 rocksDBOperations.rollback()
-                createErrorEvent(command, exception.message)
+                listOf(createErrorEvent(command, exception.message))
             }
         }
     }
-
-    private fun createErrorEvent(command: CommandDTO, message: String?) = listOf(mapper.createErrorEvent(command, message))
 
 
     private fun commandExecutionLogic(command: CommandDTO, rocksDBOperations: DBOperations): List<EventDTO> {

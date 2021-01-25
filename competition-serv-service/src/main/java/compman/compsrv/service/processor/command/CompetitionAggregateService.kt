@@ -11,8 +11,8 @@ import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.model.dto.competition.RegistrationInfoDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
-import compman.compsrv.model.events.payload.CompetitionStatusUpdatedPayload
-import compman.compsrv.model.events.payload.RegistrationPeriodDeletedPayload
+import compman.compsrv.model.events.payload.*
+import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.schedule.ScheduleService
 import compman.compsrv.service.schedule.StageGraph
@@ -53,13 +53,13 @@ class CompetitionAggregateService(
     }
 
     private val updateRegistrationInfoCommand: CommandExecutor<Competition> = { competition, _, command ->
-        executeValidated(command, UpdateRegistrationInfoPayload::class.java) { payload, com ->
-            competition to competition.process(payload, com, this::createEvent)
+        executeValidated<UpdateRegistrationInfoPayload>(command) { payload, com ->
+            competition to competition.process(payload, com, Companion::createEvent)
         }.unwrap(command)
     }
 
     private val deleteRegistrationPeriod: CommandExecutor<Competition> = { competition, _, command ->
-        executeValidated(command, DeleteRegistrationPeriodPayload::class.java) { payload, c ->
+        executeValidated<DeleteRegistrationPeriodPayload>(command) { payload, _ ->
             competition to listOf(
                 createEvent(
                     command,
@@ -76,7 +76,7 @@ class CompetitionAggregateService(
                     command,
                     EventType.CATEGORY_BRACKETS_DROPPED,
                     command.payload
-                ).setCategoryId(cat)
+                ).apply { categoryId = cat }
             }
         } else {
             throw IllegalArgumentException("Brackets already published")
@@ -90,42 +90,42 @@ class CompetitionAggregateService(
         }
     }
     private val deleteRegistrationGroup: CommandExecutor<Competition> = { competition, _, command ->
-        executeValidated(command, DeleteRegistrationGroupPayload::class.java) { payload, com ->
-            competition to competition.process(payload, com, this::createEvent)
+        executeValidated<DeleteRegistrationGroupPayload>(command) { payload, com ->
+            competition to competition.process(payload, com, Companion::createEvent)
         }.unwrap(command)
     }
     private val addRegistrationGroup: CommandExecutor<Competition> = { competition, _, command ->
-        executeValidated(command, AddRegistrationGroupPayload::class.java) { payload, com ->
-            competition to competition.process(payload, com, this::createEvent)
+        executeValidated<AddRegistrationGroupPayload>(command) { payload, com ->
+            competition to competition.process(payload, com, Companion::createEvent)
         }.unwrap(command)
     }
     private val addRegistrationPeriod: CommandExecutor<Competition> = { competition, _, command ->
-        executeValidated(command, AddRegistrationPeriodPayload::class.java) { payload, com ->
-            competition to competition.process(payload, com, this::createEvent)
+        executeValidated<AddRegistrationPeriodPayload>(command) { payload, com ->
+            competition to competition.process(payload, com, Companion::createEvent)
         }.unwrap(command)
     }
 
     private val assignRegistrationGroupCategories: CommandExecutor<Competition> = { competition, _, command ->
-        executeValidated(command, AssignRegistrationGroupCategoriesPayload::class.java) { payload, com ->
-            competition to competition.process(payload, com, this::createEvent)
+        executeValidated<AssignRegistrationGroupCategoriesPayload>(command) { payload, com ->
+            competition to competition.process(payload, com, Companion::createEvent)
         }.unwrap(command)
     }
 
     private val createCompetition: CommandExecutor<Competition> = { competition, _, command ->
-        executeValidated(command, CreateCompetitionPayload::class.java) { payload, com ->
-            competition to competition.process(payload, com, this::createEvent)
+        executeValidated<CreateCompetitionPayload>(command) { payload, com ->
+            competition to competition.process(payload, com, Companion::createEvent)
         }.unwrap(command)
     }
 
     private val generateSchedule: CommandExecutor<Competition> = { competition, db, command ->
-        executeValidated(command, GenerateSchedulePayload::class.java) { payload, com ->
+        executeValidated<GenerateSchedulePayload>(command) { payload, com ->
             competition to competition.process(
                 payload,
                 com,
                 scheduleService,
                 getAllBrackets(com.competitionId, db),
                 getNumberOfCompetitorsByCategoryId(com.competitionId, db),
-                this::createEvent
+                Companion::createEvent
             )
         }.unwrap(command)
     }
@@ -213,11 +213,14 @@ class CompetitionAggregateService(
     override fun getAggregate(event: EventDTO, rocksDBOperations: DBOperations): Competition =
         rocksDBOperations.getCompetition(event.competitionId, true)
 
-    override val eventsToPayloads: Map<EventType, Class<out Payload>>
-        get() = TODO("Not yet implemented")
-
     override fun Payload.accept(aggregate: Competition, event: EventDTO): Competition {
-        TODO("Not yet implemented")
+        return when (this) {
+            is RegistrationGroupCategoriesAssignedPayload ->
+                aggregate.registrationGroupCategoriesAssigned(this)
+            is RegistrationInfoUpdatedPayload ->
+                aggregate.registrationInfoUpdated(this)
+            else -> throw EventApplyingException("Payload ${this.javaClass} not supported.", event)
+        }
     }
 
     override fun saveAggregate(aggregate: Competition, rocksDBOperations: DBOperations): Competition {

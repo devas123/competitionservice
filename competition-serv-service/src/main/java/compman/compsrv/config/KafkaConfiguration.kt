@@ -1,6 +1,5 @@
 package compman.compsrv.config
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.kafka.serde.CommandDeserializer
 import compman.compsrv.kafka.serde.CommandSerializer
@@ -140,7 +139,6 @@ class KafkaConfiguration {
     @Bean
     fun commandTransformer(
         competitionStateService: CompetitionStateService,
-        objectMapper: ObjectMapper,
         clusterOperations: ClusterOperations,
         commandSyncExecutor: CommandSyncExecutor,
         rocksDBRepository: RocksDBRepository,
@@ -150,7 +148,6 @@ class KafkaConfiguration {
         competitionStateResolver,
         clusterOperations,
         commandSyncExecutor,
-        rocksDBRepository,
-        objectMapper
+        rocksDBRepository
     )
 }

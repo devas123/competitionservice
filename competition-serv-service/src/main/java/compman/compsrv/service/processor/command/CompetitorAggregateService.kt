@@ -4,13 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.aggregate.Competitor
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
+import compman.compsrv.model.commands.payload.AddCompetitorPayload
 import compman.compsrv.model.commands.payload.ChangeCompetitorCategoryPayload
 import compman.compsrv.model.commands.payload.Payload
 import compman.compsrv.model.commands.payload.UpdateCompetitorPayload
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
-import compman.compsrv.model.events.payload.CompetitorRemovedPayload
+import compman.compsrv.model.events.payload.*
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.util.PayloadValidator
 import org.springframework.stereotype.Component
@@ -21,8 +22,9 @@ class CompetitorAggregateService constructor(mapper: ObjectMapper,
                                              validators: List<PayloadValidator>) : AbstractAggregateService<Competitor>(mapper, validators) {
 
     private val doAddCompetitor: CommandExecutor<Competitor> = { c, _, command ->
-        val competitor = mapper.convertValue(command.payload, CompetitorDTO::class.java) //TODO: increment category's number of competitors too.
-        c to c.process(competitor, command, this::createEvent)
+        executeValidated<AddCompetitorPayload>(command) { payload, _ ->
+            c to c.process(payload.competitor, command, Companion::createEvent)
+        }.unwrap(command)
     }
 
     private val doRemoveCompetitor: CommandExecutor<Competitor> = { competitor, rocksDb, command ->
@@ -34,14 +36,14 @@ class CompetitorAggregateService constructor(mapper: ObjectMapper,
     }
 
     private val doUpdateCompetitor: CommandExecutor<Competitor> = { competitor, _, command ->
-        executeValidated(command, UpdateCompetitorPayload::class.java) { payload, com ->
-            competitor to competitor.process(payload, com, this::createEvent)
+        executeValidated<UpdateCompetitorPayload>(command) { payload, com ->
+            competitor to competitor.process(payload, com, Companion::createEvent)
         }.unwrap(command)
     }
 
     private val doChangeCompetitorCategory: CommandExecutor<Competitor> = { competitor, _, command -> //TODO: update number of competitors in categories
-        executeValidated(command, ChangeCompetitorCategoryPayload::class.java) { payload, com ->
-            competitor to competitor.process(payload, com, this::createEvent)
+        executeValidated<ChangeCompetitorCategoryPayload>(command) { payload, com ->
+            competitor to competitor.process(payload, com, Companion::createEvent)
         }.unwrap(command)
     }
 
@@ -67,8 +69,6 @@ class CompetitorAggregateService constructor(mapper: ObjectMapper,
     }
 
     override fun getAggregate(event: EventDTO, rocksDBOperations: DBOperations): Competitor = rocksDBOperations.getCompetitor(event.competitorId, true)
-    override val eventsToPayloads: Map<EventType, Class<out Payload>>
-        get() = TODO("Not yet implemented")
 
     override fun Payload.accept(aggregate: Competitor, event: EventDTO): Competitor {
         TODO("Not yet implemented")

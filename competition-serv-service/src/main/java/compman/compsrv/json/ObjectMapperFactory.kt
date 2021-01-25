@@ -7,12 +7,13 @@ import com.fasterxml.jackson.annotation.PropertyAccessor
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator
-import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator
+import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule
+import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.events.EventDTO
 
 object ObjectMapperFactory {
     fun createObjectMapper(): ObjectMapper {
@@ -32,6 +33,10 @@ object ObjectMapperFactory {
         mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY)
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL)
         mapper.configure(SerializationFeature.WRITE_ENUMS_USING_TO_STRING, true)
+        mapper.registerModule(SimpleModule().also { module ->
+            module.addDeserializer(CommandDTO::class.java, PlymorphicCommandDeserializer())
+            module.addDeserializer(EventDTO::class.java, PolymorphicEventDeserializer())
+        })
         return mapper
     }
 }

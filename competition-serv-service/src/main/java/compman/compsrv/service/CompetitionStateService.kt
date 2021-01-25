@@ -56,7 +56,7 @@ class CompetitionStateService(
     @Suppress("UNCHECKED_CAST")
     fun <AG: AbstractAggregate> apply(aggregate: AG, event: EventDTO, dbOperations: DBOperations, isBatch: Boolean): AG {
         log.info("Applying event: $event, batch: $isBatch")
-        val eventWithId = event.setId(event.id ?: IDGenerator.uid())
+        val eventWithId = event.apply { id = event.id ?: IDGenerator.uid() }
         return if (isBatch || !duplicateCheck(event)) {
             aggregateServiceFactory.applyEvent(aggregate, event, dbOperations) as AG
         } else {

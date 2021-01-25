@@ -27,7 +27,7 @@ class CommandSyncExecutorTest {
           CoroutineScope(CommonPool).launch {
             log.info("coroutine started. delay")
             delay(2000)
-            commandCache.commandCallback(key, arrayOf(EventDTO().setId("TEST")))
+            commandCache.commandCallback(key, arrayOf(EventDTO().apply { id = "TEST" }))
             log.info("completing promise.done")
         }
         val kk = commandCache.waitForResult(key, java.time.Duration.ofMillis(3000))

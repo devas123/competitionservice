@@ -8,6 +8,7 @@ import compman.compsrv.errors.show
 import compman.compsrv.json.ObjectMapperFactory
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
+import compman.compsrv.model.commands.payload.AddCompetitorPayload
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
@@ -34,26 +35,45 @@ class SagaTests {
 
     @Test
     fun testSagaLogging() {
-        val commandDTO = CommandDTO().setId("id").setCategoryId("categoryId").setCompetitionId("competitionId").setCompetitorId("competitorId").setType(CommandType.DUMMY_COMMAND)
+        val commandDTO = CommandDTO().apply {
+            id = "id"
+            categoryId = "categoryId"
+            competitionId = "competitionId"
+            competitorId = "competitorId"
+            type = CommandType.DUMMY_COMMAND
+        }
         val saga = processCommand(commandDTO)
-                .andThen({ list ->
-                    applyEvents(list.first.right(), list.second)
-                }, {_, commandProcessingError -> error(commandProcessingError) })
+            .andThen({ list ->
+                applyEvents(list.first.right(), list.second)
+            }, { _, commandProcessingError -> error(commandProcessingError) })
 
         saga.log(log)
     }
+
     @Test
     fun testCompetitorAddSaga() {
         val mapper = ObjectMapperFactory.createObjectMapper()
         val rocksDbOps = mock(DBOperations::class.java)
         val catas = CategoryAggregateService(mock(FightServiceFactory::class.java), mapper, emptyList())
-        val comas = CompetitionAggregateService(mock(ScheduleService::class.java), mock(ClusterOperations::class.java), emptyList(), mapper)
+        val comas = CompetitionAggregateService(
+            mock(ScheduleService::class.java),
+            mock(ClusterOperations::class.java),
+            emptyList(),
+            mapper
+        )
         val compas = CompetitorAggregateService(mapper, emptyList())
         val asf = AggregateServiceFactory(catas, comas, compas)
-        val commandDTO = CommandDTO().setId("id").setCategoryId("categoryId").setCompetitionId("competitionId").setCompetitorId("competitorId")
-            .setType(CommandType.ADD_COMPETITOR_COMMAND)
-            .setPayload(CompetitorDTO().setId("competitorId").setCategories(arrayOf("categoryId"))
-                .setEmail("email").setFirstName("Vasya").setLastName("Pupoken"))
+        val commandDTO = CommandDTO().apply {
+            id = "id"
+            categoryId = "categoryId"
+            competitionId = "competitionId"
+            competitorId = "competitorId"
+            type = CommandType.ADD_COMPETITOR_COMMAND
+            payload = AddCompetitorPayload().setCompetitor(
+                CompetitorDTO().setId("competitorId").setCategories(arrayOf("categoryId"))
+                    .setEmail("email").setFirstName("Vasya").setLastName("Pupoken")
+            )
+        }
 //        `when`(rocksDbOps.getCategory("categoryId1", true)).thenReturn(Category("categoryId1", CategoryDescriptorDTO()))
 //        `when`(rocksDbOps.getCategory("categoryId2", true)).thenReturn(Category("categoryId2", CategoryDescriptorDTO()))
 //        `when`(rocksDbOps.getCategory("categoryId3", true)).thenReturn(Category("categoryId3", CategoryDescriptorDTO()))
@@ -64,12 +84,43 @@ class SagaTests {
 //        ))
 //        `when`(rocksDbOps.getCompetitor("competitorId", true)).thenReturn(Competitor(CompetitorDTO().setId("competitorId")))
         val saga = processCommand(commandDTO)
-                .andThen({ applyEvent(Unit.left(), EventDTO().setId("id").setVersion(0).setCompetitorId("competitorId").setCompetitionId("competitionId").setCategoryId("categoryId1").setType(EventType.CATEGORY_DELETED))
-                    .eventAndThen({ applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setCompetitionId("competitionId").setCategoryId("categoryId").setType(EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED)) },
+            .andThen({
+                applyEvent(Unit.left(), EventDTO().apply {
+                    id = "id"
+                    version = 0
+                    competitorId = "competitorId"
+                    competitionId = "competitionId"
+                    categoryId = "categoryId1"
+                    type = EventType.CATEGORY_DELETED
+                })
+                    .eventAndThen({
+                        applyEvent(Unit.left(), EventDTO().apply {
+                            id = "id"
+                            competitorId = "competitorId"
+                            competitionId = "competitionId"
+                            categoryId = "categoryId"
+                            type = EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED
+                        })
+                    },
                         { aaa, _ ->
-                            applyEvent(aaa, EventDTO().setVersion(0).setCompetitorId("competitorId").setId("id").setType(EventType.COMPETITOR_REMOVED)) } )},
-                    { agg, _ ->
-                        applyEvent(Either.fromNullable(agg.first), EventDTO().setId("id").setVersion(0).setCompetitorId("competitorId").setType(EventType.COMPETITOR_REMOVED)) } )
+                            applyEvent(aaa,
+                                EventDTO().apply {
+                                    version = 0
+                                    competitorId = "competitorId"
+                                    id = "id"
+                                    type = EventType.COMPETITOR_REMOVED
+                                }
+                            )
+                        })
+            },
+                { agg, _ ->
+                    applyEvent(Either.fromNullable(agg.first), EventDTO().apply {
+                        id = "id"
+                        version = 0
+                        competitorId = "competitorId"
+                        type = EventType.COMPETITOR_REMOVED
+                    })
+                })
 
 
         saga.log(log)
@@ -77,9 +128,38 @@ class SagaTests {
         l.mapLeft { log.error(it.show()) }
 
         val s = listOf(
-             applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setVersion(0).setCompetitionId("competitionId").setCategoryId("categoryId1").setType(EventType.CATEGORY_DELETED)),
-             applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setVersion(0).setCompetitionId("competitionId").setCategoryId("categoryId2").setType(EventType.CATEGORY_DELETED)),
-             applyEvent(Unit.left(), EventDTO().setId("id").setCompetitorId("competitorId").setCompetitionId("competitionId").setCategoryId("categoryId3").setType(EventType.CATEGORY_DELETED))
+            applyEvent(
+                Unit.left(),
+                EventDTO().apply {
+                    id = "id"
+                    competitorId = "competitorId"
+                    version = 0
+                    competitionId = "competitionId"
+                    categoryId = "categoryId1"
+                    type = EventType.CATEGORY_DELETED
+                }
+            ),
+            applyEvent(
+                Unit.left(),
+                EventDTO().apply {
+                    id = "id"
+                    competitorId = "competitorId"
+                    version = 0
+                    competitionId = "competitionId"
+                    categoryId = "categoryId2"
+                    type = EventType.CATEGORY_DELETED
+                }
+            ),
+            applyEvent(
+                Unit.left(),
+                EventDTO().apply {
+                    id = "id"
+                    competitorId = "competitorId"
+                    competitionId = "competitionId"
+                    categoryId = "categoryId3"
+                    type = EventType.CATEGORY_DELETED
+                }
+            )
         ).reduce { acc, f -> acc.andStep(f) }
 
         val m = s.accumulate(rocksDbOps, asf).doRun()

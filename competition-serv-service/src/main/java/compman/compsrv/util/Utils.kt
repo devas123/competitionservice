@@ -67,7 +67,7 @@ fun CompetitorDTO.copy(id: String? = this.id,
                        categories: Array<String>? = this.categories,
                        competitionId: String? = this.competitionId,
                        registrationStatus: String? = this.registrationStatus,
-                       promo: String? = this.promo) = CompetitorDTO()
+                       promo: String? = this.promo): CompetitorDTO = CompetitorDTO()
         .setId(id)
         .setEmail(email)
         .setUserId(userId)
