@@ -3,7 +3,6 @@ package compman.compsrv.service.sagas
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
-import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.errors.show
 import compman.compsrv.json.ObjectMapperFactory
 import compman.compsrv.model.commands.CommandDTO
@@ -13,13 +12,11 @@ import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.repository.DBOperations
-import compman.compsrv.service.fight.FightServiceFactory
-import compman.compsrv.service.processor.command.AggregateServiceFactory
-import compman.compsrv.service.processor.command.CategoryAggregateService
-import compman.compsrv.service.processor.command.CompetitionAggregateService
-import compman.compsrv.service.processor.command.CompetitorAggregateService
-import compman.compsrv.service.processor.sagas.*
-import compman.compsrv.service.schedule.ScheduleService
+import compman.compsrv.service.processor.AggregateServiceFactory
+import compman.compsrv.service.processor.category.CategoryAggregateService
+import compman.compsrv.service.processor.competition.CompetitionAggregateService
+import compman.compsrv.service.processor.competitor.CompetitorAggregateService
+import compman.compsrv.service.processor.saga.*
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
 import org.mockito.junit.MockitoJUnitRunner
@@ -54,14 +51,12 @@ class SagaTests {
     fun testCompetitorAddSaga() {
         val mapper = ObjectMapperFactory.createObjectMapper()
         val rocksDbOps = mock(DBOperations::class.java)
-        val catas = CategoryAggregateService(mock(FightServiceFactory::class.java), mapper, emptyList())
+        val catas = CategoryAggregateService(emptyList(), emptyList())
         val comas = CompetitionAggregateService(
-            mock(ScheduleService::class.java),
-            mock(ClusterOperations::class.java),
-            emptyList(),
-            mapper
+                emptyList(),
+                emptyList()
         )
-        val compas = CompetitorAggregateService(mapper, emptyList())
+        val compas = CompetitorAggregateService()
         val asf = AggregateServiceFactory(catas, comas, compas)
         val commandDTO = CommandDTO().apply {
             id = "id"

@@ -13,7 +13,6 @@ interface DBOperations {
     fun getCategory(categoryId: String, getForUpdate: Boolean = false): Category
     fun getCategories(categoryIds: List<String>, getForUpdate: Boolean = false): List<Category>
     fun getCategoryCompetitors(
-        competitionId: String,
         categoryId: String,
         getForUpdate: Boolean = false
     ): List<Competitor>
@@ -28,4 +27,6 @@ interface DBOperations {
     fun rollback()
     fun fightsCount(categoryIds: List<String>, competitorId: String): Int
     fun deleteCompetition(competitionId: String)
+    fun putCompetitor(competitor: Competitor)
+    fun deleteCategory(categoryId: String, competitionId: String)
 }

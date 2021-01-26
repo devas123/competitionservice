@@ -12,7 +12,7 @@ import compman.compsrv.model.events.payload.CompetitionInfoPayload
 import compman.compsrv.service.CommandSyncExecutor
 import compman.compsrv.service.CommandProducer
 import compman.compsrv.service.CompetitionCleaner
-import compman.compsrv.service.processor.command.AbstractAggregateService
+import compman.compsrv.service.processor.AbstractAggregateService
 import compman.compsrv.util.IDGenerator
 import io.scalecube.cluster.*
 import io.scalecube.cluster.membership.MembershipEvent

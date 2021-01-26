@@ -2,8 +2,7 @@ package compman.compsrv.errors
 
 import arrow.core.NonEmptyList
 import compman.compsrv.aggregate.AbstractAggregate
-import compman.compsrv.model.events.EventDTO
-import compman.compsrv.service.processor.command.AggregateWithEvents
+import compman.compsrv.service.processor.AggregateWithEvents
 import compman.compsrv.util.PayloadValidationError
 import java.io.PrintWriter
 import java.io.StringWriter

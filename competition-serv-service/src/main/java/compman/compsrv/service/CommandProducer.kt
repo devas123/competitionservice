@@ -7,7 +7,7 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.service.processor.command.AbstractAggregateService.Companion.createErrorEvent
+import compman.compsrv.service.processor.AbstractAggregateService.Companion.createErrorEvent
 import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.toMonoOrEmpty
 import org.apache.kafka.clients.producer.ProducerRecord

@@ -10,7 +10,7 @@ import compman.compsrv.repository.DBOperations
 import compman.compsrv.repository.RocksDBRepository
 import compman.compsrv.service.CommandSyncExecutor
 import compman.compsrv.service.CompetitionStateService
-import compman.compsrv.service.processor.command.AbstractAggregateService.Companion.createErrorEvent
+import compman.compsrv.service.processor.AbstractAggregateService.Companion.createErrorEvent
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate

@@ -11,9 +11,9 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.exceptions.CommandProcessingException
 import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.DBOperations
-import compman.compsrv.service.processor.command.AggregateServiceFactory
-import compman.compsrv.service.processor.command.AggregateWithEvents
-import compman.compsrv.service.processor.sagas.SagaExecutionService
+import compman.compsrv.service.processor.AggregateServiceFactory
+import compman.compsrv.service.processor.AggregateWithEvents
+import compman.compsrv.service.processor.saga.SagaExecutionService
 import compman.compsrv.util.IDGenerator
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -21,8 +21,8 @@ import java.time.Duration
 
 @Component
 class CompetitionStateService(
-    private val aggregateServiceFactory: AggregateServiceFactory,
-    private val sagaExecutionService: SagaExecutionService
+        private val aggregateServiceFactory: AggregateServiceFactory,
+        private val sagaExecutionService: SagaExecutionService
 ) {
 
     companion object {

@@ -8,7 +8,6 @@ import compman.compsrv.json.ObjectMapperFactory;
 import compman.compsrv.kafka.EmbeddedSingleNodeKafkaCluster;
 import compman.compsrv.service.RestApi;
 import compman.compsrv.service.schedule.ScheduleService;
-import compman.compsrv.service.processor.event.CategoryEventProcessor;
 import kafka.server.KafkaConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -171,7 +170,6 @@ public final class ZookeeperSessionTest {
 
     @Configuration
     @Import({ClusterConfiguration.class,
-            CategoryEventProcessor.class,
             ScheduleService.class,
             RestApi.class})
     static class TestConfig {

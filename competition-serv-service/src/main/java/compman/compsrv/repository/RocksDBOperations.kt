@@ -2,6 +2,7 @@ package compman.compsrv.repository
 
 import arrow.core.Either
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import compman.compsrv.aggregate.Category
 import compman.compsrv.aggregate.Competition
 import compman.compsrv.aggregate.Competitor
@@ -9,32 +10,36 @@ import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import org.rocksdb.*
 
 open class RocksDBOperations(private val db: Either<Transaction, OptimisticTransactionDB>,
-                        private val mapper: ObjectMapper,
-                        private val competitors: ColumnFamilyHandle,
-                        private val competitions: ColumnFamilyHandle,
-                        private val categories: ColumnFamilyHandle) : DBOperations {
+                             private val mapper: ObjectMapper,
+                             private val competitors: ColumnFamilyHandle,
+                             private val competitions: ColumnFamilyHandle,
+                             private val categories: ColumnFamilyHandle) : DBOperations {
 
 
     private inline fun <reified T> performGet(id: String, columnFamilyHandle: ColumnFamilyHandle, getForUpdate: Boolean = false): T? {
         return db.fold({
-            val readOptions = ReadOptions()
-            val bytes = if (getForUpdate) {
-                it.getForUpdate(readOptions, columnFamilyHandle, id.toByteArray(), false)
-            } else {
-                it.get(columnFamilyHandle, readOptions, id.toByteArray())
-            }
-            mapper.readValue(bytes, T::class.java)
+            getWithTransaction<T>(getForUpdate, it, columnFamilyHandle, id)
         },
                 { mapper.readValue(it.get(columnFamilyHandle, id.toByteArray()), T::class.java) })
+    }
+
+    private inline fun <reified T> getWithTransaction(getForUpdate: Boolean, tr: Transaction, columnFamilyHandle: ColumnFamilyHandle, id: String): T {
+        val readOptions = ReadOptions()
+        val bytes = if (getForUpdate) {
+            tr.getForUpdate(readOptions, columnFamilyHandle, id.toByteArray(), false)
+        } else {
+            tr.get(columnFamilyHandle, readOptions, id.toByteArray())
+        }
+        return mapper.readValue(bytes, T::class.java)
     }
 
     private inline fun <reified T> performMultiGet(id: List<String>, columnFamilyHandle: List<ColumnFamilyHandle>, getForUpdate: Boolean = false): List<T> {
         return db.fold({ transaction ->
             val readOptions = ReadOptions()
             val bytes = if (getForUpdate) {
-                transaction.multiGetForUpdate(readOptions, columnFamilyHandle, id.map { it.toByteArray()}.toTypedArray())?.toList()
+                transaction.multiGetForUpdate(readOptions, columnFamilyHandle, id.map { it.toByteArray() }.toTypedArray())?.toList()
             } else {
-                transaction.multiGet(readOptions, columnFamilyHandle, id.map { it.toByteArray()}.toTypedArray())?.toList()
+                transaction.multiGet(readOptions, columnFamilyHandle, id.map { it.toByteArray() }.toTypedArray())?.toList()
             }
             bytes?.map { mapper.readValue(it, T::class.java) }.orEmpty()
         },
@@ -68,9 +73,9 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
         return performMultiGet(categoryIds, listOf(categories), getForUpdate)
     }
 
-    override fun getCategoryCompetitors(competitionId: String, categoryId: String, getForUpdate: Boolean): List<Competitor> {
-        val competition = performGet<Competition>(competitionId, categories)
-        val competitors = performMultiGet<Competitor>(competition?.competitors.orEmpty().toList(), listOf(competitors), getForUpdate)
+    override fun getCategoryCompetitors(categoryId: String, getForUpdate: Boolean): List<Competitor> {
+        val category = performGet<Category>(categoryId, categories)
+        val competitors = performMultiGet<Competitor>(category?.competitors.orEmpty().toList(), listOf(competitors), getForUpdate)
         return competitors.filter { it.competitorDTO.categories?.contains(categoryId) == true }
     }
 
@@ -101,6 +106,7 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
     override fun competitorExists(competitorId: String): Boolean {
         return exists(competitors, competitorId)
     }
+
     override fun competitionExists(competitionId: String): Boolean {
         return exists(competitions, competitionId)
     }
@@ -116,6 +122,55 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
     }
 
     override fun deleteCompetition(competitionId: String) {
-        TODO()
+        db.fold({ tr ->
+            val competition = getWithTransaction<Competition>(true, tr, competitions, competitionId)
+            tr.delete(competitions, competitionId.toByteArray())
+            for (category in competition.categories) {
+                val cat = getWithTransaction<Category>(true, tr, categories, category)
+                tr.delete(categories, category.toByteArray())
+                for (competitor in cat.competitors) {
+                    tr.delete(competitors, competitor.toByteArray())
+                }
+            }
+        }, { tr ->
+            val competition = mapper.readValue<Competition>(tr.get(competitions, competitionId.toByteArray()))
+            tr.delete(competitions, competitionId.toByteArray())
+            for (category in competition.categories) {
+                val cat = mapper.readValue<Category>(tr.get(categories, category.toByteArray()))
+                tr.delete(categories, category.toByteArray())
+                for (competitor in cat.competitors) {
+                    tr.delete(competitors, competitor.toByteArray())
+                }
+            }
+        })
+    }
+
+    override fun putCompetitor(competitor: Competitor) {
+        db.fold({ tr ->
+            tr.put(competitors, competitor.competitorDTO.id.toByteArray(), mapper.writeValueAsBytes(competitor))
+            for (category in competitor.competitorDTO.categories) {
+                val cat = getWithTransaction<Category>(true, tr, categories, category)
+                tr.put(categories, category.toByteArray(), mapper.writeValueAsBytes(cat.copy(competitors = cat.competitors + competitor.competitorDTO.id)))
+            }
+        }, { tr ->
+            tr.put(competitors, competitor.competitorDTO.id.toByteArray(), mapper.writeValueAsBytes(competitor))
+            for (category in competitor.competitorDTO.categories) {
+                val cat = tr.get(categories, category.toByteArray())?.let { mapper.readValue<Category>(it) }
+                cat?.let { tr.put(categories, category.toByteArray(), mapper.writeValueAsBytes(it.copy(competitors = it.competitors + competitor.competitorDTO.id))) }
+            }
+        })
+    }
+
+    override fun deleteCategory(categoryId: String, competitionId: String) {
+        db.fold({ tr ->
+            val competition = getWithTransaction<Competition>(true, tr, competitions, competitionId)
+            tr.put(competitions, competitionId.toByteArray(), mapper.writeValueAsBytes(competition.copy(categories = competition.categories.filter { it != categoryId }.toTypedArray())))
+            tr.delete(categories, categoryId.toByteArray())
+        }, { tr ->
+            val competition = mapper.readValue<Competition>(tr.get(competitions, competitionId.toByteArray()))
+            tr.put(competitions, competitionId.toByteArray(), mapper.writeValueAsBytes(competition.copy(categories = competition.categories.filter { it != categoryId }.toTypedArray())))
+            tr.delete(categories, categoryId.toByteArray())
+        })
+
     }
 }
