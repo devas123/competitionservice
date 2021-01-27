@@ -4,7 +4,6 @@ import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
 import compman.compsrv.errors.show
-import compman.compsrv.json.ObjectMapperFactory
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.AddCompetitorPayload
@@ -49,14 +48,14 @@ class SagaTests {
 
     @Test
     fun testCompetitorAddSaga() {
-        val mapper = ObjectMapperFactory.createObjectMapper()
+//        val mapper = ObjectMapperFactory.createObjectMapper()
         val rocksDbOps = mock(DBOperations::class.java)
         val catas = CategoryAggregateService(emptyList(), emptyList())
         val comas = CompetitionAggregateService(
                 emptyList(),
                 emptyList()
         )
-        val compas = CompetitorAggregateService()
+        val compas = CompetitorAggregateService(emptyList(), emptyList())
         val asf = AggregateServiceFactory(catas, comas, compas)
         val commandDTO = CommandDTO().apply {
             id = "id"

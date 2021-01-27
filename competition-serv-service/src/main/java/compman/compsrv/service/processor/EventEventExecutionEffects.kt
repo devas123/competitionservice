@@ -1,20 +1,9 @@
 package compman.compsrv.service.processor
 
-import arrow.core.fix
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.model.commands.payload.Payload
-import compman.compsrv.model.dto.brackets.StageDescriptorDTO
-import compman.compsrv.model.dto.brackets.StageStatus
-import compman.compsrv.model.dto.competition.CompetitorDTO
-import compman.compsrv.model.events.EventDTO
-import compman.compsrv.model.events.EventType
-import compman.compsrv.model.events.payload.*
 import compman.compsrv.service.fight.FightServiceFactory
-import compman.compsrv.util.*
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
+import compman.compsrv.util.PayloadValidator
 import org.springframework.stereotype.Component
-import java.time.Duration
 
 @Component
 class EventEventExecutionEffects(val mapper: ObjectMapper,

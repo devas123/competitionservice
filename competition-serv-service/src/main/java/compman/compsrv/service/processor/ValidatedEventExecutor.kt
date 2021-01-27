@@ -16,7 +16,7 @@ import compman.compsrv.service.processor.AbstractAggregateService.Companion.getP
 import compman.compsrv.util.PayloadValidationRules
 import compman.compsrv.util.PayloadValidator
 
-open class ValidatedEventExecutor<AT : AbstractAggregate>(val mapper: ObjectMapper, val validators: List<PayloadValidator>) {
+abstract class ValidatedEventExecutor<AT : AbstractAggregate>(val mapper: ObjectMapper, val validators: List<PayloadValidator>) {
 
     inline fun <reified T : Payload, V> executeValidated(
         event: EventDTO,
