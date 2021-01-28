@@ -9,6 +9,7 @@ import compman.compsrv.errors.CommandProcessingError
 import compman.compsrv.errors.SagaExecutionError
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.payload.Payload
+import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.exceptions.CommandProcessingException
 import compman.compsrv.service.processor.AbstractAggregateService.Companion.getPayloadAs
 import compman.compsrv.util.PayloadValidationRules
@@ -18,8 +19,8 @@ abstract class ValidatedCommandExecutor<AT : AbstractAggregate>(val mapper: Obje
 
     inline fun <reified T : Payload> executeValidatedMultiple(
         command: CommandDTO,
-        crossinline logic: (payload: T, com: CommandDTO) -> Either<SagaExecutionError, List<AggregateWithEvents<AT>>>
-    ): Either<SagaExecutionError, List<AggregateWithEvents<AT>>> {
+        crossinline logic: (payload: T, com: CommandDTO) -> Either<SagaExecutionError, List<EventDTO>>
+    ): Either<SagaExecutionError, List<EventDTO>> {
         val payload = getPayloadAs<T>(command)!!
         return PayloadValidationRules
             .accumulateErrors { payload.validate(command, validators).fix() }

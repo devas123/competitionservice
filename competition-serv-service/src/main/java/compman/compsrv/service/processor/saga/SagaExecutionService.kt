@@ -5,6 +5,7 @@ import arrow.core.left
 import compman.compsrv.aggregate.AbstractAggregate
 import compman.compsrv.errors.SagaExecutionError
 import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.events.EventDTO
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.processor.AggregateWithEvents
 import compman.compsrv.service.processor.ISagaExecutor
@@ -16,7 +17,7 @@ class SagaExecutionService(executors: List<ISagaExecutor>) {
     fun executeSaga(
         c: CommandDTO,
         rocksDBOperations: DBOperations
-    ): Either<SagaExecutionError, List<AggregateWithEvents<AbstractAggregate>>> {
+    ): Either<SagaExecutionError, List<EventDTO>> {
         return executorsByType[c.type]?.executeSaga(rocksDBOperations, c)
             ?: SagaExecutionError.GenericError("Unknown command type: ${c.type}").left()
     }

@@ -1,6 +1,7 @@
 package compman.compsrv.service.processor.saga
 
 import arrow.core.Either
+import arrow.core.left
 import arrow.core.right
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.aggregate.AbstractAggregate
@@ -8,6 +9,7 @@ import compman.compsrv.errors.SagaExecutionError
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.ChangeCompetitorCategoryPayload
+import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.CompetitorUpdatedPayload
 import compman.compsrv.repository.DBOperations
@@ -25,7 +27,7 @@ class ChangeCompetitorCategory(
     override fun executeSaga(
         dbOperations: DBOperations,
         command: CommandDTO
-    ): Either<SagaExecutionError, List<AggregateWithEvents<AbstractAggregate>>> =
+    ): Either<SagaExecutionError, List<EventDTO>> =
         executeValidatedMultiple<ChangeCompetitorCategoryPayload>(command) { payload, _ ->
             val competitor = dbOperations.getCompetitor(payload.fighterId, true)
             val categories = competitor.competitorDTO.categories ?: emptyArray()
@@ -35,35 +37,34 @@ class ChangeCompetitorCategory(
                     CompetitorUpdatedPayload(competitor.competitorDTO.copy(categories = categories.filter { it != payload.oldCategoryId && it != payload.newCategoryId }
                         .toTypedArray() + payload.newCategoryId))
                 )
-            )
-                .eventAndThen({ either ->
+            ).andStep(
+                applyEvent(
+                    Unit.left(),
+                    AbstractAggregateService.createEvent(command,
+                        EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED,
+                        null).apply {
+                        categoryId = payload.newCategoryId
+                    }
+                ).andStep(
                     applyEvent(
-                        either,
+                        Unit.left(),
                         AbstractAggregateService.createEvent(command,
-                            EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED,
+                            EventType.CATEGORY_NUMBER_OF_COMPETITORS_DECREASED,
                             null).apply {
-                                categoryId = payload.newCategoryId
+                            categoryId = payload.oldCategoryId
                         }
-                    ).andStep(
-                        applyEvent(
-                            either,
-                            AbstractAggregateService.createEvent(command,
-                                EventType.CATEGORY_NUMBER_OF_COMPETITORS_DECREASED,
-                                null).apply {
-                                categoryId = payload.oldCategoryId
-                            }
-                        )
-                    )
-                }, { either, _ ->
-                    applyEvent(
-                        either,
-                        AbstractAggregateService.createEvent(
-                            command,
-                            EventType.COMPETITOR_UPDATED,
-                            CompetitorUpdatedPayload(competitor.competitorDTO)
-                        )
-                    )
-                })
+                    ),
+                    AbstractAggregateService.createEvent(command,
+                        EventType.CATEGORY_NUMBER_OF_COMPETITORS_DECREASED,
+                        null).apply {
+                        categoryId = payload.newCategoryId
+                    }
+                ),
+                AbstractAggregateService.createEvent(command,
+                    EventType.COMPETITOR_UPDATED,
+                    CompetitorUpdatedPayload(competitor.competitorDTO)
+                )
+            )
             sagas.accumulate(dbOperations, aggregateServiceFactory).doRun()
         }
 
