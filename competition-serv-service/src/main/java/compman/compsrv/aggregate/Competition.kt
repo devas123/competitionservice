@@ -7,7 +7,7 @@ import compman.compsrv.model.dto.schedule.PeriodDTO
 import java.util.concurrent.atomic.AtomicLong
 
 data class Competition(val id: String, val properties: CompetitionPropertiesDTO, val registrationInfo: RegistrationInfoDTO, val categories: Array<String> = emptyArray(),
-                  val periods: Array<PeriodDTO> = emptyArray(), val mats: Array<MatDescriptionDTO> = emptyArray()) : AbstractAggregate(AtomicLong(0), AtomicLong(0)) {
+                  val periods: Array<PeriodDTO> = emptyArray(), val mats: Array<MatDescriptionDTO> = emptyArray(), val competitionInfoTemplate: ByteArray = byteArrayOf()) : AbstractAggregate(AtomicLong(0), AtomicLong(0)) {
 
 
     fun groupExists(id: String) = registrationInfo.registrationGroups?.any { it.id == id } == true

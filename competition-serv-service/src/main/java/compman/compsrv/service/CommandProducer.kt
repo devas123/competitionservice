@@ -15,6 +15,8 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
+import reactor.core.publisher.Mono
+import reactor.core.scheduler.Schedulers
 
 @Component
 class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, CommandDTO>,
@@ -59,13 +61,13 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
         }
     }
 
-    fun sendCommandSync(command: CommandDTO, competitionId: String?): Array<out EventDTO> {
+    fun sendCommandSync(command: CommandDTO, competitionId: String?): Mono<Array<EventDTO>> {
         command.id = command.id ?: IDGenerator.uid()
         if (competitionId.isNullOrBlank()) {
             //this is a global command, can process anywhere
             //TODO
             sendCommandAsync(command, competitionId)
-            return emptyArray()
+            return Mono.empty()
         } else {
             val correlationId = IDGenerator.uid()
             return kotlin.runCatching {
@@ -76,13 +78,17 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
                             }
                         },
                         { _, restTemplate, prefix ->
-                            restTemplate.postForObject("$prefix/api/v1/commandsync", command, Array<EventDTO>::class.java, mapOf("competitionId" to competitionId)).toMonoOrEmpty()
+                            restTemplate.post()
+                                .uri { builder -> builder.path("$prefix/api/v1/commandsync").queryParam("competitionId", competitionId).queryParam("competitionId", competitionId).build() }
+                                .bodyValue(command)
+                                .retrieve()
+                                .bodyToMono(Array<EventDTO>::class.java)
                         })
             }
                     .recover { e ->
                         log.error("Error in sync command.", e)
-                        arrayOf(createErrorEvent(command, e.message ?: ""))
-                    }.getOrDefault(emptyArray())!!
+                        Mono.just(arrayOf(createErrorEvent(command, e.message ?: "")))
+                    }.getOrDefault(Mono.empty())
         }
     }
 }

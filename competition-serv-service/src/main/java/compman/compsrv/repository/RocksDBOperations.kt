@@ -61,6 +61,10 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
         return performGet(competitorId, competitors, getForUpdate) ?: error("No competitor with id $competitorId")
     }
 
+    override fun getCompetitors(competitorIds: List<String>): List<Competitor> {
+        return performMultiGet(competitorIds, listOf(competitors), false)
+    }
+
     override fun putCompetition(competition: Competition) {
         performPut(competition.id, competition, competitions)
     }
@@ -83,20 +87,38 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
         performPut(category.id, category, categories)
     }
 
+    private fun getCategories(competition: Competition, getForUpdate: Boolean) = competition.let { c ->
+        db.fold({
+            if (getForUpdate) {
+                it.multiGetForUpdate(
+                    ReadOptions(),
+                    listOf(categories),
+                    c.categories.map { cat -> cat.toByteArray() }.toTypedArray()
+                )?.toList()
+            } else {
+                it.multiGet(
+                    ReadOptions(),
+                    listOf(categories),
+                    c.categories.map { cat -> cat.toByteArray() }.toTypedArray()
+                )?.toList()
+            }
+        },
+            { it.multiGetAsList(listOf(categories), c.categories.map { cat -> cat.toByteArray() }) })
+    }
+
     override fun getCompetitionFights(competitionId: String, getForUpdate: Boolean): Array<FightDescriptionDTO> {
         val competition = getCompetition(competitionId)
-        val fights = competition.let { c ->
-            db.fold({
-                if (getForUpdate) {
-                    it.multiGetForUpdate(ReadOptions(), listOf(categories), c.categories.map { cat -> cat.toByteArray() }.toTypedArray())?.toList()
-                } else {
-                    it.multiGet(ReadOptions(), listOf(categories), c.categories.map { cat -> cat.toByteArray() }.toTypedArray())?.toList()
-                }
-            },
-                    { it.multiGetAsList(listOf(categories), c.categories.map { cat -> cat.toByteArray() }) })
+        val fights = getCategories(competition, getForUpdate)
                     ?.map { mapper.readValue(it, Category::class.java) }?.flatMap { it.fights.toList() }
-        }
+
         return fights.orEmpty().toTypedArray()
+    }
+
+    override fun getCompetitionCompetitors(competitionId: String, getForUpdate: Boolean): Array<Competitor> {
+        val competition = getCompetition(competitionId, getForUpdate)
+        val competitors = getCategories(competition, getForUpdate)
+                ?.map { mapper.readValue(it, Category::class.java) }?.flatMap { performMultiGet<Competitor>(it.competitors.toList(), listOf(competitors)) }
+        return competitors.orEmpty().toTypedArray()
     }
 
     override fun categoryExists(categoryId: String): Boolean {
