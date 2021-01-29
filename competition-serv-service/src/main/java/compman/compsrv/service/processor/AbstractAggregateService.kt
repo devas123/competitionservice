@@ -63,6 +63,7 @@ abstract class AbstractAggregateService<AT : AbstractAggregate> {
     protected abstract fun isAggregateDeleted(event: EventDTO): Boolean
 
     fun processCommand(command: CommandDTO, rocksDBOperations: DBOperations): AggregateWithEvents<AT> {
+        log.info("Process command {}", command)
         val aggregate = getAggregate(command, rocksDBOperations)
         return generateEventsFromAggregate(command, rocksDBOperations, aggregate)
     }
@@ -70,9 +71,11 @@ abstract class AbstractAggregateService<AT : AbstractAggregate> {
 //    protected abstract fun Payload.accept(aggregate: AT, event: EventDTO): AT
 
     fun applyEvent(aggregate: AT, event: EventDTO, rocksDBOperations: DBOperations, save: Boolean = true): AT {
+        log.info("Apply event {}, save: {}", event, save)
         val newAggregate =  eventsToProcessors[event.type]?.applyEvent(aggregate, event, rocksDBOperations)
-                ?: throw EventApplyingException("Event handler not implemented for type ${event.type}", event)
+            ?: throw EventApplyingException("Event handler not implemented for type ${event.type}", event)
         if (save && !isAggregateDeleted(event)) {
+            newAggregate.inctementVersion()
             saveAggregate(newAggregate, rocksDBOperations)
         }
         return newAggregate
@@ -82,6 +85,7 @@ abstract class AbstractAggregateService<AT : AbstractAggregate> {
         val updatedAggregate = events.fold(aggregate) { acc, event -> applyEvent(acc, event, rocksDBOperations, false) }
         val save = events.fold(true) { acc, event -> acc && !isAggregateDeleted(event) }
         if (save) {
+            updatedAggregate.inctementVersionBy(events.size)
             saveAggregate(updatedAggregate, rocksDBOperations)
         }
         return updatedAggregate
@@ -92,7 +96,7 @@ abstract class AbstractAggregateService<AT : AbstractAggregate> {
             rocksDBOperations: DBOperations,
             aggregate: AT
     ): AggregateWithEvents<AT> {
-        val version = aggregate.getVersion()
+        val version = aggregate.version()
         val aggWithEvents = commandsToHandlers[command.type]?.invoke(aggregate, rocksDBOperations, command)
                 ?: throw CommandProcessingException("Command handler not implemented for type ${command.type}", command)
         return aggWithEvents.first to aggWithEvents.second.mapIndexed { _, e -> e.apply { id = IDGenerator.uid() } }

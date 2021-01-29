@@ -22,8 +22,8 @@ typealias AggregateWithEvents<EntityType> = Pair<EntityType, List<EventDTO>>
 typealias CommandExecutor<EntityType> = (EntityType, DBOperations, CommandDTO) -> AggregateWithEvents<EntityType>
 typealias CreateEvent = (CommandDTO, EventType, Payload) -> EventDTO
 
-fun executeInAppropriateService(command: CommandDTO, rocksDBOperations: DBOperations, aggregateServiceFactory: AggregateServiceFactory): AggregateWithEvents<AbstractAggregate> {
-    return aggregateServiceFactory.getAggregateService(command).processCommand(command, rocksDBOperations)
+fun executeInAppropriateService(command: CommandDTO, rocksDBOperations: DBOperations, delegatingAggregateService: DelegatingAggregateService): AggregateWithEvents<AbstractAggregate> {
+    return delegatingAggregateService.getAggregateService(command).processCommand(command, rocksDBOperations)
 }
 
 

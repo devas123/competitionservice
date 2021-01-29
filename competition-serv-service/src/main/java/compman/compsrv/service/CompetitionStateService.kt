@@ -10,7 +10,7 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.exceptions.CommandProcessingException
 import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.DBOperations
-import compman.compsrv.service.processor.AggregateServiceFactory
+import compman.compsrv.service.processor.DelegatingAggregateService
 import compman.compsrv.service.processor.saga.SagaExecutionService
 import compman.compsrv.util.IDGenerator
 import org.slf4j.LoggerFactory
@@ -19,7 +19,7 @@ import java.time.Duration
 
 @Component
 class CompetitionStateService(
-    private val aggregateServiceFactory: AggregateServiceFactory,
+    private val delegatingAggregateService: DelegatingAggregateService,
     private val sagaExecutionService: SagaExecutionService
 ) {
 
@@ -61,7 +61,7 @@ class CompetitionStateService(
         log.info("Applying event: $event, batch: $isBatch")
         val eventWithId = event.apply { id = event.id ?: IDGenerator.uid() }
         return if (isBatch || !duplicateCheck(event)) {
-            aggregateServiceFactory.applyEvent(aggregate, event, dbOperations) as AG
+            delegatingAggregateService.applyEvent(aggregate, event, dbOperations) as AG
         } else {
             throw EventApplyingException("Duplicate event: correlationId: ${eventWithId.correlationId}", eventWithId)
         }
@@ -82,9 +82,9 @@ class CompetitionStateService(
                     throw CommandProcessingException("Errors during saga execution.", command)
                 }, { it })
             else -> {
-                val results = aggregateServiceFactory.getAggregateService(command)
+                val results = delegatingAggregateService.getAggregateService(command)
                     .processCommand(command, rocksDBOperations = dbOperations)
-                aggregateServiceFactory.applyEvents(results.first, results.second, dbOperations)
+                delegatingAggregateService.applyEvents(results.first, results.second, dbOperations)
                 return results.second
             }
         }

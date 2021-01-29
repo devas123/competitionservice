@@ -29,4 +29,5 @@ interface DBOperations {
     fun deleteCompetition(competitionId: String)
     fun putCompetitor(competitor: Competitor)
     fun deleteCategory(categoryId: String, competitionId: String)
+    fun deleteCompetitor(id: String)
 }

@@ -2,12 +2,10 @@ package compman.compsrv.service.processor.saga
 
 import arrow.core.Either
 import arrow.core.left
-import compman.compsrv.aggregate.AbstractAggregate
 import compman.compsrv.errors.SagaExecutionError
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.repository.DBOperations
-import compman.compsrv.service.processor.AggregateWithEvents
 import compman.compsrv.service.processor.ISagaExecutor
 import org.springframework.stereotype.Component
 
@@ -18,7 +16,8 @@ class SagaExecutionService(executors: List<ISagaExecutor>) {
         c: CommandDTO,
         rocksDBOperations: DBOperations
     ): Either<SagaExecutionError, List<EventDTO>> {
-        return executorsByType[c.type]?.executeSaga(rocksDBOperations, c)
+        val executor = executorsByType[c.type]
+        return executor?.let { it.runSaga(rocksDBOperations, it.createSaga(rocksDBOperations, c)) }
             ?: SagaExecutionError.GenericError("Unknown command type: ${c.type}").left()
     }
 }

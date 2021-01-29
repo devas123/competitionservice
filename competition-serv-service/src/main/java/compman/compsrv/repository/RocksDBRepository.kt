@@ -4,17 +4,14 @@ import arrow.core.left
 import arrow.core.right
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.rocksdb.*
-import org.springframework.stereotype.Component
 import org.springframework.util.FileSystemUtils
 import java.nio.file.Files
 import java.nio.file.Path
-import javax.annotation.PreDestroy
 
-@Component
-class RocksDBRepository(private val mapper: ObjectMapper) {
+class RocksDBRepository(private val mapper: ObjectMapper, dbProperties: RocksDBProperties) {
     private val db: OptimisticTransactionDB
     private val options: Options
-    private final val path = "C:/tmp/testRocks/db"
+    private val path = dbProperties.path
     private val competitors: ColumnFamilyHandle
     private val competitions: ColumnFamilyHandle
     private val categories: ColumnFamilyHandle
@@ -29,11 +26,22 @@ class RocksDBRepository(private val mapper: ObjectMapper) {
     }
 
     init {
+        if (Files.exists(Path.of(path))) {
+            FileSystemUtils.deleteRecursively(Path.of(path))
+        }
         OptimisticTransactionDB.loadLibrary()
         options = Options().setCreateIfMissing(true)
         Files.createDirectories(Path.of(path))
         db = OptimisticTransactionDB.open(options, path)
-        val columnFamilyHandles = db.createColumnFamilies(listOf(CATEGORY, COMPETITION, SCHEDULE, COMPETITOR).map { ColumnFamilyDescriptor(it.toByteArray()) })
+        val columnFamilyHandles = ColumnFamilyOptions().optimizeUniversalStyleCompaction().use { opts ->
+            db.createColumnFamilies(
+                listOf(
+                    CATEGORY,
+                    COMPETITION,
+                    SCHEDULE,
+                    COMPETITOR
+                ).map { ColumnFamilyDescriptor(it.toByteArray(), opts) })
+        }
         categories = columnFamilyHandles[0]
         competitions = columnFamilyHandles[1]
         schedules = columnFamilyHandles[2]
@@ -41,8 +49,7 @@ class RocksDBRepository(private val mapper: ObjectMapper) {
         operations = RocksDBOperations(db.right(), mapper, competitors, competitions, categories)
     }
 
-    @PreDestroy
-    fun destroy() {
+    fun shutdown() {
         FileSystemUtils.deleteRecursively(Path.of(path))
     }
 
@@ -52,6 +59,7 @@ class RocksDBRepository(private val mapper: ObjectMapper) {
             tx.commit()
             return result
         }
+
         var i = 0
         var exception: RocksDBException? = null
         val writeOptions = WriteOptions()

@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.cluster.MemberMetadata
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.service.ClusterInfoService
 import compman.compsrv.service.CommandSyncExecutor
 import compman.compsrv.service.CompetitionCleaner
 import io.scalecube.cluster.Cluster
@@ -18,12 +17,14 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.DependsOn
+import org.springframework.context.annotation.Profile
 import org.springframework.kafka.core.KafkaTemplate
 import java.net.InetAddress
 import java.nio.ByteBuffer
 
 @Configuration
 @EnableConfigurationProperties(ClusterConfigurationProperties::class)
+@Profile("!offline")
 class ClusterConfiguration {
 
     companion object {
@@ -52,7 +53,7 @@ class ClusterConfiguration {
                 }
                 .membership { it.seedMembers(clusterSeed) }
 
-                .metadata(MemberMetadata(serverProperties.port.toString(), memberHost))
+                .metadata(MemberMetadata(serverProperties.port?.toString() ?: error("port is null"), memberHost))
                 .metadataCodec(object : MetadataCodec {
                     override fun deserialize(buffer: ByteBuffer?): Any? {
                         return buffer?.let { objectMapper.readValue(it.array(), MemberMetadata::class.java) }
@@ -81,7 +82,4 @@ class ClusterConfiguration {
                     objectMapper,
                     commandSyncExecutor, kafkaTemplate)
 
-
-    @Bean
-    fun clusterInfoService(clusterOperations: ClusterOperations) = ClusterInfoService(clusterOperations)
 }

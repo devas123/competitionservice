@@ -1,7 +1,9 @@
 package compman.compsrv.service
 
 import arrow.core.Either
+import arrow.core.flatMap
 import arrow.core.getOrElse
+import compman.compsrv.cluster.ClusterMember
 import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.model.PageResponse
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
@@ -10,11 +12,10 @@ import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.repository.RocksDBRepository
-import compman.compsrv.service.fight.FightsService
-import compman.compsrv.util.copy
 import compman.compsrv.util.toMonoOrEmpty
 import io.scalecube.net.Address
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.web.client.RestTemplateBuilder
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpEntity
@@ -27,10 +28,9 @@ import reactor.core.publisher.Mono
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.*
-import kotlin.math.max
 
 @Component
-class StateQueryService(private val clusterOperations: ClusterOperations,
+class StateQueryService(clusterOperationsProvider: ObjectProvider<ClusterOperations>,
                         restTemplateBuilder: RestTemplateBuilder,
                         rocksDBRepository: RocksDBRepository) {
 
@@ -38,11 +38,17 @@ class StateQueryService(private val clusterOperations: ClusterOperations,
         private val log = LoggerFactory.getLogger(StateQueryService::class.java)
     }
 
+
     private val rocksDbOperations = rocksDBRepository.getOperations()
+
+    private val clusterOperations = clusterOperationsProvider.ifAvailable
 
     private val restTemplate = restTemplateBuilder
             .setConnectTimeout(Duration.ofSeconds(3))
             .setReadTimeout(Duration.ofSeconds(10)).build()
+
+    fun getClusterInfo(): Array<ClusterMember> = clusterOperations?.getClusterMembers() ?: emptyArray()
+
 
     private fun getLocalCompetitors(competitionId: String, categoryId: String?, searchString: String?, pageSize: Int, page: Int): PageResponse<CompetitorDTO> {
         TODO()
@@ -212,19 +218,21 @@ class StateQueryService(private val clusterOperations: ClusterOperations,
     }
 
     fun <T> localOrRemoteIo(competitionId: String?, ifLocal: () -> Mono<T>, ifRemote: (instanceAddress: Address, restTemplate: RestTemplate, urlPrefix: String) -> Mono<T>): Mono<T> =
+        Either.fromNullable(clusterOperations).flatMap { ops ->
             Either.fromNullable(competitionId).map { id ->
-                val instanceAddress = clusterOperations.findProcessingMember(id)
+                val instanceAddress = ops.findProcessingMember(id)
                 instanceAddress.filter { it != null }.flatMap { address ->
-                    clusterOperations.invalidateMemberForCompetitionId(id)
-                    if (clusterOperations.isLocal(address!!)) {
+                    ops.invalidateMemberForCompetitionId(id)
+                    if (ops.isLocal(address!!)) {
                         log.info("Competition $competitionId is processed locally. Starting executing the logic.")
                         ifLocal()
                     } else {
                         log.debug("Competition $competitionId is processed by $address")
-                        ifRemote(address, restTemplate, clusterOperations.getUrlPrefix(address.host(), address.port()))
+                        ifRemote(address, restTemplate, ops.getUrlPrefix(address.host(), address.port()))
                     }
                 }.retryBackoff(3, Duration.ofMillis(10))
-            }.getOrElse { Mono.empty() }
+            }
+        }.getOrElse { Mono.empty() }
 
     fun <T> localOrRemote(competitionId: String?, ifLocal: () -> Mono<T>, ifRemote: (instanceAddress: Address, restTemplate: RestTemplate, urlPrefix: String) -> Mono<T>): T? {
         return localOrRemoteIo(competitionId, ifLocal, ifRemote).block(Duration.ofMillis(30000))

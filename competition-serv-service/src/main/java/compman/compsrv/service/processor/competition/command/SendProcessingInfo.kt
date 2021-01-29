@@ -8,19 +8,20 @@ import compman.compsrv.model.commands.CommandType
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.processor.AggregateWithEvents
 import compman.compsrv.service.processor.ICommandExecutor
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 
 @Component
 @Qualifier(COMPETITION_COMMAND_EXECUTORS)
-class SendProcessingInfo(private val clusterOperations: ClusterOperations) : ICommandExecutor<Competition> {
+class SendProcessingInfo(private val clusterOperations: ObjectProvider<ClusterOperations>) : ICommandExecutor<Competition> {
     override fun execute(
         entity: Competition,
         dbOperations: DBOperations,
         command: CommandDTO
     ): AggregateWithEvents<Competition> {
-        return entity to clusterOperations.createProcessingInfoEvents(command.correlationId, setOf(command.competitionId))
-                .toList()
+        return entity to clusterOperations.ifAvailable?.createProcessingInfoEvents(command.correlationId, setOf(command.competitionId))
+                ?.toList().orEmpty()
     }
 
     override val commandType: CommandType

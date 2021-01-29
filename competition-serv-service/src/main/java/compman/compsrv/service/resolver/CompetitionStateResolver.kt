@@ -19,6 +19,7 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.stereotype.Component
 import java.time.Duration
@@ -26,9 +27,9 @@ import java.time.temporal.ChronoUnit
 import java.util.*
 
 @Component
-class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
+class CompetitionStateResolver(private val kafkaProperties: ObjectProvider<KafkaProperties>,
                                private val competitionStateService: CompetitionStateService,
-                               private val clusterSesion: ClusterOperations,
+                               private val clusterSesion: ObjectProvider<ClusterOperations>,
                                private val competitionCleaner: CompetitionCleaner) {
 
     companion object {
@@ -36,7 +37,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
     }
 
     private fun consumerProperties() = Properties().apply {
-        putAll(kafkaProperties.buildConsumerProperties())
+        kafkaProperties.ifAvailable?.buildConsumerProperties()?.let(this::putAll)
         setProperty(ConsumerConfig.GROUP_ID_CONFIG, "state-resolver-${IDGenerator.uid()}")
         setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer::class.java.canonicalName)
         setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, EventDeserializer::class.java.canonicalName)
@@ -44,7 +45,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
 
     fun resolveLatestCompetitionState(competitionId: String, dbOperations: DBOperations) {
         log.info("Retrieving state for the competitionId: $competitionId")
-        if (!clusterSesion.isProcessedLocally(competitionId)) {
+        if (clusterSesion.ifAvailable?.isProcessedLocally(competitionId) == false) {
             log.error("Trying to find the 'COMPETITION_CREATED' event in the events for the past 365 days.")
             val competitionCreated = initStateAndSendCommand(competitionId, dbOperations)
             if (competitionCreated) {

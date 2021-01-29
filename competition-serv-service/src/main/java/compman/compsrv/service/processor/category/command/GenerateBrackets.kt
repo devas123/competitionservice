@@ -63,7 +63,7 @@ class GenerateBrackets(
         competitors: List<CompetitorDTO>,
         createEvent: (command: CommandDTO, type: EventType, payload: Payload) -> EventDTO
     ): List<EventDTO> {
-        val version = getVersion()
+        val version = version()
         val stages = payload.stageDescriptors.sortedBy { it.stageOrder }
         val stageIdMap = stages
             .map { stage ->

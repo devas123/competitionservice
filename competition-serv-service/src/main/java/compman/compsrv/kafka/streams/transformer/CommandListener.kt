@@ -7,6 +7,7 @@ import compman.compsrv.repository.RocksDBRepository
 import org.apache.kafka.clients.consumer.Consumer
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
+import org.springframework.context.annotation.Profile
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.listener.AcknowledgingConsumerAwareMessageListener
 import org.springframework.kafka.support.Acknowledgment
@@ -17,6 +18,7 @@ import reactor.core.scheduler.Schedulers
 import java.util.*
 
 @Component
+@Profile("!offline")
 class CommandListener(private val commandTransformerFactory: CommandExecutionServiceFactory,
                       private val kafkaTemplate: KafkaTemplate<String, EventDTO>,
                       private val rocksDBRepository: RocksDBRepository) : AcknowledgingConsumerAwareMessageListener<String, CommandDTO> {

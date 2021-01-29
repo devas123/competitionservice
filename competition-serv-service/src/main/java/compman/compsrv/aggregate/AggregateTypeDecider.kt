@@ -49,10 +49,10 @@ object AggregateTypeDecider {
             CommandType.CHECK_DASHBOARD_OBSOLETE -> AggregateType.COMPETITION
             CommandType.CHECK_MAT_OBSOLETE -> AggregateType.COMPETITION
             CommandType.SET_CATEGORY_BRACKETS_COMMAND -> AggregateType.CATEGORY
-            CommandType.ADD_COMPETITOR_COMMAND -> AggregateType.COMPETITOR
+            CommandType.ADD_COMPETITOR_COMMAND -> AggregateType.SAGA
             CommandType.CREATE_FAKE_COMPETITORS_COMMAND -> AggregateType.SAGA
             CommandType.UPDATE_COMPETITOR_COMMAND -> AggregateType.COMPETITOR
-            CommandType.REMOVE_COMPETITOR_COMMAND -> AggregateType.COMPETITOR
+            CommandType.REMOVE_COMPETITOR_COMMAND -> AggregateType.SAGA
             CommandType.PROPAGATE_COMPETITORS_COMMAND -> AggregateType.CATEGORY
             else -> throw IllegalArgumentException("Unknown type: $commandType")
         }

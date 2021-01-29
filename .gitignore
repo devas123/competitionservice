@@ -1,6 +1,8 @@
 .idea/
 *.iml
 target/
+tmp/
+tmp/**/*
 
 compservice.db
 

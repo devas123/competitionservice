@@ -4,6 +4,7 @@ import arrow.Kind
 import arrow.core.*
 import arrow.core.extensions.either.applicativeError.catch
 import arrow.core.extensions.either.monad.monad
+import arrow.core.extensions.id.monad.monad
 import arrow.free.Free
 import arrow.free.foldMap
 import arrow.higherkind
@@ -13,13 +14,12 @@ import arrow.mtl.extensions.statet.monad.monad
 import arrow.mtl.fix
 import arrow.mtl.run
 import compman.compsrv.aggregate.AbstractAggregate
-import compman.compsrv.errors.SagaExecutionError
-import compman.compsrv.errors.getCompensatingActions
-import compman.compsrv.errors.getEvents
-import compman.compsrv.errors.getOrigin
+import compman.compsrv.errors.*
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.repository.DBOperations
-import compman.compsrv.service.processor.AggregateServiceFactory
+import compman.compsrv.service.processor.DelegatingAggregateService
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 @higherkind
 sealed class SagaStepA<out A> : SagaStepAOf<A> {
@@ -56,10 +56,10 @@ fun <A> SagaStep<A>.andStep(b: SagaStep<A>, compensateIfBFails: EventDTO?) = and
 
 fun <A> SagaStep<A>.accumulate(
     rocksDBOperations: DBOperations,
-    aggregateServiceFactory: AggregateServiceFactory
+    delegatingAggregateService: DelegatingAggregateService
 ): StateT<Either<SagaExecutionError, List<EventDTO>>, Kind<ForEither, SagaExecutionError>, A> {
     return foldMap(
-        SagaExecutionAccumulateEvents(rocksDBOperations, aggregateServiceFactory),
+        SagaExecutionAccumulateEvents(rocksDBOperations, delegatingAggregateService),
         StateT.monad<Either<SagaExecutionError, List<EventDTO>>, EitherPartialOf<SagaExecutionError>>(
             Either.monad()
         )
@@ -76,18 +76,22 @@ fun <R> eCatch(block: () -> R): Either<SagaExecutionError, R> =
 @Suppress("UNCHECKED_CAST")
 class SagaExecutionAccumulateEvents(
     private val rocksDBOperations: DBOperations,
-    private val aggregateServiceFactory: AggregateServiceFactory
+    private val delegatingAggregateService: DelegatingAggregateService
 ) : FunctionK<ForSagaStep, StateTPartialOf<Either<SagaExecutionError, List<EventDTO>>, EitherPartialOf<SagaExecutionError>>> {
+    companion object {
+        private val log = LoggerFactory.getLogger(SagaExecutionAccumulateEvents::class.java)
+    }
     override fun <A> invoke(fa: SagaStepAOf<A>): Kind<StateTPartialOf<Either<SagaExecutionError, List<EventDTO>>, EitherPartialOf<SagaExecutionError>>, A> {
         return when (val saga = fa.fix()) {
             is SagaStepA.ApplyEvent -> {
                 StateT { either ->
+                    log.info("Saga <apply event> step: ${saga.event}")
                     val aggregate = eCatch {
                         val a = saga.aggregate.fold({
-                            aggregateServiceFactory.getAggregateService(saga.event)
+                            delegatingAggregateService.getAggregateService(saga.event)
                                 .getAggregate(saga.event, rocksDBOperations)
                         }, { it })
-                        aggregateServiceFactory.applyEvent(a, saga.event, rocksDBOperations)
+                        delegatingAggregateService.applyEvent(a, saga.event, rocksDBOperations)
                     }
                     val k = either.flatMap { list ->
                         aggregate.map {
@@ -101,14 +105,15 @@ class SagaExecutionAccumulateEvents(
             is SagaStepA.And -> {
                 StateT { either ->
                     either.flatMap { events ->
-                        val resA = saga.a.accumulate(rocksDBOperations, aggregateServiceFactory).doRun()
+                        val resA = saga.a.accumulate(rocksDBOperations, delegatingAggregateService).doRun()
                         resA.flatMap { alist ->
-                            saga.b.accumulate(rocksDBOperations, aggregateServiceFactory).doRun()
+                            saga.b.accumulate(rocksDBOperations, delegatingAggregateService).doRun()
                                 .mapLeft { e ->
+                                    log.error(e.show())
                                     saga.compensateIfBFails?.let {
                                         applyEvent(Unit.left(), saga.compensateIfBFails).accumulate(
                                             rocksDBOperations,
-                                            aggregateServiceFactory
+                                            delegatingAggregateService
                                         ).doRun()
                                             .fold({ error ->
                                                 SagaExecutionError.CompositeError(listOf(error, e))
@@ -130,11 +135,29 @@ class SagaExecutionAccumulateEvents(
                 }
             }
         }
+    }
+}
 
-//        return kotlin.runCatching {
-//        }.fold({ f -> f },
-//            {
-//                SagaExecutionError.CommandProcessingFailed(Exception(it)).left()
-//            })
+fun <A> SagaStep<A>.log(log: Logger, level: Int = 0): Id<A> {
+    return foldMap(LoggingInterpreter(log, level), Id.monad()).fix()
+}
+
+class LoggingInterpreter(private val log: Logger, private val level: Int = 0) : FunctionK<ForSagaStep, ForId> {
+    private fun info(text: String) {
+        log.info("${".".repeat(level * 2)}$text")
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    override fun <A> invoke(fa: Kind<ForSagaStep, A>): IdOf<A> {
+        when (val g = fa.fix()) {
+            is SagaStepA.ApplyEvent -> info("Apply event ${g.event}")
+            is SagaStepA.And -> {
+                g.a.log(log, level)
+                info("With compensating action: ${g.compensateIfBFails}")
+                info("And then: ")
+                g.b.log(log, level + 1)
+            }
+        }
+        return Id.just(emptyList<EventDTO>()) as IdOf<A>
     }
 }

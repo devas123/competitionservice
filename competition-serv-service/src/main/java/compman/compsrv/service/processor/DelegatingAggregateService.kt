@@ -10,9 +10,9 @@ import compman.compsrv.service.processor.competitor.CompetitorAggregateService
 import org.springframework.stereotype.Component
 
 @Component
-class AggregateServiceFactory(private val categoryAggregateService: CategoryAggregateService,
-                              private val competitionAggregateService: CompetitionAggregateService,
-                              private val competitorAggregateService: CompetitorAggregateService) {
+class DelegatingAggregateService(private val categoryAggregateService: CategoryAggregateService,
+                                 private val competitionAggregateService: CompetitionAggregateService,
+                                 private val competitorAggregateService: CompetitorAggregateService) {
     fun getAggregateService(event: EventDTO): AbstractAggregateService<out AbstractAggregate> =
         when(AggregateTypeDecider.getEventAggregateType(event.type)) {
             AggregateType.CATEGORY -> categoryAggregateService

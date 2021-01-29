@@ -18,7 +18,6 @@ import java.time.Duration
 @RestController
 @RequestMapping("/api/v1")
 class RestApi(private val stateQueryService: StateQueryService,
-              private val clusterInfoService: ClusterInfoService,
               private val commandProducer: CommandProducer) {
 
     fun String?.isNullOrEmptyOrUndefined() = this.isNullOrEmpty() || this == "null" || this == "undefined"
@@ -51,7 +50,7 @@ class RestApi(private val stateQueryService: StateQueryService,
 
 
     @RequestMapping(path = ["/cluster/info"], method = [RequestMethod.GET])
-    fun getClusterInfo(): Array<ClusterMember> = clusterInfoService.getClusterInfo()
+    fun getClusterInfo(): Array<ClusterMember> = stateQueryService.getClusterInfo()
 
 
     @RequestMapping("/store/categorystate", method = [RequestMethod.GET])

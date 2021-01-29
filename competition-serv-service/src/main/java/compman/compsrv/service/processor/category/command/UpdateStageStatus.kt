@@ -42,7 +42,7 @@ class UpdateStageStatus(
     ): List<EventDTO> {
         val stage = stages.first { it.id == payload.stageId }
         val stageFights = fights.filter { it.stageId == stage.id }
-        val version = getVersion()
+        val version = version()
         return when (payload.status) {
             StageStatus.FINISHED, StageStatus.IN_PROGRESS -> listOf(
                 createEvent(

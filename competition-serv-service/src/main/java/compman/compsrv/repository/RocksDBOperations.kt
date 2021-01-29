@@ -20,7 +20,7 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
         return db.fold({
             getWithTransaction<T>(getForUpdate, it, columnFamilyHandle, id)
         },
-                { mapper.readValue(it.get(columnFamilyHandle, id.toByteArray()), T::class.java) })
+                { it.get(columnFamilyHandle, id.toByteArray())?.let { bytes -> mapper.readValue(bytes, T::class.java) }})
     }
 
     private inline fun <reified T> getWithTransaction(getForUpdate: Boolean, tr: Transaction, columnFamilyHandle: ColumnFamilyHandle, id: String): T {
@@ -54,11 +54,11 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
     }
 
     override fun getCompetition(competitionId: String, getForUpdate: Boolean): Competition {
-        return performGet(competitionId, competitions, getForUpdate) ?: error("No Competition with id $competitionId")
+        return performGet(competitionId, competitions, getForUpdate) ?: error("No competition with id $competitionId")
     }
 
     override fun getCompetitor(competitorId: String, getForUpdate: Boolean): Competitor {
-        return performGet(competitorId, competitors, getForUpdate) ?: error("No Competition with id $competitorId")
+        return performGet(competitorId, competitors, getForUpdate) ?: error("No competitor with id $competitorId")
     }
 
     override fun putCompetition(competition: Competition) {
@@ -170,6 +170,15 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
             val competition = mapper.readValue<Competition>(tr.get(competitions, competitionId.toByteArray()))
             tr.put(competitions, competitionId.toByteArray(), mapper.writeValueAsBytes(competition.copy(categories = competition.categories.filter { it != categoryId }.toTypedArray())))
             tr.delete(categories, categoryId.toByteArray())
+        })
+
+    }
+
+    override fun deleteCompetitor(id: String) {
+        db.fold({ tr ->
+            tr.delete(competitors, id.toByteArray())
+        }, { tr ->
+            tr.delete(competitors, id.toByteArray())
         })
 
     }

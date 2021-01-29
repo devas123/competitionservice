@@ -43,7 +43,7 @@ class FightEditorApplyChanges(mapper: ObjectMapper, validators: List<PayloadVali
         c: CommandDTO,
         createEvent: (command: CommandDTO, type: EventType, payload: Payload) -> EventDTO
     ): List<EventDTO> {
-        val version = getVersion()
+        val version = version()
         val stage = stages.first { it.id == payload.stageId }
         val bracketsType = stage.bracketType
         val allStageFights = fights.filter { it.stageId == payload.stageId }
