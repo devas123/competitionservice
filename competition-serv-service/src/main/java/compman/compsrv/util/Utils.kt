@@ -1,6 +1,5 @@
 package compman.compsrv.util
 
-import com.compmanager.compservice.jooq.tables.pojos.CompetitionProperties
 import compman.compsrv.model.dto.competition.AcademyDTO
 import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
@@ -9,7 +8,7 @@ import java.math.BigDecimal
 import java.sql.Timestamp
 import java.time.Instant
 
-private fun parseDate(date: Any?, default: Instant? = null) = if (date != null && !date.toString().isBlank()) {
+private fun parseDate(date: Any?, default: Instant? = null) = if (date != null && date.toString().isNotBlank()) {
     Instant.ofEpochMilli(date.toString().toLong())
 } else {
     default
@@ -23,6 +22,19 @@ fun <T> List<T>.applyConditionalUpdate(condition: (T) -> Boolean, update: (T) ->
             it
         }
     }
+}
+
+inline fun <reified T> Array<T>.applyConditionalUpdateArray(condition: (T) -> Boolean, update: (T) -> T): Array<T> {
+    val result = Array(this.size) { this[it] }
+    var i = 0
+    for (t in this) {
+        if (condition(t)) {
+            result[i++] = update(t)
+        } else {
+            result[i++] = t
+        }
+    }
+    return result
 }
 
 fun <T> T?.toMonoOrEmpty(): Mono<T> = Mono.justOrEmpty(this)
@@ -55,7 +67,7 @@ fun CompetitorDTO.copy(id: String? = this.id,
                        categories: Array<String>? = this.categories,
                        competitionId: String? = this.competitionId,
                        registrationStatus: String? = this.registrationStatus,
-                       promo: String? = this.promo) = CompetitorDTO()
+                       promo: String? = this.promo): CompetitorDTO = CompetitorDTO()
         .setId(id)
         .setEmail(email)
         .setUserId(userId)
@@ -71,12 +83,12 @@ fun CompetitorDTO.copy(id: String? = this.id,
 fun Instant.toTimestamp(): Timestamp = Timestamp.from(this)
 
 
-fun CompetitionProperties.applyProperties(props: Map<String, Any?>?) =
+fun CompetitionPropertiesDTO.applyProperties(props: Map<String, Any?>?) =
         if (props != null) {
-            CompetitionProperties(this).also { cp ->
+            this.also { cp ->
                 cp.bracketsPublished = props["bracketsPublished"] as? Boolean ?: this.bracketsPublished
-                cp.startDate = parseDate(props["startDate"])?.toTimestamp() ?: this.startDate
-                cp.endDate = parseDate(props["endDate"])?.toTimestamp() ?: this.endDate
+                cp.startDate = parseDate(props["startDate"]) ?: this.startDate
+                cp.endDate = parseDate(props["endDate"]) ?: this.endDate
                 cp.emailNotificationsEnabled = props["emailNotificationsEnabled"] as? Boolean
                         ?: this.emailNotificationsEnabled
                 cp.competitionName = props["competitionName"] as String? ?: this.competitionName

@@ -3,14 +3,6 @@
 #el-curator: leader election with curator's recipe
 #dev - developer's profile (for test instances of zookeeper and kafka)
 spring:
-  jooq.sql-dialect: POSTGRES
-  datasource:
-    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/postgres?serverTimezone=UTC}
-    username: ${POSTGRES_USERNAME:postgres}
-    password: ${POSTGRES_PASSWORD:admin}
-    driver-class-name: org.postgresql.Driver
-    initialization-mode: never
-    continueOnError: true
   cache:
     ehcache:
       config: classpath:ehcache.xml
@@ -44,10 +36,7 @@ spring:
         buffer.memory: 33554432
         key.serializer: org.apache.kafka.common.serialization.StringSerializer
         value.serializer: org.apache.kafka.common.serialization.StringSerializer
-      transaction-id-prefix: tx-
-  flyway:
-    enabled: true
-    schemas: compservice
+
 
 server:
   servlet.context-path: /competitions

@@ -13,7 +13,7 @@ object IDGenerator {
             ?: uid()
 
     fun categoryId(category: CategoryDescriptorDTO) = category.id ?: uid()
-    fun hashString(str: String) = Hashing.sha256().hashBytes("$SALT$str".toByteArray(Charsets.UTF_8)).toString()
+    fun hashString(str: String) = Hashing.murmur3_128().hashBytes("$SALT$str".toByteArray(Charsets.UTF_8)).toString()
     fun fightId(stageId: String, groupId: String? = "") = hashString("$stageId-$groupId-${UUID.randomUUID()}")
     fun stageId(competitionId: String, categoryId: String) = hashString("$competitionId-$categoryId-${UUID.randomUUID()}")
     fun createPeriodId(competitionId: String) = hashString("$competitionId-${UUID.randomUUID()}")

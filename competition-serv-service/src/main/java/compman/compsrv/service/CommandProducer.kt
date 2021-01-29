@@ -7,25 +7,32 @@ import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.events.EventDTO
+import compman.compsrv.service.processor.AbstractAggregateService.Companion.createErrorEvent
 import compman.compsrv.util.IDGenerator
-import compman.compsrv.util.createErrorEvent
 import compman.compsrv.util.toMonoOrEmpty
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
+import reactor.core.publisher.Mono
+import reactor.core.scheduler.Schedulers
 
 @Component
 class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, CommandDTO>,
                       private val mapper: ObjectMapper,
                       private val stateQueryService: StateQueryService,
-                      private val commandCache: CommandCache) {
+                      private val commandSyncExecutor: CommandSyncExecutor) {
     companion object {
         private val log: Logger = LoggerFactory.getLogger(CommandProducer::class.java)
         fun createSendProcessingInfoCommand(competitionId: String, correlationId: String): CommandDTO =
-                CommandDTO().setCorrelationId(correlationId).setCompetitionId(competitionId)
-                        .setType(CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND).setId(IDGenerator.uid())
+                CommandDTO().apply {
+                    this.correlationId = correlationId
+                    this.competitionId = competitionId
+                    type = CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND
+                    id = IDGenerator.uid()
+                }
+
     }
 
     fun sendCommandAsync(command: CommandDTO, competitionId: String?, correlationId: String = IDGenerator.uid()): CommonResponse {
@@ -40,12 +47,12 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
                     CommonResponse(400, "Empty competition name, skipping create command", correlationId.toByteArray())
                 } else {
                     val id = IDGenerator.hashString(payload.properties.competitionName)
-                    commandKafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, id, command.setCorrelationId(correlationId).setCompetitionId(id)))
+                    commandKafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, id, command.apply { setCorrelationId(correlationId); setCompetitionId(id) }))
                     CommonResponse(0, "", correlationId.toByteArray())
                 }
             } else {
                 log.info("Received a command: $command for competitionId: $competitionId")
-                commandKafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId, command.setCorrelationId(correlationId)))
+                commandKafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, competitionId, command.apply { setCorrelationId(correlationId) }))
                 CommonResponse(0, "", correlationId.toByteArray())
             }
         } catch (e: Exception) {
@@ -54,31 +61,34 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
         }
     }
 
-    fun sendCommandSync(command: CommandDTO, competitionId: String?): Array<out EventDTO> {
-        fun createErrorEvent(errorMsg: String) = arrayOf(mapper.createErrorEvent(command, errorMsg))
+    fun sendCommandSync(command: CommandDTO, competitionId: String?): Mono<Array<EventDTO>> {
         command.id = command.id ?: IDGenerator.uid()
         if (competitionId.isNullOrBlank()) {
             //this is a global command, can process anywhere
             //TODO
             sendCommandAsync(command, competitionId)
-            return emptyArray()
+            return Mono.empty()
         } else {
             val correlationId = IDGenerator.uid()
             return kotlin.runCatching {
                 stateQueryService.localOrRemote(competitionId,
                         {
-                            commandCache.executeCommand(correlationId) {
+                            commandSyncExecutor.executeCommand(correlationId) {
                                 sendCommandAsync(command, competitionId, correlationId)
                             }
                         },
                         { _, restTemplate, prefix ->
-                            restTemplate.postForObject("$prefix/api/v1/commandsync", command, Array<EventDTO>::class.java, mapOf("competitionId" to competitionId)).toMonoOrEmpty()
+                            restTemplate.post()
+                                .uri { builder -> builder.path("$prefix/api/v1/commandsync").queryParam("competitionId", competitionId).queryParam("competitionId", competitionId).build() }
+                                .bodyValue(command)
+                                .retrieve()
+                                .bodyToMono(Array<EventDTO>::class.java)
                         })
             }
                     .recover { e ->
                         log.error("Error in sync command.", e)
-                        createErrorEvent(e.message ?: "")
-                    }.getOrDefault(emptyArray())!!
+                        Mono.just(arrayOf(createErrorEvent(command, e.message ?: "")))
+                    }.getOrDefault(Mono.empty())
         }
     }
 }

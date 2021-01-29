@@ -2,9 +2,9 @@ package compman.compsrv.service.schedule
 
 import arrow.core.Tuple2
 import arrow.core.toT
-import com.compmanager.compservice.jooq.tables.pojos.CompScore
-import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import com.compmanager.service.ServiceException
+import compman.compsrv.model.dto.competition.CompScoreDTO
+import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.FightStartTimePairDTO
@@ -12,7 +12,6 @@ import compman.compsrv.model.dto.schedule.PeriodDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.util.IDGenerator
 import org.springframework.stereotype.Component
-import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import java.math.BigDecimal
 import java.time.Duration
@@ -21,12 +20,12 @@ import java.time.Duration
 class ScheduleService {
 
     companion object {
-        fun obsoleteFight(f: FightDescription, cs: List<CompScore>, threeCompetitorCategory: Boolean = false): Boolean {
+        fun obsoleteFight(f: FightDescriptionDTO, cs: List<CompScoreDTO>, threeCompetitorCategory: Boolean = false): Boolean {
             if (threeCompetitorCategory) {
                 return false
             }
             if (cs.any { !it.parentFightId.isNullOrBlank() }) return false
-            return f.status == FightStatus.UNCOMPLETABLE.name || f.status == FightStatus.WALKOVER.name
+            return f.status == FightStatus.UNCOMPLETABLE || f.status == FightStatus.WALKOVER
         }
 
     }

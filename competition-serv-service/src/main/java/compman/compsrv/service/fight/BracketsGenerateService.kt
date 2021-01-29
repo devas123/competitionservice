@@ -3,10 +3,7 @@ package compman.compsrv.service.fight
 import arrow.core.Tuple3
 import arrow.core.extensions.list.foldable.nonEmpty
 import arrow.core.extensions.list.zip.zipWith
-import com.google.common.math.DoubleMath
-import com.google.common.math.IntMath
 import com.google.common.math.LongMath
-import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.CompScoreDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
@@ -93,7 +90,7 @@ class BracketsGenerateService : FightsService() {
                 log.trace("currentRound < 0, Returning result")
                 return result
             }
-            val numberOfFightsInCurrentRound = IntMath.pow(2, totalRounds - currentRound - 1)
+            val numberOfFightsInCurrentRound = 1.shl(totalRounds - currentRound - 1)
             val currentRoundFights = currentRoundFights(numberOfFightsInCurrentRound, competitionId, categoryId, stageId, currentRound, StageRoundType.WINNER_BRACKETS, duration)
             if (currentRound == 0) {
                 //this is the first round
@@ -143,7 +140,7 @@ class BracketsGenerateService : FightsService() {
         val totalLoserRounds = 2 * (totalWinnerRounds - 1)
         val firstWinnerRoundFights = winnerFights.filter { it.round == 0 }
         val loserBracketsSize = firstWinnerRoundFights.size / 2
-        assert(DoubleMath.isMathematicalInteger(DoubleMath.log2(loserBracketsSize.toDouble()))) { "Loser brackets size should be a power of two, but it is $loserBracketsSize" }
+        assert(loserBracketsSize.and(loserBracketsSize - 1) == 0) { "Loser brackets size should be a power of two, but it is $loserBracketsSize" }
 
 
         tailrec fun createLoserFightNodes(result: List<FightDescriptionDTO>,
@@ -156,7 +153,7 @@ class BracketsGenerateService : FightsService() {
                 return result
             }
             val numberOfFightsInCurrentRound = if (currentLoserRound % 2 == 0) {
-                loserBracketsSize / IntMath.pow(2, currentLoserRound / 2)
+                loserBracketsSize / (1.shl(currentLoserRound / 2))
             } else {
                 previousLoserRoundFights.size
             }
@@ -257,7 +254,7 @@ class BracketsGenerateService : FightsService() {
         }
 
         val markedUncompletableFights = markAndProcessUncompletableFights(assignedFights, stage.stageStatus) { id ->
-            assignedFights.first { fight -> fight.id == id }.scores?.map { it.toPojo(id) }
+            assignedFights.first { fight -> fight.id == id }.scores?.toList()
         }
 
 

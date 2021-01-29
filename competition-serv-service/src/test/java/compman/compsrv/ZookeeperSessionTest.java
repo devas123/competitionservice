@@ -8,7 +8,6 @@ import compman.compsrv.json.ObjectMapperFactory;
 import compman.compsrv.kafka.EmbeddedSingleNodeKafkaCluster;
 import compman.compsrv.service.RestApi;
 import compman.compsrv.service.schedule.ScheduleService;
-import compman.compsrv.service.processor.event.CategoryEventProcessor;
 import kafka.server.KafkaConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -164,14 +163,13 @@ public final class ZookeeperSessionTest {
         Runtime.getRuntime().addShutdownHook(new Thread(CLUSTER::stop));
         log.info("Zookeeper Connect: " + CLUSTER.zookeeperConnect());
         log.info("Bootstrap servers: " + CLUSTER.bootstrapServers());
-        Thread.sleep(10000000);
-        log.info("Stopiing.");
+        Thread.sleep(100000000);
+        log.info("Stopping.");
         CLUSTER.stop();
     }
 
     @Configuration
     @Import({ClusterConfiguration.class,
-            CategoryEventProcessor.class,
             ScheduleService.class,
             RestApi.class})
     static class TestConfig {

@@ -1,7 +1,6 @@
 package compman.compsrv.service
 
 import arrow.core.extensions.list.foldable.exists
-import compman.compsrv.mapping.toPojo
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.competition.FightStatus
@@ -110,7 +109,7 @@ class BracketsGenerateServiceTest : AbstractGenerateServiceTest() {
         checkDoubleEliminationLaws(doubleEliminationBracketFights, 8)
         val distr = fightsGenerateService.distributeCompetitors(competitors, doubleEliminationBracketFights, BracketType.DOUBLE_ELIMINATION)
         printFights(distr)
-        val marked = FightsService.markAndProcessUncompletableFights(distr, StageStatus.APPROVED) { id -> distr.find { it.id == id }?.scores?.map { it.toPojo(id) } }
+        val marked = FightsService.markAndProcessUncompletableFights(distr, StageStatus.APPROVED) { id -> distr.find { it.id == id }?.scores?.toList() }
         return marked
     }
 

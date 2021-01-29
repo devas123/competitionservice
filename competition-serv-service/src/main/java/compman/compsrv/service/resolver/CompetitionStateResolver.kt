@@ -1,14 +1,16 @@
 package compman.compsrv.service.resolver
 
-import compman.compsrv.cluster.ClusterSession
+import compman.compsrv.aggregate.Competition
+import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.kafka.serde.EventDeserializer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
-import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
+import compman.compsrv.model.dto.competition.RegistrationInfoDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
-import compman.compsrv.repository.JooqRepository
+import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.CompetitionCleaner
-import compman.compsrv.service.ICommandProcessingService
+import compman.compsrv.service.CompetitionStateService
 import compman.compsrv.util.IDGenerator
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord
@@ -17,18 +19,17 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.stereotype.Component
-import org.springframework.transaction.annotation.Propagation
-import org.springframework.transaction.annotation.Transactional
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.*
 
 @Component
-class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
-                               private val competitionStateService: ICommandProcessingService<CommandDTO, EventDTO>,
-                               private val clusterSesion: ClusterSession,
+class CompetitionStateResolver(private val kafkaProperties: ObjectProvider<KafkaProperties>,
+                               private val competitionStateService: CompetitionStateService,
+                               private val clusterSesion: ObjectProvider<ClusterOperations>,
                                private val competitionCleaner: CompetitionCleaner) {
 
     companion object {
@@ -36,17 +37,17 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
     }
 
     private fun consumerProperties() = Properties().apply {
-        putAll(kafkaProperties.buildConsumerProperties())
+        kafkaProperties.ifAvailable?.buildConsumerProperties()?.let(this::putAll)
         setProperty(ConsumerConfig.GROUP_ID_CONFIG, "state-resolver-${IDGenerator.uid()}")
         setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer::class.java.canonicalName)
         setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, EventDeserializer::class.java.canonicalName)
     }
 
-    fun resolveLatestCompetitionState(competitionId: String, correlationId: String?, transactional: Boolean = false) {
+    fun resolveLatestCompetitionState(competitionId: String, dbOperations: DBOperations) {
         log.info("Retrieving state for the competitionId: $competitionId")
-        if (!clusterSesion.isProcessedLocally(competitionId)) {
+        if (clusterSesion.ifAvailable?.isProcessedLocally(competitionId) == false) {
             log.error("Trying to find the 'COMPETITION_CREATED' event in the events for the past 365 days.")
-            val competitionCreated = if (transactional) { initStateAndSendCommandTransactional(competitionId) } else { initStateAndSendCommand(competitionId) }
+            val competitionCreated = initStateAndSendCommand(competitionId, dbOperations)
             if (competitionCreated) {
                 log.info("We have initialized the state from the first event to the last for $competitionId")
             } else {
@@ -57,7 +58,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
         }
     }
 
-    private fun initStateAndSendCommand(competitionId: String): Boolean {
+    private fun initStateAndSendCommand(competitionId: String, dbOperations: DBOperations): Boolean {
         val consumer = KafkaConsumer<String, EventDTO>(consumerProperties())
         var competitionCreated = false
         consumer.use { cons ->
@@ -71,6 +72,7 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                     cons.seek(it.key, it.value.offset())
                 }
                 var records: List<ConsumerRecord<String, EventDTO>>?
+                var competition: Competition? = null
                 do {
                     val result = cons.poll(Duration.of(200, ChronoUnit.MILLIS))
                     records = result?.records(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME)?.toList()
@@ -83,31 +85,28 @@ class CompetitionStateResolver(private val kafkaProperties: KafkaProperties,
                         if (createdEvent != null) {
                             log.info("Yay! Found the 'COMPETITION_CREATED' event for $competitionId !")
                             competitionCleaner.deleteCompetition(competitionId)
+                            competition = competitionStateService.apply(Competition(createdEvent.key(), CompetitionPropertiesDTO().setId(createdEvent.key()), RegistrationInfoDTO().setId(createdEvent.key())),
+                                createdEvent.value(), dbOperations, false)
                             competitionCreated = true
-                            competitionStateService.apply(createdEvent.value())
                             log.info("Finished applying 'COMPETITION_CREATED' event for $competitionId")
                             val events = recSequence.filter { it.value()?.type != EventType.COMPETITION_CREATED }.map { it.value() }.toList()
                             log.debug("Applying batch events: ${events.joinToString("\n")}")
-                            competitionStateService.batchApply(events)
+                            competitionStateService.batchApply(competition, events, dbOperations)
                         } else {
                             log.error("Could not find the 'COMPETITION_CREATED' event for $competitionId, maybe the competition was created more than 365 days ago.")
                             break
                         }
                     } else {
-                        val events = records.filter { it.key() == competitionId }.map { it.value() }.toList()
-                        log.info("Applying batch events: ${events.joinToString("\n")}")
-                        competitionStateService.batchApply(events)
+                        if (competition != null) {
+                            val events = records.filter { it.key() == competitionId }.map { it.value() }.toList()
+                            log.info("Applying batch events: ${events.joinToString("\n")}")
+                            competitionStateService.batchApply(competition, events, dbOperations)
+                        }
                     }
                     cons.commitSync()
                 } while (!records.isNullOrEmpty())
             }
         }
         return competitionCreated
-    }
-
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    fun initStateAndSendCommandTransactional(competitionId: String): Boolean {
-        return initStateAndSendCommand(competitionId)
     }
 }

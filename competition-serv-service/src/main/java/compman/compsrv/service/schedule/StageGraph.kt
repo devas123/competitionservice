@@ -1,13 +1,13 @@
 package compman.compsrv.service.schedule
 
-import com.compmanager.compservice.jooq.tables.pojos.FightDescription
 import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
+import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import org.slf4j.LoggerFactory
 import java.math.BigDecimal
 
-class StageGraph(stages: List<StageDescriptorDTO>, fights: List<FightDescription>) {
+class StageGraph(stages: List<StageDescriptorDTO>, fights: List<FightDescriptionDTO>) {
 
     companion object {
         private val log = LoggerFactory.getLogger(StageGraph::class.java)
