@@ -5,7 +5,6 @@ import compman.compsrv.aggregate.Category
 import compman.compsrv.config.CATEGORY_EVENT_HANDLERS
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
-import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.processor.IEventHandler
 import compman.compsrv.service.processor.ValidatedEventExecutor
@@ -20,11 +19,11 @@ class CategoryBracketsDropped(
         validators: List<PayloadValidator>
 ) : IEventHandler<Category>, ValidatedEventExecutor<Category>(mapper, validators) {
     override fun applyEvent(
-            aggregate: Category,
+            aggregate: Category?,
             event: EventDTO,
             rocksDBOperations: DBOperations
-    ): Category {
-        return aggregate.copy(stages = emptyArray())
+    ): Category? {
+        return aggregate?.copy(stages = emptyArray())
     }
 
     override val eventType: EventType

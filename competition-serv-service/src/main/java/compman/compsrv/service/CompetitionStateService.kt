@@ -1,7 +1,6 @@
 package compman.compsrv.service
 
 import com.google.common.cache.CacheBuilder
-import compman.compsrv.aggregate.AbstractAggregate
 import compman.compsrv.aggregate.AggregateType
 import compman.compsrv.aggregate.AggregateTypeDecider
 import compman.compsrv.errors.show
@@ -34,34 +33,32 @@ class CompetitionStateService(
     private val eventDedupCache = CacheBuilder.newBuilder().maximumSize(10000).expireAfterAccess(Duration.ofSeconds(10))
         .concurrencyLevel(Runtime.getRuntime().availableProcessors()).weakValues().build<String, Boolean>()
 
-    fun <AG : AbstractAggregate> batchApply(aggregate: AG, events: List<EventDTO>, dbOperations: DBOperations): AG {
+    fun batchApply(events: List<EventDTO>, dbOperations: DBOperations) {
         log.info("Batch applying start")
         val start = System.currentTimeMillis()
-        val result = events.filter {
+        events.filter {
             log.info("Check if event is duplicate: $it")
-            !duplicateCheck(it)
-        }.fold(aggregate) { agg, eventHolder ->
-            val newAgg = apply(agg, eventHolder, dbOperations, isBatch = true)
-            newAgg
+            !isDuplicate(it)
+        }.forEach { eventHolder ->
+            apply(eventHolder, dbOperations, isBatch = true)
         }
         val finishApply = System.currentTimeMillis()
         log.info("Batch apply finish, took ${Duration.ofMillis(finishApply - start)}. Starting flush")
         log.info("Flush finish, took ${Duration.ofMillis(System.currentTimeMillis() - finishApply)}.")
-        return result
     }
 
 
     @Suppress("UNCHECKED_CAST")
-    fun <AG : AbstractAggregate> apply(
-        aggregate: AG,
+    fun apply(
         event: EventDTO,
         dbOperations: DBOperations,
         isBatch: Boolean
-    ): AG {
+    ) {
         log.info("Applying event: $event, batch: $isBatch")
         val eventWithId = event.apply { id = event.id ?: IDGenerator.uid() }
-        return if (isBatch || !duplicateCheck(event)) {
-            delegatingAggregateService.applyEvent(aggregate, event, dbOperations) as AG
+        if (isBatch || !isDuplicate(event)) {
+            val aggregate = delegatingAggregateService.getAggregate(event, dbOperations)
+            delegatingAggregateService.applyEvent(aggregate, event, dbOperations)
         } else {
             throw EventApplyingException("Duplicate event: correlationId: ${eventWithId.correlationId}", eventWithId)
         }
@@ -90,5 +87,5 @@ class CompetitionStateService(
         }
     }
 
-    fun duplicateCheck(event: EventDTO): Boolean = eventDedupCache.asMap().put(event.id, true) == null
+    fun isDuplicate(event: EventDTO): Boolean = !event.id.isNullOrBlank() && eventDedupCache.asMap().put(event.id, true) != null
 }

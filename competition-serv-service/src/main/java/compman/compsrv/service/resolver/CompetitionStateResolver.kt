@@ -1,11 +1,8 @@
 package compman.compsrv.service.resolver
 
-import compman.compsrv.aggregate.Competition
 import compman.compsrv.cluster.ClusterOperations
 import compman.compsrv.kafka.serde.EventDeserializer
 import compman.compsrv.kafka.topics.CompetitionServiceTopics
-import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
-import compman.compsrv.model.dto.competition.RegistrationInfoDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.repository.DBOperations
@@ -72,7 +69,6 @@ class CompetitionStateResolver(private val kafkaProperties: ObjectProvider<Kafka
                     cons.seek(it.key, it.value.offset())
                 }
                 var records: List<ConsumerRecord<String, EventDTO>>?
-                var competition: Competition? = null
                 do {
                     val result = cons.poll(Duration.of(200, ChronoUnit.MILLIS))
                     records = result?.records(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME)?.toList()
@@ -85,23 +81,20 @@ class CompetitionStateResolver(private val kafkaProperties: ObjectProvider<Kafka
                         if (createdEvent != null) {
                             log.info("Yay! Found the 'COMPETITION_CREATED' event for $competitionId !")
                             competitionCleaner.deleteCompetition(competitionId)
-                            competition = competitionStateService.apply(Competition(createdEvent.key(), CompetitionPropertiesDTO().setId(createdEvent.key()), RegistrationInfoDTO().setId(createdEvent.key())),
-                                createdEvent.value(), dbOperations, false)
+                            competitionStateService.apply(createdEvent.value(), dbOperations, false)
                             competitionCreated = true
                             log.info("Finished applying 'COMPETITION_CREATED' event for $competitionId")
                             val events = recSequence.filter { it.value()?.type != EventType.COMPETITION_CREATED }.map { it.value() }.toList()
                             log.debug("Applying batch events: ${events.joinToString("\n")}")
-                            competitionStateService.batchApply(competition, events, dbOperations)
+                            competitionStateService.batchApply(events, dbOperations)
                         } else {
                             log.error("Could not find the 'COMPETITION_CREATED' event for $competitionId, maybe the competition was created more than 365 days ago.")
                             break
                         }
                     } else {
-                        if (competition != null) {
-                            val events = records.filter { it.key() == competitionId }.map { it.value() }.toList()
-                            log.info("Applying batch events: ${events.joinToString("\n")}")
-                            competitionStateService.batchApply(competition, events, dbOperations)
-                        }
+                        val events = records.filter { it.key() == competitionId }.map { it.value() }.toList()
+                        log.info("Applying batch events: ${events.joinToString("\n")}")
+                        competitionStateService.batchApply(events, dbOperations)
                     }
                     cons.commitSync()
                 } while (!records.isNullOrEmpty())

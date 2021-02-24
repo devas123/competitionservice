@@ -4,11 +4,11 @@ import arrow.core.curry
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.aggregate.Category
 import compman.compsrv.config.CATEGORY_COMMAND_EXECUTORS
+import compman.compsrv.model.Payload
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.FightEditorApplyChangesPayload
 import compman.compsrv.model.commands.payload.GroupChangeType
-import compman.compsrv.model.commands.payload.Payload
 import compman.compsrv.model.dto.brackets.BracketType
 import compman.compsrv.model.dto.competition.CompScoreDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
@@ -20,6 +20,7 @@ import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.service.processor.*
 import compman.compsrv.service.processor.category.CategoryAggregateService
+import compman.compsrv.util.Constants
 import compman.compsrv.util.PayloadValidator
 import compman.compsrv.util.applyConditionalUpdate
 import org.springframework.beans.factory.annotation.Qualifier
@@ -27,15 +28,18 @@ import org.springframework.stereotype.Component
 
 @Component
 @Qualifier(CATEGORY_COMMAND_EXECUTORS)
-class FightEditorApplyChanges(mapper: ObjectMapper, validators: List<PayloadValidator>): ICommandExecutor<Category>, ValidatedCommandExecutor<Category>(mapper, validators) {
+class FightEditorApplyChanges(mapper: ObjectMapper, validators: List<PayloadValidator>) : ICommandExecutor<Category>,
+    ValidatedCommandExecutor<Category>(mapper, validators) {
     override fun execute(
-        entity: Category,
+        entity: Category?,
         dbOperations: DBOperations,
         command: CommandDTO
     ): AggregateWithEvents<Category> {
-        return executeValidated<FightEditorApplyChangesPayload>(command) { payload, com ->
-            entity to entity.process(payload, com, AbstractAggregateService.Companion::createEvent)
-        }.unwrap(command)
+        return entity?.let {
+            executeValidated<FightEditorApplyChangesPayload>(command) { payload, com ->
+                entity to entity.process(payload, com, AbstractAggregateService.Companion::createEvent)
+            }.unwrap(command)
+        } ?: error(Constants.CATEGORY_NOT_FOUND)
     }
 
     fun Category.process(

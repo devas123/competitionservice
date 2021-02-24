@@ -11,5 +11,6 @@ import org.springframework.context.annotation.Configuration
 @EnableConfigurationProperties(RocksDBProperties::class)
 class RocksDBConfiguration {
     @Bean(destroyMethod = "shutdown")
-    fun rocksDBRepository(mapper: ObjectMapper, properties: RocksDBProperties) : RocksDBRepository = RocksDBRepository(mapper, properties)
+    fun rocksDBRepository(mapper: ObjectMapper, properties: RocksDBProperties): RocksDBRepository =
+        RocksDBRepository(mapper, properties)
 }

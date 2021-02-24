@@ -20,11 +20,11 @@ class RegistrationGroupDeleted(
         validators: List<PayloadValidator>
 ) : IEventHandler<Competition>, ValidatedEventExecutor<Competition>(mapper, validators) {
     override fun applyEvent(
-            aggregate: Competition,
+            aggregate: Competition?,
             event: EventDTO,
             rocksDBOperations: DBOperations
-    ): Competition {
-        return executeValidated<RegistrationGroupDeletedPayload, Competition>(event) { payload, _ ->
+    ): Competition? = aggregate?.let {
+        executeValidated<RegistrationGroupDeletedPayload, Competition>(event) { payload, _ ->
             aggregate.registrationGroupDeleted(payload)
         }.unwrap(event)
     }

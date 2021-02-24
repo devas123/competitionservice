@@ -16,21 +16,17 @@ import org.springframework.stereotype.Component
 @Component
 @Qualifier(CATEGORY_EVENT_HANDLERS)
 class CategoryAdded(
-        mapper: ObjectMapper,
-        validators: List<PayloadValidator>
+    mapper: ObjectMapper,
+    validators: List<PayloadValidator>
 ) : IEventHandler<Category>, ValidatedEventExecutor<Category>(mapper, validators) {
     override fun applyEvent(
-            aggregate: Category,
-            event: EventDTO,
-            rocksDBOperations: DBOperations
-    ): Category {
-        return executeValidated<CategoryAddedPayload, Category>(event) { payload, _ ->
-            aggregate.categoryAdded(payload)
+        aggregate: Category?,
+        event: EventDTO,
+        rocksDBOperations: DBOperations
+    ): Category? = aggregate?.let {
+        executeValidated<CategoryAddedPayload, Category>(event) { payload, _ ->
+            it.copy(descriptor = payload.categoryState, id = payload.categoryState.id)
         }.unwrap(event)
-    }
-
-    fun Category.categoryAdded(payload: CategoryAddedPayload): Category {
-        return this.copy(descriptor = payload.categoryState, id = payload.categoryState.id)
     }
 
     override val eventType: EventType

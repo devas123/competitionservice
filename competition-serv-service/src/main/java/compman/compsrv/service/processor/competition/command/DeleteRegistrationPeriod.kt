@@ -19,18 +19,19 @@ import org.springframework.stereotype.Component
 
 @Component
 @Qualifier(COMPETITION_COMMAND_EXECUTORS)
-class DeleteRegistrationPeriod(mapper: ObjectMapper, validators: List<PayloadValidator>) : ICommandExecutor<Competition>, ValidatedCommandExecutor<Competition>(mapper, validators) {
+class DeleteRegistrationPeriod(mapper: ObjectMapper, validators: List<PayloadValidator>) :
+    ICommandExecutor<Competition>, ValidatedCommandExecutor<Competition>(mapper, validators) {
     override fun execute(
-            entity: Competition,
-            dbOperations: DBOperations,
-            command: CommandDTO
+        entity: Competition?,
+        dbOperations: DBOperations,
+        command: CommandDTO
     ): AggregateWithEvents<Competition> = executeValidated<DeleteRegistrationPeriodPayload>(command) { payload, _ ->
         entity to listOf(
-                AbstractAggregateService.createEvent(
-                        command,
-                        EventType.REGISTRATION_PERIOD_DELETED,
-                        RegistrationPeriodDeletedPayload(payload.periodId)
-                )
+            AbstractAggregateService.createEvent(
+                command,
+                EventType.REGISTRATION_PERIOD_DELETED,
+                RegistrationPeriodDeletedPayload(payload.periodId)
+            )
         )
     }.unwrap(command)
 

@@ -6,11 +6,10 @@
         </Console>
     </Appenders>
     <Loggers>
-        <logger name="org.hibernate.SQL" level="WARN"/>
         <logger name="org.apache.kafka" level="WARN"/>
         <logger name="org.apache.kafka.streams.processor.internals.StateDirectory" level="WARN"/>
-        <logger name="org.springframework.web" level="WARN" />
-        <logger name="org.springframework.web.servlet" level="WARN" />
+        <logger name="org.springframework.web" level="INFO" />
+<!--        <logger name="org.springframework.web.servlet" level="WARN" />-->
         <logger name="org.springframework.web.filter.CommonsRequestLoggingFilter" level="WARN"/>
         <logger name="io.scalecube" level="INFO"/>
         <logger name="reactor.netty" level="INFO"/>

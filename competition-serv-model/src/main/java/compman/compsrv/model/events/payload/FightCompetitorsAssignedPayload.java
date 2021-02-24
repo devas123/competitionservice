@@ -1,7 +1,8 @@
 package compman.compsrv.model.events.payload;
 
-import compman.compsrv.model.commands.payload.Payload;
-import compman.compsrv.model.dto.competition.CompScoreDTO;
+import compman.compsrv.annotations.EventPayload;
+import compman.compsrv.model.Payload;
+import compman.compsrv.model.events.EventType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -13,6 +14,7 @@ import java.io.Serializable;
 @NoArgsConstructor
 @AllArgsConstructor
 @Accessors(chain = true)
+@EventPayload(type = EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED)
 public class FightCompetitorsAssignedPayload implements Serializable, Payload {
     private CompetitorAssignmentDescriptor[] assignments;
 }

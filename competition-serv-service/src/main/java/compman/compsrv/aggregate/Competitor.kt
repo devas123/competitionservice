@@ -2,7 +2,7 @@ package compman.compsrv.aggregate
 
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.payload.ChangeCompetitorCategoryPayload
-import compman.compsrv.model.commands.payload.Payload
+import compman.compsrv.model.Payload
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType

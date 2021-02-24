@@ -2,6 +2,7 @@ package compman.compsrv.service
 
 import compman.compsrv.cluster.ClusterMember
 import compman.compsrv.model.CommonResponse
+import compman.compsrv.model.PageResponse
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
@@ -9,12 +10,13 @@ import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
+import compman.compsrv.util.toMonoOrEmpty
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
-import java.time.Duration
 
 @RestController
 @RequestMapping("/api/v1")
@@ -59,14 +61,14 @@ class RestApi(
 
 
     @RequestMapping(path = ["/cluster/info"], method = [RequestMethod.GET])
-    fun getClusterInfo(): Array<ClusterMember> = stateQueryService.getClusterInfo()
+    fun getClusterInfo(): Flux<ClusterMember> = stateQueryService.getClusterInfo()
 
 
     @RequestMapping("/store/categorystate", method = [RequestMethod.GET])
     fun getCategoryState(
         @RequestParam("competitionId") competitionId: String,
         @RequestParam("categoryId") categoryId: String
-    ): Any? {
+    ): Mono<CategoryStateDTO> {
         return stateQueryService.getCategoryState(
             competitionId, categoryId
         )
@@ -123,7 +125,7 @@ class RestApi(
         @RequestParam("searchString") searchString: String?,
         @RequestParam("pageSize") pageSize: Int?,
         @RequestParam("pageNumber") pageNumber: Int?
-    ): Any? {
+    ): Mono<PageResponse<CompetitorDTO>> {
         return stateQueryService.getCompetitors(
             competitionId, categoryId, searchString, pageSize ?: 50, pageNumber
                 ?: 0
@@ -163,11 +165,11 @@ class RestApi(
     }
 
     @RequestMapping("/store/reginfo", method = [RequestMethod.GET])
-    fun getRegistrationInfo(@RequestParam("competitionId") competitionId: String?): RegistrationInfoDTO? {
+    fun getRegistrationInfo(@RequestParam("competitionId") competitionId: String?): Mono<RegistrationInfoDTO> {
         log.info("looking for the competition properties for competition $competitionId")
         return competitionId?.let {
-            stateQueryService.getRegistrationInfo(it).block(Duration.ofMillis(10000))
-        }
+            stateQueryService.getRegistrationInfo(it)
+        } ?: Mono.empty()
     }
 
     @RequestMapping("/store/infotemplate", method = [RequestMethod.GET])
@@ -193,12 +195,12 @@ class RestApi(
     fun getDefaultCategories(
         @RequestParam("sportsId") sportsId: String?,
         includeKids: Boolean? = false
-    ): List<CategoryRestrictionDTO> {
+    ): Mono<List<CategoryRestrictionDTO>> {
         return if (sportsId.isNullOrBlank()) {
             log.warn("Sports id is missing.")
-            emptyList()
+            Mono.empty()
         } else {
-            CategoryGeneratorService.restrictions
+            CategoryGeneratorService.restrictions.toMonoOrEmpty()
         }
     }
 
@@ -207,12 +209,12 @@ class RestApi(
         @RequestParam("sportsId") sportsId: String?,
         @RequestParam("competitionId") competitionId: String?,
         includeKids: Boolean? = false
-    ): List<FightResultOptionDTO> {
+    ): Mono<List<FightResultOptionDTO>> {
         return if (competitionId.isNullOrBlank()) {
             log.warn("Sports id is $sportsId, competition ID is $competitionId.")
-            emptyList()
+            Mono.empty()
         } else {
-            FightResultOptionDTO.values
+            FightResultOptionDTO.values.toMonoOrEmpty()
         }
     }
 

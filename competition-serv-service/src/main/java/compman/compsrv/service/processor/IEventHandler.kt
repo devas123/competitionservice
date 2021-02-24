@@ -6,6 +6,6 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.repository.DBOperations
 
 interface IEventHandler<AT : AbstractAggregate> {
-    fun applyEvent(aggregate: AT, event: EventDTO, rocksDBOperations: DBOperations): AT
+    fun applyEvent(aggregate: AT?, event: EventDTO, rocksDBOperations: DBOperations): AT?
     val eventType: EventType
 }

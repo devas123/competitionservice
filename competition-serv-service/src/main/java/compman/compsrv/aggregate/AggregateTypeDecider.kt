@@ -5,7 +5,7 @@ import compman.compsrv.model.events.EventType
 
 object AggregateTypeDecider {
     fun getCommandAggregateType(commandType: CommandType): AggregateType {
-        return when(commandType) {
+        return when (commandType) {
             CommandType.CHECK_CATEGORY_OBSOLETE -> AggregateType.CATEGORY
             CommandType.CHANGE_COMPETITOR_CATEGORY_COMMAND -> AggregateType.SAGA
             CommandType.SAVE_SCHEDULE_COMMAND -> AggregateType.COMPETITION
@@ -37,8 +37,8 @@ object AggregateTypeDecider {
             CommandType.UPDATE_REGISTRATION_INFO_COMMAND -> AggregateType.COMPETITION
             CommandType.UPDATE_STAGE_STATUS_COMMAND -> AggregateType.CATEGORY
             CommandType.CHANGE_CATEGORY_REGISTRATION_STATUS_COMMAND -> AggregateType.CATEGORY
-            CommandType.DUMMY_COMMAND -> AggregateType.SAGA
-            CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND -> AggregateType.SAGA
+            CommandType.DUMMY_COMMAND -> AggregateType.COMPETITION
+            CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND -> AggregateType.COMPETITION
             CommandType.INIT_MAT_STATE_COMMAND -> AggregateType.COMPETITION
             CommandType.DELETE_MAT_STATE_COMMAND -> AggregateType.COMPETITION
             CommandType.INIT_PERIOD_COMMAND -> AggregateType.COMPETITION
@@ -59,7 +59,7 @@ object AggregateTypeDecider {
     }
 
     fun getEventAggregateType(eventType: EventType): AggregateType {
-        return when(eventType) {
+        return when (eventType) {
             EventType.ERROR_EVENT -> AggregateType.SAGA
             EventType.BRACKETS_GENERATED -> AggregateType.CATEGORY
             EventType.SCHEDULE_GENERATED -> AggregateType.COMPETITION
@@ -99,6 +99,7 @@ object AggregateTypeDecider {
             EventType.INTERNAL_COMPETITION_INFO -> AggregateType.SAGA
             EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED -> AggregateType.CATEGORY
             EventType.CATEGORY_NUMBER_OF_COMPETITORS_DECREASED -> AggregateType.CATEGORY
+            EventType.COMPETITION_CATEGORIES_ADDED -> AggregateType.COMPETITION
             else -> throw IllegalArgumentException("Unknown type: $eventType")
         }
     }

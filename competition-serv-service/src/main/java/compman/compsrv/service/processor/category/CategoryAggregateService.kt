@@ -22,10 +22,10 @@ import org.springframework.stereotype.Component
 
 @Component
 class CategoryAggregateService constructor(
-        @Qualifier(CATEGORY_COMMAND_EXECUTORS)
-        commandExecutors: List<ICommandExecutor<Category>>,
-        @Qualifier(CATEGORY_EVENT_HANDLERS)
-        eventHandlers: List<IEventHandler<Category>>
+    @Qualifier(CATEGORY_COMMAND_EXECUTORS)
+    commandExecutors: List<ICommandExecutor<Category>>,
+    @Qualifier(CATEGORY_EVENT_HANDLERS)
+    eventHandlers: List<IEventHandler<Category>>
 ) : AbstractAggregateService<Category>() {
 
     companion object {
@@ -42,21 +42,38 @@ class CategoryAggregateService constructor(
     private val commandsToExecutors = commandExecutors.groupBy { it.commandType }.mapValues { it.value.first() }
 
 
-    override val commandsToHandlers: Map<CommandType, CommandExecutor<Category>> = commandsToExecutors.mapValues { e -> { cat: Category, ops: DBOperations, c: CommandDTO -> e.value.execute(cat, ops, c) } }
+    override val commandsToHandlers: Map<CommandType, CommandExecutor<Category>> = commandsToExecutors.mapValues { e ->
+        { cat: Category?, ops: DBOperations, c: CommandDTO ->
+            e.value.execute(
+                cat,
+                ops,
+                c
+            )
+        }
+    }
 
-    override fun getAggregate(command: CommandDTO, rocksDBOperations: DBOperations): Category {
+    override fun getAggregate(command: CommandDTO, rocksDBOperations: DBOperations): Category? {
         return when (command.type) {
             CommandType.ADD_CATEGORY_COMMAND, CommandType.GENERATE_CATEGORIES_COMMAND -> {
                 Category(command.categoryId ?: "", CategoryDescriptorDTO().setId(command.categoryId))
             }
             else -> {
-                rocksDBOperations.getCategory(command.categoryId, true)
+                kotlin.runCatching { rocksDBOperations.getCategory(command.categoryId, true) }
+                    .getOrLogAndNull()
             }
         }
     }
 
-    override fun getAggregate(event: EventDTO, rocksDBOperations: DBOperations): Category =
-            rocksDBOperations.getCategory(event.categoryId, true)
+    override fun getAggregate(event: EventDTO, rocksDBOperations: DBOperations): Category? =
+        when (event.type) {
+            EventType.CATEGORY_ADDED -> {
+                Category(event.categoryId!!, CategoryDescriptorDTO().setId(event.categoryId))
+            }
+            else -> {
+                kotlin.runCatching { rocksDBOperations.getCategory(event.categoryId, true) }
+                    .getOrLogAndNull()
+            }
+        }
 
 /*
     override fun Payload.accept(aggregate: Category, event: EventDTO): Category {
@@ -78,12 +95,13 @@ class CategoryAggregateService constructor(
     }
 */
 
-    override fun saveAggregate(aggregate: Category, rocksDBOperations: DBOperations): Category {
-        rocksDBOperations.putCategory(aggregate)
-        return aggregate
-    }
+    override fun saveAggregate(aggregate: Category?, rocksDBOperations: DBOperations): Category? =
+        aggregate?.also {
+            rocksDBOperations.putCategory(aggregate)
+        }
 
-    override val eventsToProcessors: Map<EventType, IEventHandler<Category>> = eventHandlers.filter { AggregateTypeDecider.getEventAggregateType(it.eventType) == AggregateType.CATEGORY }
+    override val eventsToProcessors: Map<EventType, IEventHandler<Category>> =
+        eventHandlers.filter { AggregateTypeDecider.getEventAggregateType(it.eventType) == AggregateType.CATEGORY }
             .groupBy { it.eventType }.mapValues { e -> e.value.first() }
 
     override fun isAggregateDeleted(event: EventDTO): Boolean {

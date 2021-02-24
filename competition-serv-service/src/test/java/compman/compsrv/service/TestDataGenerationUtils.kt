@@ -115,7 +115,7 @@ class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGener
                 .setCompetitionName("Compname")
                 .setId(competitionId)
                 .setBracketsPublished(false)
-                .setCreationTimestamp(System.currentTimeMillis())
+                .setCreationTimestamp(Instant.now())
                 .setCreatorId("creatorId")
                 .setEmailNotificationsEnabled(false)
                 .setEmailTemplate("")

@@ -18,6 +18,7 @@ import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.service.processor.*
+import compman.compsrv.util.Constants.CATEGORY_NOT_FOUND
 import compman.compsrv.util.PayloadValidator
 import compman.compsrv.util.copy
 import org.springframework.beans.factory.annotation.Qualifier
@@ -30,18 +31,20 @@ class SetFightResult(
     validators: List<PayloadValidator>,
     private val fightsGenerateService: FightServiceFactory) : ICommandExecutor<Category>, ValidatedCommandExecutor<Category>(mapper, validators) {
     override fun execute(
-        entity: Category,
+        entity: Category?,
         dbOperations: DBOperations,
         command: CommandDTO
     ): AggregateWithEvents<Category> =
-        executeValidated<SetFightResultPayload>(command) { payload, com ->
-            entity to entity.process(
-                payload,
-                com,
-                fightsGenerateService,
-                AbstractAggregateService.Companion::createEvent
-            )
-        }.unwrap(command)
+        entity?.let {
+            executeValidated<SetFightResultPayload>(command) { payload, com ->
+                entity to entity.process(
+                    payload,
+                    com,
+                    fightsGenerateService,
+                    AbstractAggregateService.Companion::createEvent
+                )
+            }.unwrap(command)
+        } ?: error(CATEGORY_NOT_FOUND)
 
 
     private fun Category.process(

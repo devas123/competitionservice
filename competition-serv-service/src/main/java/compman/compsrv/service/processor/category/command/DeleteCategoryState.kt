@@ -16,12 +16,12 @@ import org.springframework.stereotype.Component
 @Qualifier(CATEGORY_COMMAND_EXECUTORS)
 class DeleteCategoryState : ICommandExecutor<Category> {
     override fun execute(
-        entity: Category,
+        entity: Category?,
         dbOperations: DBOperations,
         command: CommandDTO
     ): AggregateWithEvents<Category> =
         if (dbOperations.getCategoryCompetitors(command.categoryId, false)
-                .isNullOrEmpty() && entity.fights.isNullOrEmpty()
+                .isNullOrEmpty() && entity?.fights.isNullOrEmpty()
         ) {
             entity to listOf(
                 AbstractAggregateService.createEvent(

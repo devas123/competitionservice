@@ -2,13 +2,12 @@ package compman.compsrv.service.processor
 
 import arrow.core.Either
 import arrow.core.fix
-import arrow.core.flatMap
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.aggregate.AbstractAggregate
 import compman.compsrv.errors.CommandProcessingError
 import compman.compsrv.errors.SagaExecutionError
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.commands.payload.Payload
+import compman.compsrv.model.Payload
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.exceptions.CommandProcessingException
 import compman.compsrv.service.processor.AbstractAggregateService.Companion.getPayloadAs

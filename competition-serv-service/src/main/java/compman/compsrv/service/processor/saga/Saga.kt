@@ -50,9 +50,12 @@ fun applyEvent(
     Free.liftF(SagaStepA.ApplyEvent(aggregate, event))
 
 
-fun <A> and(a: SagaStep<A>, b: SagaStep<A>, compensateIfBFails: EventDTO?): SagaStep<A> = Free.liftF(SagaStepA.And(a, b, compensateIfBFails))
+fun <A> and(a: SagaStep<A>, b: SagaStep<A>, compensateIfBFails: EventDTO? = null): SagaStep<A> = Free.liftF(SagaStepA.And(a, b, compensateIfBFails))
 
-fun <A> SagaStep<A>.andStep(b: SagaStep<A>, compensateIfBFails: EventDTO?) = and(this, b, compensateIfBFails)
+fun <A> SagaStep<A>.andStep(b: SagaStep<A>, compensateIfBFails: EventDTO? = null) = and(this, b, compensateIfBFails)
+
+operator fun <A> SagaStep<A>.plus(b: SagaStep<A>) = this.andStep(b)
+operator fun <A> SagaStep<A>.plus(b: Pair<SagaStep<A>, EventDTO>) = this.andStep(b.first, b.second)
 
 fun <A> SagaStep<A>.accumulate(
     rocksDBOperations: DBOperations,

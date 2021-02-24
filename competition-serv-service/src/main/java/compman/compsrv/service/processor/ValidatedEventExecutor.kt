@@ -8,7 +8,7 @@ import compman.compsrv.aggregate.Category
 import compman.compsrv.aggregate.Competition
 import compman.compsrv.aggregate.Competitor
 import compman.compsrv.errors.EventApplicationError
-import compman.compsrv.model.commands.payload.Payload
+import compman.compsrv.model.Payload
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.exceptions.EventApplyingException
 import compman.compsrv.repository.DBOperations

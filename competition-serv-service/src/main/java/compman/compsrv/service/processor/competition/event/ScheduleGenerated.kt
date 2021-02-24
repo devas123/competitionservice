@@ -20,11 +20,11 @@ class ScheduleGenerated(
         validators: List<PayloadValidator>
 ) : IEventHandler<Competition>, ValidatedEventExecutor<Competition>(mapper, validators) {
     override fun applyEvent(
-            aggregate: Competition,
+            aggregate: Competition?,
             event: EventDTO,
             rocksDBOperations: DBOperations
-    ): Competition {
-        return executeValidated<ScheduleGeneratedPayload, Competition>(event) { payload, _ ->
+    ): Competition? = aggregate?.let {
+        executeValidated<ScheduleGeneratedPayload, Competition>(event) { payload, _ ->
             aggregate.scheduleGenerated(payload)
         }.unwrap(event)
     }

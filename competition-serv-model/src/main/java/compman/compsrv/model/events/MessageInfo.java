@@ -1,6 +1,6 @@
 package compman.compsrv.model.events;
 
-import compman.compsrv.model.commands.payload.Payload;
+import compman.compsrv.model.Payload;
 import lombok.Data;
 
 import java.util.Map;

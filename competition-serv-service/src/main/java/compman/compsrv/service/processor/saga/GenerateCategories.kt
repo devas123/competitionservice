@@ -1,6 +1,7 @@
 package compman.compsrv.service.processor.saga
 
 import arrow.core.Either
+import arrow.core.left
 import arrow.core.right
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.aggregate.AbstractAggregate
@@ -12,6 +13,7 @@ import compman.compsrv.model.commands.payload.GenerateCategoriesFromRestrictions
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.CategoryAddedPayload
+import compman.compsrv.model.events.payload.CompetitionCategoriesPayload
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.CategoryGeneratorService
 import compman.compsrv.service.processor.AbstractAggregateService
@@ -46,8 +48,18 @@ class GenerateCategories(
                 applyEvent(
                     Category(it.id, it).right(),
                     AbstractAggregateService.createEvent(com, EventType.CATEGORY_ADDED, CategoryAddedPayload(it))
-                        .apply { categoryId = it.id })
-            }.reduce { acc, f -> acc.andStep(f, null) }
+                        .apply { categoryId = it.id }) + (
+                        applyEvent(
+                            Unit.left(), AbstractAggregateService.createEvent(
+                                com, EventType.COMPETITION_CATEGORIES_ADDED,
+                                CompetitionCategoriesPayload(arrayOf(it.id))
+                            )
+                        ) to AbstractAggregateService.createEvent(com, EventType.CATEGORY_DELETED, null)
+                            .apply { categoryId = it.id }
+                        )
+            }.reduce { acc, f ->
+                acc + f
+            }
         }
 
 

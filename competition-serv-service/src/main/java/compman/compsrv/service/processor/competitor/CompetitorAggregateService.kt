@@ -19,12 +19,11 @@ import org.springframework.stereotype.Component
 
 @Component
 class CompetitorAggregateService(
-        @Qualifier(COMPETITOR_COMMAND_EXECUTORS)
-        commandExecutors: List<ICommandExecutor<Competitor>>,
-        @Qualifier(COMPETITOR_EVENT_HANDLERS)
-        eventHandlers: List<IEventHandler<Competitor>>
+    @Qualifier(COMPETITOR_COMMAND_EXECUTORS)
+    commandExecutors: List<ICommandExecutor<Competitor>>,
+    @Qualifier(COMPETITOR_EVENT_HANDLERS)
+    eventHandlers: List<IEventHandler<Competitor>>
 ) : AbstractAggregateService<Competitor>() {
-
 
 
 //    private val doChangeCompetitorCategory: CommandExecutor<Competitor> = { competitor, _, command -> //TODO: update number of competitors in categories
@@ -34,32 +33,46 @@ class CompetitorAggregateService(
 //    }
 
 
+    override val commandsToHandlers: Map<CommandType, CommandExecutor<Competitor>> =
+        commandExecutors.groupBy { it.commandType }.mapValues { it ->
+            it.value.first()
+        }.mapValues { e -> { cmp: Competitor?, ops: DBOperations, c: CommandDTO -> e.value.execute(cmp, ops, c) } }
 
 
-    override val commandsToHandlers: Map<CommandType, CommandExecutor<Competitor>> = commandExecutors.groupBy { it.commandType }.mapValues { it ->
-        it.value.first()
-    }.mapValues { e -> { cmp: Competitor, ops: DBOperations, c: CommandDTO -> e.value.execute(cmp, ops, c) } }
-
-
-    override fun getAggregate(command: CommandDTO, rocksDBOperations: DBOperations): Competitor {
+    override fun getAggregate(command: CommandDTO, rocksDBOperations: DBOperations): Competitor? {
         return when (command.type) {
             CommandType.ADD_COMPETITOR_COMMAND -> {
                 Competitor(CompetitorDTO())
             }
             else -> {
-                rocksDBOperations.getCompetitor(command.competitorId)
+                kotlin.runCatching { rocksDBOperations.getCompetitor(command.competitorId) }.getOrLogAndNull()
             }
         }
     }
 
-    override fun getAggregate(event: EventDTO, rocksDBOperations: DBOperations): Competitor = rocksDBOperations.getCompetitor(event.competitorId, true)
-    override val eventsToProcessors: Map<EventType, IEventHandler<Competitor>> = eventHandlers.groupBy { it.eventType }.mapValues { e -> e.value.first() }
+    override fun getAggregate(event: EventDTO, rocksDBOperations: DBOperations): Competitor? =
+        when (event.type) {
+            EventType.COMPETITOR_ADDED -> {
+                Competitor(CompetitorDTO())
+            }
+            else -> {
+                kotlin.runCatching { rocksDBOperations.getCompetitor(event.competitorId, true) }.getOrLogAndNull()
+            }
+        }
 
-    override fun saveAggregate(aggregate: Competitor, rocksDBOperations: DBOperations): Competitor {
-        rocksDBOperations.putCompetitor(aggregate)
-        return aggregate
+    override val eventsToProcessors
+            : Map<EventType, IEventHandler<Competitor>> =
+        eventHandlers.groupBy { it.eventType }.mapValues { e -> e.value.first() }
+
+    override fun saveAggregate(
+        aggregate: Competitor?, rocksDBOperations: DBOperations
+    )
+            : Competitor
+    ? {
+        return aggregate?.also { rocksDBOperations.putCompetitor(aggregate) }
     }
 
-    override fun isAggregateDeleted(event: EventDTO): Boolean = event.type == EventType.COMPETITOR_REMOVED
+    override fun isAggregateDeleted(event: EventDTO)
+            : Boolean = event.type == EventType.COMPETITOR_REMOVED
 
 }
