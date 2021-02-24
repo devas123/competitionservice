@@ -1,6 +1,7 @@
 package compman.compsrv.service.processor.saga
 
 import arrow.core.Either
+import arrow.core.left
 import arrow.core.right
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.aggregate.Competitor
@@ -10,6 +11,7 @@ import compman.compsrv.model.commands.payload.CreateFakeCompetitorsPayload
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.CompetitorAddedPayload
+import compman.compsrv.model.events.payload.CompetitorRemovedPayload
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.service.processor.AbstractAggregateService
@@ -31,8 +33,10 @@ class CreateFakeCompetitors(
         val numberOfAcademies = payload?.numberOfAcademies ?: 30
         val fakeCompetitors = FightsService.generateRandomCompetitorsForCategory(numberOfCompetitors, numberOfAcademies, command.categoryId, command.competitionId!!)
         val sagas = fakeCompetitors.map {
-            applyEvent(Competitor(it).right(), AbstractAggregateService.createEvent(command, EventType.COMPETITOR_ADDED, CompetitorAddedPayload(it)) )
-        }.reduce { a, b -> a.andStep(b, null) }
+            applyEvent(Competitor(it).right(), AbstractAggregateService.createEvent(command, EventType.COMPETITOR_ADDED, CompetitorAddedPayload(it))) +
+                    (applyEvent(Unit.left(), AbstractAggregateService.createEvent(command, EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED, null)) to
+                            AbstractAggregateService.createEvent(command, EventType.COMPETITOR_REMOVED, CompetitorRemovedPayload(it.id)))
+        }.reduce { a, b -> a + b }
         return sagas.right()
     }
 

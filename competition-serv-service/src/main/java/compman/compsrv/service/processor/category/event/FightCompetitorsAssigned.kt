@@ -9,6 +9,7 @@ import compman.compsrv.model.events.payload.FightCompetitorsAssignedPayload
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.processor.IEventHandler
 import compman.compsrv.service.processor.ValidatedEventExecutor
+import compman.compsrv.util.Constants
 import compman.compsrv.util.PayloadValidator
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
@@ -18,16 +19,16 @@ import org.springframework.stereotype.Component
 class FightCompetitorsAssigned(
     mapper: ObjectMapper,
     validators: List<PayloadValidator>
-): IEventHandler<Category>, ValidatedEventExecutor<Category>(mapper, validators) {
+) : IEventHandler<Category>, ValidatedEventExecutor<Category>(mapper, validators) {
     override fun applyEvent(
-            aggregate: Category,
-            event: EventDTO,
-            rocksDBOperations: DBOperations
-    ): Category {
-        return executeValidated<FightCompetitorsAssignedPayload, Category>(event) { payload, _ ->
+        aggregate: Category?,
+        event: EventDTO,
+        rocksDBOperations: DBOperations
+    ): Category? = aggregate?.let {
+        executeValidated<FightCompetitorsAssignedPayload, Category>(event) { payload, _ ->
             aggregate.fightCompetitorsAssigned(payload)
         }.unwrap(event)
-    }
+    } ?: error(Constants.CATEGORY_NOT_FOUND)
 
     fun Category.fightCompetitorsAssigned(payload: FightCompetitorsAssignedPayload): Category {
         val assignments = payload.assignments

@@ -14,14 +14,18 @@ import org.springframework.stereotype.Component
 
 @Component
 @Qualifier(COMPETITION_COMMAND_EXECUTORS)
-class SendProcessingInfo(private val clusterOperations: ObjectProvider<ClusterOperations>) : ICommandExecutor<Competition> {
+class SendProcessingInfo(private val clusterOperations: ObjectProvider<ClusterOperations>) :
+    ICommandExecutor<Competition> {
     override fun execute(
-        entity: Competition,
+        entity: Competition?,
         dbOperations: DBOperations,
         command: CommandDTO
     ): AggregateWithEvents<Competition> {
-        return entity to clusterOperations.ifAvailable?.createProcessingInfoEvents(command.correlationId, setOf(command.competitionId))
-                ?.toList().orEmpty()
+        return entity to clusterOperations.ifAvailable?.createProcessingInfoEvents(
+            command.correlationId,
+            setOf(command.competitionId)
+        )
+            ?.toList().orEmpty()
     }
 
     override val commandType: CommandType

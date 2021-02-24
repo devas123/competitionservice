@@ -7,7 +7,7 @@ import compman.compsrv.config.CATEGORY_COMMAND_EXECUTORS
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.GenerateBracketsPayload
-import compman.compsrv.model.commands.payload.Payload
+import compman.compsrv.model.Payload
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.model.dto.brackets.StageType
@@ -22,6 +22,7 @@ import compman.compsrv.service.processor.AbstractAggregateService
 import compman.compsrv.service.processor.AggregateWithEvents
 import compman.compsrv.service.processor.ICommandExecutor
 import compman.compsrv.service.processor.ValidatedCommandExecutor
+import compman.compsrv.util.Constants
 import compman.compsrv.util.IDGenerator
 import compman.compsrv.util.PayloadValidator
 import org.springframework.beans.factory.annotation.Qualifier
@@ -36,13 +37,13 @@ class GenerateBrackets(
     private val fightsGenerateService: FightServiceFactory
 ) : ICommandExecutor<Category>, ValidatedCommandExecutor<Category>(mapper, validators) {
     override fun execute(
-        entity: Category,
+        entity: Category?,
         dbOperations: DBOperations,
         command: CommandDTO
     ): AggregateWithEvents<Category> =
-        executeValidated<GenerateBracketsPayload>(command) { payload, com ->
-            val competitors = dbOperations.getCategoryCompetitors(com.categoryId, false)
-            if (!competitors.isNullOrEmpty()) {
+        entity?.let {
+            executeValidated<GenerateBracketsPayload>(command) { payload, com ->
+                val competitors = dbOperations.getCategoryCompetitors(com.categoryId, false)
                 entity to entity.process(
                     payload,
                     com,
@@ -50,10 +51,8 @@ class GenerateBrackets(
                     competitors.map { it.competitorDTO },
                     AbstractAggregateService.Companion::createEvent
                 )
-            } else {
-                throw IllegalArgumentException("No competitors or category not found.")
-            }
-        }.unwrap(command)
+            }.unwrap(command)
+        } ?: error(Constants.CATEGORY_NOT_FOUND)
 
 
     fun Category.process(

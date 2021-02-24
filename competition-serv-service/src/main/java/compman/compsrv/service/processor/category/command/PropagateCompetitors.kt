@@ -15,6 +15,7 @@ import compman.compsrv.model.events.payload.CompetitorsPropagatedToStagePayload
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.fight.FightServiceFactory
 import compman.compsrv.service.processor.*
+import compman.compsrv.util.Constants
 import compman.compsrv.util.PayloadValidator
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
@@ -27,19 +28,21 @@ class PropagateCompetitors(
     private val fightsGenerateService: FightServiceFactory
 ) : ICommandExecutor<Category>, ValidatedCommandExecutor<Category>(mapper, validators) {
     override fun execute(
-        entity: Category,
+        entity: Category?,
         dbOperations: DBOperations,
         command: CommandDTO
     ): AggregateWithEvents<Category> =
-        executeValidated<PropagateCompetitorsPayload>(command) { p, com ->
-            val competitors = dbOperations.getCategoryCompetitors(command.categoryId, false)
-            entity to entity.process(
-                p,
-                com,
-                competitors.map { it.competitorDTO },
-                AbstractAggregateService.Companion::createEvent
-            )
-        }.unwrap(command)
+        entity?.let {
+            executeValidated<PropagateCompetitorsPayload>(command) { p, com ->
+                val competitors = dbOperations.getCategoryCompetitors(command.categoryId, false)
+                entity to entity.process(
+                    p,
+                    com,
+                    competitors.map { it.competitorDTO },
+                    AbstractAggregateService.Companion::createEvent
+                )
+            }.unwrap(command)
+        } ?: error(Constants.CATEGORY_NOT_FOUND)
 
     private fun Category.process(
         p: PropagateCompetitorsPayload,

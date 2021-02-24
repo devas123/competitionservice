@@ -15,6 +15,7 @@ import compman.compsrv.model.events.payload.StageStatusUpdatedPayload
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.fight.FightsService
 import compman.compsrv.service.processor.*
+import compman.compsrv.util.Constants
 import compman.compsrv.util.PayloadValidator
 import compman.compsrv.util.applyConditionalUpdate
 import org.springframework.beans.factory.annotation.Qualifier
@@ -27,13 +28,15 @@ class UpdateStageStatus(
     validators: List<PayloadValidator>
 ) : ICommandExecutor<Category>, ValidatedCommandExecutor<Category>(mapper, validators) {
     override fun execute(
-        entity: Category,
+        entity: Category?,
         dbOperations: DBOperations,
         command: CommandDTO
     ): AggregateWithEvents<Category> =
-        executeValidated<UpdateStageStatusPayload>(command) { payload, c ->
-            entity to entity.process(payload, c, AbstractAggregateService.Companion::createEvent)
-        }.unwrap(command)
+        entity?.let {
+            executeValidated<UpdateStageStatusPayload>(command) { payload, c ->
+                entity to entity.process(payload, c, AbstractAggregateService.Companion::createEvent)
+            }.unwrap(command)
+        } ?: error(Constants.CATEGORY_NOT_FOUND)
 
     private fun Category.process(
         payload: UpdateStageStatusPayload,

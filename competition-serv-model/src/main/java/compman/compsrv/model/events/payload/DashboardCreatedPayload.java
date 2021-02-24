@@ -1,6 +1,6 @@
 package compman.compsrv.model.events.payload;
 
-import compman.compsrv.model.commands.payload.Payload;
+import compman.compsrv.model.Payload;
 import compman.compsrv.model.dto.competition.CompetitionDashboardStateDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;

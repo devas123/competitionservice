@@ -4,7 +4,7 @@ import arrow.Kind
 import arrow.core.Ior
 import arrow.core.nel
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.commands.payload.Payload
+import compman.compsrv.model.Payload
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.util.PayloadValidationError
 import compman.compsrv.util.PayloadValidationRules

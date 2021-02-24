@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component
 @Qualifier(CATEGORY_COMMAND_EXECUTORS)
 class DropCategoryBrackets : ICommandExecutor<Category> {
     override fun execute(
-        entity: Category,
+        entity: Category?,
         dbOperations: DBOperations,
         command: CommandDTO
     ): AggregateWithEvents<Category> =

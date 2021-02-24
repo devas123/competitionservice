@@ -21,17 +21,19 @@ class CompetitorUpdated(
     validators: List<PayloadValidator>
 ) : IEventHandler<Competitor>, ValidatedEventExecutor<Competitor>(mapper, validators) {
     override fun applyEvent(
-        aggregate: Competitor,
+        aggregate: Competitor?,
         event: EventDTO,
         rocksDBOperations: DBOperations
-    ): Competitor = executeValidated<CompetitorUpdatedPayload, Competitor>(event) { payload, _ ->
-        val competitor = payload.fighter
-        if (competitor != null) {
-            aggregate.copy(competitorDTO = competitor)
-        } else {
-            throw EventApplyingException("Competitor is null or such competitor does not exist.", event)
-        }
-    }.unwrap(event)
+    ): Competitor? = aggregate?.let {
+        executeValidated<CompetitorUpdatedPayload, Competitor>(event) { payload, _ ->
+            val competitor = payload.fighter
+            if (competitor != null) {
+                aggregate.copy(competitorDTO = competitor)
+            } else {
+                throw EventApplyingException("Competitor is null or such competitor does not exist.", event)
+            }
+        }.unwrap(event)
+    }
 
     override val eventType: EventType
         get() = EventType.COMPETITOR_UPDATED

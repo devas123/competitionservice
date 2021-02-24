@@ -8,7 +8,7 @@ import arrow.core.extensions.validated.applicativeError.applicativeError
 import arrow.typeclasses.ApplicativeError
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.payload.DashboardFightOrderChangePayload
-import compman.compsrv.model.commands.payload.Payload
+import compman.compsrv.model.Payload
 import compman.compsrv.model.commands.payload.PropagateCompetitorsPayload
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.payload.ErrorEventPayload

@@ -13,10 +13,10 @@ import org.springframework.stereotype.Component
 @Qualifier(COMPETITION_EVENT_HANDLERS)
 class CompetitionDeleted : IEventHandler<Competition> {
     override fun applyEvent(
-            aggregate: Competition,
+            aggregate: Competition?,
             event: EventDTO,
             rocksDBOperations: DBOperations
-    ): Competition {
+    ): Competition? {
         rocksDBOperations.deleteCompetition(event.competitionId)
         return aggregate
     }

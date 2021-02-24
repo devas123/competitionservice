@@ -3,16 +3,10 @@ package compman.compsrv.config.validators
 import arrow.Kind
 import arrow.core.*
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.commands.payload.FightEditorApplyChangesPayload
 import compman.compsrv.model.commands.payload.GenerateBracketsPayload
-import compman.compsrv.model.commands.payload.Payload
 import compman.compsrv.model.dto.brackets.StageType
-import compman.compsrv.model.events.EventDTO
 import compman.compsrv.util.PayloadValidationError
 import compman.compsrv.util.PayloadValidationRules
-import compman.compsrv.util.PayloadValidator
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 @Component

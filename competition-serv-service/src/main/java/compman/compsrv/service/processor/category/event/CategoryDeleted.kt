@@ -16,17 +16,26 @@ import org.springframework.stereotype.Component
 @Component
 @Qualifier(CATEGORY_EVENT_HANDLERS)
 class CategoryDeleted(
-        mapper: ObjectMapper,
-        validators: List<PayloadValidator>
+    mapper: ObjectMapper,
+    validators: List<PayloadValidator>
 ) : IEventHandler<Category>, ValidatedEventExecutor<Category>(mapper, validators) {
     override fun applyEvent(
-            aggregate: Category,
-            event: EventDTO,
-            rocksDBOperations: DBOperations
-    ): Category {
+        aggregate: Category?,
+        event: EventDTO,
+        rocksDBOperations: DBOperations
+    ): Category? {
         return if (!event.categoryId.isNullOrBlank()) {
-            rocksDBOperations.deleteCategory(event.categoryId, event.competitionId)
-            aggregate
+            aggregate?.also {
+                val competition = rocksDBOperations.getCompetition(event.competitionId, true)
+                rocksDBOperations.putCompetition(competition.copy(categories = competition.categories.filter { it != event.categoryId }
+                    .toTypedArray(), registrationInfo = competition.registrationInfo.also { r ->
+                    r.registrationGroups?.forEach { rg ->
+                        rg.categories = rg.categories.filter { it != event.categoryId }.toTypedArray()
+                    }
+                    Unit
+                }))
+                rocksDBOperations.deleteCategory(event.categoryId, event.competitionId)
+            }
         } else {
             throw EventApplyingException("Category ID is null.", event)
         }

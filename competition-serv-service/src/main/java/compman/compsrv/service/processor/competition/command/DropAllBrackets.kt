@@ -9,6 +9,7 @@ import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.processor.AbstractAggregateService
 import compman.compsrv.service.processor.AggregateWithEvents
 import compman.compsrv.service.processor.ICommandExecutor
+import compman.compsrv.util.Constants
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 
@@ -16,22 +17,22 @@ import org.springframework.stereotype.Component
 @Qualifier(COMPETITION_COMMAND_EXECUTORS)
 class DropAllBrackets : ICommandExecutor<Competition> {
     override fun execute(
-        entity: Competition,
+        entity: Competition?,
         dbOperations: DBOperations,
         command: CommandDTO
-    ): AggregateWithEvents<Competition> {
-        return if (entity.properties.bracketsPublished != true) {
+    ): AggregateWithEvents<Competition> = entity?.let {
+        if (entity.properties.bracketsPublished != true) {
             entity to entity.categories.map { cat ->
                 AbstractAggregateService.createEvent(
-                        command,
-                        EventType.CATEGORY_BRACKETS_DROPPED,
-                        command.payload
+                    command,
+                    EventType.CATEGORY_BRACKETS_DROPPED,
+                    command.payload
                 ).apply { categoryId = cat }
             }
         } else {
             throw IllegalArgumentException("Brackets already published")
         }
-    }
+    } ?: error(Constants.COMPETITION_NOT_FOUND)
 
     override val commandType: CommandType
         get() = CommandType.DROP_ALL_BRACKETS_COMMAND

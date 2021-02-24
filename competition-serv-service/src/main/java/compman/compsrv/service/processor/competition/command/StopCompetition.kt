@@ -18,16 +18,16 @@ import org.springframework.stereotype.Component
 @Qualifier(COMPETITION_COMMAND_EXECUTORS)
 class StopCompetition : ICommandExecutor<Competition> {
     override fun execute(
-            entity: Competition,
-            dbOperations: DBOperations,
-            command: CommandDTO
+        entity: Competition?,
+        dbOperations: DBOperations,
+        command: CommandDTO
     ): AggregateWithEvents<Competition> {
         return entity to listOf(
-                AbstractAggregateService.createEvent(
-                        command,
-                        EventType.COMPETITION_STOPPED,
-                        CompetitionStatusUpdatedPayload(CompetitionStatus.STOPPED)
-                )
+            AbstractAggregateService.createEvent(
+                command,
+                EventType.COMPETITION_STOPPED,
+                CompetitionStatusUpdatedPayload(CompetitionStatus.STOPPED)
+            )
         )
     }
 

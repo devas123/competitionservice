@@ -12,6 +12,7 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.DashboardFightOrderChangedPayload
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.processor.*
+import compman.compsrv.util.Constants
 import compman.compsrv.util.PayloadValidator
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
@@ -24,13 +25,15 @@ class ChangeFightOrder(
     validators: List<PayloadValidator>
 ) : ICommandExecutor<Category>, ValidatedCommandExecutor<Category>(mapper, validators) {
     override fun execute(
-        entity: Category,
+        entity: Category?,
         dbOperations: DBOperations,
         command: CommandDTO
     ): AggregateWithEvents<Category> =
-        executeValidated<DashboardFightOrderChangePayload>(command) { payload, _ ->
-            entity to entity.process(payload, command, AbstractAggregateService.Companion::createEvent)
-        }.unwrap(command)
+        entity?.let {
+            executeValidated<DashboardFightOrderChangePayload>(command) { payload, _ ->
+                entity to entity.process(payload, command, AbstractAggregateService.Companion::createEvent)
+            }.unwrap(command)
+        } ?: error(Constants.CATEGORY_NOT_FOUND)
 
 
     private fun Category.process(payload: DashboardFightOrderChangePayload, c: CommandDTO, createEvent: CreateEvent): List<EventDTO> {

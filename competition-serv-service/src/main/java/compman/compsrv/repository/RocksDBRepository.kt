@@ -4,13 +4,15 @@ import arrow.core.left
 import arrow.core.right
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.rocksdb.*
+import org.slf4j.LoggerFactory
 import org.springframework.util.FileSystemUtils
 import java.nio.file.Files
 import java.nio.file.Path
 
 class RocksDBRepository(private val mapper: ObjectMapper, dbProperties: RocksDBProperties) {
     private val db: OptimisticTransactionDB
-    private val options: Options
+    private val options: DBOptions
+    private val opts: ColumnFamilyOptions
     private val path = dbProperties.path
     private val competitors: ColumnFamilyHandle
     private val competitions: ColumnFamilyHandle
@@ -23,6 +25,7 @@ class RocksDBRepository(private val mapper: ObjectMapper, dbProperties: RocksDBP
         const val COMPETITION = "competition"
         const val COMPETITOR = "competitor"
         const val SCHEDULE = "schedule"
+        private val log = LoggerFactory.getLogger(RocksDBRepository::class.java)
     }
 
     init {
@@ -30,59 +33,64 @@ class RocksDBRepository(private val mapper: ObjectMapper, dbProperties: RocksDBP
             FileSystemUtils.deleteRecursively(Path.of(path))
         }
         OptimisticTransactionDB.loadLibrary()
-        options = Options().setCreateIfMissing(true)
+        options = DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true)
         Files.createDirectories(Path.of(path))
-        db = OptimisticTransactionDB.open(options, path)
-        val columnFamilyHandles = ColumnFamilyOptions().optimizeUniversalStyleCompaction().use { opts ->
-            db.createColumnFamilies(
-                listOf(
-                    CATEGORY,
-                    COMPETITION,
-                    SCHEDULE,
-                    COMPETITOR
-                ).map { ColumnFamilyDescriptor(it.toByteArray(), opts) })
-        }
-        categories = columnFamilyHandles[0]
-        competitions = columnFamilyHandles[1]
-        schedules = columnFamilyHandles[2]
-        competitors = columnFamilyHandles[3]
+        opts = ColumnFamilyOptions().optimizeUniversalStyleCompaction()
+        val columnFamilyHandles = mutableListOf<ColumnFamilyHandle>()
+        val columnFamilyDescriptors = listOf(
+            RocksDB.DEFAULT_COLUMN_FAMILY,
+            CATEGORY.toByteArray(),
+            COMPETITION.toByteArray(),
+            SCHEDULE.toByteArray(),
+            COMPETITOR.toByteArray()
+        ).map { ColumnFamilyDescriptor(it, opts) }
+        db = OptimisticTransactionDB.open(options, path, columnFamilyDescriptors, columnFamilyHandles)
+        categories = columnFamilyHandles[1]
+        competitions = columnFamilyHandles[2]
+        schedules = columnFamilyHandles[3]
+        competitors = columnFamilyHandles[4]
         operations = RocksDBOperations(db.right(), mapper, competitors, competitions, categories)
     }
 
     fun shutdown() {
-        FileSystemUtils.deleteRecursively(Path.of(path))
+        competitors.close()
+        competitions.close()
+        schedules.close()
+        categories.close()
+        opts.close()
+        options.close()
     }
 
     fun <T> doInTransaction(snapshot: Boolean = false, retries: Int = 3, block: (tx: RocksDBOperations) -> T): T {
         fun exec(tx: Transaction): T {
             val result = block(RocksDBOperations(tx.left(), mapper, competitors, competitions, categories))
+            log.info("committing transaction")
             tx.commit()
+            log.info("committing transaction.Done.")
             return result
         }
 
         var i = 0
         var exception: RocksDBException? = null
-        val writeOptions = WriteOptions()
-        val txOptions = OptimisticTransactionOptions().setSetSnapshot(snapshot)
-        val tx = db.beginTransaction(writeOptions, txOptions)
-        tx.use { transaction ->
-            while (i < retries) {
-                try {
-                    return exec(transaction)
-                } catch (e: RocksDBException) {
-                    exception = e
-                    if (e.status?.code == Status.Code.TryAgain) {
-                        i++
-                    } else {
-                        throw e
+        WriteOptions().use { writeOptions ->
+            OptimisticTransactionOptions().setSetSnapshot(snapshot).use { txOptions ->
+                db.beginTransaction(writeOptions, txOptions).use { transaction ->
+                    while (i < retries) {
+                        try {
+                            return exec(transaction)
+                        } catch (e: RocksDBException) {
+                            exception = e
+                            if (e.status?.code == Status.Code.TryAgain) {
+                                i++
+                            } else {
+                                throw e
+                            }
+                        }
                     }
                 }
             }
         }
-
         throw exception ?: RocksDBException("Transaction failed.")
     }
-
     fun getOperations() = operations
-
 }

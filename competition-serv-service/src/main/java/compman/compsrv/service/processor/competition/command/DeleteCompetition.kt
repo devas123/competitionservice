@@ -16,9 +16,9 @@ import org.springframework.stereotype.Component
 @Qualifier(COMPETITION_COMMAND_EXECUTORS)
 class DeleteCompetition : ICommandExecutor<Competition> {
     override fun execute(
-            entity: Competition,
-            dbOperations: DBOperations,
-            command: CommandDTO
+        entity: Competition?,
+        dbOperations: DBOperations,
+        command: CommandDTO
     ): AggregateWithEvents<Competition> {
         return entity to listOf(AbstractAggregateService.createEvent(command, EventType.COMPETITION_DELETED, null))
 

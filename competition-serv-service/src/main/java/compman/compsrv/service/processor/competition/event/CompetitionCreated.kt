@@ -16,21 +16,21 @@ import org.springframework.stereotype.Component
 @Component
 @Qualifier(COMPETITION_EVENT_HANDLERS)
 class CompetitionCreated(
-        mapper: ObjectMapper,
-        validators: List<PayloadValidator>
+    mapper: ObjectMapper,
+    validators: List<PayloadValidator>
 ) : IEventHandler<Competition>, ValidatedEventExecutor<Competition>(mapper, validators) {
     override fun applyEvent(
-            aggregate: Competition,
-            event: EventDTO,
-            rocksDBOperations: DBOperations
-    ): Competition {
-        return executeValidated<CompetitionCreatedPayload, Competition>(event) { payload, _ ->
-            aggregate.competitionCreated(payload)
+        aggregate: Competition?,
+        event: EventDTO,
+        rocksDBOperations: DBOperations
+    ): Competition? = aggregate?.let {
+        executeValidated<CompetitionCreatedPayload, Competition>(event) { payload, _ ->
+            it.copy(
+                id = event.competitionId,
+                properties = payload.properties.setId(event.competitionId),
+                registrationInfo = payload.reginfo.setId(event.competitionId)
+            )
         }.unwrap(event)
-    }
-
-    fun Competition.competitionCreated(payload: CompetitionCreatedPayload): Competition {
-        return this.copy(id = payload.properties.id, properties = payload.properties, registrationInfo = payload.reginfo)
     }
 
     override val eventType: EventType

@@ -8,19 +8,17 @@ import compman.compsrv.model.commands.CommandType
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.service.processor.AbstractAggregateService.Companion.createErrorEvent
+import compman.compsrv.service.processor.AbstractAggregateService.Companion.getPayloadAs
 import compman.compsrv.util.IDGenerator
-import compman.compsrv.util.toMonoOrEmpty
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Mono
-import reactor.core.scheduler.Schedulers
 
 @Component
 class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, CommandDTO>,
-                      private val mapper: ObjectMapper,
                       private val stateQueryService: StateQueryService,
                       private val commandSyncExecutor: CommandSyncExecutor) {
     companion object {
@@ -41,12 +39,13 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
             command.correlationId = correlationId
             if (command.type == CommandType.CREATE_COMPETITION_COMMAND) {
                 log.info("Received a create competition command: $command")
-                val payload = mapper.convertValue(command.payload, CreateCompetitionPayload::class.java)
-                if (payload?.properties?.competitionName.isNullOrBlank()) {
+                val payload = getPayloadAs<CreateCompetitionPayload>(command)
+                val name = payload?.properties?.competitionName
+                if (name.isNullOrBlank()) {
                     log.error("Empty competition name, skipping create command")
                     CommonResponse(400, "Empty competition name, skipping create command", correlationId.toByteArray())
                 } else {
-                    val id = IDGenerator.hashString(payload.properties.competitionName)
+                    val id = IDGenerator.hashString(name)
                     commandKafkaTemplate.send(ProducerRecord(CompetitionServiceTopics.COMPETITION_COMMANDS_TOPIC_NAME, id, command.apply { setCorrelationId(correlationId); setCompetitionId(id) }))
                     CommonResponse(0, "", correlationId.toByteArray())
                 }

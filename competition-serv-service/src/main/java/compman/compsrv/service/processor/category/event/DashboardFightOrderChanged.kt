@@ -9,6 +9,7 @@ import compman.compsrv.model.events.payload.DashboardFightOrderChangedPayload
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.processor.IEventHandler
 import compman.compsrv.service.processor.ValidatedEventExecutor
+import compman.compsrv.util.Constants
 import compman.compsrv.util.PayloadValidator
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
@@ -21,16 +22,16 @@ import kotlin.math.min
 class DashboardFightOrderChanged(
     mapper: ObjectMapper,
     validators: List<PayloadValidator>
-): IEventHandler<Category>, ValidatedEventExecutor<Category>(mapper, validators) {
+) : IEventHandler<Category>, ValidatedEventExecutor<Category>(mapper, validators) {
     override fun applyEvent(
-            aggregate: Category,
-            event: EventDTO,
-            rocksDBOperations: DBOperations
-    ): Category {
-        return executeValidated<DashboardFightOrderChangedPayload, Category>(event) { payload, _ ->
+        aggregate: Category?,
+        event: EventDTO,
+        rocksDBOperations: DBOperations
+    ): Category? = aggregate?.let {
+        executeValidated<DashboardFightOrderChangedPayload, Category>(event) { payload, _ ->
             aggregate.dashboardFightOrderChanged(payload)
         }.unwrap(event)
-    }
+    } ?: error(Constants.CATEGORY_NOT_FOUND)
 
     fun Category.dashboardFightOrderChanged(payload: DashboardFightOrderChangedPayload): Category {
         if (payload.newMatId != payload.currentMatId) {
@@ -52,8 +53,8 @@ class DashboardFightOrderChanged(
             //mats are the same
             for (f in fights) {
                 if (f.id != payload.fightId && f.mat.id == payload.currentMatId && f.numberOnMat != null
-                        && f.numberOnMat >= min(payload.currentOrderOnMat, payload.newOrderOnMat) &&
-                        f.numberOnMat <= max(payload.currentOrderOnMat, payload.newOrderOnMat)
+                    && f.numberOnMat >= min(payload.currentOrderOnMat, payload.newOrderOnMat) &&
+                    f.numberOnMat <= max(payload.currentOrderOnMat, payload.newOrderOnMat)
                 ) {
                     //first reduce numbers on the current mat
                     if (payload.currentOrderOnMat > payload.newOrderOnMat) {

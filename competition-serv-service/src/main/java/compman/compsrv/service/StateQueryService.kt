@@ -22,6 +22,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClientResponseException
 import org.springframework.web.reactive.function.client.WebClient
+import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
 import java.nio.charset.StandardCharsets
@@ -46,7 +47,7 @@ class StateQueryService(
 
     private val clusterOperations = clusterOperationsProvider.ifAvailable
 
-    fun getClusterInfo(): Array<ClusterMember> = clusterOperations?.getClusterMembers() ?: emptyArray()
+    fun getClusterInfo(): Flux<ClusterMember> = clusterOperations?.getClusterMembers() ?: Flux.empty()
 
     fun CompetitorDTO.qualifies(searchString: String) =
         firstName.contains(searchString, ignoreCase = true) ||
@@ -80,12 +81,12 @@ class StateQueryService(
                 val categories = rocksDbOperations.getCategories(competition.categories.toList())
                 val count = categories.fold(0) { acc, category -> acc + category.numberOfCompetitors }
                 val competitors = rocksDbOperations.getCompetitionCompetitors(competitionId)
-                PageResponse(competitionId, count.toLong(), page, competitors.asSequence().drop(pageSize * pageNumber).take(pageSize).map { it.competitorDTO }.toList().toTypedArray())
+                PageResponse(competitionId, count.toLong(), page, competitors.asSequence().drop(pageSize * pageNumber).let { if (pageSize > 0) it.take(pageSize) else it }.map { it.competitorDTO }.toList().toTypedArray())
             } else {
                 val category = rocksDbOperations.getCategory(categoryId)
                 val count = category.numberOfCompetitors
                 val competitors = rocksDbOperations.getCompetitors(category.competitors.toList())
-                PageResponse(competitionId, count.toLong(), page, competitors.asSequence().drop(pageSize * pageNumber).take(pageSize).map { it.competitorDTO }.toList().toTypedArray())
+                PageResponse(competitionId, count.toLong(), page, competitors.asSequence().drop(pageSize * pageNumber).let { if (pageSize > 0) it.take(pageSize) else it }.map { it.competitorDTO }.toList().toTypedArray())
             }
         }
     }

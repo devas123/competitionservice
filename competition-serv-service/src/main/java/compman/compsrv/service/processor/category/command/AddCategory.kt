@@ -28,7 +28,7 @@ class AddCategory(
     validators: List<PayloadValidator>
 ) : ICommandExecutor<Category>, ValidatedCommandExecutor<Category>(mapper, validators) {
     override fun execute(
-        entity: Category,
+        entity: Category?,
         dbOperations: DBOperations,
         command: CommandDTO
     ): AggregateWithEvents<Category> =

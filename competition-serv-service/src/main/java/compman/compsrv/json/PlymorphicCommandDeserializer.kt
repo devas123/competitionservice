@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.CommandType
+import compman.compsrv.model.Payloads
 import java.io.IOException
 
 
@@ -17,11 +18,13 @@ class PlymorphicCommandDeserializer : StdDeserializer<CommandDTO>(CommandDTO::cl
         val node: TreeNode = p.readValueAsTree()
         return CommandDTO().apply {
             fillProperties(p, node)
-            this.executed = p.codec.treeToValue(node.get("executed"), Boolean::class.java)
-            val operation = p.codec.treeToValue(node.at("type"), CommandType::class.java)
+            this.executed = p.codec.treeToValue(node.get("/executed"), Boolean::class.java)
+            val operation = p.codec.treeToValue(node.at("/type"), CommandType::class.java)
             this.type = operation
-            operation.payloadClass?.let {
-                payload = p.codec.treeToValue(node.get("payload"), it)
+            Payloads.getPayload(operation)?.let {
+                val n = node.at("/payload")
+                val pay = p.codec.treeToValue(n, it)
+                payload = pay
             }
         }
     }

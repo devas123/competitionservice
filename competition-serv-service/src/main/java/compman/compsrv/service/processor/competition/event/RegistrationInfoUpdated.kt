@@ -20,11 +20,11 @@ class RegistrationInfoUpdated(
         validators: List<PayloadValidator>
 ) : IEventHandler<Competition>, ValidatedEventExecutor<Competition>(mapper, validators) {
     override fun applyEvent(
-            aggregate: Competition,
+            aggregate: Competition?,
             event: EventDTO,
             rocksDBOperations: DBOperations
-    ): Competition {
-        return executeValidated<RegistrationInfoUpdatedPayload, Competition>(event) { payload, _ ->
+    ): Competition? = aggregate?.let {
+        executeValidated<RegistrationInfoUpdatedPayload, Competition>(event) { payload, _ ->
             aggregate.registrationInfoUpdated(payload)
         }.unwrap(event)
     }

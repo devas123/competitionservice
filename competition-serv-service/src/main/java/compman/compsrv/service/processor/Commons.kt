@@ -6,7 +6,7 @@ import arrow.core.right
 import compman.compsrv.aggregate.AbstractAggregate
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.commands.payload.CompetitorGroupChange
-import compman.compsrv.model.commands.payload.Payload
+import compman.compsrv.model.Payload
 import compman.compsrv.model.dto.brackets.GroupDescriptorDTO
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
@@ -18,8 +18,8 @@ import compman.compsrv.service.fight.GroupStageGenerateService
 import compman.compsrv.util.IDGenerator
 import org.slf4j.LoggerFactory
 
-typealias AggregateWithEvents<EntityType> = Pair<EntityType, List<EventDTO>>
-typealias CommandExecutor<EntityType> = (EntityType, DBOperations, CommandDTO) -> AggregateWithEvents<EntityType>
+typealias AggregateWithEvents<EntityType> = Pair<EntityType?, List<EventDTO>>
+typealias CommandExecutor<EntityType> = (EntityType?, DBOperations, CommandDTO) -> AggregateWithEvents<EntityType>
 typealias CreateEvent = (CommandDTO, EventType, Payload) -> EventDTO
 
 fun executeInAppropriateService(command: CommandDTO, rocksDBOperations: DBOperations, delegatingAggregateService: DelegatingAggregateService): AggregateWithEvents<AbstractAggregate> {

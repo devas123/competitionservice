@@ -16,11 +16,17 @@ import org.springframework.stereotype.Component
 @Qualifier(COMPETITION_COMMAND_EXECUTORS)
 class UpdateCompetitionProperties : ICommandExecutor<Competition> {
     override fun execute(
-            entity: Competition,
-            dbOperations: DBOperations,
-            command: CommandDTO
+        entity: Competition?,
+        dbOperations: DBOperations,
+        command: CommandDTO
     ): AggregateWithEvents<Competition> {
-        return entity to listOf(AbstractAggregateService.createEvent(command, EventType.COMPETITION_PROPERTIES_UPDATED, command.payload!!))
+        return entity to listOf(
+            AbstractAggregateService.createEvent(
+                command,
+                EventType.COMPETITION_PROPERTIES_UPDATED,
+                command.payload!!
+            )
+        )
     }
 
     override val commandType: CommandType

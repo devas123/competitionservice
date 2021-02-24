@@ -3,7 +3,6 @@ package compman.compsrv.model.dto.competition;
 import compman.compsrv.model.dto.brackets.StageRoundType;
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
@@ -15,7 +14,6 @@ import java.time.Instant;
 @AllArgsConstructor
 @NoArgsConstructor
 @Accessors(chain = true)
-@Builder
 public class FightDescriptionDTO {
     private String id;
     private String categoryId;

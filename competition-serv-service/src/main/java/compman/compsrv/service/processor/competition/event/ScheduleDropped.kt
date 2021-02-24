@@ -13,10 +13,10 @@ import org.springframework.stereotype.Component
 @Qualifier(COMPETITION_EVENT_HANDLERS)
 class ScheduleDropped : IEventHandler<Competition> {
     override fun applyEvent(
-            aggregate: Competition,
+            aggregate: Competition?,
             event: EventDTO,
             rocksDBOperations: DBOperations
-    ): Competition {
+    ): Competition? = aggregate?.let {
         aggregate.properties.schedulePublished = false
         aggregate.categories.forEach { catId ->
             val cat = rocksDBOperations.getCategory(catId, true)

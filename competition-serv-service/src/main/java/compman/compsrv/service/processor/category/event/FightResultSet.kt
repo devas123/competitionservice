@@ -10,6 +10,7 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.processor.IEventHandler
 import compman.compsrv.service.processor.ValidatedEventExecutor
+import compman.compsrv.util.Constants
 import compman.compsrv.util.PayloadValidator
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
@@ -21,14 +22,14 @@ class FightResultSet(
         validators: List<PayloadValidator>
 ) : IEventHandler<Category>, ValidatedEventExecutor<Category>(mapper, validators) {
     override fun applyEvent(
-            aggregate: Category,
+            aggregate: Category?,
             event: EventDTO,
             rocksDBOperations: DBOperations
-    ): Category {
-        return executeValidated<SetFightResultPayload, Category>(event) { payload, _ ->
+    ): Category? = aggregate?.let {
+        executeValidated<SetFightResultPayload, Category>(event) { payload, _ ->
             aggregate.fightResultSet(payload)
         }.unwrap(event)
-    }
+    }  ?: error(Constants.CATEGORY_NOT_FOUND)
 
     fun Category.fightResultSet(payload: SetFightResultPayload): Category {
         fightsMap[payload.fightId]?.let { f ->

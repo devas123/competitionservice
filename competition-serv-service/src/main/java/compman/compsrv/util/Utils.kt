@@ -83,18 +83,18 @@ fun CompetitorDTO.copy(id: String? = this.id,
 fun Instant.toTimestamp(): Timestamp = Timestamp.from(this)
 
 
-fun CompetitionPropertiesDTO.applyProperties(props: Map<String, Any?>?) =
+fun CompetitionPropertiesDTO.applyProperties(props: Map<String, String?>?) =
         if (props != null) {
             this.also { cp ->
-                cp.bracketsPublished = props["bracketsPublished"] as? Boolean ?: this.bracketsPublished
+                cp.bracketsPublished = props["bracketsPublished"]?.toBoolean() ?: this.bracketsPublished
                 cp.startDate = parseDate(props["startDate"]) ?: this.startDate
                 cp.endDate = parseDate(props["endDate"]) ?: this.endDate
-                cp.emailNotificationsEnabled = props["emailNotificationsEnabled"] as? Boolean
+                cp.emailNotificationsEnabled = props["emailNotificationsEnabled"]?.toBoolean()
                         ?: this.emailNotificationsEnabled
-                cp.competitionName = props["competitionName"] as String? ?: this.competitionName
-                cp.emailTemplate = props["emailTemplate"] as? String ?: this.emailTemplate
-                cp.schedulePublished = props["schedulePublished"] as? Boolean ?: this.schedulePublished
-                cp.timeZone = props["timeZone"]?.toString() ?: this.timeZone
+                cp.competitionName = props["competitionName"] ?: this.competitionName
+                cp.emailTemplate = props["emailTemplate"] ?: this.emailTemplate
+                cp.schedulePublished = props["schedulePublished"]?.toBoolean() ?: this.schedulePublished
+                cp.timeZone = props["timeZone"] ?: this.timeZone
             }
         } else {
             this

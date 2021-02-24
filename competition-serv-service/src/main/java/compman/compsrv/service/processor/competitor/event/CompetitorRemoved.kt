@@ -16,17 +16,19 @@ import org.springframework.stereotype.Component
 @Component
 @Qualifier(COMPETITOR_EVENT_HANDLERS)
 class CompetitorRemoved(
-        mapper: ObjectMapper,
-        validators: List<PayloadValidator>
+    mapper: ObjectMapper,
+    validators: List<PayloadValidator>
 ) : IEventHandler<Competitor>, ValidatedEventExecutor<Competitor>(mapper, validators) {
     override fun applyEvent(
-            aggregate: Competitor,
-            event: EventDTO,
-            rocksDBOperations: DBOperations
-    ): Competitor = executeValidated<CompetitorRemovedPayload, Competitor>(event) { _, _ ->
-        rocksDBOperations.deleteCompetitor(aggregate.competitorDTO.id)
-        aggregate
-    }.unwrap(event)
+        aggregate: Competitor?,
+        event: EventDTO,
+        rocksDBOperations: DBOperations
+    ): Competitor? = aggregate?.let {
+        executeValidated<CompetitorRemovedPayload, Competitor>(event) { _, _ ->
+            rocksDBOperations.deleteCompetitor(aggregate.competitorDTO.id)
+            aggregate
+        }.unwrap(event)
+    }
 
     override val eventType: EventType
         get() = EventType.COMPETITOR_REMOVED

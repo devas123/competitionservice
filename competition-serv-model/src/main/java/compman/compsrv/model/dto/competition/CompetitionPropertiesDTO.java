@@ -25,6 +25,6 @@ public class CompetitionPropertiesDTO {
     private Boolean bracketsPublished;
     private Instant endDate;
     private String timeZone;
-    private Long creationTimestamp;
+    private Instant creationTimestamp;
     private CompetitionStatus status;
 }

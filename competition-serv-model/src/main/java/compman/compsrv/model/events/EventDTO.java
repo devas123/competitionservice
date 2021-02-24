@@ -3,6 +3,8 @@ package compman.compsrv.model.events;
 import lombok.*;
 import lombok.experimental.Accessors;
 
+import java.time.Instant;
+
 @EqualsAndHashCode(callSuper = true)
 @ToString(callSuper = true)
 @Data
@@ -10,7 +12,7 @@ import lombok.experimental.Accessors;
 @NoArgsConstructor
 @Accessors(chain = true)
 public class EventDTO extends MessageInfo {
-    private final long timestamp = System.currentTimeMillis();
+    private final Instant timestamp = Instant.now();
 
     private Long version;
 

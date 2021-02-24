@@ -28,9 +28,9 @@ class CompetitionServiceApplication {
     fun loggingFilter(): WebFilter =
         WebFilter { exchange, chain ->
             val request = exchange.request
-            log.info("Processing request method=${request.method} path=${request.path.pathWithinApplication()} params=[${request.queryParams}] body=[${request.body}]")
+//            log.info("Processing request method=${request.method} path=${request.path.pathWithinApplication()} params=[${request.queryParams}] body=[${request.body}]")
             val result = chain.filter(exchange)
-            log.info("Handling with response ${exchange.response}")
+//            log.info("Handling with response ${exchange.response}")
             return@WebFilter result
         }
 

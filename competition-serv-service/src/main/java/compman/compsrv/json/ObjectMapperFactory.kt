@@ -2,7 +2,6 @@ package compman.compsrv.json
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect
 import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.annotation.PropertyAccessor
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -11,35 +10,36 @@ import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.ser.std.StdJdkSerializers
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
+import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder
 import java.util.concurrent.atomic.AtomicLong
 
 object ObjectMapperFactory {
     fun createObjectMapper(): ObjectMapper {
-        val mapper = ObjectMapper()
-                .registerKotlinModule()
-                .registerModule(ParameterNamesModule())
-                .registerModule(Jdk8Module())
-                .registerModule(JavaTimeModule())
-                .setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL)
-                .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
-                .enableDefaultTyping(ObjectMapper.DefaultTyping.OBJECT_AND_NON_CONCRETE, JsonTypeInfo.As.PROPERTY)/*
-                .activateDefaultTyping(BasicPolymorphicTypeValidator.builder().build(), ObjectMapper.DefaultTyping.OBJECT_AND_NON_CONCRETE,
-                        JsonTypeInfo.As.PROPERTY)*/
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-        mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-        mapper.configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true)
-        mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY)
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL)
-        mapper.configure(SerializationFeature.WRITE_ENUMS_USING_TO_STRING, true)
-        mapper.registerModule(SimpleModule().also { module ->
+        val builder = Jackson2ObjectMapperBuilder()
+        createJacksonMapperCustomizer().customize(builder)
+        return builder.build()
+    }
+
+    fun createJacksonMapperCustomizer() = Jackson2ObjectMapperBuilderCustomizer { mapper ->
+        mapper.featuresToEnable(SerializationFeature.WRITE_ENUMS_USING_TO_STRING, DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
+        mapper.featuresToDisable(SerializationFeature.FAIL_ON_EMPTY_BEANS, DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
+            SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+        mapper.visibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY)
+        mapper.serializationInclusion(JsonInclude.Include.NON_NULL)
+        mapper.modulesToInstall(
+            ParameterNamesModule(),
+            Jdk8Module(),
+            JavaTimeModule(),
+            KotlinModule(),
+            SimpleModule().also { module ->
             module.addDeserializer(CommandDTO::class.java, PlymorphicCommandDeserializer())
             module.addDeserializer(EventDTO::class.java, PolymorphicEventDeserializer())
             module.addSerializer(AtomicLong::class.java, StdJdkSerializers.AtomicLongSerializer())
         })
-        return mapper
     }
 }

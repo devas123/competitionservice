@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties
 import org.springframework.boot.autoconfigure.web.ServerProperties
 import org.springframework.kafka.core.KafkaTemplate
+import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
@@ -285,7 +286,7 @@ open class ClusterOperations(private val clusterConfigurationProperties: Cluster
         producer.close()
     }
 
-    fun getClusterMembers(): Array<ClusterMember> =
-            cluster.members()?.mapNotNull { createClusterMember(cluster, it) }?.toTypedArray() ?: emptyArray()
+    fun getClusterMembers(): Flux<ClusterMember> =
+            Flux.fromArray(cluster.members()?.mapNotNull { createClusterMember(cluster, it) }?.toTypedArray() ?: emptyArray())
 
 }

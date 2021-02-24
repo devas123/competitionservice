@@ -21,16 +21,16 @@ class CompetitionPropertiesUpdated(
         validators: List<PayloadValidator>
 ) : IEventHandler<Competition>, ValidatedEventExecutor<Competition>(mapper, validators) {
     override fun applyEvent(
-            aggregate: Competition,
+            aggregate: Competition?,
             event: EventDTO,
             rocksDBOperations: DBOperations
-    ): Competition {
-        return executeValidated<CompetitionPropertiesUpdatedPayload, Competition>(event) { payload, _ ->
+    ): Competition? = aggregate?.let {
+        executeValidated<CompetitionPropertiesUpdatedPayload, Competition>(event) { payload, _ ->
             aggregate.propertiesUpdated(payload)
         }.unwrap(event)
     }
 
-    fun Competition.propertiesUpdated(payload: CompetitionPropertiesUpdatedPayload): Competition {
+    private fun Competition.propertiesUpdated(payload: CompetitionPropertiesUpdatedPayload): Competition {
         return this.copy(properties = this.properties.applyProperties(payload.properties))
     }
 
