@@ -318,18 +318,27 @@ class StateQueryService(
     }
 
 
+    private fun hasEnoughCompetitors(fight: FightDescriptionDTO): Boolean {
+        val scoresSize = fight.scores?.filter { !it.competitorId.isNullOrBlank() }?.size ?: 0
+        return scoresSize > 1
+    }
+
     fun getMatFights(competitionId: String, matId: String, maxResults: Long): Mono<FightsWithCompetitors> {
         log.info("Getting fights for competition $competitionId and mat $matId")
         return localOrRemote(competitionId, {
             wrapBlocking {
-                val fights = rocksDbOperations.getCompetitionFights(competitionId)
-                val k = fights.asSequence()
-                    .filter { it.mat.id == matId && !FightsService.notFinishedStatuses.contains(it.status) }
+                val ff = rocksDbOperations.getCompetitionFights(competitionId)
+                val k = ff.asSequence()
+                    .filter {
+                        it.mat.id == matId && !FightsService.finishedStatuses.contains(it.status) && hasEnoughCompetitors(
+                            it
+                        )
+                    }
                     .sortedBy { it.startTime }
-                    .take(maxResults.toInt())
                     .map { f ->
                         f to rocksDbOperations.getCompetitors(f.scores.mapNotNull { it.competitorId })
                     }
+                    .take(maxResults.toInt())
                     .fold(listOf<FightDescriptionDTO>() to listOf<CompetitorDTO>()) { acc, pair ->
                         (acc.first + pair.first) to (acc.second + pair.second.map { it.competitorDTO })
                     }

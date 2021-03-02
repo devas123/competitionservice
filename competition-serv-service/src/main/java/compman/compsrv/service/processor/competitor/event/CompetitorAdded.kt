@@ -36,7 +36,6 @@ class CompetitorAdded(
             if (competitor != null && !competitor.id.isNullOrBlank() && !competitor.categories.isNullOrEmpty()) {
                 log.info("Adding competitor: ${competitor.id} to competition ${event.competitionId} and category ${competitor.categories}")
                 aggregate.copy(competitorDTO = competitor)
-//            jooqRepository.changeCompetitorCategories(competitor.id, emptyList(), competitor.categories.toList()) //TODO: increment competitors number in category.
             } else {
                 throw EventApplyingException("No competitor in the event payload: $event", event)
             }

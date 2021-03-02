@@ -29,7 +29,7 @@ class CommandListener(private val commandTransformerFactory: CommandExecutionSer
     private val processor = EmitterProcessor.create<Pair<ConsumerRecord<String, CommandDTO>, Acknowledgment?>>()
 
     init {
-        processor.publishOn(Schedulers.parallel()).flatMap { pair ->
+        processor.publishOn(Schedulers.parallel()).concatMap { pair ->
             val m = pair.first
             Mono.fromCallable { commandTransformerFactory.getCompetitionCommandTransformer(m.key()).transform(m, rocksDBRepository, kafkaTemplate, eventsFilterPredicate) }
                     .map { Optional.ofNullable(pair.second) }

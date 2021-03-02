@@ -25,7 +25,11 @@ abstract class AbstractCommandPayloadValidator<P: Payload>(private val payloadCl
         return kotlin.runCatching {
             if (comEv.isLeft) {
                 comEv.fold({ com ->
-                    validateCommand(validationRules, payloadClass.cast(payload), com) as Kind<F, T>
+                    if (com.competitionId.isNullOrBlank()) {
+                        validationRules.raiseError(PayloadValidationError.FieldMissing("command.competitionId", com.id).nel())
+                    } else {
+                        validateCommand(validationRules, payloadClass.cast(payload), com) as Kind<F, T>
+                    }
                 }, { validationRules.raiseError(PayloadValidationError.GenericError("This is a command payload, but is a part of event.", it.id).nel()) }, { _, e ->
                     validationRules.raiseError(PayloadValidationError.GenericError("This is a command payload, but is a part of event.", e.id).nel())
                 })

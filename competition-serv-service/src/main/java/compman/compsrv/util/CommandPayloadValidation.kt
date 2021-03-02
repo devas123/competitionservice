@@ -7,7 +7,7 @@ import arrow.core.extensions.nonemptylist.semigroup.semigroup
 import arrow.core.extensions.validated.applicativeError.applicativeError
 import arrow.typeclasses.ApplicativeError
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.commands.payload.DashboardFightOrderChangePayload
+import compman.compsrv.model.commands.payload.ChangeFightOrderPayload
 import compman.compsrv.model.Payload
 import compman.compsrv.model.commands.payload.PropagateCompetitorsPayload
 import compman.compsrv.model.events.EventDTO
@@ -23,7 +23,7 @@ sealed class PayloadValidationError(msg: String, failedOn: String) : ErrorEventP
 
 sealed class PayloadValidationRules<F>(private val A: ApplicativeError<F, Nel<PayloadValidationError>>) : ApplicativeError<F, Nel<PayloadValidationError>> by A {
 
-    private fun DashboardFightOrderChangePayload.validate(com: CommandDTO): Kind<F, DashboardFightOrderChangePayload> {
+    private fun ChangeFightOrderPayload.validate(com: CommandDTO): Kind<F, ChangeFightOrderPayload> {
         return if (!fightId.isNullOrBlank() && !currentMatId.isNullOrBlank() && !newMatId.isNullOrBlank() && newOrderOnMat != null && currentOrderOnMat != null) {
             just(this)
         } else {
@@ -48,7 +48,7 @@ sealed class PayloadValidationRules<F>(private val A: ApplicativeError<F, Nel<Pa
 
     fun Payload.validate(com: CommandDTO, validators: Iterable<PayloadValidator>): Kind<F, Payload> =
             when (this) {
-                is DashboardFightOrderChangePayload ->
+                is ChangeFightOrderPayload ->
                     this.validate(com)
                 is PropagateCompetitorsPayload ->
                     this.validate(com)

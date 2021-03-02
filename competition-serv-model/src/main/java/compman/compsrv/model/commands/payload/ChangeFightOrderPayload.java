@@ -15,7 +15,7 @@ import java.io.Serializable;
 @NoArgsConstructor
 @Accessors(chain = true)
 @CommandPayload(type = CommandType.DASHBOARD_FIGHT_ORDER_CHANGE_COMMAND)
-public class DashboardFightOrderChangePayload implements Serializable, Payload {
+public class ChangeFightOrderPayload implements Serializable, Payload {
     private String fightId;
     private String currentMatId;
     private String newMatId;

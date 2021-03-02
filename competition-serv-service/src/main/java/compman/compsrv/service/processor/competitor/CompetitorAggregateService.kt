@@ -25,14 +25,6 @@ class CompetitorAggregateService(
     eventHandlers: List<IEventHandler<Competitor>>
 ) : AbstractAggregateService<Competitor>() {
 
-
-//    private val doChangeCompetitorCategory: CommandExecutor<Competitor> = { competitor, _, command -> //TODO: update number of competitors in categories
-//        executeValidated<ChangeCompetitorCategoryPayload>(command) { payload, com ->
-//            competitor to competitor.process(payload, com, Companion::createEvent)
-//        }.unwrap(command)
-//    }
-
-
     override val commandsToHandlers: Map<CommandType, CommandExecutor<Competitor>> =
         commandExecutors.groupBy { it.commandType }.mapValues { it ->
             it.value.first()

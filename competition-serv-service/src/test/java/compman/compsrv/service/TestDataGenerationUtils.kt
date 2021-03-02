@@ -2,7 +2,9 @@ package compman.compsrv.service
 
 import arrow.core.Tuple2
 import compman.compsrv.model.dto.brackets.*
-import compman.compsrv.model.dto.competition.*
+import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
+import compman.compsrv.model.dto.competition.CompetitorDTO
+import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.*
 import compman.compsrv.service.fight.BracketsGenerateService
@@ -11,7 +13,6 @@ import compman.compsrv.service.fight.GroupStageGenerateService
 import compman.compsrv.service.schedule.ScheduleService
 import compman.compsrv.service.schedule.StageGraph
 import compman.compsrv.util.IDGenerator
-import reactor.core.publisher.Mono
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -61,11 +62,11 @@ class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGener
     }
 
 
-    fun createGroupStage(competitionId: String,
-                         categoryId: String,
-                         stageId: String,
-                         additionalGroupSortingDescriptorDTOS: Array<AdditionalGroupSortingDescriptorDTO>?,
-    groupSizes: List<Int>): StageDescriptorDTO {
+    private fun createGroupStage(competitionId: String,
+                                 categoryId: String,
+                                 stageId: String,
+                                 additionalGroupSortingDescriptorDTOS: Array<AdditionalGroupSortingDescriptorDTO>?,
+                                 groupSizes: List<Int>): StageDescriptorDTO {
         return StageDescriptorDTO()
                 .setId(stageId)
                 .setName("Name")
@@ -110,6 +111,7 @@ class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGener
                 .setInputDescriptor(StageInputDescriptorDTO().setId(stageId).setNumberOfCompetitors(numberOfCompetitors))
     }
 
+/*
     fun createCompetitionPropertiesDTO(competitionId: String?): CompetitionPropertiesDTO {
         return CompetitionPropertiesDTO()
                 .setCompetitionName("Compname")
@@ -125,6 +127,7 @@ class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGener
                 .setTimeZone("UTC")
                 .setSchedulePublished(false)
     }
+*/
 
     private fun createPeriod(id: String, scheduleEntries: Array<ScheduleRequirementDTO>): PeriodDTO =
             PeriodDTO()
@@ -151,12 +154,12 @@ class TestDataGenerationUtils(private val bracketsGenerateService: BracketsGener
         val stages = stagesToFights.map { it.first }
         val fights = stagesToFights.flatMap { it.second }
 
-        return scheduleService.generateSchedule(competitionId, periods, mats.toList(), Mono.just(StageGraph(stages, fights)), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap())
+        return scheduleService.generateSchedule(competitionId, periods, mats.toList(), StageGraph(stages, fights), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap())
     }
 
     fun generateSchedule(competitionId: String, periods: List<PeriodDTO>, mats: List<MatDescriptionDTO>, stages: List<StageDescriptorDTO>, fights: List<FightDescriptionDTO>,
                          categories: List<Pair<String, CategoryDescriptorDTO>>, competitorNumbers: Int) = scheduleService.generateSchedule(competitionId, periods, mats,
-            Mono.just(StageGraph(stages, fights)), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap())
+        StageGraph(stages, fights), TimeZone.getDefault().id, categories.map { it.second.id to competitorNumbers }.toMap())
 
     fun createDefaultMats(period1: String, period2: String): Array<MatDescriptionDTO> {
         val mats1 = arrayOf(MatDescriptionDTO()

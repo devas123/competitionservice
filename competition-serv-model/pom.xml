@@ -50,10 +50,6 @@
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-annotations</artifactId>
     </dependency>
-    <dependency>
-      <groupId>org.reflections</groupId>
-      <artifactId>reflections</artifactId>
-    </dependency>
   </dependencies>
   <build>
     <plugins>
@@ -74,14 +70,6 @@
           <arguments>
             <argument>${project.build.directory}/avro</argument>
           </arguments>
-          <!--
-                              <systemProperties>
-                                  <systemProperty>
-                                      <key>myproperty</key>
-                                      <value>myvalue</value>
-                                  </systemProperty>
-                              </systemProperties>
-          -->
         </configuration>
       </plugin>
     </plugins>

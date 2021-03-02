@@ -27,7 +27,11 @@ abstract class AbstractEventPayloadValidator<P: Payload>(private val payloadClas
                 comEv.fold({ com ->
                     validationRules.raiseError<T>(PayloadValidationError.GenericError("This is an event payload, but is a part of a command.", com.id).nel())
                 }, { ev ->
-                    validateEvent(validationRules, payloadClass.cast(payload), ev) as Kind<F, T>
+                    if (ev.competitionId.isNullOrBlank()) {
+                        validationRules.raiseError(PayloadValidationError.FieldMissing("event.competitionId", ev.id).nel())
+                    } else {
+                        validateEvent(validationRules, payloadClass.cast(payload), ev) as Kind<F, T>
+                    }
                 }, { _, e ->
                     validationRules.raiseError(PayloadValidationError.GenericError("This is an event payload, but is a part of a command.", e.id).nel())
                 })

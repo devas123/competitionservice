@@ -113,7 +113,6 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
         val competition = getCompetition(competitionId)
         val fights = getCategories(competition, getForUpdate)
                     ?.map { mapper.readValue(it, Category::class.java) }?.flatMap { it.fights.toList() }
-
         return fights.orEmpty().toTypedArray()
     }
 

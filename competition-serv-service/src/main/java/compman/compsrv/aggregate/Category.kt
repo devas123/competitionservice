@@ -50,6 +50,7 @@ data class Category(
     }
 
     val fightsMap = fights.map { it.id to it }.toMap()
+    val fightsMapIndices = fights.mapIndexed { index, it ->  it.id to index }.toMap()
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

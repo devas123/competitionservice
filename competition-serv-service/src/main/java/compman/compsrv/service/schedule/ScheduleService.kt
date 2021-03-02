@@ -12,9 +12,7 @@ import compman.compsrv.model.dto.schedule.PeriodDTO
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.util.IDGenerator
 import org.springframework.stereotype.Component
-import reactor.core.publisher.Mono
 import java.math.BigDecimal
-import java.time.Duration
 
 @Component
 class ScheduleService {
@@ -33,17 +31,17 @@ class ScheduleService {
     /**
      * @param stages - Flux<pair<Tuple3<StageId, CategoryId, BracketType>, fights>>
      */
-    fun generateSchedule(competitionId: String, periods: List<PeriodDTO>, mats: List<MatDescriptionDTO>, stages: Mono<StageGraph>, timeZone: String,
+    fun generateSchedule(competitionId: String, periods: List<PeriodDTO>, mats: List<MatDescriptionDTO>, stages: StageGraph, timeZone: String,
                          categoryCompetitorNumbers: Map<String, Int>): Tuple2<ScheduleDTO, List<FightStartTimePairDTO>> {
-        if (!periods.isNullOrEmpty()) {
-            return doGenerateSchedule(competitionId, stages, periods, mats, timeZone)
+        return if (!periods.isNullOrEmpty()) {
+            doGenerateSchedule(competitionId, stages, periods, mats, timeZone)
         } else {
             throw ServiceException("Periods are not specified!")
         }
     }
 
     private fun doGenerateSchedule(competitionId: String,
-                                   stages: Mono<StageGraph>,
+                                   stages: StageGraph,
                                    periods: List<PeriodDTO>,
                                    mats: List<MatDescriptionDTO>,
                                    timeZone: String): Tuple2<ScheduleDTO, List<FightStartTimePairDTO>> {
@@ -76,39 +74,41 @@ class ScheduleService {
                 riskFactor = periods.map { p -> p.id!! to p.riskPercent }.toMap(),
                 timeZone = timeZone)
 
-        val fightsByMats = composer.simulate().block(Duration.ofMillis(180000)) ?: error("Generated schedule is null")
-        val invalidFightIds = fightsByMats.c
-
-        return ScheduleDTO()
+        return composer.simulate().let { fightsByMats ->
+            val invalidFightIds = fightsByMats.c
+            ScheduleDTO()
                 .setId(competitionId)
                 .setMats(fightsByMats.b.mapIndexed { i, container ->
                     MatDescriptionDTO()
-                            .setId(container.id)
-                            .setPeriodId(container.periodId)
-                            .setName(container.name)
-                            .setMatOrder(container.matOrder ?: i)
+                        .setId(container.id)
+                        .setPeriodId(container.periodId)
+                        .setName(container.name)
+                        .setMatOrder(container.matOrder ?: i)
+                        .setNumberOfFights(container.fights.size)
                 }.toTypedArray())
                 .setPeriods(periods.mapNotNull { period ->
                     PeriodDTO()
-                            .setId(period.id)
-                            .setRiskPercent(period.riskPercent)
-                            .setTimeBetweenFights(period.timeBetweenFights)
-                            .setIsActive(period.isActive)
-                            .setScheduleRequirements(enrichedScheduleRequirements.filter { it.periodId === period.id }.toTypedArray())
-                            .setScheduleEntries(fightsByMats.a.filter { it.periodId == period.id }
-                                    .sortedBy { it.startTime.toEpochMilli() }
-                                    .mapIndexed { i, scheduleEntryDTO ->
-                                        scheduleEntryDTO
-                                                .setOrder(i)
-                                                .setInvalidFightIds(scheduleEntryDTO.fightIds?.filter { invalidFightIds.contains(it.someId) }
-                                                        ?.mapNotNull { it.someId }
-                                                        ?.distinct()?.toTypedArray())
-                                    }.toTypedArray())
-                            .setStartTime(period.startTime)
-                            .setName(period.name)
+                        .setId(period.id)
+                        .setRiskPercent(period.riskPercent)
+                        .setTimeBetweenFights(period.timeBetweenFights)
+                        .setIsActive(period.isActive)
+                        .setScheduleRequirements(enrichedScheduleRequirements.filter { it.periodId === period.id }.toTypedArray())
+                        .setScheduleEntries(fightsByMats.a.filter { it.periodId == period.id }
+                            .sortedBy { it.startTime.toEpochMilli() }
+                            .mapIndexed { i, scheduleEntryDTO ->
+                                scheduleEntryDTO
+                                    .setFightIds(scheduleEntryDTO.fightIds?.distinctBy { it.someId }?.toTypedArray())
+                                    .setCategoryIds(scheduleEntryDTO.categoryIds?.distinct()?.toTypedArray())
+                                    .setOrder(i)
+                                    .setInvalidFightIds(scheduleEntryDTO.fightIds?.filter { invalidFightIds.contains(it.someId) }
+                                        ?.mapNotNull { it.someId }
+                                        ?.distinct()?.toTypedArray())
+                            }.toTypedArray())
+                        .setStartTime(period.startTime)
+                        .setName(period.name)
                 }.toTypedArray()) toT fightsByMats.b.flatMap { container ->
-            container.fights.map {
-                FightStartTimePairDTO()
+                container.fights.map {
+                    FightStartTimePairDTO()
                         .setStartTime(it.startTime)
                         .setNumberOnMat(it.fightNumber)
                         .setFightId(it.fightId)
@@ -116,6 +116,7 @@ class ScheduleService {
                         .setFightCategoryId(it.categoryId)
                         .setMatId(it.matId)
                         .setScheduleEntryId(it.scheduleEntryId)
+                }
             }
         }
     }

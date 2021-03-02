@@ -30,10 +30,10 @@ class RegistrationGroupAdded(
     }
 
     fun Competition.registrationGroupAdded(payload: RegistrationGroupAddedPayload): Competition {
-        val regPeriod = registrationInfo.registrationPeriods.find { it.id == payload.periodId }
+        val regPeriod = registrationInfo.registrationPeriods?.find { it.id == payload.periodId }
         if (regPeriod != null && !payload.groups.isNullOrEmpty()) {
-            regPeriod.registrationGroupIds = regPeriod.registrationGroupIds + payload.groups.mapNotNull { it.id }.toTypedArray()
-            registrationInfo.registrationGroups = registrationInfo.registrationGroups + payload.groups
+            regPeriod.registrationGroupIds = (regPeriod.registrationGroupIds ?: emptyArray()) + payload.groups.mapNotNull { it.id }.toTypedArray()
+            registrationInfo.registrationGroups = (registrationInfo.registrationGroups ?: emptyArray()) + payload.groups
         }
         return this
     }

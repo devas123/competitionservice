@@ -9,7 +9,6 @@ import compman.compsrv.service.schedule.internal.ScheduleAccumulator
 import compman.compsrv.util.IDGenerator
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import reactor.core.publisher.Mono
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneId
@@ -22,7 +21,7 @@ class ScheduleProducer(val competitionId: String,
                        val startTime: Map<String, Instant>,
                        val mats: List<MatDescriptionDTO>,
                        private val req: List<ScheduleRequirementDTO>,
-                       private val stages: Mono<StageGraph>,
+                       private val stages: StageGraph,
                        private val periods: List<PeriodDTO>,
                        val timeBetweenFights: Map<String, BigDecimal>,
                        riskFactor: Map<String, BigDecimal>,
@@ -65,9 +64,9 @@ class ScheduleProducer(val competitionId: String,
     private fun getFightDuration(duration: BigDecimal, periodId: String) = duration.multiply(riskCoeff[periodId]
             ?: error("No risk coeff for $periodId")).plus(timeBetweenFights[periodId] ?: BigDecimal.ZERO)
 
-    fun simulate(): Mono<Tuple3<List<ScheduleEntryDTO>, List<InternalMatScheduleContainer>, Set<String>>> {
+    fun simulate(): Tuple3<List<ScheduleEntryDTO>, List<InternalMatScheduleContainer>, Set<String>> {
         return this.stages
-                .map { st ->
+                .let { st ->
                     var fightsDispatched = 0
                     val scheduleRequirements = req
                     val unfinishedRequirements = LinkedList<ScheduleRequirementDTO>()
@@ -171,7 +170,7 @@ class ScheduleProducer(val competitionId: String,
     private fun loadBalanceToMats(req: Pair<ScheduleRequirementDTO, List<String>>, periodMats: List<InternalMatScheduleContainer>, requirementsCapacity: IntArray, requiremetsGraph: RequirementsGraph, accumulator: ScheduleAccumulator, st: StageGraph, period: PeriodDTO, fightsDispatched: Int): Int {
         var fightsDispatched1 = fightsDispatched
         req.second.forEach { fightId ->
-            val mat = periodMats.minBy { it.currentTime.toEpochMilli() }!!
+            val mat = periodMats.minByOrNull { it.currentTime.toEpochMilli() }!!
             updateMatAndSchedule(requirementsCapacity, requiremetsGraph, req, accumulator, mat, fightId, st, period)
             fightsDispatched1++
             log.debug("Dispatched $fightsDispatched1 fights")
@@ -199,9 +198,9 @@ class ScheduleProducer(val competitionId: String,
         val e = accumulator.scheduleEntryFromRequirement(req.first, mat.currentTime, period.id)
         accumulator.scheduleEntries[e].fightIds += MatIdAndSomeId(mat.id, fightId)
         accumulator.scheduleEntries[e].categoryIds += st.getCategoryId(fightId)
-        mat.fights.add(InternalFightStartTime(fightId, st.getCategoryId(fightId), mat.id, mat.totalFights++, mat.currentTime, accumulator.scheduleEntries[e].getId(), period.id))
+        mat.fights.add(InternalFightStartTime(fightId, st.getCategoryId(fightId), mat.id, mat.totalFights++, mat.currentTime, accumulator.scheduleEntries[e].id, period.id))
         log.info("Period: ${period.id}, category: ${st.getCategoryId(fightId)}, fight: $fightId, starts: ${mat.currentTime}, mat: ${mat.id}, numberOnMat: ${mat.totalFights - 1}")
-        mat.currentTime = mat.currentTime.plus(duration.multiply(BigDecimal.valueOf(60L)).toLong(), ChronoUnit.SECONDS)
+        mat.currentTime = mat.currentTime.plus(duration.toLong(), ChronoUnit.MINUTES)
         st.completeFight(fightId)
     }
 
@@ -219,7 +218,7 @@ class ScheduleProducer(val competitionId: String,
                 periodId = mat.periodId)
     }
 
-    fun supplier(): Supplier<ScheduleAccumulator> {
+    private fun supplier(): Supplier<ScheduleAccumulator> {
         return Supplier {
             log.info("Supplier.")
             ScheduleAccumulator(initialFightsByMats, competitionId)

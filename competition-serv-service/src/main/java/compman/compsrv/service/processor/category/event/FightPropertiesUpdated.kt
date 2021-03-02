@@ -3,10 +3,9 @@ package compman.compsrv.service.processor.category.event
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.aggregate.Category
 import compman.compsrv.config.CATEGORY_EVENT_HANDLERS
-import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
-import compman.compsrv.model.events.payload.FightStartTimeUpdatedPayload
+import compman.compsrv.model.events.payload.FightPropertiesUpdatedPayload
 import compman.compsrv.repository.DBOperations
 import compman.compsrv.service.processor.IEventHandler
 import compman.compsrv.service.processor.ValidatedEventExecutor
@@ -17,7 +16,7 @@ import org.springframework.stereotype.Component
 
 @Component
 @Qualifier(CATEGORY_EVENT_HANDLERS)
-class FightsStartTimeUpdated(
+class FightPropertiesUpdated(
     mapper: ObjectMapper,
     validators: List<PayloadValidator>
 ) : IEventHandler<Category>, ValidatedEventExecutor<Category>(mapper, validators) {
@@ -26,32 +25,24 @@ class FightsStartTimeUpdated(
         event: EventDTO,
         rocksDBOperations: DBOperations
     ): Category? = aggregate?.let {
-        executeValidated<FightStartTimeUpdatedPayload, Category>(event) { payload, _ ->
-            val competition = rocksDBOperations.getCompetition(event.competitionId)
-
-            aggregate.fightStartTimeUpdated(payload, competition.mats)
+        executeValidated<FightPropertiesUpdatedPayload, Category>(event) { payload, _ ->
+            aggregate.fightPropertiesUpdated(payload)
         }.unwrap(event)
     } ?: error(Constants.CATEGORY_NOT_FOUND)
 
-    fun Category.fightStartTimeUpdated(
-        payload: FightStartTimeUpdatedPayload,
-        mats: Array<MatDescriptionDTO>
+    fun Category.fightPropertiesUpdated(
+        payload: FightPropertiesUpdatedPayload
     ): Category {
-        for (newFight in payload.newFights) {
-            fightsMapIndices[newFight.fightId]?.let { ind ->
-                fights[ind] = fights[ind].apply {
-                    invalid = newFight.invalid
-                    mat = mats.find { m -> m.id == newFight.matId }
-                        ?: error("Mat with id ${newFight.matId} not found in $mats.")
-                    period = newFight.periodId
-                    startTime = newFight.startTime
-                    numberOnMat = newFight.numberOnMat
-                }
+        fightsMapIndices[payload.fightId]?.let { ind ->
+            fights[ind] = fights[ind].apply {
+                payload.mat?.let { mat = it }
+                payload.numberOnMat?.let { numberOnMat = it }
+                payload.startTime?.let { startTime = it }
             }
         }
         return this
     }
 
     override val eventType: EventType
-        get() = EventType.FIGHTS_START_TIME_UPDATED
+        get() = EventType.FIGHT_PROPERTIES_UPDATED
 }

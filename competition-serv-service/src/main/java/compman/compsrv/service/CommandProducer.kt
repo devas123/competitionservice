@@ -64,7 +64,6 @@ class CommandProducer(private val commandKafkaTemplate: KafkaTemplate<String, Co
         command.id = command.id ?: IDGenerator.uid()
         if (competitionId.isNullOrBlank()) {
             //this is a global command, can process anywhere
-            //TODO
             sendCommandAsync(command, competitionId)
             return Mono.empty()
         } else {

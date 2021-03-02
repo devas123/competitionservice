@@ -10,10 +10,10 @@ object AggregateTypeDecider {
             CommandType.CHANGE_COMPETITOR_CATEGORY_COMMAND -> AggregateType.SAGA
             CommandType.SAVE_SCHEDULE_COMMAND -> AggregateType.COMPETITION
             CommandType.SAVE_ABSOLUTE_CATEGORY_COMMAND -> AggregateType.CATEGORY
-            CommandType.GENERATE_SCHEDULE_COMMAND -> AggregateType.COMPETITION
+            CommandType.GENERATE_SCHEDULE_COMMAND -> AggregateType.SAGA
             CommandType.GENERATE_BRACKETS_COMMAND -> AggregateType.CATEGORY
             CommandType.UPDATE_CATEGORY_FIGHTS_COMMAND -> AggregateType.CATEGORY
-            CommandType.DROP_SCHEDULE_COMMAND -> AggregateType.COMPETITION
+            CommandType.DROP_SCHEDULE_COMMAND -> AggregateType.SAGA
             CommandType.DROP_ALL_BRACKETS_COMMAND -> AggregateType.COMPETITION
             CommandType.DROP_CATEGORY_BRACKETS_COMMAND -> AggregateType.CATEGORY
             CommandType.SAVE_BRACKETS_COMMAND -> AggregateType.CATEGORY
@@ -43,7 +43,7 @@ object AggregateTypeDecider {
             CommandType.DELETE_MAT_STATE_COMMAND -> AggregateType.COMPETITION
             CommandType.INIT_PERIOD_COMMAND -> AggregateType.COMPETITION
             CommandType.DELETE_PERIOD_COMMAND -> AggregateType.COMPETITION
-            CommandType.DASHBOARD_FIGHT_ORDER_CHANGE_COMMAND -> AggregateType.CATEGORY
+            CommandType.DASHBOARD_FIGHT_ORDER_CHANGE_COMMAND -> AggregateType.SAGA
             CommandType.DASHBOARD_SET_FIGHT_RESULT_COMMAND -> AggregateType.CATEGORY
             CommandType.ADD_UNDISPATCHED_MAT_COMMAND -> AggregateType.COMPETITION
             CommandType.CHECK_DASHBOARD_OBSOLETE -> AggregateType.COMPETITION
@@ -54,7 +54,6 @@ object AggregateTypeDecider {
             CommandType.UPDATE_COMPETITOR_COMMAND -> AggregateType.COMPETITOR
             CommandType.REMOVE_COMPETITOR_COMMAND -> AggregateType.SAGA
             CommandType.PROPAGATE_COMPETITORS_COMMAND -> AggregateType.CATEGORY
-            else -> throw IllegalArgumentException("Unknown type: $commandType")
         }
     }
 
@@ -82,6 +81,7 @@ object AggregateTypeDecider {
             EventType.COMPETITION_PROPERTIES_UPDATED -> AggregateType.COMPETITION
             EventType.COMPETITORS_PROPAGATED_TO_STAGE -> AggregateType.CATEGORY
             EventType.FIGHTS_START_TIME_UPDATED -> AggregateType.CATEGORY
+            EventType.FIGHTS_START_TIME_CLEANED -> AggregateType.CATEGORY
             EventType.FIGHTS_EDITOR_CHANGE_APPLIED -> AggregateType.CATEGORY
             EventType.SCHEDULE_DROPPED -> AggregateType.COMPETITION
             EventType.REGISTRATION_PERIOD_ADDED -> AggregateType.COMPETITION
@@ -93,14 +93,14 @@ object AggregateTypeDecider {
             EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED -> AggregateType.COMPETITION
             EventType.DASHBOARD_FIGHT_RESULT_SET -> AggregateType.CATEGORY
             EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED -> AggregateType.CATEGORY
-            EventType.DASHBOARD_FIGHT_ORDER_CHANGED -> AggregateType.SAGA
             EventType.DASHBOARD_STAGE_RESULT_SET -> AggregateType.CATEGORY
             EventType.DUMMY -> AggregateType.SAGA
             EventType.INTERNAL_COMPETITION_INFO -> AggregateType.SAGA
             EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED -> AggregateType.CATEGORY
             EventType.CATEGORY_NUMBER_OF_COMPETITORS_DECREASED -> AggregateType.CATEGORY
             EventType.COMPETITION_CATEGORIES_ADDED -> AggregateType.COMPETITION
-            else -> throw IllegalArgumentException("Unknown type: $eventType")
+            EventType.FIGHT_PROPERTIES_UPDATED -> AggregateType.CATEGORY
+            EventType.MATS_UPDATED -> AggregateType.COMPETITION
         }
     }
 }

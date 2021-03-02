@@ -19,7 +19,7 @@ import java.util.*
 
 abstract class FightsService {
     companion object {
-        private val finishedStatuses = listOf(FightStatus.UNCOMPLETABLE, FightStatus.FINISHED, FightStatus.WALKOVER)
+        val finishedStatuses = listOf(FightStatus.UNCOMPLETABLE, FightStatus.FINISHED, FightStatus.WALKOVER)
         val unMovableFightStatuses = finishedStatuses + FightStatus.IN_PROGRESS
         val notFinishedStatuses = listOf(FightStatus.PENDING, FightStatus.IN_PROGRESS, FightStatus.GET_READY, FightStatus.PAUSED)
         const val SEMI_FINAL = "Semi-final"

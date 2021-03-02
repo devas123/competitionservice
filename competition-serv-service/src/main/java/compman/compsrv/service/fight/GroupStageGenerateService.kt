@@ -34,7 +34,7 @@ class GroupStageGenerateService : FightsService() {
 
         private fun createGroupFights(competitionId: String, categoryId: String, stageId: String, groupId: String, duration: BigDecimal, competitors: List<CompetitorDTO>): List<FightDescriptionDTO> {
             val combined = createPairs(competitors)
-            return combined.filter { it.a != it.b }.distinctBy { sortedSetOf(it.a, it.b).joinToString() }
+            return combined.filter { it.a.id != it.b.id }.distinctBy { sortedSetOf(it.a.id, it.b.id).joinToString() }
                     .mapIndexed { ind, comps ->
                         fightDescription(competitionId = competitionId,
                                 categoryId = categoryId,

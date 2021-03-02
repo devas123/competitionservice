@@ -29,7 +29,7 @@ class ScheduleDropped : IEventHandler<Competition> {
             }
             rocksDBOperations.putCategory(cat)
         }
-        return aggregate.copy(periods = emptyArray()) // TODO: we need to update fights too (saga?)
+        return aggregate.copy(periods = emptyArray(), mats = emptyArray())
     }
 
     override val eventType: EventType
