@@ -33,13 +33,16 @@ class FightPropertiesUpdated(
     fun Category.fightPropertiesUpdated(
         payload: FightPropertiesUpdatedPayload
     ): Category {
-        fightsMapIndices[payload.fightId]?.let { ind ->
-            fights[ind] = fights[ind].apply {
-                payload.mat?.let { mat = it }
-                payload.numberOnMat?.let { numberOnMat = it }
-                payload.startTime?.let { startTime = it }
+        payload.updates.forEach { upd ->
+            fightsMapIndices[upd.fightId]?.let { ind ->
+                fights[ind] = fights[ind].apply {
+                    upd.mat?.let { mat = it }
+                    upd.numberOnMat?.let { numberOnMat = it }
+                    upd.startTime?.let { startTime = it }
+                }
             }
         }
+
         return this
     }
 

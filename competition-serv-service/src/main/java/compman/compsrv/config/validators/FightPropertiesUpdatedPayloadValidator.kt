@@ -2,7 +2,6 @@ package compman.compsrv.config.validators
 
 import arrow.Kind
 import arrow.core.nel
-import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.payload.FightPropertiesUpdatedPayload
 import compman.compsrv.util.PayloadValidationError
@@ -18,8 +17,11 @@ class FightPropertiesUpdatedPayloadValidator :
         event: EventDTO
     ): Kind<F, FightPropertiesUpdatedPayload> {
         return when {
-            payload.fightId.isNullOrBlank() -> {
-                validationRules.raiseError(PayloadValidationError.FieldMissing("payload.fightId", event.id).nel())
+            payload.updates.isNullOrEmpty() -> {
+                validationRules.raiseError(PayloadValidationError.FieldMissing("payload.updates", event.id).nel())
+            }
+            payload.updates.any { it.fightId.isNullOrEmpty() } -> {
+                validationRules.raiseError(PayloadValidationError.FieldMissing("payload.updates.fightId", event.id).nel())
             }
             else -> {
                 validationRules.just(payload)

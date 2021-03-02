@@ -13,6 +13,7 @@ import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
+import compman.compsrv.model.events.payload.FightPropertiesUpdate
 import compman.compsrv.model.events.payload.FightPropertiesUpdatedPayload
 import compman.compsrv.model.events.payload.MatsUpdatedPayload
 import compman.compsrv.repository.DBOperations
@@ -45,6 +46,7 @@ class ChangeFightOrder(
             }
             else -> {
                 val steps = mutableListOf<SagaStep<List<EventDTO>>>()
+                val updates = mutableListOf<Pair<String, FightPropertiesUpdate>>()
                 addNumberOfFightsChangedEvents(payload, steps, createEvent, mats, c)
                 val duration = fight.duration.toLong()
                 var startTime: Instant? = null
@@ -57,25 +59,14 @@ class ChangeFightOrder(
                         startTime = sm
                         if (f.id != payload.fightId && f.mat.id == payload.currentMatId && f.numberOnMat != null && f.numberOnMat >= payload.currentOrderOnMat) {
                             //first reduce numbers on the current mat
-                            steps.add(applyEvent(Unit.left(),
-                                createEvent(
-                                    c,
-                                    EventType.FIGHT_PROPERTIES_UPDATED,
-                                    FightPropertiesUpdatedPayload().setFightId(f.id).setMat(f.mat)
-                                        .setNumberOnMat(f.numberOnMat - 1)
-                                        .setStartTime(f.startTime.minus(duration, ChronoUnit.MINUTES))
-                                ).apply { categoryId = f.categoryId }
-                            ))
+                            updates.add(f.categoryId to FightPropertiesUpdate().setFightId(f.id).setMat(f.mat)
+                                .setNumberOnMat(f.numberOnMat - 1)
+                                .setStartTime(f.startTime.minus(duration, ChronoUnit.MINUTES)))
                         } else if (f.id != payload.fightId && f.mat.id == payload.newMatId && f.numberOnMat != null && f.numberOnMat >= payload.newOrderOnMat) {
-                            steps.add(applyEvent(Unit.left(),
-                                createEvent(
-                                    c,
-                                    EventType.FIGHT_PROPERTIES_UPDATED,
-                                    FightPropertiesUpdatedPayload().setFightId(f.id).setMat(f.mat)
+                            updates.add(f.categoryId to
+                                    FightPropertiesUpdate().setFightId(f.id).setMat(f.mat)
                                         .setNumberOnMat(f.numberOnMat + 1)
-                                        .setStartTime(f.startTime.plus(duration, ChronoUnit.MINUTES))
-                                ).apply { categoryId = f.categoryId }
-                            ))
+                                        .setStartTime(f.startTime.plus(duration, ChronoUnit.MINUTES)))
                         }
                     }
                 } else {
@@ -90,38 +81,35 @@ class ChangeFightOrder(
                         ) {
                             //first reduce numbers on the current mat
                             if (payload.currentOrderOnMat > payload.newOrderOnMat) {
-                                steps.add(applyEvent(Unit.left(),
-                                    createEvent(
-                                        c,
-                                        EventType.FIGHT_PROPERTIES_UPDATED,
-                                        FightPropertiesUpdatedPayload().setFightId(f.id).setMat(f.mat)
-                                            .setNumberOnMat(f.numberOnMat + 1)
-                                            .setStartTime(f.startTime.plus(duration, ChronoUnit.MINUTES))
-                                    ).apply { categoryId = f.categoryId }
-                                ))
+                                updates.add(f.categoryId to FightPropertiesUpdate().setFightId(f.id).setMat(f.mat)
+                                    .setNumberOnMat(f.numberOnMat + 1)
+                                    .setStartTime(f.startTime.plus(duration, ChronoUnit.MINUTES)))
                             } else {
                                 //update fight
-                                steps.add(applyEvent(Unit.left(),
-                                    createEvent(
-                                        c,
-                                        EventType.FIGHT_PROPERTIES_UPDATED,
-                                        FightPropertiesUpdatedPayload().setFightId(f.id).setMat(f.mat)
-                                            .setNumberOnMat(f.numberOnMat - 1)
-                                            .setStartTime(f.startTime.minus(duration, ChronoUnit.MINUTES))
-                                    ).apply { categoryId = f.categoryId }
-                                ))
+                                updates.add(f.categoryId to FightPropertiesUpdate().setFightId(f.id).setMat(f.mat)
+                                    .setNumberOnMat(f.numberOnMat - 1)
+                                    .setStartTime(f.startTime.minus(duration, ChronoUnit.MINUTES)))
                             }
                         }
                     }
                 }
-                steps.add(applyEvent(Unit.left(),
-                    createEvent(
-                        c, EventType.FIGHT_PROPERTIES_UPDATED, FightPropertiesUpdatedPayload().setFightId(fight.id)
-                            .setMat(mats.first { it.id == payload.newMatId })
-                            .setStartTime(startTime ?: maxStartTime)
-                            .setNumberOnMat(newOrderOnMat)
-                    ).apply { categoryId = fight.categoryId }
-                ))
+                updates.add(fight.categoryId to FightPropertiesUpdate().setFightId(fight.id)
+                    .setMat(mats.first { it.id == payload.newMatId })
+                    .setStartTime(startTime ?: maxStartTime)
+                    .setNumberOnMat(newOrderOnMat)
+                )
+                steps.addAll(updates.groupBy { it.first }.mapValues { e ->
+                    val fightUpdates = e.value.map { it.second }
+                    fightUpdates.chunked(100).map { list ->
+                        applyEvent(Unit.left(),
+                            createEvent(
+                                c, EventType.FIGHT_PROPERTIES_UPDATED, FightPropertiesUpdatedPayload()
+                                    .setUpdates(list.toTypedArray())
+                            ).apply { categoryId = e.key }
+                        )
+                    }.reduce { a, b -> a + b }
+                }.values)
+
                 steps.reduce { a, b -> a + b }
             }
         }
