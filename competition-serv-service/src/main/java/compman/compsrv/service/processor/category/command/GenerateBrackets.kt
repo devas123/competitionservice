@@ -66,14 +66,13 @@ class GenerateBrackets(
         val stages = payload.stageDescriptors.sortedBy { it.stageOrder }
         val stageIdMap = stages
             .map { stage ->
-                (stage.id
-                    ?: error("Missing stage id")) to IDGenerator.stageId(c.competitionId, c.categoryId!!)
+                (stage.id ?: error("Missing stage id")) to IDGenerator.stageId(c.competitionId, c.categoryId!!)
             }
             .toMap()
         val updatedStages = stages.map { stage ->
             val duration = stage.fightDuration ?: error("Missing fight duration.")
             val outputSize = when (stage.stageType) {
-                StageType.PRELIMINARY -> stage.stageResultDescriptor.outputSize!!
+                StageType.PRELIMINARY -> stage.stageResultDescriptor.outputSize ?: error("missing output size for stage $stage")
                 else -> 0
             }
             val stageId = stageIdMap[stage.id] ?: error("Generated stage id not found in the map.")

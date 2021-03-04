@@ -35,15 +35,8 @@ class GenerateCategories(
         command: CommandDTO
     ): Either<SagaExecutionError, SagaStep<List<EventDTO>>> =
         createSaga<GenerateCategoriesFromRestrictionsPayload>(command) { payload, com ->
-            val categories = payload.idTrees.flatMap { idTree ->
-                val restrNamesOrder = payload.restrictionNames.mapIndexed { index, s -> s to index }.toMap()
-                categoryGeneratorService.generateCategoriesFromRestrictions(
-                    com.competitionId,
-                    payload.restrictions,
-                    idTree,
-                    restrNamesOrder
-                )
-            }
+            val categories = categoryGeneratorService.generateCategories(com.competitionId, payload)
+
             categories.map {
                 applyEvent(
                     Category(it.id, it).right(),

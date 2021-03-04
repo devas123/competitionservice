@@ -23,7 +23,7 @@ class CategoryBracketsDropped(
             event: EventDTO,
             rocksDBOperations: DBOperations
     ): Category? {
-        return aggregate?.copy(stages = emptyArray())
+        return aggregate?.copy(stages = emptyArray(), fights = emptyArray())
     }
 
     override val eventType: EventType

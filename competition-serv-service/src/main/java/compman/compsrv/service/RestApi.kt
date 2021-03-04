@@ -4,6 +4,7 @@ import compman.compsrv.cluster.ClusterMember
 import compman.compsrv.model.CommonResponse
 import compman.compsrv.model.PageResponse
 import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.commands.payload.GenerateCategoriesFromRestrictionsPayload
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
@@ -22,7 +23,8 @@ import reactor.core.publisher.Mono
 @RequestMapping("/api/v1")
 class RestApi(
     private val stateQueryService: StateQueryService,
-    private val commandProducer: CommandProducer
+    private val commandProducer: CommandProducer,
+    private val categoryGeneratorService: CategoryGeneratorService
 ) {
 
     fun String?.isNullOrEmptyOrUndefined() = this.isNullOrEmpty() || this == "null" || this == "undefined"
@@ -35,6 +37,12 @@ class RestApi(
     fun getFightIdsByCategoryIds(@RequestParam("competitionId") competitionId: String): Mono<Map<String, Array<String>>> {
         return stateQueryService.getFightIdsByCategoryIds(competitionId)
     }
+
+    @RequestMapping("/store/generatecategories/{competitionId}", method = [RequestMethod.POST])
+    fun generateCategories(@PathVariable competitionId: String, @RequestBody payload: GenerateCategoriesFromRestrictionsPayload): Mono<List<CategoryDescriptorDTO>> {
+        return Mono.justOrEmpty(categoryGeneratorService.generateCategories(competitionId, payload))
+    }
+
 
     @RequestMapping(path = ["/command/{competitionId}", "/command"], method = [RequestMethod.POST])
     fun sendCommand(

@@ -49,7 +49,7 @@ import java.util.Properties;
 @EnableConfigurationProperties({ClusterConfigurationProperties.class, KafkaProperties.class})
 public final class ZookeeperSessionTest {
 
-    private static ObjectMapper mapper = ObjectMapperFactory.INSTANCE.createObjectMapper();
+    private static final ObjectMapper mapper = ObjectMapperFactory.INSTANCE.createObjectMapper();
 
     public static class RandomPortInitailizer
             implements ApplicationContextInitializer<ConfigurableApplicationContext> {
@@ -72,11 +72,6 @@ public final class ZookeeperSessionTest {
 
     private static final String LEADER_CHANGELOG_TOPIC = "leader-changelog";
     private static final String APPLICATION_ID = "test.app";
-    private static final String COMPETITION1 = "Compeititon_1";
-    private static final String COMPETITION2 = "Compeititon_2";
-
-    @Autowired
-    private MockMvc mvc;
 
     @Rule
     public final TemporaryFolder temp = new TemporaryFolder();

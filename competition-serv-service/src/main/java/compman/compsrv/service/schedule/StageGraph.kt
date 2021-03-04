@@ -9,10 +9,6 @@ import java.math.BigDecimal
 
 class StageGraph(stages: List<StageDescriptorDTO>, fights: List<FightDescriptionDTO>) {
 
-    companion object {
-        private val log = LoggerFactory.getLogger(StageGraph::class.java)
-    }
-
     private val stagesGraph: Array<List<Int>>
     private val fightsGraph: Array<List<Int>>
     private val stageIdsToIds: BiMap<String, Int>
@@ -27,13 +23,12 @@ class StageGraph(stages: List<StageDescriptorDTO>, fights: List<FightDescription
     private val fightsInDegree: IntArray
     private val completedFights: BooleanArray
     private val completableFights: MutableSet<Int>
-    private val categoryIdToFightIds: Map<String, Set<String>>
-
+    private val categoryIdToFightIds: Map<String, Set<String>> =
+        fights.groupBy { it.categoryId }.mapValues { e -> e.value.map { it.id }.toSet() }
 
 
     init {
 
-        categoryIdToFightIds = fights.groupBy { it.categoryId }.mapValues { e -> e.value.map { it.id }.toSet() }
         stageIdsToIds = HashBiMap.create()
         fightIdsToIds = HashBiMap.create()
         // we resolve transitive connections here (a -> b -> c ~  (a -> b, a -> c, b -> c))
@@ -44,7 +39,7 @@ class StageGraph(stages: List<StageDescriptorDTO>, fights: List<FightDescription
             }
         }
         val stageNodesMutable = Array<MutableSet<Int>>(i) { HashSet() }
-        stageIdToFightIds = Array<MutableSet<String>>(i) { HashSet() }
+        stageIdToFightIds = Array(i) { HashSet() }
 
         stages.forEach { stage ->
             stage.inputDescriptor?.selectors?.forEach { s ->
@@ -62,7 +57,7 @@ class StageGraph(stages: List<StageDescriptorDTO>, fights: List<FightDescription
         stagesGraph = stageNodesMutable.map { it.toList() }.toTypedArray()
 
         i = 0
-        fights.sortedBy { it.round }.sortedBy { stageOrdering[stageIdsToIds[it.stageId]!!] }.forEach { f ->
+        fights.sortedBy { it.round ?: 0 }.sortedBy { stageOrdering[stageIdsToIds[it.stageId] ?: error("No stage number for stage ${it.stageId}") ]  }.forEach { f ->
             fightIdToCategoryId[f.id] = f.categoryId
             fightIdToStageId[f.id] = f.stageId
             fightIdToDuration[f.id] = f.duration

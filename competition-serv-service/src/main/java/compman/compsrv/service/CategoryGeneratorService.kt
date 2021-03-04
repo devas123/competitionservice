@@ -2,6 +2,7 @@ package compman.compsrv.service
 
 import compman.compsrv.model.commands.payload.AdjacencyList
 import compman.compsrv.model.commands.payload.AdjacencyListEntry
+import compman.compsrv.model.commands.payload.GenerateCategoriesFromRestrictionsPayload
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.util.IDGenerator
 import org.springframework.stereotype.Component
@@ -155,34 +156,16 @@ class CategoryGeneratorService {
         }
     }
 
-    fun createDefaultBjjCategories(competitionId: String): List<CategoryDescriptorDTO> {
-
-        fun createMaleAdultBeltWeights(belt: CategoryRestrictionDTO) = listOf(
-                createCategory(bjj, adult, male, admrooster, belt),
-                createCategory(bjj, adult, male, admlightFeather, belt),
-                createCategory(bjj, adult, male, admfeather, belt),
-                createCategory(bjj, adult, male, admlight, belt),
-                createCategory(bjj, adult, male, admmiddle, belt),
-                createCategory(bjj, adult, male, admmediumHeavy, belt),
-                createCategory(bjj, adult, male, admheavy, belt),
-                createCategory(bjj, adult, male, admsuperHeavy, belt),
-                createCategory(bjj, adult, male, multraHeavy, belt)
-        )
-
-        fun createFemaleAdultBeltWeights(belt: CategoryRestrictionDTO) = listOf(
-                createCategory(bjj, adult, female, admlightFeather, belt),
-                createCategory(bjj, adult, female, admfeather, belt),
-                createCategory(bjj, adult, female, admlight, belt),
-                createCategory(bjj, adult, female, admmiddle, belt),
-                createCategory(bjj, adult, female, admmediumHeavy, belt),
-                createCategory(bjj, adult, female, admheavy, belt)
-        )
-
-        val maleAdult = createMaleAdultBeltWeights(white) + createMaleAdultBeltWeights(blue) + createMaleAdultBeltWeights(purple) + createMaleAdultBeltWeights(brown) + createMaleAdultBeltWeights(black)
-        val femaleAdult = createFemaleAdultBeltWeights(white) + createFemaleAdultBeltWeights(blue) + createFemaleAdultBeltWeights(purple) + createFemaleAdultBeltWeights(brown) + createFemaleAdultBeltWeights(black)
-
-        return maleAdult + femaleAdult
-    }
+    internal fun generateCategories(competitionId: String, payload: GenerateCategoriesFromRestrictionsPayload): List<CategoryDescriptorDTO> =
+        payload.idTrees.flatMap { idTree ->
+            val restrNamesOrder = payload.restrictionNames.mapIndexed { index, s -> s to index }.toMap()
+            generateCategoriesFromRestrictions(
+                competitionId,
+                payload.restrictions,
+                idTree,
+                restrNamesOrder
+            )
+        }
 
     internal fun generateCategoriesFromRestrictions(competitionId: String,
                                                     restrictions: Array<out CategoryRestrictionDTO>,
