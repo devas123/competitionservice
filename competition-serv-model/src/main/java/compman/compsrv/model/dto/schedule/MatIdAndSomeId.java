@@ -6,6 +6,8 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
+import java.time.Instant;
+
 @Data
 @Accessors(chain = true)
 @NoArgsConstructor
@@ -13,6 +15,7 @@ import lombok.experimental.Accessors;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class MatIdAndSomeId {
     private String matId;
+    private Instant startTime;
     @EqualsAndHashCode.Include
     private String someId;
 }

@@ -166,7 +166,7 @@ class StateQueryService(
         fightId: String
     ): Mono<Array<FightResultOptionDTO>> = localOrRemote(competitionId, {
         wrapBlocking {
-            val category = rocksDbOperations.getCategory(fightId)
+            val category = rocksDbOperations.getCategory(categoryId)
             category.fightsMap[fightId]?.let { fight ->
                 val stage = category.stages.first { it.id == fight.stageId }
                 stage.stageResultDescriptor.fightResultOptions

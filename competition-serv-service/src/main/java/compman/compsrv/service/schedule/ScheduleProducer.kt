@@ -44,7 +44,7 @@ class ScheduleProducer(val competitionId: String,
         return ScheduleEntryDTO().apply {
             id = pauseReq.id
             categoryIds = emptyArray()
-            fightIds = arrayOf(MatIdAndSomeId().setSomeId(pauseReq.id).setMatId(pauseReq.matId!!))
+            fightIds = arrayOf(MatIdAndSomeId().setSomeId(pauseReq.id).setMatId(pauseReq.matId!!).setStartTime(startTime))
             periodId = pauseReq.periodId
             this.startTime = startTime
             numberOfFights = 0
@@ -196,7 +196,7 @@ class ScheduleProducer(val competitionId: String,
         }
         requirementsCapacity[requiremetsGraph.getIndex(req.first.id)]--
         val e = accumulator.scheduleEntryFromRequirement(req.first, mat.currentTime, period.id)
-        accumulator.scheduleEntries[e].fightIds += MatIdAndSomeId(mat.id, fightId)
+        accumulator.scheduleEntries[e].fightIds += MatIdAndSomeId(mat.id, mat.currentTime, fightId)
         accumulator.scheduleEntries[e].categoryIds += st.getCategoryId(fightId)
         mat.fights.add(InternalFightStartTime(fightId, st.getCategoryId(fightId), mat.id, mat.totalFights++, mat.currentTime, accumulator.scheduleEntries[e].id, period.id))
         log.info("Period: ${period.id}, category: ${st.getCategoryId(fightId)}, fight: $fightId, starts: ${mat.currentTime}, mat: ${mat.id}, numberOnMat: ${mat.totalFights - 1}")
