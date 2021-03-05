@@ -330,7 +330,7 @@ class StateQueryService(
                 val ff = rocksDbOperations.getCompetitionFights(competitionId)
                 val k = ff.asSequence()
                     .filter {
-                        it.mat.id == matId && !FightsService.finishedStatuses.contains(it.status) && hasEnoughCompetitors(
+                        it.mat?.id == matId && !FightsService.finishedStatuses.contains(it.status) && hasEnoughCompetitors(
                             it
                         )
                     }
