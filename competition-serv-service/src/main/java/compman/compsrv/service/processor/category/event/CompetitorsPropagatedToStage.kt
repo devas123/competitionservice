@@ -14,41 +14,44 @@ import compman.compsrv.service.processor.IEventHandler
 import compman.compsrv.service.processor.ValidatedEventExecutor
 import compman.compsrv.util.Constants
 import compman.compsrv.util.PayloadValidator
+import compman.compsrv.util.copy
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 
 @Component
 @Qualifier(CATEGORY_EVENT_HANDLERS)
 class CompetitorsPropagatedToStage(
-        mapper: ObjectMapper,
-        validators: List<PayloadValidator>
+    mapper: ObjectMapper,
+    validators: List<PayloadValidator>
 ) : IEventHandler<Category>, ValidatedEventExecutor<Category>(mapper, validators) {
     override fun applyEvent(
-            aggregate: Category?,
-            event: EventDTO,
-            rocksDBOperations: DBOperations
+        aggregate: Category?,
+        event: EventDTO,
+        rocksDBOperations: DBOperations
     ): Category? = aggregate?.let {
         executeValidated<CompetitorsPropagatedToStagePayload, Category>(event) { payload, _ ->
-            aggregate.competitorsPropagatedToStage(payload)
+            aggregate.competitorsPropagatedToStage(payload, rocksDBOperations)
         }.unwrap(event)
     } ?: error(Constants.CATEGORY_NOT_FOUND)
 
-    fun Category.competitorsPropagatedToStage(payload: CompetitorsPropagatedToStagePayload): Category {
+    fun Category.competitorsPropagatedToStage(
+        payload: CompetitorsPropagatedToStagePayload,
+        dbOperations: DBOperations
+    ): Category {
         val propagations = payload.propagations
         propagations
-                .groupBy { it.toFightId }
-                .entries.forEach { entry ->
-                    val compScores = entry.value.mapIndexed { ind, p ->
-                        CompScoreDTO().setCompetitorId(p.competitorId)
-                                .setParentFightId(p.fromFightId)
-                                .setOrder(ind)
-                                .setParentReferenceType(FightReferenceType.PROPAGATED)
-                                .setScore(ScoreDTO().setAdvantages(0).setPoints(0).setPenalties(0))
-                    }
-                    fightsMap[entry.key]?.let { f ->
-                        f.scores = compScores.toTypedArray() + f.scores.orEmpty()
-                    }
+            .groupBy { it.toFightId }
+            .entries.forEach { entry ->
+                val compScores = entry.value.mapIndexed { ind, p ->
+                    CompScoreDTO().setCompetitorId(p.competitorId)
+                        .setParentFightId(p.fromFightId)
+                        .setOrder(ind)
+                        .setParentReferenceType(FightReferenceType.PROPAGATED)
+                        .setScore(ScoreDTO().setAdvantages(0).setPoints(0).setPenalties(0))
                 }
+                val fight = dbOperations.getFight(entry.key)
+                dbOperations.putFight(fight.copy(scores = compScores.toTypedArray() + fight.scores.orEmpty()))
+            }
         return this
     }
 

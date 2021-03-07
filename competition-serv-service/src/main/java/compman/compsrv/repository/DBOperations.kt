@@ -32,4 +32,8 @@ interface DBOperations {
     fun putCompetitor(competitor: Competitor)
     fun deleteCategory(categoryId: String, competitionId: String)
     fun deleteCompetitor(id: String)
+    fun getFights(fightIds: List<String>, getForUpdate: Boolean = false): List<FightDescriptionDTO>
+    fun getFight(fightId: String, getForUpdate: Boolean = false): FightDescriptionDTO
+    fun deleteFight(id: String)
+    fun putFight(fight: FightDescriptionDTO)
 }

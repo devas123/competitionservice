@@ -15,8 +15,6 @@ open class CommandExecutionService(
 ) : AbstractCommandExecutionService(competitionStateService, clusterOperations, commandSyncExecutor) {
 
     init {
-        rocksDBRepository.doInTransaction { operations ->
-            competitionStateResolver.resolveLatestCompetitionState(competitionId, operations)
-        }
+        competitionStateResolver.resolveLatestCompetitionState(competitionId, rocksDBRepository.getOperations())
     }
 }

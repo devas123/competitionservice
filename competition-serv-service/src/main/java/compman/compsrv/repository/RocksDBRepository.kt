@@ -15,6 +15,7 @@ class RocksDBRepository(private val mapper: ObjectMapper, dbProperties: RocksDBP
     private val opts: ColumnFamilyOptions
     private val path = dbProperties.path
     private val competitors: ColumnFamilyHandle
+    private val fights: ColumnFamilyHandle
     private val competitions: ColumnFamilyHandle
     private val categories: ColumnFamilyHandle
     private val schedules: ColumnFamilyHandle
@@ -24,6 +25,7 @@ class RocksDBRepository(private val mapper: ObjectMapper, dbProperties: RocksDBP
         const val CATEGORY = "category"
         const val COMPETITION = "competition"
         const val COMPETITOR = "competitor"
+        const val FIGHT = "fight"
         const val SCHEDULE = "schedule"
         private val log = LoggerFactory.getLogger(RocksDBRepository::class.java)
     }
@@ -42,14 +44,16 @@ class RocksDBRepository(private val mapper: ObjectMapper, dbProperties: RocksDBP
             CATEGORY.toByteArray(),
             COMPETITION.toByteArray(),
             SCHEDULE.toByteArray(),
-            COMPETITOR.toByteArray()
+            COMPETITOR.toByteArray(),
+            FIGHT.toByteArray()
         ).map { ColumnFamilyDescriptor(it, opts) }
         db = OptimisticTransactionDB.open(options, path, columnFamilyDescriptors, columnFamilyHandles)
         categories = columnFamilyHandles[1]
         competitions = columnFamilyHandles[2]
         schedules = columnFamilyHandles[3]
         competitors = columnFamilyHandles[4]
-        operations = RocksDBOperations(db.right(), mapper, competitors, competitions, categories)
+        fights = columnFamilyHandles[5]
+        operations = RocksDBOperations(db.right(), mapper, competitors, competitions, categories, fights)
     }
 
     fun shutdown() {
@@ -57,13 +61,14 @@ class RocksDBRepository(private val mapper: ObjectMapper, dbProperties: RocksDBP
         competitions.close()
         schedules.close()
         categories.close()
+        fights.close()
         opts.close()
         options.close()
     }
 
     fun <T> doInTransaction(snapshot: Boolean = false, retries: Int = 3, block: (tx: RocksDBOperations) -> T): T {
         fun exec(tx: Transaction): T {
-            val result = block(RocksDBOperations(tx.left(), mapper, competitors, competitions, categories))
+            val result = block(RocksDBOperations(tx.left(), mapper, competitors, competitions, categories, fights))
             log.info("committing transaction")
             tx.commit()
             log.info("committing transaction.Done.")

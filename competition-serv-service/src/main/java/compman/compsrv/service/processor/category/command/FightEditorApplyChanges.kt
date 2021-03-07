@@ -37,25 +37,26 @@ class FightEditorApplyChanges(mapper: ObjectMapper, validators: List<PayloadVali
     ): AggregateWithEvents<Category> {
         return entity?.let {
             executeValidated<FightEditorApplyChangesPayload>(command) { payload, com ->
-                entity to entity.process(payload, com, AbstractAggregateService.Companion::createEvent)
+                entity to entity.process(payload, dbOperations, com, AbstractAggregateService.Companion::createEvent)
             }.unwrap(command)
         } ?: error(Constants.CATEGORY_NOT_FOUND)
     }
 
     fun Category.process(
         payload: FightEditorApplyChangesPayload,
+        dbOperations: DBOperations,
         c: CommandDTO,
         createEvent: (command: CommandDTO, type: EventType, payload: Payload) -> EventDTO
     ): List<EventDTO> {
         val version = version()
-        val stage = stages.first { it.id == payload.stageId }
-        val bracketsType = stage.bracketType
-        val allStageFights = fights.filter { it.stageId == payload.stageId }
+        val stage = stages.getValue(payload.stageId)
+        val bracketsType = stage.dto.bracketType
+        val allStageFights = dbOperations.getFights(stage.fights.toList())
         val stageFights = when (bracketsType) {
             BracketType.GROUP -> {
                 val fightsByGroupId = allStageFights.groupBy { it.groupId!! }
                 val competitorChangesByGroupId = payload.competitorGroupChanges.groupBy { it.groupId }
-                val groups = stage.groupDescriptors
+                val groups = stage.dto.groupDescriptors
                 groups.flatMap { gr ->
                     val groupChanges = competitorChangesByGroupId[gr.id].orEmpty()
                     val groupFights = fightsByGroupId[gr.id].orEmpty()
@@ -107,7 +108,7 @@ class FightEditorApplyChanges(mapper: ObjectMapper, validators: List<PayloadVali
             clearAffectedFights(dirtyStageFights, payload.bracketsChanges.map { it.fightId }.toSet())
 
         val markedStageFights =
-            FightsService.markAndProcessUncompletableFights(clearedStageFights, stage.stageStatus) { id ->
+            FightsService.markAndProcessUncompletableFights(clearedStageFights, stage.dto.stageStatus) { id ->
                 (allStageFights.firstOrNull { it.id == id }
                     ?: stageFights.firstOrNull { it.id == id })?.scores?.toList()
             }

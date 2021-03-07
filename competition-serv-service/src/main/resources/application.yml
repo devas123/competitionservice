@@ -36,6 +36,8 @@ spring:
         buffer.memory: 33554432
         key.serializer: org.apache.kafka.common.serialization.StringSerializer
         value.serializer: org.apache.kafka.common.serialization.StringSerializer
+  codec:
+    max-in-memory-size: 2048000000
 
 
 server:

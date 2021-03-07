@@ -17,8 +17,7 @@ import java.util.concurrent.atomic.AtomicLong
 data class Category(
     val id: String,
     val descriptor: CategoryDescriptorDTO,
-    val fights: Array<FightDescriptionDTO> = emptyArray(),
-    val stages: Array<StageDescriptorDTO> = emptyArray(),
+    val stages: Map<String, StageDescriptor> = emptyMap(),
     val competitors: Array<String> = emptyArray(),
     val numberOfCompetitors: Int = 0
 ) : AbstractAggregate(AtomicLong(0), AtomicLong(0)) {
@@ -48,9 +47,6 @@ data class Category(
             }
         }
     }
-
-    val fightsMap = fights.map { it.id to it }.toMap()
-    val fightsMapIndices = fights.mapIndexed { index, it ->  it.id to index }.toMap()
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

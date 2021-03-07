@@ -11,7 +11,6 @@ import compman.compsrv.service.processor.IEventHandler
 import compman.compsrv.service.processor.ValidatedEventExecutor
 import compman.compsrv.util.Constants
 import compman.compsrv.util.PayloadValidator
-import compman.compsrv.util.applyConditionalUpdate
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 
@@ -27,17 +26,21 @@ class FightEditorChangesApplied(
         rocksDBOperations: DBOperations
     ): Category? = aggregate?.let {
         return executeValidated<FightEditorChangesAppliedPayload, Category>(event) { payload, _ ->
-            aggregate.applyFightEditorChanges(payload)
+            aggregate.applyFightEditorChanges(payload, rocksDBOperations)
         }.unwrap(event)
     } ?: error(Constants.CATEGORY_NOT_FOUND)
 
-    fun Category.applyFightEditorChanges(payload: FightEditorChangesAppliedPayload): Category {
+    fun Category.applyFightEditorChanges(
+        payload: FightEditorChangesAppliedPayload,
+        dbOperations: DBOperations
+    ): Category {
         val removals = payload.removedFighids.orEmpty().toSet()
-        val updates = payload.updates.orEmpty().map { it.id to it }.toMap()
+        val updates = payload.updates.orEmpty()
         val newFights = payload.newFights.orEmpty()
-        val fights = this.fights.filter { !removals.contains(it.id) } + newFights.toList()
-        fights.applyConditionalUpdate({ updates.containsKey(it.id) }, { updates.getValue(it.id) })
-        return this.copy(fights = fights.toTypedArray())
+        removals.forEach { dbOperations.getFight(it) }
+        newFights.forEach { dbOperations.putFight(it) }
+        updates.forEach { f -> dbOperations.putFight(f) }
+        return this
     }
 
     override val eventType: EventType

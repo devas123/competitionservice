@@ -38,6 +38,7 @@ class PropagateCompetitors(
                 entity to entity.process(
                     p,
                     com,
+                    dbOperations,
                     competitors.map { it.competitorDTO },
                     AbstractAggregateService.Companion::createEvent
                 )
@@ -47,21 +48,19 @@ class PropagateCompetitors(
     private fun Category.process(
         p: PropagateCompetitorsPayload,
         c: CommandDTO,
+        dbOperations: DBOperations,
         competitors: List<CompetitorDTO>,
         createEvent: CreateEvent
     ): List<EventDTO> {
-        val stage = stages.find { s -> s.id == p.previousStageId }
-            ?: throw IllegalStateException("Cannot get stage with id ${p.previousStageId}")
-
-        val propagatedCompetitors = findPropagatedCompetitors(stage, p).toSet()
-        val propagatedStageFights = fights.filter { it.stageId == p.propagateToStageId }
-
+        val stage = stages.getValue(p.previousStageId)
+        val propagatedCompetitors = findPropagatedCompetitors(stage.dto, dbOperations, p).toSet()
+        val propagatedStageFights = dbOperations.getFights(stages.getValue(p.propagateToStageId).fights.toList())
 
         val competitorIdsToFightIds = fightsGenerateService
             .distributeCompetitors(
                 competitors.filter { propagatedCompetitors.contains(it.id) },
                 propagatedStageFights,
-                stage.bracketType
+                stage.dto.bracketType
             )
             .fold(emptyList<CompetitorAssignmentDescriptor>()) { acc, f ->
                 val newPairs = f.scores?.mapNotNull {
@@ -83,13 +82,14 @@ class PropagateCompetitors(
 
     private fun Category.findPropagatedCompetitors(
         stage: StageDescriptorDTO,
+        dbOperations: DBOperations,
         p: PropagateCompetitorsPayload): List<String> {
         return fightsGenerateService.applyStageInputDescriptorToResultsAndFights(stage.bracketType,
             stage.inputDescriptor,
             p.previousStageId,
-            { id -> stages.first { it.id == id }.stageResultDescriptor.fightResultOptions.orEmpty().toList() },
-            { id -> stages.first { it.id == id }.stageResultDescriptor.competitorResults.orEmpty().toList() },
-            { id -> fights.filter { it.stageId == id } })
+            { id -> stages.getValue(id).dto.stageResultDescriptor.fightResultOptions.orEmpty().toList() },
+            { id -> stages.getValue(id).dto.stageResultDescriptor.competitorResults.orEmpty().toList() },
+            { id -> dbOperations.getFights(stages.getValue(id).fights.toList()) })
     }
 
 

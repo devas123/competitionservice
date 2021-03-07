@@ -166,10 +166,11 @@ class StateQueryService(
         fightId: String
     ): Mono<Array<FightResultOptionDTO>> = localOrRemote(competitionId, {
         wrapBlocking {
+            val fight = rocksDbOperations.getFight(fightId)
             val category = rocksDbOperations.getCategory(categoryId)
-            category.fightsMap[fightId]?.let { fight ->
-                val stage = category.stages.first { it.id == fight.stageId }
-                stage.stageResultDescriptor.fightResultOptions
+            fight.stageId?.let { id ->
+                val stage = category.stages.getValue(id)
+                stage.dto.stageResultDescriptor.fightResultOptions
             } ?: emptyArray()
         }
     },
@@ -287,7 +288,7 @@ class StateQueryService(
             wrapBlocking {
                 val category = rocksDbOperations.getCategory(categoryId)
                 CategoryStateDTO().setCompetitionId(competitionId).setCategory(category.descriptor)
-                    .setFightsNumber(category.fights.size)
+                    .setFightsNumber(category.stages.values.flatMap { it.fights.toList() }.size)
                     .setNumberOfCompetitors(category.numberOfCompetitors)
             }
         },
@@ -359,8 +360,8 @@ class StateQueryService(
         return localOrRemote(competitionId, {
             wrapBlocking {
                 val category = rocksDbOperations.getCategory(categoryId)
-                val fights = category.fights
-                fights.filter { it.stageId == stageId }.toTypedArray()
+                val fights = category.stages.getValue(stageId).fights
+                rocksDbOperations.getFights(fights.toList()).toTypedArray()
             }
 
         }, { _, _, urlPrefix ->
@@ -375,9 +376,7 @@ class StateQueryService(
         log.info("Getting fight for id $fightId")
         return localOrRemote(competitionId, {
             wrapBlocking {
-                rocksDbOperations.getCategory(categoryId)
-            }.flatMap {
-                it.fightsMap[fightId]?.let { f -> Mono.just(f) } ?: Mono.empty()
+                rocksDbOperations.getFight(fightId)
             }
         }, { _, _, urlPrefix ->
             webClient.get()
@@ -393,7 +392,7 @@ class StateQueryService(
         return localOrRemote(competitionId, {
             wrapBlocking {
                 val category = rocksDbOperations.getCategory(categoryId)
-                category.stages
+                category.stages.values.map { it.dto }.toTypedArray()
             }
         }, { _, _, urlPrefix ->
             webClient.get()
@@ -410,7 +409,7 @@ class StateQueryService(
                 val competition = rocksDbOperations.getCompetition(competitionId)
                 rocksDbOperations.getCategories(competition.categories.toList()).map {
                     CategoryStateDTO().setId(it.id).setNumberOfCompetitors(it.numberOfCompetitors)
-                        .setFightsNumber(it.fights.size).setCompetitionId(competitionId).setCategory(it.descriptor)
+                        .setFightsNumber(it.stages.values.flatMap { stage -> stage.fights.toList() }.size).setCompetitionId(competitionId).setCategory(it.descriptor)
                 }.toTypedArray()
             }
         }, { _, _, urlPrefix ->

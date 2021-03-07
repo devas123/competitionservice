@@ -53,9 +53,9 @@ class GenerateSchedule(
     private fun getAllBrackets(competitionId: String, rocksDBOperations: DBOperations): StageGraph {
         val competition = rocksDBOperations.getCompetition(competitionId, true)
         val categories = rocksDBOperations.getCategories(competition.categories.toList(), true)
-        val stages = categories.flatMap { it.stages.toList() }
-        val fights = categories.flatMap { it.fights.toList() }
-        return StageGraph(stages, fights)
+        val stages = categories.flatMap { it.stages.values.toList() }
+        val fights = rocksDBOperations.getFights(stages.flatMap { stage -> stage.fights.toList() })
+        return StageGraph(stages.map { it.dto }, fights)
     }
 
     private fun getNumberOfCompetitorsByCategoryId(

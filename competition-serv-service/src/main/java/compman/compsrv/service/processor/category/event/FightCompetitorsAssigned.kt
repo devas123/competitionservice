@@ -26,19 +26,20 @@ class FightCompetitorsAssigned(
         rocksDBOperations: DBOperations
     ): Category? = aggregate?.let {
         executeValidated<FightCompetitorsAssignedPayload, Category>(event) { payload, _ ->
-            aggregate.fightCompetitorsAssigned(payload)
+            aggregate.fightCompetitorsAssigned(payload, rocksDBOperations)
         }.unwrap(event)
     } ?: error(Constants.CATEGORY_NOT_FOUND)
 
-    fun Category.fightCompetitorsAssigned(payload: FightCompetitorsAssignedPayload): Category {
+    fun Category.fightCompetitorsAssigned(payload: FightCompetitorsAssignedPayload, rocksDBOperations: DBOperations): Category {
         val assignments = payload.assignments
         for (assignment in assignments) {
-            val fromFight = fightsMap[assignment.fromFightId] ?: error("No fight with id ${assignment.fromFightId}")
-            val toFight = fightsMap[assignment.toFightId] ?: error("No fight with id ${assignment.toFightId}")
+            val fromFight = rocksDBOperations.getFight(assignment.fromFightId)
+            val toFight =   rocksDBOperations.getFight(assignment.toFightId)
             toFight.scores?.find { it.parentFightId == fromFight.id }?.let {
                 it.competitorId = assignment.competitorId
                 it.parentReferenceType = it.parentReferenceType ?: assignment.referenceType
             } ?: error("No target score for ${assignment.fromFightId} in fight ${assignment.toFightId}")
+            rocksDBOperations.putFight(toFight)
         }
         return this
     }

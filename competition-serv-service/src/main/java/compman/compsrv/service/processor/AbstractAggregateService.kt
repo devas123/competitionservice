@@ -68,15 +68,15 @@ abstract class AbstractAggregateService<AT : AbstractAggregate> {
     protected abstract fun isAggregateDeleted(event: EventDTO): Boolean
 
     fun processCommand(command: CommandDTO, rocksDBOperations: DBOperations): AggregateWithEvents<AT> {
-        log.info("Process command {}", command)
+        log.debug("Process command {}", command)
         val aggregate = getAggregate(command, rocksDBOperations)
         return generateEventsFromAggregate(command, rocksDBOperations, aggregate)
     }
 
 //    protected abstract fun Payload.accept(aggregate: AT, event: EventDTO): AT
 
-    fun applyEvent(aggregate: AT?, event: EventDTO, rocksDBOperations: DBOperations, save: Boolean = true): AT? {
-        log.info("Apply event {}, save: {}", event, save)
+    fun applyEvent(aggregate: AT?, event: EventDTO, rocksDBOperations: DBOperations, save: Boolean = true): AT {
+        log.debug("Apply event {}, save: {}", event, save)
         val newAggregate = eventsToProcessors[event.type]?.applyEvent(aggregate, event, rocksDBOperations)
             ?: throw EventApplyingException("Event handler not implemented for type ${event.type}", event)
         if (save && !isAggregateDeleted(event)) {

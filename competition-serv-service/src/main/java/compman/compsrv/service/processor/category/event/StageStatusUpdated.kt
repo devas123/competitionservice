@@ -17,21 +17,21 @@ import org.springframework.stereotype.Component
 @Component
 @Qualifier(CATEGORY_EVENT_HANDLERS)
 class StageStatusUpdated(
-        mapper: ObjectMapper,
-        validators: List<PayloadValidator>
+    mapper: ObjectMapper,
+    validators: List<PayloadValidator>
 ) : IEventHandler<Category>, ValidatedEventExecutor<Category>(mapper, validators) {
     override fun applyEvent(
-            aggregate: Category?,
-            event: EventDTO,
-            rocksDBOperations: DBOperations
+        aggregate: Category?,
+        event: EventDTO,
+        rocksDBOperations: DBOperations
     ): Category? = aggregate?.let {
         return executeValidated<StageStatusUpdatedPayload, Category>(event) { payload, _ ->
             aggregate.stageStatusUpdated(payload)
         }.unwrap(event)
-    }  ?: error(Constants.CATEGORY_NOT_FOUND)
+    } ?: error(Constants.CATEGORY_NOT_FOUND)
 
     fun Category.stageStatusUpdated(payload: StageStatusUpdatedPayload): Category {
-        stages.first { it.id == payload.stageId }.stageStatus = payload.status
+        stages.getValue(payload.stageId).dto.stageStatus = payload.status
         return this
     }
 

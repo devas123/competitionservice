@@ -40,6 +40,7 @@ class SetFightResult(
                 entity to entity.process(
                     payload,
                     com,
+                    dbOperations,
                     fightsGenerateService,
                     AbstractAggregateService.Companion::createEvent
                 )
@@ -50,14 +51,15 @@ class SetFightResult(
     private fun Category.process(
         payload: SetFightResultPayload,
         c: CommandDTO,
+        dbOperations: DBOperations,
         fightsGenerateService: FightServiceFactory,
         createEvent: CreateEvent
     ): List<EventDTO> {
-        val stageId = fights.find { it.id == payload.fightId }?.stageId
+        val stageId = dbOperations.getFight(payload.fightId).stageId
             ?: error("Did not find stage id for fight ${payload.fightId}")
         val result = emptyList<EventDTO>()
         val finishedFights = mutableSetOf<String>()
-        val stageFights = fights.filter { it.stageId == stageId }
+        val stageFights = dbOperations.getFights(stages.getValue(stageId).fights.toList())
         val fight = stageFights.find { f -> f.id == payload.fightId }
             ?: error("No fight with id ${payload.fightId} found")
         val winnerId = payload.fightResult?.winnerId
@@ -105,8 +107,8 @@ class SetFightResult(
                     emptyList()
                 }
 
-        return fightUpdates + if (checkIfAllStageFightsFinished(fight.stageId, finishedFights)) {
-            val stage = stages.first { it.id == stageId }
+        return fightUpdates + if (checkIfAllStageFightsFinished(fight.stageId, finishedFights, dbOperations)) {
+            val stage = stages.getValue(stageId)
             val fightsWithResult = stageFights.map { fd ->
                 if (fd.id == payload.fightId) {
                     fd.copy(fightResult = payload.fightResult)
@@ -114,10 +116,10 @@ class SetFightResult(
                     fd
                 }
             }
-            val fightResultOptions = stage.stageResultDescriptor?.fightResultOptions.orEmpty().toList()
+            val fightResultOptions = stage.dto.stageResultDescriptor?.fightResultOptions.orEmpty().toList()
             val stageResults = fightsGenerateService.buildStageResults(
-                stage.bracketType, StageStatus.FINISHED, stage.stageType,
-                fightsWithResult, stage.id!!, stage.competitionId, fightResultOptions
+                stage.dto.bracketType, StageStatus.FINISHED, stage.dto.stageType,
+                fightsWithResult, stage.id, stage.dto.competitionId, fightResultOptions
             )
             listOf(
                 createEvent(
@@ -132,9 +134,9 @@ class SetFightResult(
         }
     }
 
-    private fun Category.checkIfAllStageFightsFinished(stageId: String?, additionalFinishedFightIds: Set<String>) =
+    private fun Category.checkIfAllStageFightsFinished(stageId: String?, additionalFinishedFightIds: Set<String>, dbOperations: DBOperations) =
         stageId?.let { sid ->
-            fights.filter { it.stageId == sid }
+            dbOperations.getFights(stages.getValue(sid).fights.toList())
                 .all {
                     it.status == FightStatus.FINISHED || it.status == FightStatus.WALKOVER || it.status == FightStatus.UNCOMPLETABLE || additionalFinishedFightIds.contains(
                         it.id

@@ -13,19 +13,21 @@ import org.springframework.stereotype.Component
 @Qualifier(COMPETITION_EVENT_HANDLERS)
 class ScheduleDropped : IEventHandler<Competition> {
     override fun applyEvent(
-            aggregate: Competition?,
-            event: EventDTO,
-            rocksDBOperations: DBOperations
+        aggregate: Competition?,
+        event: EventDTO,
+        rocksDBOperations: DBOperations
     ): Competition? = aggregate?.let {
         aggregate.properties.schedulePublished = false
         aggregate.categories.forEach { catId ->
             val cat = rocksDBOperations.getCategory(catId, true)
-            cat.fights.forEach {
-                it.startTime = null
-                it.invalid = false
-                it.mat = null
-                it.numberOnMat = null
-                it.period = null
+            cat.stages.values.flatMap { it.fights.toList() }.forEach { id ->
+                val fight = rocksDBOperations.getFight(id, true)
+                fight.startTime = null
+                fight.invalid = false
+                fight.mat = null
+                fight.numberOnMat = null
+                fight.period = null
+                rocksDBOperations.putFight(fight)
             }
             rocksDBOperations.putCategory(cat)
         }

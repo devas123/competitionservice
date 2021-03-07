@@ -23,15 +23,17 @@ class FightsStartTimeCleaned(
         aggregate: Category?,
         event: EventDTO,
         rocksDBOperations: DBOperations
-    ): Category? = aggregate?.fightStartTimeCleaned() ?: error(Constants.CATEGORY_NOT_FOUND)
+    ): Category? = aggregate?.fightStartTimeCleaned(rocksDBOperations) ?: error(Constants.CATEGORY_NOT_FOUND)
 
-    fun Category.fightStartTimeCleaned(): Category {
-        fights.forEach {
-            it.invalid = false
-            it.mat = null
-            it.period = null
-            it.startTime = null
-            it.numberOnMat = null
+    fun Category.fightStartTimeCleaned(rocksDBOperations: DBOperations): Category {
+        stages.values.flatMap { it.fights }.forEach {
+            val f = rocksDBOperations.getFight(it)
+            f.invalid = false
+            f.mat = null
+            f.period = null
+            f.startTime = null
+            f.numberOnMat = null
+            rocksDBOperations.putFight(f)
         }
         return this
     }

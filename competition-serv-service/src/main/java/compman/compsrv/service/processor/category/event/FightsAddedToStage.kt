@@ -11,7 +11,6 @@ import compman.compsrv.service.processor.IEventHandler
 import compman.compsrv.service.processor.ValidatedEventExecutor
 import compman.compsrv.util.Constants
 import compman.compsrv.util.PayloadValidator
-import compman.compsrv.util.applyConditionalUpdateArray
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 
@@ -27,17 +26,15 @@ class FightsAddedToStage(
         rocksDBOperations: DBOperations
     ): Category? = aggregate?.let {
         executeValidated<FightsAddedToStagePayload, Category>(event) { payload, _ ->
-            aggregate.fightsAddedToStage(payload)
+            aggregate.fightsAddedToStage(payload, rocksDBOperations)
         }.unwrap(event)
     } ?: error(Constants.CATEGORY_NOT_FOUND)
 
-    fun Category.fightsAddedToStage(payload: FightsAddedToStagePayload): Category {
-        val fm = payload.fights.map { it.id to it }.toMap()
-        return this.copy(fights = fights.applyConditionalUpdateArray({
-            it.stageId == payload.stageId && fm.containsKey(
-                it.id
-            )
-        }, { fm.getValue(it.id) }) + payload.fights.filter { !fightsMap.containsKey(it.id) })
+    fun Category.fightsAddedToStage(payload: FightsAddedToStagePayload, rocksDBOperations: DBOperations): Category {
+        val stage = stages.getValue(payload.stageId)
+        val fm = payload.fights.filter { !stage.fights.contains(it.id) }
+        fm.forEach { rocksDBOperations.putFight(it) }
+        return this.copy(stages = (stages - payload.stageId) + (stage.id to stage.copy(fights = stage.fights + fm.map { it.id })))
     }
 
     override val eventType: EventType

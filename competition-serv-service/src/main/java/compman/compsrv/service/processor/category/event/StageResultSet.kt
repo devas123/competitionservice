@@ -32,7 +32,7 @@ class StageResultSet(
     } ?: error(Constants.CATEGORY_NOT_FOUND)
 
     fun Category.stageResultSet(payload: StageResultSetPayload): Category {
-        stages.find { it.id == payload.stageId }?.let {
+        stages.getValue(payload.stageId).dto.let {
             it.stageStatus = StageStatus.FINISHED
             it.stageResultDescriptor.competitorResults = payload.results
         }

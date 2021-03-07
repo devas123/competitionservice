@@ -26,23 +26,21 @@ class FightPropertiesUpdated(
         rocksDBOperations: DBOperations
     ): Category? = aggregate?.let {
         executeValidated<FightPropertiesUpdatedPayload, Category>(event) { payload, _ ->
-            aggregate.fightPropertiesUpdated(payload)
+            aggregate.fightPropertiesUpdated(rocksDBOperations, payload)
         }.unwrap(event)
     } ?: error(Constants.CATEGORY_NOT_FOUND)
 
     fun Category.fightPropertiesUpdated(
+        dbOperations: DBOperations,
         payload: FightPropertiesUpdatedPayload
     ): Category {
         payload.updates.forEach { upd ->
-            fightsMapIndices[upd.fightId]?.let { ind ->
-                fights[ind] = fights[ind].apply {
-                    upd.mat?.let { mat = it }
-                    upd.numberOnMat?.let { numberOnMat = it }
-                    upd.startTime?.let { startTime = it }
-                }
-            }
+            val fight = dbOperations.getFight(upd.fightId, true)
+            upd.mat?.let { fight.mat = it }
+            upd.numberOnMat?.let { fight.numberOnMat = it }
+            upd.startTime?.let { fight.startTime = it }
+            dbOperations.putFight(fight)
         }
-
         return this
     }
 

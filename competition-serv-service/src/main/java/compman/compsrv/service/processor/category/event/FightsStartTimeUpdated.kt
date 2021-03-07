@@ -29,25 +29,24 @@ class FightsStartTimeUpdated(
         executeValidated<FightStartTimeUpdatedPayload, Category>(event) { payload, _ ->
             val competition = rocksDBOperations.getCompetition(event.competitionId)
 
-            aggregate.fightStartTimeUpdated(payload, competition.mats)
+            aggregate.fightStartTimeUpdated(payload, competition.mats, rocksDBOperations)
         }.unwrap(event)
     } ?: error(Constants.CATEGORY_NOT_FOUND)
 
     fun Category.fightStartTimeUpdated(
         payload: FightStartTimeUpdatedPayload,
-        mats: Array<MatDescriptionDTO>
+        mats: Array<MatDescriptionDTO>,
+        rocksDBOperations: DBOperations
     ): Category {
         for (newFight in payload.newFights) {
-            fightsMapIndices[newFight.fightId]?.let { ind ->
-                fights[ind] = fights[ind].apply {
-                    invalid = newFight.invalid
-                    mat = mats.find { m -> m.id == newFight.matId }
-                        ?: error("Mat with id ${newFight.matId} not found in $mats.")
-                    period = newFight.periodId
-                    startTime = newFight.startTime
-                    numberOnMat = newFight.numberOnMat
-                }
-            }
+            val f = rocksDBOperations.getFight(newFight.fightId, true)
+            f.invalid = newFight.invalid
+            f.mat = mats.find { m -> m.id == newFight.matId }
+                ?: error("Mat with id ${newFight.matId} not found in $mats.")
+            f.period = newFight.periodId
+            f.startTime = newFight.startTime
+            f.numberOnMat = newFight.numberOnMat
+            rocksDBOperations.putFight(f)
         }
         return this
     }

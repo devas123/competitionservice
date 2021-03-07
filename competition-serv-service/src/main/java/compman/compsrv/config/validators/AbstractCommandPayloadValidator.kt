@@ -21,7 +21,7 @@ abstract class AbstractCommandPayloadValidator<P: Payload>(private val payloadCl
     abstract fun <F> validateCommand(validationRules: PayloadValidationRules<F>, payload: P, command: CommandDTO): Kind<F, P>
     @Suppress("all", "UNCHECKED_CAST", "rawtypes")
     override fun <F, T : Payload> validate(validationRules: PayloadValidationRules<F>, payload: T, comEv: Ior<CommandDTO, EventDTO>): Kind<F, T> {
-        log.info("Validating payload: $payload")
+        log.debug("Validating payload: $payload")
         return kotlin.runCatching {
             if (comEv.isLeft) {
                 comEv.fold({ com ->

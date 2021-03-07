@@ -34,17 +34,18 @@ class UpdateStageStatus(
     ): AggregateWithEvents<Category> =
         entity?.let {
             executeValidated<UpdateStageStatusPayload>(command) { payload, c ->
-                entity to entity.process(payload, c, AbstractAggregateService.Companion::createEvent)
+                entity to entity.process(payload, dbOperations, c, AbstractAggregateService.Companion::createEvent)
             }.unwrap(command)
         } ?: error(Constants.CATEGORY_NOT_FOUND)
 
     private fun Category.process(
         payload: UpdateStageStatusPayload,
+        dbOperations: DBOperations,
         c: CommandDTO,
         createEvent: CreateEvent
     ): List<EventDTO> {
-        val stage = stages.first { it.id == payload.stageId }
-        val stageFights = fights.filter { it.stageId == stage.id }
+        val stage = stages.getValue(payload.stageId)
+        val stageFights = dbOperations.getFights(stage.fights.toList())
         val version = version()
         return when (payload.status) {
             StageStatus.FINISHED, StageStatus.IN_PROGRESS -> listOf(

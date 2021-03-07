@@ -13,7 +13,9 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
                              private val mapper: ObjectMapper,
                              private val competitors: ColumnFamilyHandle,
                              private val competitions: ColumnFamilyHandle,
-                             private val categories: ColumnFamilyHandle) : DBOperations {
+                             private val categories: ColumnFamilyHandle,
+                             private val fights: ColumnFamilyHandle,
+) : DBOperations {
 
 
     private inline fun <reified T> performGet(id: String, columnFamilyHandle: ColumnFamilyHandle, getForUpdate: Boolean = false): T? {
@@ -72,12 +74,32 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
         performPut(competition.id, competition, competitions)
     }
 
+    override fun putFight(fight: FightDescriptionDTO) {
+        performPut(fight.id, fight, fights)
+    }
+
     override fun getCategory(categoryId: String, getForUpdate: Boolean): Category {
         return performGet(categoryId, categories, getForUpdate) ?: error("No category with id $categoryId")
     }
 
     override fun getCategories(categoryIds: List<String>, getForUpdate: Boolean): List<Category> {
         return performMultiGet(categoryIds, categories, getForUpdate)
+    }
+
+    override fun getFights(fightIds: List<String>, getForUpdate: Boolean): List<FightDescriptionDTO> {
+        return performMultiGet(fightIds, fights, getForUpdate)
+    }
+
+    override fun getFight(fightId: String, getForUpdate: Boolean): FightDescriptionDTO {
+        return performGet(fightId, fights, getForUpdate) ?: error("No fight with id $fightId")
+    }
+
+    override fun deleteFight(id: String) {
+        db.fold({ tr ->
+            tr.delete(fights, id.toByteArray())
+        }, { tr ->
+            tr.delete(fights, id.toByteArray())
+        })
     }
 
     override fun getCategoryCompetitors(categoryId: String, getForUpdate: Boolean): List<Competitor> {
@@ -112,8 +134,8 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
     override fun getCompetitionFights(competitionId: String, getForUpdate: Boolean): Array<FightDescriptionDTO> {
         val competition = getCompetition(competitionId)
         val fights = getCategories(competition, getForUpdate)
-                    ?.map { mapper.readValue(it, Category::class.java) }?.flatMap { it.fights.toList() }
-        return fights.orEmpty().toTypedArray()
+                    ?.map { mapper.readValue(it, Category::class.java) }?.flatMap { it.stages.values }?.flatMap { it.fights.toList() }
+        return getFights(fights.orEmpty(), getForUpdate).toTypedArray()
     }
 
     override fun getCompetitionCompetitors(competitionId: String, getForUpdate: Boolean): Array<Competitor> {
@@ -140,9 +162,10 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
 
     override fun commit() = db.fold({ it.commit() }, {})
     override fun rollback() = db.fold({ it.rollback() }, {})
+
     override fun fightsCount(categoryIds: List<String>, competitorId: String): Int {
         val categories = getCategories(categoryIds)
-        return categories.fold(0) { acc, category -> acc + category.fights.count { f -> f.scores?.any { it.competitorId == competitorId } == true } }
+        return categories.fold(0) { acc, category -> acc + category.stages.values.flatMap { it.fights.toList() }.size }
     }
 
     override fun deleteCompetition(competitionId: String) {
@@ -200,11 +223,19 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
                         .toTypedArray()))
                 )
             }
-            tr.delete(categories, categoryId.toByteArray())
+            val category = performGet<Category>(categoryId, categories)
+            category?.let {
+                it.stages.values.flatMap { stage -> stage.fights }.forEach { fight -> tr.delete(fights, fight.toByteArray()) }
+                tr.delete(categories, categoryId.toByteArray())
+            }
         }, { tr ->
             val competition = tr.get(competitions, competitionId.toByteArray())?.let { mapper.readValue<Competition>(it) }
             competition?.let { tr.put(competitions, competitionId.toByteArray(), mapper.writeValueAsBytes(competition.copy(categories = competition.categories.filter { it != categoryId }.toTypedArray()))) }
-            tr.delete(categories, categoryId.toByteArray())
+            val category = performGet<Category>(categoryId, categories)
+            category?.let {
+                it.stages.values.flatMap { stage -> stage.fights }.forEach { fight -> tr.delete(fights, fight.toByteArray()) }
+                tr.delete(categories, categoryId.toByteArray())
+            }
         })
 
     }
@@ -215,6 +246,5 @@ open class RocksDBOperations(private val db: Either<Transaction, OptimisticTrans
         }, { tr ->
             tr.delete(competitors, id.toByteArray())
         })
-
     }
 }

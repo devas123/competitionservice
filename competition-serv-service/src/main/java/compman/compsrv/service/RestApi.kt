@@ -46,25 +46,24 @@ class RestApi(
 
     @RequestMapping(path = ["/command/{competitionId}", "/command"], method = [RequestMethod.POST])
     fun sendCommand(
-        @RequestBody command: CommandDTO,
+        @RequestBody command: Mono<CommandDTO>,
         @PathVariable competitionId: String?
-    ): ResponseEntity<CommonResponse> {
-        log.info("COMMAND ASYNC: $command")
-        return kotlin.runCatching {
-            val response = commandProducer.sendCommandAsync(command, competitionId)
-            ResponseEntity(response, HttpStatus.resolve(response.status) ?: HttpStatus.OK)
-        }.getOrElse { e ->
-            ResponseEntity(CommonResponse(500, "Exception: ${e.message}", null), HttpStatus.INTERNAL_SERVER_ERROR)
+    ): Mono<CommonResponse> {
+        return command.map { com ->
+            log.info("COMMAND ASYNC: $command")
+            commandProducer.sendCommandAsync(com, competitionId)
         }
     }
 
     @RequestMapping(path = ["/commandsync/{competitionId}", "/commandsync"], method = [RequestMethod.POST])
     fun sendCommandSync(
-        @RequestBody command: CommandDTO,
+        @RequestBody com: Mono<CommandDTO>,
         @PathVariable competitionId: String?
-    ): Mono<Array<EventDTO>> {
-        log.info("COMMAND SYNC: $command")
-        return commandProducer.sendCommandSync(command, competitionId)
+    ): Flux<EventDTO> {
+        return com.flatMap { command ->
+            log.info("COMMAND SYNC: $command")
+            commandProducer.sendCommandSync(command, competitionId)
+        }.flatMapMany { arr -> Flux.fromArray(arr) }
     }
 
 

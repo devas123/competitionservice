@@ -2,6 +2,7 @@ package compman.compsrv.service.processor.category.event
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.aggregate.Category
+import compman.compsrv.aggregate.StageDescriptor
 import compman.compsrv.config.CATEGORY_EVENT_HANDLERS
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.EventType
@@ -35,7 +36,7 @@ class BracketsGenerated(
     fun Category.bracketsGenerated(payload: BracketsGeneratedPayload): Category {
         val stages = payload.stages
         if (stages != null) {
-            return this.copy(stages = stages)
+            return this.copy(stages = stages.map { it.id to StageDescriptor(it.id, it) }.toMap())
         } else {
             throw CategoryNotFoundException("Fights are null or empty or category ID is empty.")
         }

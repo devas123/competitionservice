@@ -21,7 +21,7 @@ class DeleteCategoryState : ICommandExecutor<Category> {
         command: CommandDTO
     ): AggregateWithEvents<Category> =
         if (dbOperations.getCategoryCompetitors(command.categoryId, false)
-                .isNullOrEmpty() && entity?.fights.isNullOrEmpty()
+                .isNullOrEmpty() && entity?.stages?.values?.all { it.fights.isNullOrEmpty() } != false
         ) {
             entity to listOf(
                 AbstractAggregateService.createEvent(

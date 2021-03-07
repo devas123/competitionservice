@@ -34,16 +34,16 @@ class CompetitionStateService(
         .concurrencyLevel(Runtime.getRuntime().availableProcessors()).weakValues().build<String, Boolean>()
 
     fun batchApply(events: List<EventDTO>, dbOperations: DBOperations) {
-        log.info("Batch applying start")
+        log.debug("Batch applying start")
         val start = System.currentTimeMillis()
         events.filter {
-            log.info("Check if event is duplicate: $it")
+            log.debug("Check if event is duplicate: $it")
             !isDuplicate(it)
         }.forEach { eventHolder ->
             apply(eventHolder, dbOperations, isBatch = true)
         }
         val finishApply = System.currentTimeMillis()
-        log.info("Batch apply finish, took ${Duration.ofMillis(finishApply - start)}. Starting flush")
+        log.info("Applied ${events.size} events, took ${Duration.ofMillis(finishApply - start)}. Starting flush")
         log.info("Flush finish, took ${Duration.ofMillis(System.currentTimeMillis() - finishApply)}.")
     }
 
@@ -54,7 +54,7 @@ class CompetitionStateService(
         dbOperations: DBOperations,
         isBatch: Boolean
     ) {
-        log.info("Applying event: $event, batch: $isBatch")
+        log.debug("Applying event: $event, batch: $isBatch")
         val eventWithId = event.apply { id = event.id ?: IDGenerator.uid() }
         if (isBatch || !isDuplicate(event)) {
             val aggregate = delegatingAggregateService.getAggregate(event, dbOperations)

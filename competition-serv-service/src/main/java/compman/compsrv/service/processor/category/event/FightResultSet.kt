@@ -27,15 +27,16 @@ class FightResultSet(
             rocksDBOperations: DBOperations
     ): Category? = aggregate?.let {
         executeValidated<SetFightResultPayload, Category>(event) { payload, _ ->
-            aggregate.fightResultSet(payload)
+            aggregate.fightResultSet(payload, rocksDBOperations)
         }.unwrap(event)
     }  ?: error(Constants.CATEGORY_NOT_FOUND)
 
-    fun Category.fightResultSet(payload: SetFightResultPayload): Category {
-        fightsMap[payload.fightId]?.let { f ->
+    fun Category.fightResultSet(payload: SetFightResultPayload, rocksDBOperations: DBOperations): Category {
+        rocksDBOperations.getFight(payload.fightId).let { f ->
             f.scores = payload.scores
             f.status = FightStatus.FINISHED
             f.fightResult = payload.fightResult
+            rocksDBOperations.putFight(f)
         }
         return this
     }
