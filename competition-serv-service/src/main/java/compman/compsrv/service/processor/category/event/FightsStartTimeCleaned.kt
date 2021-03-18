@@ -33,6 +33,7 @@ class FightsStartTimeCleaned(
             f.period = null
             f.startTime = null
             f.numberOnMat = null
+            f.scheduleEntryId = null
             rocksDBOperations.putFight(f)
         }
         return this

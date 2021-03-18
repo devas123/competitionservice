@@ -10,6 +10,7 @@ import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.*
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
+import compman.compsrv.model.dto.schedule.MatIdAndSomeId
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.repository.RocksDBRepository
 import compman.compsrv.service.fight.FightsService
@@ -268,10 +269,18 @@ class StateQueryService(
             {
                 wrapBlocking {
                     val competition = rocksDbOperations.getCompetition(competitionId)
+                    val fights = rocksDbOperations.getCompetitionFights(competitionId)
+                    val map = fights.groupBy { it.period }.mapValues { it.value.groupBy { f -> f.scheduleEntryId ?: "unscheduled" }
+                        .mapValues { e -> e.value.map { f -> MatIdAndSomeId(f.mat?.id, f.startTime, f.id) } } }
                     ScheduleDTO().setId(competitionId).setMats(competition.mats)
-                        .setPeriods(competition.periods)
+                        .setPeriods(competition.periods.map { p ->
+                            p.setScheduleEntries(
+                                p.scheduleEntries.map { scheduleEntry ->
+                                    scheduleEntry.setFightIds(map[p.id]?.get(scheduleEntry.id)?.toTypedArray().orEmpty())
+                                }.toTypedArray()
+                            )
+                        }.toTypedArray())
                 }
-
             },
             { _, _, urlPrefix ->
                 webClient.get()

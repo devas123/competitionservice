@@ -100,10 +100,11 @@ class GenerateSchedule(
                 ).let { tuple ->
                     val schedule = tuple.a
                     val newFights = tuple.b
-                    val fightStartTimeUpdatedEvents = newFights.groupBy { it.fightCategoryId }.mapValues { (key, list) ->
-                        val fightStartTimeUpdatedPayload =
-                            FightStartTimeUpdatedPayload().setNewFights(list.toTypedArray())
-                        applyEvent(Unit.left(), createEvent(com, EventType.FIGHTS_START_TIME_UPDATED, fightStartTimeUpdatedPayload).apply { categoryId = key })
+                    val fightStartTimeUpdatedEvents = newFights.groupBy { it.fightCategoryId }.mapValues { (key, l) ->
+                        l.chunked(100).map { list ->
+                            val fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().setNewFights(list.toTypedArray())
+                            applyEvent(Unit.left(), createEvent(com, EventType.FIGHTS_START_TIME_UPDATED, fightStartTimeUpdatedPayload).apply { categoryId = key })
+                        }.reduce { a, b -> a + b }
                     }.values
                     applyEvent(this.right(),
                         createEvent(

@@ -46,6 +46,7 @@ class FightsStartTimeUpdated(
             f.period = newFight.periodId
             f.startTime = newFight.startTime
             f.numberOnMat = newFight.numberOnMat
+            f.scheduleEntryId = newFight.scheduleEntryId
             rocksDBOperations.putFight(f)
         }
         return this

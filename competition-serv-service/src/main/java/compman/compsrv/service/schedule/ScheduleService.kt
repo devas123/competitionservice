@@ -75,7 +75,21 @@ class ScheduleService {
                 timeZone = timeZone)
 
         return composer.simulate().let { fightsByMats ->
-            val invalidFightIds = fightsByMats.c
+            val invalidFightIds = fightsByMats.c.toSet()
+            val fightsStartTimes = fightsByMats.b.flatMap { container ->
+                container.fights.map {
+                    FightStartTimePairDTO()
+                        .setStartTime(it.startTime)
+                        .setNumberOnMat(it.fightNumber)
+                        .setFightId(it.fightId)
+                        .setPeriodId(it.periodId)
+                        .setFightCategoryId(it.categoryId)
+                        .setMatId(it.matId)
+                        .setScheduleEntryId(it.scheduleEntryId)
+                        .setInvalid(invalidFightIds.contains(it.fightId))
+                }
+            }
+
             ScheduleDTO()
                 .setId(competitionId)
                 .setMats(fightsByMats.b.mapIndexed { i, container ->
@@ -97,27 +111,11 @@ class ScheduleService {
                             .sortedBy { it.startTime.toEpochMilli() }
                             .mapIndexed { i, scheduleEntryDTO ->
                                 scheduleEntryDTO
-                                    .setFightIds(scheduleEntryDTO.fightIds?.distinctBy { it.someId }?.toTypedArray())
                                     .setCategoryIds(scheduleEntryDTO.categoryIds?.distinct()?.toTypedArray())
                                     .setOrder(i)
-                                    .setInvalidFightIds(scheduleEntryDTO.fightIds?.filter { invalidFightIds.contains(it.someId) }
-                                        ?.mapNotNull { it.someId }
-                                        ?.distinct()?.toTypedArray())
                             }.toTypedArray())
                         .setStartTime(period.startTime)
                         .setName(period.name)
-                }.toTypedArray()) toT fightsByMats.b.flatMap { container ->
-                container.fights.map {
-                    FightStartTimePairDTO()
-                        .setStartTime(it.startTime)
-                        .setNumberOnMat(it.fightNumber)
-                        .setFightId(it.fightId)
-                        .setPeriodId(it.periodId)
-                        .setFightCategoryId(it.categoryId)
-                        .setMatId(it.matId)
-                        .setScheduleEntryId(it.scheduleEntryId)
-                }
-            }
-        }
+                }.toTypedArray()) toT fightsStartTimes        }
     }
 }
