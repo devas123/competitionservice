@@ -27,7 +27,6 @@ import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
 import java.nio.charset.StandardCharsets
-import java.time.Duration
 import java.util.*
 import kotlin.collections.LinkedHashMap
 import kotlin.math.max
@@ -252,7 +251,7 @@ class StateQueryService(
                         log.debug("Competition $competitionId is processed by $address")
                         ifRemote(address, webClient, ops.getUrlPrefix(address.host(), address.port()))
                     }
-                }.retryBackoff(3, Duration.ofMillis(10))
+                }.retry(3)
             }
         }.getOrElse { Mono.empty() }
 

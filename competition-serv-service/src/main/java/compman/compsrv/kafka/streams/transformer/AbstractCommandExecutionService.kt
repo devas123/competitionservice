@@ -42,10 +42,10 @@ abstract class AbstractCommandExecutionService(
                 val latch = CountDownLatch(filteredEvents.size)
                 fun <T> callback() = { _: T -> latch.countDown() }
                 filteredEvents.asSequence().forEach {
-                    kafkaTemplate.send(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME, it.competitionId, it).addCallback(callback(), { ex ->
+                    kafkaTemplate.send(CompetitionServiceTopics.COMPETITION_EVENTS_TOPIC_NAME, it.competitionId, it).addCallback(callback()) { ex ->
                         log.error("Exception when sending events to kafka.", ex)
                         throw ex
-                    })
+                    }
                 }
                 if (latch.await(300, TimeUnit.MILLISECONDS)) {
                     log.info("All the events were processed. Sending commit offsets.")

@@ -475,8 +475,8 @@ class BracketsGenerateService : FightsService() {
     }
 
     private fun getLastRoundFightForCompetitor(fights: List<FightDescriptionDTO>, cid: String?): FightDescriptionDTO {
-        return (fights.filter { f -> f.scores?.any { it.competitorId == cid } == true && f.fightResult?.winnerId != cid }.maxBy { it.round }
-                ?: fights.filter { f -> f.status == FightStatus.UNCOMPLETABLE && f.scores?.any { it.competitorId == cid } == true }.maxBy { it.round }
+        return (fights.filter { f -> f.scores?.any { it.competitorId == cid } == true && f.fightResult?.winnerId != cid }.maxByOrNull { it.round }
+                ?: fights.filter { f -> f.status == FightStatus.UNCOMPLETABLE && f.scores?.any { it.competitorId == cid } == true }.maxByOrNull { it.round }
                 ?: error("Cannot find the last round fight for competitor $cid"))
     }
 

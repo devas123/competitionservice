@@ -3,7 +3,6 @@ package compman.compsrv.service.fight
 import arrow.core.Either
 import arrow.core.Tuple3
 import arrow.core.flatMap
-import com.compmanager.model.payment.RegistrationStatus
 import com.google.common.math.LongMath
 import compman.compsrv.model.dto.brackets.*
 import compman.compsrv.model.dto.competition.*
@@ -13,6 +12,7 @@ import compman.compsrv.util.applyConditionalUpdate
 import compman.compsrv.util.copy
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import properties.RegistrationStatus
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.*

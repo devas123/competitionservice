@@ -1,6 +1,6 @@
 package compman.compsrv;
 
-import com.compman.starter.properties.KafkaProperties;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import compman.compsrv.config.ClusterConfiguration;
 import compman.compsrv.config.ClusterConfigurationProperties;
@@ -9,15 +9,11 @@ import compman.compsrv.kafka.EmbeddedSingleNodeKafkaCluster;
 import compman.compsrv.service.RestApi;
 import compman.compsrv.service.schedule.ScheduleService;
 import kafka.server.KafkaConfig;
-import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.common.serialization.StringSerializer;
-import org.apache.kafka.streams.StreamsConfig;
 import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -30,16 +26,21 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.context.support.TestPropertySourceUtils;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.util.SocketUtils;
 import org.springframework.web.client.RestTemplate;
+import properties.KafkaProperties;
 
 import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Properties;
+import java.util.concurrent.*;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Ignore
 @RunWith(SpringRunner.class)
@@ -70,9 +71,6 @@ public final class ZookeeperSessionTest {
         }
     }
 
-    private static final String LEADER_CHANGELOG_TOPIC = "leader-changelog";
-    private static final String APPLICATION_ID = "test.app";
-
     @Rule
     public final TemporaryFolder temp = new TemporaryFolder();
 
@@ -82,7 +80,7 @@ public final class ZookeeperSessionTest {
         try (final DatagramSocket socket = new DatagramSocket()) {
             socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
             String ip = socket.getLocalAddress().getHostAddress();
-            props.setProperty(KafkaConfig.AdvertisedListenersProp(), "EXTERNAL://" + ip + ":61384,INTERNAL://localhost:61383");
+            props.setProperty(KafkaConfig.AdvertisedListenersProp(), "EXTERNAL://195.168.0.1:61384,INTERNAL://localhost:61383");
             props.setProperty(KafkaConfig.ListenersProp(), "EXTERNAL://" + ip + ":61384,INTERNAL://localhost:61383");
             props.setProperty(KafkaConfig.ListenerSecurityProtocolMapProp(), "EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT");
             props.setProperty(KafkaConfig.InterBrokerListenerNameProp(), "INTERNAL");
@@ -127,38 +125,39 @@ public final class ZookeeperSessionTest {
     }
 
 
-    private static KafkaProperties createKafkaProps(int localPort) {
-        KafkaProperties kafkaProps = new KafkaProperties();
-        kafkaProps.setLeaderChangelogTopic(LEADER_CHANGELOG_TOPIC);
-        String bootstrapServers = CLUSTER.bootstrapServers();
-        kafkaProps.setBootstrapServers(bootstrapServers);
-        kafkaProps.getStreamProperties().setProperty(StreamsConfig.APPLICATION_ID_CONFIG, APPLICATION_ID);
-        kafkaProps.getStreamProperties().setProperty(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        kafkaProps.getStreamProperties().setProperty(StreamsConfig.APPLICATION_SERVER_CONFIG, String.valueOf(localPort));
-        kafkaProps.getStreamProperties().setProperty(StreamsConfig.PROCESSING_GUARANTEE_CONFIG, StreamsConfig.AT_LEAST_ONCE);
-        kafkaProps.getDefaultTopicOptions().setPartitions(1);
-        kafkaProps.getDefaultTopicOptions().setReplicationFactor((short) 1);
-        kafkaProps.getProducer()
-                .getProperties()
-                .setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getCanonicalName());
-        kafkaProps.getProducer()
-                .getProperties()
-                .setProperty(ProducerConfig.ACKS_CONFIG, "all");
-        kafkaProps.getProducer()
-                .getProperties()
-                .setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getCanonicalName());
-        kafkaProps.getProducer()
-                .getProperties()
-                .setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        return kafkaProps;
-    }
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        final String runFile = args[0];
+        try {
+            CLUSTER.start();
+        } catch (Exception e) {
+            log.error("Error while starting kafka.", e);
+            Runtime.getRuntime().addShutdownHook(new Thread(CLUSTER::stop));
+            log.info("Zookeeper Connect: " + CLUSTER.zookeeperConnect());
+            log.info("Bootstrap servers: " + CLUSTER.bootstrapServers());
 
-    public static void main(String[] args) throws Exception {
-        CLUSTER.start();
-        Runtime.getRuntime().addShutdownHook(new Thread(CLUSTER::stop));
-        log.info("Zookeeper Connect: " + CLUSTER.zookeeperConnect());
-        log.info("Bootstrap servers: " + CLUSTER.bootstrapServers());
-        Thread.sleep(100000000);
+        }
+
+        ReentrantLock lock = new ReentrantLock(true);
+        Condition cond = lock.newCondition();
+
+        ExecutorService s = ForkJoinPool.commonPool();
+        Future<Boolean> waiting = s.submit(() -> {
+            boolean t = false;
+            lock.lock();
+            try {
+                while (Files.exists(Path.of(runFile))) {
+                    try {
+                        t = cond.await(500, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            } finally {
+                lock.unlock();
+            }
+            return t;
+        });
+        waiting.get();
         log.info("Stopping.");
         CLUSTER.stop();
     }

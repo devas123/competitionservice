@@ -2,7 +2,6 @@ package compman.compsrv.service.schedule
 
 import arrow.core.Tuple2
 import arrow.core.toT
-import com.compmanager.service.ServiceException
 import compman.compsrv.model.dto.competition.CompScoreDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.dto.competition.FightStatus
@@ -36,7 +35,7 @@ class ScheduleService {
         return if (!periods.isNullOrEmpty()) {
             doGenerateSchedule(competitionId, stages, periods, mats, timeZone)
         } else {
-            throw ServiceException("Periods are not specified!")
+            throw Exception("Periods are not specified!")
         }
     }
 

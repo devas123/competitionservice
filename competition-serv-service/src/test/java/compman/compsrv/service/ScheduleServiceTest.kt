@@ -10,7 +10,7 @@ import compman.compsrv.service.fight.GroupStageGenerateService
 import compman.compsrv.service.schedule.ScheduleService
 import java.math.BigDecimal
 import java.time.temporal.ChronoUnit
-import kotlin.test.Test
+import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue

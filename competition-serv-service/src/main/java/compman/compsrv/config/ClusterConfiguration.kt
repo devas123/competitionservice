@@ -11,6 +11,7 @@ import io.scalecube.cluster.ClusterConfig
 import io.scalecube.cluster.Member
 import io.scalecube.cluster.metadata.MetadataCodec
 import io.scalecube.net.Address
+import io.scalecube.transport.netty.tcp.TcpTransportFactory
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.web.ServerProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -47,9 +48,8 @@ class ClusterConfiguration {
         log.info("Configured initial cluster seed: $clusterSeed")
         return ClusterConfig.defaultConfig()
                 .transport {
-                    it
-                            .host(InetAddress.getLocalHost().hostAddress)
-                            .port(clusterConfigurationProperties.advertisedPort)
+                            it.port(clusterConfigurationProperties.advertisedPort)
+                                .transportFactory(TcpTransportFactory())
                 }
                 .membership { it.seedMembers(clusterSeed) }
 

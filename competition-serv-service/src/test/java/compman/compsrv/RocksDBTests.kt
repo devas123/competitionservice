@@ -6,10 +6,10 @@ import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.repository.RocksDBProperties
 import compman.compsrv.repository.RocksDBRepository
+import org.junit.jupiter.api.Test
 import org.rocksdb.Options
 import org.rocksdb.RocksDB
 import java.nio.file.Files
-import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue

@@ -198,7 +198,7 @@ class ScheduleProducer(val competitionId: String,
         val e = accumulator.scheduleEntryFromRequirement(req.first, mat.currentTime, period.id)
         accumulator.scheduleEntries[e].categoryIds += st.getCategoryId(fightId)
         mat.fights.add(InternalFightStartTime(fightId, st.getCategoryId(fightId), mat.id, mat.totalFights++, mat.currentTime, accumulator.scheduleEntries[e].id, period.id))
-        log.info("Period: ${period.id}, category: ${st.getCategoryId(fightId)}, fight: $fightId, starts: ${mat.currentTime}, mat: ${mat.id}, numberOnMat: ${mat.totalFights - 1}")
+        log.debug("Period: ${period.id}, category: ${st.getCategoryId(fightId)}, fight: $fightId, starts: ${mat.currentTime}, mat: ${mat.id}, numberOnMat: ${mat.totalFights - 1}")
         mat.currentTime = mat.currentTime.plus(duration.toLong(), ChronoUnit.MINUTES)
         st.completeFight(fightId)
     }

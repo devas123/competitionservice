@@ -3,6 +3,9 @@
 target/
 tmp/
 tmp/**/*
+.gradle
+build
+kafkarun
 
 compservice.db
 

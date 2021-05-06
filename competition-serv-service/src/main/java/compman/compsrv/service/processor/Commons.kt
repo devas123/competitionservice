@@ -56,7 +56,7 @@ fun createUpdatesWithAddedCompetitor(groupFights: List<FightDescriptionDTO>, ch:
         val groupCompetitors = flatScores.map { it.competitorId }.distinct()
         val newCompetitorPairs = GroupStageGenerateService.createPairs(groupCompetitors, listOf(ch.competitorId))
                 .filter<Tuple2<String, String>> { it.a != it.b }.distinctBy { sortedSetOf<String?>(it.a, it.b).joinToString() }
-        val startIndex = (groupFights.maxBy { it.numberInRound }?.numberInRound
+        val startIndex = (groupFights.maxByOrNull { it.numberInRound }?.numberInRound
                 ?: 0) + 1
         val duration = groupFights.first().duration
         val newPlaceholderId = (flatScores.map { it.competitorId to it.placeholderId } +

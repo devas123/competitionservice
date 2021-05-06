@@ -25,10 +25,10 @@ import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.streams.integration.utils.KafkaEmbedded;
 import org.apache.kafka.test.TestCondition;
 import org.apache.kafka.test.TestUtils;
-import org.junit.rules.ExternalResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.Option;
+import scala.Some;
 
 import java.io.IOException;
 import java.util.*;
@@ -37,7 +37,7 @@ import java.util.*;
  * Runs an in-memory, "embedded" Kafka cluster with 1 ZooKeeper instance, 1 Kafka broker, and 1
  * Confluent Schema Registry instance.
  */
-public class EmbeddedSingleNodeKafkaCluster extends ExternalResource {
+public class EmbeddedSingleNodeKafkaCluster {
 
     private static final Logger log = LoggerFactory.getLogger(EmbeddedSingleNodeKafkaCluster.class);
     private static final int DEFAULT_BROKER_PORT = 61384; // 0 results in a random port being selected
@@ -78,13 +78,14 @@ public class EmbeddedSingleNodeKafkaCluster extends ExternalResource {
 
         zkUtils = KafkaZkClient.apply(
                 zookeeper.connectString(),
-                JaasUtils.isZkSecurityEnabled(),
+                JaasUtils.isZkSaslEnabled(),
                 30000,
                 30000,
                 2147483647,
                 Time.SYSTEM,
                 "MetricGroup",
                 "MetricType",
+                new Some<>("SomeName"),
                 Option.empty()
         );
 
@@ -112,20 +113,6 @@ public class EmbeddedSingleNodeKafkaCluster extends ExternalResource {
         return effectiveConfig;
     }
 
-    @Override
-    protected void before() throws Exception {
-        start();
-    }
-
-    @Override
-    protected void after() {
-        try {
-            stop();
-        } catch (Exception e) {
-            log.warn("Error while stopping the cluster.", e);
-        }
-    }
-
     /**
      * Stops the cluster.
      */
@@ -133,7 +120,7 @@ public class EmbeddedSingleNodeKafkaCluster extends ExternalResource {
         log.info("Stopping Confluent");
         try {
             if (broker != null) {
-                broker.stop();
+                broker.awaitStoppedAndPurge();
             }
             try {
                 if (zookeeper != null) {
@@ -237,7 +224,7 @@ public class EmbeddedSingleNodeKafkaCluster extends ExternalResource {
 
         @Override
         public boolean conditionMet() {
-            final Set<String> allTopics = new HashSet<>(scala.collection.JavaConverters.seqAsJavaList(zkUtils.getAllTopicsInCluster()));
+            final Set<String> allTopics = new HashSet<>(scala.collection.JavaConverters.asJavaCollection(zkUtils.getAllTopicsInCluster(false)));
             return !allTopics.removeAll(deletedTopics);
         }
     }
