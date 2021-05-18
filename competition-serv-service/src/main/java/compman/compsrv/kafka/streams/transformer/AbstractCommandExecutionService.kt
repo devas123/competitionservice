@@ -11,7 +11,6 @@ import compman.compsrv.repository.RocksDBRepository
 import compman.compsrv.service.CommandSyncExecutor
 import compman.compsrv.service.CompetitionStateService
 import compman.compsrv.service.processor.AbstractAggregateService.Companion.createErrorEvent
-import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import java.time.Duration
@@ -28,10 +27,9 @@ abstract class AbstractCommandExecutionService(
     private val log = LoggerFactory.getLogger(this.javaClass)
 
 
-    open fun transform(m: ConsumerRecord<String, CommandDTO>, rocksDBRepository: RocksDBRepository,
+    open fun transform(command: CommandDTO, rocksDBRepository: RocksDBRepository,
                        kafkaTemplate: KafkaTemplate<String, EventDTO>,
                        eventsFilterPredicate: (EventDTO) -> Boolean): List<EventDTO>? {
-        val command = m.value()
         return rocksDBRepository.doInTransaction { rocksDBOperations ->
             kotlin.runCatching {
                 val start = System.currentTimeMillis()
@@ -52,15 +50,15 @@ abstract class AbstractCommandExecutionService(
                     log.info("Executing post-processing.")
                     filteredEvents.asSequence().forEach {
                         if (it.type == EventType.COMPETITION_DELETED) kotlin.runCatching {
-                            clusterOperations.broadcastCompetitionProcessingStopped(setOf(m.key()))
+                            clusterOperations.broadcastCompetitionProcessingStopped(setOf(command.competitionId))
                         }
                         if (it.type == EventType.COMPETITION_CREATED) kotlin.runCatching {
-                            clusterOperations.broadcastCompetitionProcessingInfo(setOf(m.key()), command.correlationId)
+                            clusterOperations.broadcastCompetitionProcessingInfo(setOf(command.competitionId), command.correlationId)
                         }
                     }
                     if (!command.correlationId.isNullOrBlank()) {
                         if (command.type == CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND) {
-                            clusterOperations.broadcastCompetitionProcessingInfo(setOf(m.key()), command.correlationId)
+                            clusterOperations.broadcastCompetitionProcessingInfo(setOf(command.competitionId), command.correlationId)
                         } else {
                             commandSyncExecutor.commandCallback(command.correlationId, events.toTypedArray())
                         }
