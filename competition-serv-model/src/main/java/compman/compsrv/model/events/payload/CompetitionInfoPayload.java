@@ -15,7 +15,6 @@ import java.io.Serializable;
 @NoArgsConstructor
 @Accessors(chain = true
 )
-@EventPayload(type = EventType.INTERNAL_COMPETITION_INFO)
 public class CompetitionInfoPayload implements Serializable, Payload {
     private String competitionId;
     private String memberId;

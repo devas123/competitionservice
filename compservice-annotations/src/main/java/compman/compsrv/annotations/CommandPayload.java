@@ -11,5 +11,5 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.SOURCE)
 public @interface CommandPayload {
-    CommandType[] type() default CommandType.DUMMY_COMMAND;
+    CommandType[] type();
 }

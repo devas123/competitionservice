@@ -6,5 +6,4 @@ rootProject.name = "competitionservice"
 include(":compservice-annotation-processor")
 include(":competition-serv-model")
 include(":compservice-annotations")
-include(":competition-serv-service")
 include(":saga-processor")

@@ -34,7 +34,6 @@ class CommandDispatcher(private val rocksDBRepository: RocksDBRepository, privat
             log.warn("Error event: $it")
             false
         }
-        EventType.DUMMY, EventType.INTERNAL_COMPETITION_INFO -> false
         else -> true
     }}
 

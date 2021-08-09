@@ -10,5 +10,5 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.SOURCE)
 public @interface EventPayload {
-    EventType[] type() default EventType.DUMMY;
+    EventType[] type();
 }
