@@ -1,7 +1,16 @@
 package compman.compsrv.repository
 
-import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CompetitionPropertiesDTO, CompetitorDTO, FightDescriptionDTO}
-import compman.compsrv.model.Errors
+import com.fasterxml.jackson.databind.ObjectMapper
+import compman.compsrv.jackson.ObjectMapperFactory
+import compman.compsrv.model.{CompetitionState, CompetitionStateImpl, Errors}
+import compman.compsrv.model.dto.competition.{
+  CategoryDescriptorDTO,
+  CompetitionPropertiesDTO,
+  CompetitorDTO,
+  FightDescriptionDTO
+}
+import org.rocksdb.RocksDB
+import zio.Task
 
 trait CompetitionRepository[F[_]] {
   def getCompetition(
@@ -17,11 +26,43 @@ object CompetitionRepository {
   def apply[F[_]](implicit F: CompetitionRepository[F]): CompetitionRepository[F] = F
 }
 
+trait CompetitionStateCrudRepository[F[+_]] {
+  def add(entity: CompetitionState): F[Unit]
+  def remove(id: String): F[Unit]
+  def get(id: String): F[CompetitionState]
+  def exists(id: String): F[Boolean]
+}
+
+object CompetitionStateCrudRepository {
+  def createLive(rdb: RocksDB): RocksDbCompetitionStateRepository = RocksDbCompetitionStateRepository(rdb)
+}
+
+private[repository] final case class RocksDbCompetitionStateRepository(rdb: RocksDB)
+    extends CompetitionStateCrudRepository[Task] {
+  val objectMapper: ObjectMapper = ObjectMapperFactory.createObjectMapper
+
+  override def add(entity: CompetitionState): Task[Unit] = Task {
+    rdb.put(entity.id.getBytes, objectMapper.writeValueAsBytes(entity))
+  }
+
+  override def remove(id: String): Task[Unit] = Task {
+    rdb.delete(id.getBytes)
+  }
+
+  override def get(id: String): Task[CompetitionState] =
+    for {
+      bytes <- Task {
+        rdb.get(id.getBytes)
+      }
+    } yield objectMapper.createParser(bytes).readValueAs(classOf[CompetitionStateImpl])
+
+  override def exists(id: String): Task[Boolean] = Task {
+    rdb.get(id.getBytes) != null
+  }
+}
+
 trait FightRepository[F[_]] {
-  def getFights(
-      fightIds: Seq[String],
-      getForUpdate: Boolean = false
-  ): F[Seq[FightDescriptionDTO]]
+  def getFights(fightIds: Seq[String], getForUpdate: Boolean = false): F[Seq[FightDescriptionDTO]]
   def getFight(
       fightId: String,
       getForUpdate: Boolean = false

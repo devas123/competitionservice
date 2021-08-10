@@ -5,8 +5,9 @@ import compman.compsrv.logic.{Mapping, StateOperations}
 import compman.compsrv.logic.CommunicationApi.{deserializer, serializer}
 import compman.compsrv.logic.Operations._
 import compman.compsrv.model.events.EventDTO
+import compman.compsrv.repository.CompetitionStateCrudRepository
 import org.rocksdb.RocksDB
-import zio.{Chunk, ExitCode, Ref, Task, URIO, ZIO, ZManaged}
+import zio.{Chunk, ExitCode, Ref, Task, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -26,14 +27,15 @@ object Main extends zio.App {
     implicit val stateOperations: StateOperations.Service[Task] = StateOperations.Service.live
     implicit val idOperations: IdOperations[Task]               = IdOperations.live
     implicit val eventOperations: EventOperations[Task]         = EventOperations.live
-    implicit val competitionStateCrudOperations: CompetitionStateCrudOperations[Task, Ref, RocksDB] = CompetitionStateCrudOperations.live
-    implicit val liveHolder: Holder[Task, Ref, RocksDB] = Holder.live
   }
 
   type PipelineEnvironment =
     Clock with Blocking with Logging with Consumer with Producer[Any, String, EventDTO]
 
-  def createProgram(appConfig: AppConfig): ZIO[Any with Clock with Blocking, Any, Any] = {
+  def createProgram(
+      appConfig: AppConfig,
+      rocksDBMap: Ref[Map[String, CompetitionStateCrudRepository[Task]]]
+  ): ZIO[Any with Clock with Blocking, Any, Any] = {
     import Live._
     val consumerSettings = ConsumerSettings(appConfig.consumer.brokers)
       .withGroupId(appConfig.consumer.groupId)
@@ -59,15 +61,18 @@ object Main extends zio.App {
       zio.logging.log.info("Test") *>
         Consumer
           .subscribeAnd(Subscription.topics(appConfig.consumer.topic))
-          .plainStream(Serde.long, deserializer)
+          .plainStream(Serde.string, deserializer)
           .mapM(record => {
             (
               for {
-                ref <- Ref.make(RocksDB.open(""))
-                dbm = ZManaged.fromEffect(Holder[Task,Ref, RocksDB].create(ref))
-                records <- dbm.use(db => {
-                  mapRecord[Task, Ref, RocksDB](appConfig, db, record)
+                rocksDb <- rocksDBMap.modify(map => {
+                  val db = map.getOrElse(
+                    record.key,
+                    CompetitionStateCrudRepository.createLive(RocksDB.open(record.key))
+                  )
+                  (db, map + (record.key -> db))
                 })
+                records <- mapRecord[Task](appConfig, rocksDb, record)
                 produce <-
                   records match {
                     case x @ Left(_) =>
@@ -86,6 +91,12 @@ object Main extends zio.App {
     program.provideSomeLayer(Clock.live ++ Blocking.live ++ loggingLayer ++ layers)
   }
 
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] =
-    AppConfig.load().flatMap(config => createProgram(config).exitCode).exitCode
+  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
+    (
+      for {
+        rocksDBMap <- Ref.make(Map.empty[String, CompetitionStateCrudRepository[Task]])
+        program    <- AppConfig.load().flatMap(config => createProgram(config, rocksDBMap))
+      } yield program
+    ).exitCode
+  }
 }

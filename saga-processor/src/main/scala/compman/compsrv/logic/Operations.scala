@@ -2,22 +2,15 @@ package compman.compsrv.logic
 
 import cats.data.EitherT
 import cats.Monad
-import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.config.AppConfig
-import compman.compsrv.jackson.ObjectMapperFactory
 import compman.compsrv.logic.Mapping.{CommandMapping, EventMapping}
 import compman.compsrv.model._
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.dto.competition.{
-  CategoryDescriptorDTO,
-  CompetitionPropertiesDTO,
-  CompetitorDTO,
-  FightDescriptionDTO
-}
+import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.{EventDTO, EventType}
+import compman.compsrv.repository.CompetitionStateCrudRepository
 import org.apache.kafka.clients.producer.ProducerRecord
-import org.rocksdb.RocksDB
-import zio.{IO, Ref, Task}
+import zio.Task
 import zio.kafka.consumer.CommittableRecord
 
 import java.util
@@ -78,66 +71,6 @@ object Operations {
 
   }
 
-  trait CompetitionCrudOperations[F[+_], Context[_], DB]
-      extends CrudOperations[F, CompetitionPropertiesDTO, Context, DB]
-  trait CategoryCrudOperations[F[+_], Context[_], DB]
-      extends CrudOperations[F, CategoryDescriptorDTO, Context, DB]
-  trait FightCrudOperations[F[+_], Context[_], DB]
-      extends CrudOperations[F, FightDescriptionDTO, Context, DB]
-  trait CompetitorCrudOperations[F[+_], Context[_], DB]
-      extends CrudOperations[F, CompetitorDTO, Context, DB]
-  trait CompetitionStateCrudOperations[F[+_], Context[_], DB]
-      extends CrudOperations[F, CompetitionState, Context, DB]
-
-  trait Holder[F[_], A[_], V] {
-    def create(a: => A[V]): F[A[V]]
-  }
-
-  object Holder {
-    def apply[F[_], A[_], V](implicit F: Holder[F, A, V]): Holder[F, A, V] = F
-
-    val live: Holder[Task, Ref, RocksDB] = (a: Ref[RocksDB]) => IO(a)
-  }
-
-  object CompetitionStateCrudOperations {
-    val live: CompetitionStateCrudOperations[Task, Ref, RocksDB] =
-      new CompetitionStateCrudOperations[Task, Ref, RocksDB] {
-        val objectMapper: ObjectMapper = ObjectMapperFactory.createObjectMapper
-        override def add(holder: Ref[RocksDB], entity: CompetitionState): Task[Unit] = {
-          for {
-            rdb <- holder.get
-            _ <- IO {
-              rdb.put(entity.id.getBytes, objectMapper.writeValueAsBytes(entity))
-            }
-          } yield ()
-        }
-
-        override def remove(ctx: Ref[RocksDB], id: String): Task[Unit] =
-          for {
-            rdb <- ctx.get
-            _ <- IO {
-              rdb.delete(id.getBytes)
-            }
-          } yield ()
-
-        override def get(ctx: Ref[RocksDB], id: String): Task[CompetitionState] =
-          for {
-            rdb <- ctx.get
-            bytes = rdb.get(id.getBytes)
-            state <- IO {
-              objectMapper.createParser(bytes).readValueAs(classOf[CompetitionStateImpl])
-            }
-          } yield state
-
-        override def exists(ctx: Ref[RocksDB], id: String): Task[Boolean] =
-          for {
-            rdb <- ctx.get
-            bytes = rdb.get(id.getBytes)
-          } yield bytes != null
-
-      }
-
-  }
 
   object CommandEventOperations {
     def apply[F[+_], A, T](implicit
@@ -154,34 +87,25 @@ object Operations {
         }
 
   }
-  object CrudOperations {
-    def apply[F[+_], A, Context[_], DB](implicit
-        F: CrudOperations[F, A, Context, DB]
-    ): CrudOperations[F, A, Context, DB] = F
-  }
 
   def mapRecord[F[
       +_
-  ]: Monad: CommandMapping: EventMapping: StateOperations.Service: IdOperations: EventOperations, Context[
-      _
-  ], DB](appConfig: AppConfig, ctx: Context[DB], record: CommittableRecord[Long, CommandDTO])(
-      implicit crudOps: CompetitionStateCrudOperations[F, Context, DB]
-  ): F[Either[Errors.Error, Seq[ProducerRecord[String, EventDTO]]]] = {
+  ]: Monad: CommandMapping: EventMapping: StateOperations.Service: IdOperations: EventOperations](appConfig: AppConfig, db: CompetitionStateCrudRepository[F], record: CommittableRecord[String, CommandDTO]): F[Either[Errors.Error, Seq[ProducerRecord[String, EventDTO]]]] = {
     def toProducerRecord(events: EventDTO): ProducerRecord[String, EventDTO] = {
       new ProducerRecord(appConfig.producer.topic, events.getCompetitionId, events)
     }
 
     val either: EitherT[F, Errors.Error, Seq[ProducerRecord[String, EventDTO]]] =
       for {
-        mapped      <- EitherT.right[Errors.Error](Mapping.mapCommandDto(record.value))
-        queryConfig <- EitherT.right[Errors.Error](StateOperations.createConfig(mapped))
-        latestState <- EitherT[F, Errors.Error, CompetitionState](
+        mapped      <- EitherT.right(Mapping.mapCommandDto(record.value))
+        queryConfig <- EitherT.right(StateOperations.createConfig(mapped))
+        latestState <- EitherT(
           StateOperations.getLatestState(queryConfig)
         )
-        eventsToApply <- EitherT[F, Errors.Error, Seq[EventDTO]](
+        eventsToApply <- EitherT(
           CommandProcessors.process(mapped, latestState)
         )
-        eventsAndNewState <- EitherT[F, Errors.Error, (Seq[EventDTO], CompetitionState)](
+        eventsAndNewState <- EitherT(
           eventsToApply
             .map(event =>
               Monad[F]
@@ -189,7 +113,7 @@ object Operations {
             )
             .reduce((a, b) => Monad[F].flatMap(a)(_ => b))
         )
-        _ <- EitherT.liftF(crudOps.add(ctx, eventsAndNewState._2))
+        _ <- EitherT.liftF(db.add(eventsAndNewState._2))
         records = eventsAndNewState._1.map(toProducerRecord)
       } yield records
     either.value
