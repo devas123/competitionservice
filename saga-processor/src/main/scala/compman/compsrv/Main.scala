@@ -4,7 +4,7 @@ import compman.compsrv.config.AppConfig
 import compman.compsrv.logic.{Mapping, StateOperations}
 import compman.compsrv.logic.CommunicationApi.{deserializer, serializer}
 import compman.compsrv.logic.Operations._
-import compman.compsrv.model.events.EventDTO
+import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.repository.CompetitionStateCrudRepository
 import org.rocksdb.RocksDB
 import zio.{Chunk, ExitCode, Ref, Task, URIO, ZIO}
@@ -78,7 +78,8 @@ object Main extends zio.App {
                     case x @ Left(_) =>
                       ZIO.fromEither(x)
                     case Right(value) =>
-                      Producer.produceChunk[Any, String, EventDTO](Chunk.fromIterable(value))
+                      val deleted = value.exists(_.value().getType == EventType.COMPETITION_DELETED)
+                      rocksDBMap.update(map => if (deleted) map - record.key else map) *> Producer.produceChunk[Any, String, EventDTO](Chunk.fromIterable(value))
                   }
               } yield produce
             ).as(record)

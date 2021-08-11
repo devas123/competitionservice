@@ -71,7 +71,6 @@ object Operations {
 
   }
 
-
   object CommandEventOperations {
     def apply[F[+_], A, T](implicit
         F: CommandEventOperations[F, A, T]
@@ -90,21 +89,21 @@ object Operations {
 
   def mapRecord[F[
       +_
-  ]: Monad: CommandMapping: EventMapping: StateOperations.Service: IdOperations: EventOperations](appConfig: AppConfig, db: CompetitionStateCrudRepository[F], record: CommittableRecord[String, CommandDTO]): F[Either[Errors.Error, Seq[ProducerRecord[String, EventDTO]]]] = {
+  ]: Monad: CommandMapping: EventMapping: StateOperations.Service: IdOperations: EventOperations](
+      appConfig: AppConfig,
+      db: CompetitionStateCrudRepository[F],
+      record: CommittableRecord[String, CommandDTO]
+  ): F[Either[Errors.Error, Seq[ProducerRecord[String, EventDTO]]]] = {
     def toProducerRecord(events: EventDTO): ProducerRecord[String, EventDTO] = {
       new ProducerRecord(appConfig.producer.topic, events.getCompetitionId, events)
     }
 
     val either: EitherT[F, Errors.Error, Seq[ProducerRecord[String, EventDTO]]] =
       for {
-        mapped      <- EitherT.right(Mapping.mapCommandDto(record.value))
-        queryConfig <- EitherT.right(StateOperations.createConfig(mapped))
-        latestState <- EitherT(
-          StateOperations.getLatestState(queryConfig)
-        )
-        eventsToApply <- EitherT(
-          CommandProcessors.process(mapped, latestState)
-        )
+        mapped        <- EitherT.liftF(Mapping.mapCommandDto(record.value))
+        queryConfig   <- EitherT.liftF(StateOperations.createConfig(mapped))
+        latestState   <- EitherT.liftF(StateOperations.getLatestState(queryConfig, db))
+        eventsToApply <- EitherT(CommandProcessors.process(mapped, latestState))
         eventsAndNewState <- EitherT(
           eventsToApply
             .map(event =>
