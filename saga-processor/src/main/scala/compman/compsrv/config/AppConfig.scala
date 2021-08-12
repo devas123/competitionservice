@@ -6,13 +6,13 @@ import zio.config.magnolia.DeriveConfigDescriptor
 import zio.config.typesafe.TypesafeConfigSource
 import com.typesafe.config.ConfigFactory
 
-final case class AppConfig(consumer: Consumer, producer: Producer, enrichmentConfig: EnrichmentConfig)
+final case class AppConfig(consumer: ConsumerConfig, producer: ProducerConfig, enrichmentConfig: EnrichmentConfig)
 
-final case class Consumer(bootstrapServers: String, topic: String, groupId: String) {
+final case class ConsumerConfig(bootstrapServers: String, topic: String, groupId: String) {
   def brokers: List[String] = bootstrapServers.split(",").toList
 }
 
-final case class Producer(bootstrapServers: String, topic: String) {
+final case class ProducerConfig(bootstrapServers: String, topic: String) {
   def brokers: List[String] = bootstrapServers.split(",").toList
 }
 

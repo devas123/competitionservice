@@ -2,16 +2,12 @@ package compman.compsrv.logic
 
 import cats.data.EitherT
 import cats.Monad
-import compman.compsrv.config.AppConfig
 import compman.compsrv.logic.Mapping.{CommandMapping, EventMapping}
 import compman.compsrv.model._
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.dto.competition.CompetitorDTO
 import compman.compsrv.model.events.{EventDTO, EventType}
-import compman.compsrv.repository.CompetitionStateCrudRepository
-import org.apache.kafka.clients.producer.ProducerRecord
 import zio.Task
-import zio.kafka.consumer.CommittableRecord
 
 import java.util
 
@@ -87,35 +83,31 @@ object Operations {
 
   }
 
-  def mapRecord[F[
+  def processCommand[F[
       +_
-  ]: Monad: CommandMapping: EventMapping: StateOperations.Service: IdOperations: EventOperations](
-      appConfig: AppConfig,
-      db: CompetitionStateCrudRepository[F],
-      record: CommittableRecord[String, CommandDTO]
-  ): F[Either[Errors.Error, Seq[ProducerRecord[String, EventDTO]]]] = {
-    def toProducerRecord(events: EventDTO): ProducerRecord[String, EventDTO] = {
-      new ProducerRecord(appConfig.producer.topic, events.getCompetitionId, events)
-    }
-
-    val either: EitherT[F, Errors.Error, Seq[ProducerRecord[String, EventDTO]]] =
+  ]: Monad: CommandMapping: IdOperations: EventOperations](
+      latestState: CompetitionState,
+      command: CommandDTO
+  ): F[Either[Errors.Error, Seq[EventDTO]]] = {
+    val either: EitherT[F, Errors.Error, Seq[EventDTO]] =
       for {
-        mapped        <- EitherT.liftF(Mapping.mapCommandDto(record.value))
-        queryConfig   <- EitherT.liftF(StateOperations.createConfig(mapped))
-        latestState   <- EitherT.liftF(StateOperations.getLatestState(queryConfig, db))
+        mapped        <- EitherT.liftF(Mapping.mapCommandDto(command))
         eventsToApply <- EitherT(CommandProcessors.process(mapped, latestState))
-        eventsAndNewState <- EitherT(
-          eventsToApply
-            .map(event =>
-              Monad[F]
-                .flatMap(Mapping.mapEventDto(event))(EventProcessors.applyEvent(_, latestState))
-            )
-            .reduce((a, b) => Monad[F].flatMap(a)(_ => b))
-        )
-        _ <- EitherT.liftF(db.add(eventsAndNewState._2))
-        records = eventsAndNewState._1.map(toProducerRecord)
-      } yield records
+      } yield eventsToApply
     either.value
+  }
+
+  def applyEvent[F[
+      +_
+  ]: Monad: EventMapping: StateOperations.Service: IdOperations: EventOperations](
+      latestState: CompetitionState,
+      event: EventDTO
+  ): F[CompetitionState] = {
+    import cats.implicits._
+      for {
+        mapped <- EventMapping.mapEventDto(event)
+        result <- EventProcessors.applyEvent[F, Payload](mapped, latestState)
+      } yield result
   }
 
 }

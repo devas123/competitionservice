@@ -23,7 +23,7 @@ object CommunicationApi {
     def apply[F[+_]](implicit F: KafkaApi[F]): KafkaApi[F] = F
   }
 
-  val serializer: Serializer[Any, EventDTO] =
+  val eventSerialized: Serializer[Any, EventDTO] =
     new Serializer[Any, EventDTO] {
       override def serialize(
           topic: String,
@@ -35,7 +35,7 @@ object CommunicationApi {
 
       override def configure(props: Map[String, AnyRef], isKey: Boolean): Task[Unit] = Task.unit
     }
-  val deserializer: Deserializer[Any, CommandDTO] =
+  val commandDeserializer: Deserializer[Any, CommandDTO] =
     new Deserializer[Any, CommandDTO] {
 
       override def configure(props: Map[String, AnyRef], isKey: Boolean): Task[Unit] = Task.unit
@@ -46,6 +46,19 @@ object CommunicationApi {
           data: Array[Byte]
       ): RIO[Any, CommandDTO] = RIO {
         objectMapper.readValue(data, classOf[CommandDTO])
+      }
+    }
+  val eventDeserializer: Deserializer[Any, EventDTO] =
+    new Deserializer[Any, EventDTO] {
+
+      override def configure(props: Map[String, AnyRef], isKey: Boolean): Task[Unit] = Task.unit
+
+      override def deserialize(
+          topic: String,
+          headers: Headers,
+          data: Array[Byte]
+      ): RIO[Any, EventDTO] = RIO {
+        objectMapper.readValue(data, classOf[EventDTO])
       }
     }
 

@@ -1,13 +1,12 @@
 package compman.compsrv
 
 import compman.compsrv.config.AppConfig
-import compman.compsrv.logic.{Mapping, StateOperations}
-import compman.compsrv.logic.CommunicationApi.{deserializer, serializer}
+import compman.compsrv.logic._
+import compman.compsrv.logic.CommunicationApi.{commandDeserializer, eventSerialized}
 import compman.compsrv.logic.Operations._
-import compman.compsrv.model.events.{EventDTO, EventType}
-import compman.compsrv.repository.CompetitionStateCrudRepository
-import org.rocksdb.RocksDB
-import zio.{Chunk, ExitCode, Ref, Task, URIO, ZIO}
+import compman.compsrv.logic.StateOperations.GetStateConfig
+import compman.compsrv.model.events.EventDTO
+import zio.{ExitCode, Has, Layer, Ref, Task, URIO, ZIO, ZLayer}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -34,9 +33,8 @@ object Main extends zio.App {
 
   def createProgram(
       appConfig: AppConfig,
-      rocksDBMap: Ref[Map[String, CompetitionStateCrudRepository[Task]]]
+      rocksDBMap: Ref[Map[String, CompetitionProcessingActor]]
   ): ZIO[Any with Clock with Blocking, Any, Any] = {
-    import Live._
     val consumerSettings = ConsumerSettings(appConfig.consumer.brokers)
       .withGroupId(appConfig.consumer.groupId)
       .withClientId("client")
@@ -54,34 +52,43 @@ object Main extends zio.App {
 
     val consumerLayer = Consumer.make(consumerSettings).toLayer
     val producerLayer =
-      Producer.make[Any, String, EventDTO](producerSettings, Serde.string, serializer).toLayer
+      Producer.make[Any, String, EventDTO](producerSettings, Serde.string, eventSerialized).toLayer
     val layers = consumerLayer ++ producerLayer
-    import zio.interop.catz._
     val program: ZIO[PipelineEnvironment, Any, Any] =
       zio.logging.log.info("Test") *>
         Consumer
           .subscribeAnd(Subscription.topics(appConfig.consumer.topic))
-          .plainStream(Serde.string, deserializer)
+          .plainStream(Serde.string, commandDeserializer)
           .mapM(record => {
+            val getStateConfig =
+              new GetStateConfig {
+                override def topic: String = record.key
+
+                override def id: String = record.key
+              }
+            val context =
+              new Context {
+                override def kafkaConsumerLayer
+                    : ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]] = consumerLayer
+
+                override def kafkaProducerLayer
+                    : ZLayer[Any, Throwable, Has[Producer.Service[Any, String, EventDTO]]] =
+                  producerLayer
+
+                override def clockLayer: Layer[Nothing, Clock] = Clock.live
+
+                override def blockingLayer: Layer[Nothing, Blocking] = Blocking.live
+              }
             (
               for {
-                rocksDb <- rocksDBMap.modify(map => {
-                  val db = map.getOrElse(
-                    record.key,
-                    CompetitionStateCrudRepository.createLive(RocksDB.open(record.key))
-                  )
-                  (db, map + (record.key -> db))
-                })
-                records <- mapRecord[Task](appConfig, rocksDb, record)
-                produce <-
-                  records match {
-                    case x @ Left(_) =>
-                      ZIO.fromEither(x)
-                    case Right(value) =>
-                      val deleted = value.exists(_.value().getType == EventType.COMPETITION_DELETED)
-                      rocksDBMap.update(map => if (deleted) map - record.key else map) *> Producer.produceChunk[Any, String, EventDTO](Chunk.fromIterable(value))
-                  }
-              } yield produce
+                map <- rocksDBMap.get
+                actor <-
+                  if (map.contains(record.key))
+                    Task.effectTotal(map(record.key))
+                  else
+                    CompetitionProcessor().makeActor(record.key, getStateConfig, context)
+                _ <- actor ! record.value
+              } yield ()
             ).as(record)
           })
           .map(_.offset)
@@ -95,7 +102,7 @@ object Main extends zio.App {
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
     (
       for {
-        rocksDBMap <- Ref.make(Map.empty[String, CompetitionStateCrudRepository[Task]])
+        rocksDBMap <- Ref.make(Map.empty[String, CompetitionProcessingActor])
         program    <- AppConfig.load().flatMap(config => createProgram(config, rocksDBMap))
       } yield program
     ).exitCode

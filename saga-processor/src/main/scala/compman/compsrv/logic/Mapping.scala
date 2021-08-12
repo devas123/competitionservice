@@ -277,8 +277,13 @@ object Mapping {
         }
 
   }
+  trait EventMapping[F[+_]] {
+    def mapEventDto(eventDto: EventDTO): F[Events.Event[Payload]]
+    def mapEvent(event: Events.Event[Payload]): F[EventDTO]
+  }
+
   object EventMapping {
-    def apply[F[_]](implicit F: EventMapping[F]): EventMapping[F] = F
+    def apply[F[+_]](implicit F: EventMapping[F]): EventMapping[F] = F
 
     val live: EventMapping[Task] =
       new EventMapping[Task] {
@@ -592,15 +597,12 @@ object Mapping {
           e
         }
       }
+    def mapEventDto[F[+_]: EventMapping](eventDto: EventDTO): F[Events.Event[Payload]] =
+      EventMapping[F].mapEventDto(eventDto)
+    def mapEvent[F[+_]: EventMapping](event: Events.Event[Payload]): F[EventDTO] = EventMapping[F]
+      .mapEvent(event)
   }
-  trait EventMapping[F[_]] {
-    def mapEventDto(eventDto: EventDTO): F[Events.Event[Payload]]
-    def mapEvent(event: Events.Event[Payload]): F[EventDTO]
-  }
-  def mapCommandDto[F[_]: CommandMapping](commandDTO: CommandDTO): F[Commands.Command[Payload]] =
+
+  def mapCommandDto[F[+_]: CommandMapping](commandDTO: CommandDTO): F[Commands.Command[Payload]] =
     CommandMapping[F].mapCommandDto(commandDTO)
-  def mapEventDto[F[_]: EventMapping](eventDto: EventDTO): F[Events.Event[Payload]] =
-    EventMapping[F].mapEventDto(eventDto)
-  def mapEvent[F[_]: EventMapping](event: Events.Event[Payload]): F[EventDTO] = EventMapping[F]
-    .mapEvent(event)
 }

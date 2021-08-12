@@ -31,10 +31,11 @@ trait CompetitionStateCrudRepository[F[+_]] {
   def remove(id: String): F[Unit]
   def get(id: String): F[CompetitionState]
   def exists(id: String): F[Boolean]
+  def close(): F[Unit]
 }
 
 object CompetitionStateCrudRepository {
-  def createLive(rdb: RocksDB): RocksDbCompetitionStateRepository = RocksDbCompetitionStateRepository(rdb)
+  def createLive(rdb: RocksDB): CompetitionStateCrudRepository[Task] = RocksDbCompetitionStateRepository(rdb)
 }
 
 private[repository] final case class RocksDbCompetitionStateRepository(rdb: RocksDB)
@@ -58,6 +59,10 @@ private[repository] final case class RocksDbCompetitionStateRepository(rdb: Rock
 
   override def exists(id: String): Task[Boolean] = Task {
     rdb.get(id.getBytes) != null
+  }
+
+  override def close(): Task[Unit] = Task {
+    rdb.close()
   }
 }
 
