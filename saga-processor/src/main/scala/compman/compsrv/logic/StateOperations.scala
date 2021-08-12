@@ -28,7 +28,7 @@ object StateOperations {
 
   }
 
-  def updateState[F[+_]: Service](competitionState: CompetitionState, db: CompetitionStateCrudRepository[F]): F[Unit] = Service[F].saveState(competitionState, db)
+  def saveState[F[+_]: Service](competitionState: CompetitionState, db: CompetitionStateCrudRepository[F]): F[Unit] = Service[F].saveState(competitionState, db)
   def getLatestState[F[+_]: Service](config: GetStateConfig, db: CompetitionStateCrudRepository[F]): F[CompetitionState] = Service[F].getState(config, db)
   def createConfig[F[+_]: Service](getStateConfig: GetStateConfig): F[GetStateConfig] = Service[F].createConfig(getStateConfig)
 }

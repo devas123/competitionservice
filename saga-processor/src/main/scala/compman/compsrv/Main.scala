@@ -2,7 +2,7 @@ package compman.compsrv
 
 import compman.compsrv.config.AppConfig
 import compman.compsrv.logic._
-import compman.compsrv.logic.CommunicationApi.{commandDeserializer, eventSerialized}
+import compman.compsrv.jackson.SerdeApi.{commandDeserializer, eventSerialized}
 import compman.compsrv.logic.Operations._
 import compman.compsrv.logic.StateOperations.GetStateConfig
 import compman.compsrv.model.events.EventDTO

@@ -1,27 +1,15 @@
-package compman.compsrv.logic
+package compman.compsrv.jackson
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.config.AppConfig
-import compman.compsrv.jackson.ObjectMapperFactory
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
-import fs2.{Pipe, Stream}
 import org.apache.kafka.common.header.Headers
 import zio.{RIO, Task}
 import zio.kafka.serde.{Deserializer, Serializer}
 
-object CommunicationApi {
+object SerdeApi {
 
   val objectMapper: ObjectMapper = ObjectMapperFactory.createObjectMapper
-
-  trait KafkaApi[F[+_]] {
-    def inboundStream[A](config: AppConfig): Stream[F, CommandDTO]
-    def outboundStream[A](config: AppConfig): Pipe[F, EventDTO, Unit]
-  }
-
-  object KafkaApi {
-    def apply[F[+_]](implicit F: KafkaApi[F]): KafkaApi[F] = F
-  }
 
   val eventSerialized: Serializer[Any, EventDTO] =
     new Serializer[Any, EventDTO] {

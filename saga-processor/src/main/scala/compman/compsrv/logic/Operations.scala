@@ -3,9 +3,10 @@ package compman.compsrv.logic
 import cats.data.EitherT
 import cats.Monad
 import compman.compsrv.logic.Mapping.{CommandMapping, EventMapping}
+import compman.compsrv.logic.event.EventProcessors
 import compman.compsrv.model._
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.dto.competition.CompetitorDTO
+import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CompetitorDTO, RegistrationGroupDTO, RegistrationPeriodDTO}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import zio.Task
 
@@ -21,7 +22,10 @@ object Operations {
   }
 
   trait IdOperations[F[_]] {
-    def createId(competitor: CompetitorDTO): F[String]
+    def competitorId(competitor: CompetitorDTO): F[String]
+    def categoryId(category: CategoryDescriptorDTO): F[String]
+    def registrationPeriodId(period: RegistrationPeriodDTO): F[String]
+    def registrationGroupId(group: RegistrationGroupDTO): F[String]
   }
 
   trait CommandEventOperations[F[+_], A, T] {
@@ -76,16 +80,22 @@ object Operations {
     def apply[F[_]](implicit F: IdOperations[F]): IdOperations[F] = F
 
     val live: IdOperations[Task] =
-      (_: CompetitorDTO) =>
-        Task {
+      new IdOperations[Task] {
+        override def competitorId(competitor: CompetitorDTO): Task[String] = Task(
           util.UUID.randomUUID().toString
-        }
+        )
+        override def categoryId(competitor: CategoryDescriptorDTO): Task[String] = Task(
+          util.UUID.randomUUID().toString
+        )
+        override def registrationPeriodId(competitor: RegistrationPeriodDTO): Task[String] =
+          Task(util.UUID.randomUUID().toString)
+
+        override def registrationGroupId(group: RegistrationGroupDTO): Task[String] = Task(util.UUID.randomUUID().toString)
+      }
 
   }
 
-  def processCommand[F[
-      +_
-  ]: Monad: CommandMapping: IdOperations: EventOperations](
+  def processCommand[F[+_]: Monad: CommandMapping: IdOperations: EventOperations](
       latestState: CompetitionState,
       command: CommandDTO
   ): F[Either[Errors.Error, Seq[EventDTO]]] = {
@@ -104,10 +114,10 @@ object Operations {
       event: EventDTO
   ): F[CompetitionState] = {
     import cats.implicits._
-      for {
-        mapped <- EventMapping.mapEventDto(event)
-        result <- EventProcessors.applyEvent[F, Payload](mapped, latestState)
-      } yield result
+    for {
+      mapped <- EventMapping.mapEventDto(event)
+      result <- EventProcessors.applyEvent[F, Payload](mapped, latestState)
+    } yield result
   }
 
 }

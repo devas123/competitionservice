@@ -1,5 +1,6 @@
 package compman.compsrv.logic
 
+import compman.compsrv.jackson.SerdeApi
 import compman.compsrv.logic.StateOperations.GetStateConfig
 import compman.compsrv.model.{CompetitionState, Errors}
 import compman.compsrv.model.commands.CommandDTO
@@ -53,7 +54,7 @@ final case class CompetitionProcessor() {
     .applyEvent[Task](state, eventDTO)
 
   def retreiveEvents(id: String, context: Context): Task[List[EventDTO]] = {
-    Consumer.subscribeAnd(Subscription.topics(id)).plainStream(Serde.string, CommunicationApi.eventDeserializer)
+    Consumer.subscribeAnd(Subscription.topics(id)).plainStream(Serde.string, SerdeApi.eventDeserializer)
       .runCollect.map(_.map(_.value).toList).provideSomeLayer(context.kafkaConsumerLayer).provideLayer(context.clockLayer ++ context.blockingLayer)
   }
 

@@ -1,10 +1,11 @@
-package compman.compsrv.logic
+package compman.compsrv.logic.event
 
 import cats.Monad
 import compman.compsrv.logic.Mapping.EventMapping
+import compman.compsrv.logic.Operations
 import compman.compsrv.model.{CompetitionState, Payload}
 import compman.compsrv.model.event.Events
-import compman.compsrv.model.event.Events._
+import compman.compsrv.model.event.Events.{CategoryRegistrationStatusChanged, CompetitorAddedEvent}
 
 object EventProcessors {
   import Operations._
