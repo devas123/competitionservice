@@ -7,7 +7,7 @@ trait CompetitionState {
   def id: String
   def competitors: Option[Seq[CompetitorDTO]]
   def competitionProperties: Option[CompetitionPropertiesDTO]
-  def stages: Option[StageDescriptorDTO]
+  def stages: Option[Seq[StageDescriptorDTO]]
   def fights: Option[Seq[FightDescriptionDTO]]
   def categories: Option[Seq[CategoryDescriptorDTO]]
   def registrationInfo: Option[RegistrationInfoDTO]
@@ -16,7 +16,7 @@ trait CompetitionState {
   def createCopy(
       competitors: Option[Seq[CompetitorDTO]],
       competitionProperties: Option[CompetitionPropertiesDTO],
-      stages: Option[StageDescriptorDTO],
+      stages: Option[Seq[StageDescriptorDTO]],
       fights: Option[Seq[FightDescriptionDTO]],
       categories: Option[Seq[CategoryDescriptorDTO]],
       registrationInfo: Option[RegistrationInfoDTO],
@@ -28,7 +28,7 @@ case class CompetitionStateImpl(
     id: String,
     competitors: Option[Seq[CompetitorDTO]],
     competitionProperties: Option[CompetitionPropertiesDTO],
-    stages: Option[StageDescriptorDTO],
+    stages: Option[Seq[StageDescriptorDTO]],
     fights: Option[Seq[FightDescriptionDTO]],
     categories: Option[Seq[CategoryDescriptorDTO]],
     registrationInfo: Option[RegistrationInfoDTO],
@@ -37,7 +37,7 @@ case class CompetitionStateImpl(
   override def createCopy(
       competitors: Option[Seq[CompetitorDTO]],
       competitionProperties: Option[CompetitionPropertiesDTO],
-      stages: Option[StageDescriptorDTO],
+      stages: Option[Seq[StageDescriptorDTO]],
       fights: Option[Seq[FightDescriptionDTO]],
       categories: Option[Seq[CategoryDescriptorDTO]],
       registrationInfo: Option[RegistrationInfoDTO],

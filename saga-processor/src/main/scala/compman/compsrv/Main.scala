@@ -1,10 +1,12 @@
 package compman.compsrv
 
 import compman.compsrv.config.AppConfig
-import compman.compsrv.logic._
 import compman.compsrv.jackson.SerdeApi.{commandDeserializer, eventSerialized}
+import compman.compsrv.logic._
+import compman.compsrv.logic.actors.CompetitionProcessor.Context
 import compman.compsrv.logic.Operations._
 import compman.compsrv.logic.StateOperations.GetStateConfig
+import compman.compsrv.logic.actors.{CommandProcessorConfig, CompetitionProcessor, CompetitionProcessorActorRef, ProcessCommand}
 import compman.compsrv.model.events.EventDTO
 import zio.{ExitCode, Has, Layer, Ref, Task, URIO, ZIO, ZLayer}
 import zio.blocking.Blocking
@@ -33,7 +35,7 @@ object Main extends zio.App {
 
   def createProgram(
       appConfig: AppConfig,
-      rocksDBMap: Ref[Map[String, CompetitionProcessingActor]]
+      actorsMap: Ref[Map[String, CompetitionProcessorActorRef]]
   ): ZIO[Any with Clock with Blocking, Any, Any] = {
     val consumerSettings = ConsumerSettings(appConfig.consumer.brokers)
       .withGroupId(appConfig.consumer.groupId)
@@ -60,34 +62,21 @@ object Main extends zio.App {
           .subscribeAnd(Subscription.topics(appConfig.consumer.topic))
           .plainStream(Serde.string, commandDeserializer)
           .mapM(record => {
-            val getStateConfig =
-              new GetStateConfig {
-                override def topic: String = record.key
-
-                override def id: String = record.key
-              }
-            val context =
-              new Context {
-                override def kafkaConsumerLayer
-                    : ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]] = consumerLayer
-
-                override def kafkaProducerLayer
-                    : ZLayer[Any, Throwable, Has[Producer.Service[Any, String, EventDTO]]] =
-                  producerLayer
-
-                override def clockLayer: Layer[Nothing, Clock] = Clock.live
-
-                override def blockingLayer: Layer[Nothing, Blocking] = Blocking.live
-              }
+            val getStateConfig: GetStateConfig = createGetStateConfig(record.key)
+            val commandProcessorConfig = createCommandProcessorConfig(consumerLayer, producerLayer)
+            val context                = Context(actorsMap, record.key)
             (
               for {
-                map <- rocksDBMap.get
+                map <- actorsMap.get
                 actor <-
                   if (map.contains(record.key))
                     Task.effectTotal(map(record.key))
                   else
-                    CompetitionProcessor().makeActor(record.key, getStateConfig, context)
-                _ <- actor ! record.value
+                    CompetitionProcessor()
+                      .makeActor(record.key, getStateConfig, commandProcessorConfig, context)(() =>
+                        actorsMap.update(m => m - record.key)
+                      )
+                _ <- actor ! ProcessCommand(record.value)
               } yield ()
             ).as(record)
           })
@@ -99,10 +88,37 @@ object Main extends zio.App {
     program.provideSomeLayer(Clock.live ++ Blocking.live ++ loggingLayer ++ layers)
   }
 
+  private def createGetStateConfig(competitionId: String) = {
+    val getStateConfig =
+      new GetStateConfig {
+        override def eventTopic: String = competitionId
+
+        override def id: String = competitionId
+      }
+    getStateConfig
+  }
+
+  private def createCommandProcessorConfig(
+      consumerLayer: ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]],
+      producerLayer: ZLayer[Any, Throwable, Has[Producer.Service[Any, String, EventDTO]]]
+  ) = {
+    new CommandProcessorConfig {
+      override def kafkaConsumerLayer
+          : ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]] = consumerLayer
+
+      override def kafkaProducerLayer
+          : ZLayer[Any, Throwable, Has[Producer.Service[Any, String, EventDTO]]] = producerLayer
+
+      override def clockLayer: Layer[Nothing, Clock] = Clock.live
+
+      override def blockingLayer: Layer[Nothing, Blocking] = Blocking.live
+    }
+  }
+
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
     (
       for {
-        rocksDBMap <- Ref.make(Map.empty[String, CompetitionProcessingActor])
+        rocksDBMap <- Ref.make(Map.empty[String, CompetitionProcessorActorRef])
         program    <- AppConfig.load().flatMap(config => createProgram(config, rocksDBMap))
       } yield program
     ).exitCode

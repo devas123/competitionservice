@@ -12,7 +12,7 @@ object CategoryRegistrationStatusChangeProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
       state: CompetitionState
   ): PartialFunction[Command[P], F[Either[Errors.Error, Seq[EventDTO]]]] = {
-    case x @ CategoryRegistrationStatusChangeCommand(payload, competitionId, categoryId) =>
+    case x @ CategoryRegistrationStatusChangeCommand(_, _, _) =>
       process(x, state)
   }
 
@@ -25,7 +25,7 @@ object CategoryRegistrationStatusChangeProc {
         payload <- EitherT.fromOption(command.payload, NoPayloadError())
         exists = state.categories.exists(_.exists(cat => command.categoryId.forall(cid => cid == cat.getId)))
         event <- if (!exists) {
-          EitherT.fromEither(Left[Errors.Error, EventDTO](Errors.CategoryDoesNotExist(Array(command.categoryId))))
+          EitherT.fromEither(Left[Errors.Error, EventDTO](Errors.CategoryDoesNotExist(command.categoryId.map(Array(_)).getOrElse(Array.empty))))
         } else {
           EitherT.liftF[F, Errors.Error, EventDTO](
             CommandEventOperations[F, EventDTO, EventType].create(
