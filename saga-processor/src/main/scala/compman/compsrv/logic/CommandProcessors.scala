@@ -17,24 +17,12 @@ object CommandProcessors {
       AddCategoryProc(state),
       AddCompetitorProc(state),
       AddRegistrationGroupProc(state),
+      AssignRegistrationGroupCategoriesProc(state),
+      CategoryRegistrationStatusChangeProc(state),
       AddRegistrationPeriodProc(state)
     ).reduce((a, b) => a.orElse(b)).apply(command)
 /*
     command match {
-      case x @ AddCategory(_, _) =>
-        addCategory(x, state)
-      case x @ AddCompetitorCommand(_, _, _) =>
-        addCompetitor(x, state)
-      case x @ Commands.AddRegistrationGroupCommand(payload, competitionId, categoryId) =>
-        ???
-      case x @ Commands.AddRegistrationPeriodCommand(payload, competitionId, categoryId) =>
-        ???
-      case x @ Commands
-            .AssignRegistrationGroupCategoriesCommand(payload, competitionId, categoryId) =>
-        ???
-      case x @ Commands
-            .CategoryRegistrationStatusChangeCommand(payload, competitionId, categoryId) =>
-        ???
       case x @ Commands.ChangeCompetitorCategoryCommand(payload, competitionId, categoryId) =>
         ???
       case x @ Commands.ChangeFightOrderCommand(payload, competitionId, categoryId) =>
