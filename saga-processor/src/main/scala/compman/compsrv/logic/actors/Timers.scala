@@ -1,5 +1,6 @@
 package compman.compsrv.logic.actors
 
+import compman.compsrv.logic.actors.Messages._
 import zio.{Fiber, Ref, Task, UIO, ZIO}
 import zio.duration.Duration
 

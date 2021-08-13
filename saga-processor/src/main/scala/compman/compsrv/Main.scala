@@ -6,7 +6,8 @@ import compman.compsrv.logic._
 import compman.compsrv.logic.actors.CompetitionProcessor.Context
 import compman.compsrv.logic.Operations._
 import compman.compsrv.logic.StateOperations.GetStateConfig
-import compman.compsrv.logic.actors.{CommandProcessorConfig, CompetitionProcessor, CompetitionProcessorActorRef, ProcessCommand}
+import compman.compsrv.logic.actors.{CommandProcessorConfig, CompetitionProcessor, CompetitionProcessorActorRef}
+import compman.compsrv.logic.actors.Messages.ProcessCommand
 import compman.compsrv.model.events.EventDTO
 import zio.{ExitCode, Has, Layer, Ref, Task, URIO, ZIO, ZLayer}
 import zio.blocking.Blocking
@@ -72,10 +73,12 @@ object Main extends zio.App {
                   if (map.contains(record.key))
                     Task.effectTotal(map(record.key))
                   else
-                    CompetitionProcessor()
-                      .makeActor(record.key, getStateConfig, commandProcessorConfig, context)(() =>
-                        actorsMap.update(m => m - record.key)
-                      )
+                    CompetitionProcessor(
+                      record.key,
+                      getStateConfig,
+                      commandProcessorConfig,
+                      context
+                    )(() => actorsMap.update(m => m - record.key))
                 _ <- actor ! ProcessCommand(record.value)
               } yield ()
             ).as(record)

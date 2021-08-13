@@ -4,56 +4,22 @@ import compman.compsrv.jackson.SerdeApi
 import compman.compsrv.logic.{Operations, StateOperations}
 import compman.compsrv.logic.actors.CompetitionProcessor.Context
 import compman.compsrv.logic.StateOperations.GetStateConfig
+import compman.compsrv.logic.actors.Messages._
 import compman.compsrv.model.{CompetitionState, Errors}
-import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import org.apache.kafka.clients.producer.ProducerRecord
-import zio.{Chunk, Fiber, Has, Layer, Promise, Queue, Ref, Task, ZLayer}
-import zio.blocking.Blocking
-import zio.clock.Clock
+import zio.{Chunk, Fiber, Promise, Queue, Ref, Task}
 import zio.kafka.consumer.{Consumer, Subscription}
-import zio.kafka.producer.Producer
 import zio.kafka.serde.Serde
 
 import java.util.concurrent.TimeUnit
 
-sealed trait Message
-final case class ProcessCommand(fa: CommandDTO) extends Message
-object Stop                                     extends Message
-
-final case class CompetitionProcessorActorRef(
-    private val queue: Queue[(Message, zio.Promise[Errors.Error, Seq[EventDTO]])]
-)(private val postStop: () => Task[Unit]) {
-  def !(fa: Message): Task[Unit] =
-    for {
-      promise <- Promise.make[Errors.Error, Seq[EventDTO]]
-      _       <- queue.offer((fa, promise))
-    } yield ()
-
-  private[actors] val stop: Task[List[_]] =
-    for {
-      tall <- queue.takeAll
-      _    <- queue.shutdown
-      _    <- postStop()
-    } yield tall
-}
-
-private[actors] sealed trait Command[+Ev]
-private[actors] object Command {
-  case class Persist[+Ev](event: Seq[Ev]) extends Command[Ev]
-  case object Ignore                      extends Command[Nothing]
-
-  def persist[Ev](event: Seq[Ev]): Persist[Ev] = Persist(event)
-  def ignore: Ignore.type                      = Ignore
-}
-
-final case class CompetitionProcessor() {
+final class CompetitionProcessor {
   import compman.compsrv.Main.Live._
   import zio.interop.catz._
   type PendingMessage[A] = (Message, zio.Promise[Errors.Error, A])
-  private val DefaultActorMailboxSize: Int = 100
-  private val DefaultTimerKey              = "stopTimer"
-  private val DefaultTimerDuration         = zio.duration.Duration(5, TimeUnit.MINUTES)
+  private val DefaultTimerKey      = "stopTimer"
+  private val DefaultTimerDuration = zio.duration.Duration(5, TimeUnit.MINUTES)
   def receive(
       context: Context,
       state: CompetitionState,
@@ -100,12 +66,12 @@ final case class CompetitionProcessor() {
       .ignore
   }
 
-  def makeActor(
+  private def makeActor(
       id: String,
       getStateConfig: GetStateConfig,
       processorConfig: CommandProcessorConfig,
       context: Context,
-      mailboxSize: Int = DefaultActorMailboxSize
+      mailboxSize: Int
   )(postStop: () => Task[Unit]): Task[CompetitionProcessorActorRef] = {
     def process(
         msg: PendingMessage[Seq[EventDTO]],
@@ -148,11 +114,11 @@ final case class CompetitionProcessor() {
             events  <- retreiveEvents(id, processorConfig)
             initial <- StateOperations.getLatestState(config)
             updated <- events.foldLeft(Task(initial))((a, b) => a.flatMap(applyEvent(_, b)))
-            s <- Ref.make(updated)
+            s       <- Ref.make(updated)
             _       <- statePromise.succeed(s)
           } yield ()
         ).fork
-      queue <- Queue.bounded[PendingMessage[Seq[EventDTO]]](mailboxSize)
+      queue <- Queue.sliding[PendingMessage[Seq[EventDTO]]](mailboxSize)
       actor = CompetitionProcessorActorRef(queue)(postStop)
       timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
       ts = Timers(actor, timersMap, processorConfig)
@@ -160,13 +126,14 @@ final case class CompetitionProcessor() {
         (
           for {
             state <- statePromise.await
-            _ <-
+            loop <-
               (
                 for {
                   t <- queue.take
                   _ <- process(t, state, ts)
                 } yield ()
               ).forever.fork
+            _ <- loop.await
           } yield ()
         ).fork
     } yield actor
@@ -180,11 +147,17 @@ object CompetitionProcessor {
         map <- actors.get
       } yield map(id)
   }
-}
 
-trait CommandProcessorConfig {
-  def kafkaConsumerLayer: ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]]
-  def kafkaProducerLayer: ZLayer[Any, Throwable, Has[Producer.Service[Any, String, EventDTO]]]
-  def clockLayer: Layer[Nothing, Clock]
-  def blockingLayer: Layer[Nothing, Blocking]
+  private val DefaultActorMailboxSize: Int = 100
+
+  def apply(
+      id: String,
+      getStateConfig: GetStateConfig,
+      processorConfig: CommandProcessorConfig,
+      context: Context,
+      mailboxSize: Int = DefaultActorMailboxSize
+  )(postStop: () => Task[Unit]): Task[CompetitionProcessorActorRef] =
+    new CompetitionProcessor()
+      .makeActor(id, getStateConfig, processorConfig, context, mailboxSize)(postStop)
+
 }
