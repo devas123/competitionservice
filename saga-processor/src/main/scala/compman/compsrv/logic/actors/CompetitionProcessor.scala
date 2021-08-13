@@ -140,22 +140,35 @@ final case class CompetitionProcessor() {
           .fold(promise.fail, events => fullCompleter(Command.Persist(events), _ => events))
       } yield ()
     for {
-      config  <- StateOperations.createConfig(getStateConfig)
-      events  <- retreiveEvents(id, processorConfig)
-      initial <- StateOperations.getLatestState(config)
-      updated <- events.foldLeft(Task(initial))((a, b) => a.flatMap(applyEvent(_, b)))
-      state   <- Ref.make(updated)
-      queue   <- Queue.bounded[PendingMessage[Seq[EventDTO]]](mailboxSize)
+      config       <- StateOperations.createConfig(getStateConfig)
+      statePromise <- Promise.make[Throwable, Ref[CompetitionState]]
+      _ <-
+        (
+          for {
+            events  <- retreiveEvents(id, processorConfig)
+            initial <- StateOperations.getLatestState(config)
+            updated <- events.foldLeft(Task(initial))((a, b) => a.flatMap(applyEvent(_, b)))
+            s <- Ref.make(updated)
+            _       <- statePromise.succeed(s)
+          } yield ()
+        ).fork
+      queue <- Queue.bounded[PendingMessage[Seq[EventDTO]]](mailboxSize)
       actor = CompetitionProcessorActorRef(queue)(postStop)
       timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
       ts = Timers(actor, timersMap, processorConfig)
       _ <-
         (
           for {
-            t <- queue.take
-            _ <- process(t, state, ts)
+            state <- statePromise.await
+            _ <-
+              (
+                for {
+                  t <- queue.take
+                  _ <- process(t, state, ts)
+                } yield ()
+              ).forever.fork
           } yield ()
-        ).forever.fork
+        ).fork
     } yield actor
   }
 }
