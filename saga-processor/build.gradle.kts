@@ -6,8 +6,8 @@ plugins {
 
 dependencies {
     implementation("org.scala-lang:scala-library:2.13.5")
-    implementation("org.typelevel:cats-core_$scalaBinary:2.6.1")
     implementation("dev.zio:zio-interop-cats_$scalaBinary:3.1.1.0")
+    Libraries.cats.forEach { implementation(it) }
     Libraries.zio.forEach { implementation(it) }
     Libraries.zioLogging.forEach { implementation(it) }
     Libraries.logging.forEach { implementation(it) }

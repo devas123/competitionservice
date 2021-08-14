@@ -11,7 +11,7 @@ import java.io.Serializable;
 @NoArgsConstructor
 @AllArgsConstructor
 @Accessors(chain = true)
-public class CompetitorGroupChange implements Serializable {
+public class CompetitorMovedToGroup implements Serializable {
     private String competitorId;
     private String groupId;
     private GroupChangeType changeType;

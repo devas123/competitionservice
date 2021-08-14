@@ -6,6 +6,7 @@ object Versions {
     const val zioConfig = "1.0.0"
     const val zioLogging = "0.4.0"
     const val circe = "0.13.0"
+    const val cats = "2.6.1"
     const val log4j = "2.13.3"
     const val disruptor = "3.4.2"
     const val jackson = "2.12.0"
@@ -38,6 +39,10 @@ object Libraries {
     val circle = listOf(
         "io.circe:circe-core_$scalaBinary:${Versions.circe}",
         "io.circe:circe-generic_$scalaBinary:${Versions.circe}",
+    )
+    val cats = listOf(
+        "org.typelevel:cats-core_$scalaBinary:${Versions.cats}",
+        "org.typelevel:cats-free_$scalaBinary:${Versions.cats}",
     )
 
     val logging = listOf(

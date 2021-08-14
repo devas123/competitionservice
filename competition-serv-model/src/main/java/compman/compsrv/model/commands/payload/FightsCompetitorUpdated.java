@@ -11,7 +11,7 @@ import java.io.Serializable;
 @NoArgsConstructor
 @AllArgsConstructor
 @Accessors(chain = true)
-public class FightEditorChange implements Serializable {
+public class FightsCompetitorUpdated implements Serializable {
     private String fightId;
     private String[] competitors;
 }
