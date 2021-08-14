@@ -2,6 +2,7 @@ package compman.compsrv.logic
 
 import compman.compsrv.model.{CompetitionState, CompetitionStateImpl}
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
+import compman.compsrv.model.dto.schedule.ScheduleDTO
 import zio.Task
 
 import java.time.Instant
@@ -50,6 +51,10 @@ object StateOperations {
                   .setRegistrationPeriods(Array.empty)
                   .setRegistrationOpen(false)
               ),
+              schedule = Some(new ScheduleDTO()
+              .setId(config.id)
+              .setMats(Array.empty)
+              .setPeriods(Array.empty)),
               revision = 0L
             )
           )

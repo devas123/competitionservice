@@ -27,7 +27,7 @@ public class FightDescriptionDTO {
     private StageRoundType roundType;
     private FightStatus status;
     private FightResultDTO fightResult;
-    private MatDescriptionDTO mat;
+    private String matId;
     private Integer numberOnMat;
     private Integer priority;
     private String competitionId;

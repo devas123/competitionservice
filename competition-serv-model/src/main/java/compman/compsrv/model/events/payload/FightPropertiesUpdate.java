@@ -1,6 +1,5 @@
 package compman.compsrv.model.events.payload;
 
-import compman.compsrv.model.dto.dashboard.MatDescriptionDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -16,5 +15,5 @@ public class FightPropertiesUpdate {
     private String fightId;
     private Integer numberOnMat;
     private Instant startTime;
-    private MatDescriptionDTO mat;
+    private String matId;
 }

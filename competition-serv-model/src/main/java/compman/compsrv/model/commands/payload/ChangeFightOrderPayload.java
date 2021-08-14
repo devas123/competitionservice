@@ -17,9 +17,7 @@ import java.io.Serializable;
 @CommandPayload(type = CommandType.DASHBOARD_FIGHT_ORDER_CHANGE_COMMAND)
 public class ChangeFightOrderPayload implements Serializable, Payload {
     private String fightId;
-    private String currentMatId;
     private String newMatId;
-    private Integer currentOrderOnMat;
     private Integer newOrderOnMat;
     private String periodId;
 }

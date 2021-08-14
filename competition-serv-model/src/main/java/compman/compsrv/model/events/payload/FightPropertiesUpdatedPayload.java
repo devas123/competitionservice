@@ -16,5 +16,5 @@ import java.io.Serializable;
 @Accessors(chain = true)
 @EventPayload(type = EventType.FIGHT_PROPERTIES_UPDATED)
 public class FightPropertiesUpdatedPayload implements Serializable, Payload {
-    private FightPropertiesUpdate[] updates;
+    private FightPropertiesUpdate update;
 }

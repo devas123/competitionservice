@@ -87,6 +87,7 @@ object EventProcessors {
           fights = state.fights,
           categories = state.categories,
           registrationInfo = state.registrationInfo,
+          schedule = state.schedule,
           revision = state.revision + 1
         )
       } yield newState
