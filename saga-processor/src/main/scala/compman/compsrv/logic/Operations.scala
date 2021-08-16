@@ -11,6 +11,7 @@ import compman.compsrv.model.events.{EventDTO, EventType}
 import zio.Task
 
 import java.util
+import java.util.UUID
 
 object Operations {
 
@@ -22,6 +23,7 @@ object Operations {
   }
 
   trait IdOperations[F[_]] {
+    def fightId(stageId: String, groupId: String): F[String]
     def competitorId(competitor: CompetitorDTO): F[String]
     def categoryId(category: CategoryDescriptorDTO): F[String]
     def registrationPeriodId(period: RegistrationPeriodDTO): F[String]
@@ -91,6 +93,8 @@ object Operations {
           Task(util.UUID.randomUUID().toString)
 
         override def registrationGroupId(group: RegistrationGroupDTO): Task[String] = Task(util.UUID.randomUUID().toString)
+
+        override def fightId(stageId: String, groupId: String): Task[String] = Task(UUID.randomUUID().toString)
       }
 
   }
