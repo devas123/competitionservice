@@ -6,6 +6,8 @@ tmp/**/*
 .gradle
 build
 kafkarun
+.metals
+.vscode/
 
 compservice.db
 
