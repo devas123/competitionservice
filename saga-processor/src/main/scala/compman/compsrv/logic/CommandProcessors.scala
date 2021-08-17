@@ -29,7 +29,7 @@ object CommandProcessors {
       CreateCompetitionProc(state),
       DeleteRegistrationGroupProc(state),
       DeleteRegistrationPeriodProc(state),
-      FightEditorApplyChangesProc(state),
+//      FightEditorApplyChangesProc(state),
       GenerateAbsoluteCategoryProc(state),
       GenerateBracketsProc(state),
       GenerateCategoriesFromRestrictionsProc(state),

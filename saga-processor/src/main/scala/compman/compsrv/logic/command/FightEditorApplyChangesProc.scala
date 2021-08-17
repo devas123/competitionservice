@@ -12,7 +12,7 @@ import compman.compsrv.model.dto.brackets.{BracketType, GroupDescriptorDTO, Stag
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.events.payload.FightEditorChangesAppliedPayload
 
-object FightEditorApplyChangesProc {
+object FightEditorApplyChangesProc /*{
   def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
       state: CompetitionState
   ): PartialFunction[Command[P], F[Either[Errors.Error, Seq[EventDTO]]]] = {
@@ -195,3 +195,4 @@ object FightEditorApplyChangesProc {
   }
 
 }
+*/
