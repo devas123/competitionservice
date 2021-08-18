@@ -1,8 +1,8 @@
 package compman.compsrv.logic.service
 
+import cats.Monad
 import cats.data.OptionT
 import cats.implicits._
-import cats.{Monad, Traverse}
 import compman.compsrv.model.dto.brackets.{FightReferenceType, FightResultOptionDTO}
 import compman.compsrv.model.dto.competition.{CompScoreDTO, FightDescriptionDTO, FightResultDTO, FightStatus}
 
@@ -29,22 +29,31 @@ object FightServicePoc {
   }
 
   def markUncompletableFights[F[_] : Monad](fights: Map[String, FightDescriptionDTO]): F[Map[String, FightDescriptionDTO]] = {
+    def update(it: FightDescriptionDTO) = {
+      it.getScores.find(_.getCompetitorId != null).map(cs =>
+        it.setStatus(FightStatus.UNCOMPLETABLE)
+          .setFightResult(new FightResultDTO(cs.getCompetitorId, FightResultOptionDTO.WALKOVER.getId, "BYE")))
+        .getOrElse(it.setStatus(FightStatus.UNCOMPLETABLE))
+    }
+
     for {
-      uncompletableFights <- Traverse[List].traverse(fights.values.filter(_.getId != null).toList)(it => for {
-        canBePacked <- checkIfFightIsPackedOrCanBePackedEventually(it.getId, fights)(Monad[F])
-      } yield if (canBePacked) it else it.getScores.find(_.getCompetitorId != null).map(cs =>
-        it.setStatus(FightStatus.UNCOMPLETABLE).setFightResult(new FightResultDTO(cs.getCompetitorId, FightResultOptionDTO.WALKOVER.getId, "BYE")))
-        .getOrElse(it.setStatus(FightStatus.UNCOMPLETABLE)))
+      uncompletableFights <- fights.values.filter(_.getId != null).toList.traverse(it => for {
+        canBePacked <- checkIfFightIsPackedOrCanBePackedEventually[F](it.getId, fights)
+      } yield if (canBePacked) it else update(it))
     } yield fights ++ uncompletableFights.groupMapReduce(_.getId)(identity)((a, _) => a)
   }
 
   def advanceCompetitorsInUncompletableFights[F[_] : Monad](markedFights: Map[String, FightDescriptionDTO]): F[Map[String, FightDescriptionDTO]] = {
+    def getUncompletableFightScores(uncompletableFights: Map[String, FightDescriptionDTO]) = {
+      uncompletableFights.values.flatMap(f => f.getScores.map(s => (s.getCompetitorId, f.getId))).filter(_._1 != null).toList
+    }
     for {
       uncompletableFights <- Monad[F].pure(markedFights.filter(e => e._2.getStatus == FightStatus.UNCOMPLETABLE))
-      uncompletableFightsScores = uncompletableFights.values.flatMap(f => f.getScores.map(s => (s.getCompetitorId, f.getId))).filter(_._1 != null).toList
-      mapped <- Traverse[List].foldM(uncompletableFightsScores, uncompletableFights)((acc, elem) => advanceFighterToSiblingFights[F](elem._1, elem._2, FightReferenceType.WINNER, acc))
+      uncompletableFightsScores = getUncompletableFightScores(uncompletableFights)
+      mapped <- uncompletableFightsScores.foldM(uncompletableFights)((acc, elem) => advanceFighterToSiblingFights[F](elem._1, elem._2, FightReferenceType.WINNER, acc))
     } yield mapped
   }
+
 
   private def checkIfFightIsPackedOrCanBePackedEventually[F[_] : Monad](fightId: String, fights: Map[String, FightDescriptionDTO]): F[Boolean] = {
     def getFightScores(fightId: String) = fights.get(fightId).map(_.getScores)
