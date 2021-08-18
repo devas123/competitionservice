@@ -227,16 +227,16 @@ object FightsService {
         uncompletableFight = updatedFights.values.find(_.getStatus == FightStatus.UNCOMPLETABLE)
         res <-
           if (uncompletableFight.isDefined) {
-            OptionT.liftF(
-              moveFighterToSiblings(
+            OptionT.liftF[F, List[FightDescriptionDTO]](
+              moveFighterToSiblings[F](
                 competitorId,
                 uncompletableFight.get.getId,
                 FightReferenceType.WINNER,
                 fights
-              )(Monad[F]).map(_ ++ updatedFights)
+              ).map(_ ++ updatedFights.values).map(_.toList)
             )
           } else {
-            OptionT.fromOption[F](Option(updatedFights))
+            OptionT.fromOption[F](Option(updatedFights.values.toList))
           }
       } yield res
     opt.value.map(_.getOrElse(List.empty))
@@ -454,7 +454,7 @@ object FightsService {
     } yield res
   }
 
-  trait CompetitionStateOperations[F[+_]] {
+  trait CompetitionStateOperations[F[_]] {
     def getFightScores(id: String): F[List[CompScoreDTO]]
   }
   object CompetitionStateOperations {
