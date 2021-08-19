@@ -9,7 +9,7 @@ import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.Errors.NoPayloadError
 import compman.compsrv.model.commands.payload.ChangeFightOrderPayload
 import compman.compsrv.model.dto.competition.{FightDescriptionDTO, FightStatus}
-import compman.compsrv.model.events.payload.{FightPropertiesUpdate, FightPropertiesUpdatedPayload}
+import compman.compsrv.model.events.payload.{FightOrderUpdate, FightPropertiesUpdatedPayload}
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -78,7 +78,7 @@ object ChangeFightOrderProc {
     val currentMatId                  = fight.getMatId
     val currentNumberOnMat            = fight.getNumberOnMat
     val duration                      = fight.getDuration.longValue()
-    val updates                       = ListBuffer.empty[(String, FightPropertiesUpdate)]
+    val updates                       = ListBuffer.empty[(String, FightOrderUpdate)]
 
     def sameMatAsTargetFight(f: FightDescriptionDTO) = {
       f.getId != payload.getFightId && f.getMatId == currentMatId && f.getNumberOnMat != null &&
@@ -129,7 +129,7 @@ object ChangeFightOrderProc {
     updates.addOne(
       (
         fight.getCategoryId,
-        new FightPropertiesUpdate()
+        new FightOrderUpdate()
           .setFightId(fight.getId)
           .setMatId(payload.getNewMatId)
           .setStartTime(startTime.orElse(maxStartTime).orNull)
@@ -142,7 +142,7 @@ object ChangeFightOrderProc {
   private def moveEarlier(duration: Long, f: FightDescriptionDTO) = {
     (
       f.getCategoryId,
-      new FightPropertiesUpdate()
+      new FightOrderUpdate()
         .setFightId(f.getId)
         .setMatId(f.getMatId)
         .setNumberOnMat(f.getNumberOnMat - 1)
@@ -153,7 +153,7 @@ object ChangeFightOrderProc {
   private def moveLater(duration: Long, f: FightDescriptionDTO) = {
     (
       f.getCategoryId,
-      new FightPropertiesUpdate()
+      new FightOrderUpdate()
         .setFightId(f.getId)
         .setMatId(f.getMatId)
         .setNumberOnMat(f.getNumberOnMat + 1)

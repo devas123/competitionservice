@@ -11,7 +11,7 @@ import java.time.Instant;
 @AllArgsConstructor
 @Accessors(chain = true)
 @NoArgsConstructor
-public class FightPropertiesUpdate {
+public class FightOrderUpdate {
     private String fightId;
     private Integer numberOnMat;
     private Instant startTime;
