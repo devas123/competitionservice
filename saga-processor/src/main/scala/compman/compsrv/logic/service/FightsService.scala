@@ -8,6 +8,7 @@ import compman.compsrv.logic.service.CompetitorSelection.{firstNPlaces, lastNPla
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.CompetitionState
+import compman.compsrv.Main.Live.idOperations
 import zio.interop.catz._
 import zio.Task
 
@@ -244,7 +245,6 @@ object FightsService {
 
   def markAndProcessUncompletableFights[F[_]: Monad: CompetitionStateOperations](
       fights: Map[String, FightDescriptionDTO],
-      stageStatus: StageStatus
   ): F[List[FightDescriptionDTO]] = {
 
     def updateFightResult(f: FightDescriptionDTO) = Option(f.getFightResult)
@@ -479,7 +479,7 @@ object FightsService {
     } yield list.count(a => a) == 2
   }
 
-  def fightDescription[F[_]: IdOperations: Monad](
+  def fightDescription(
       competitionId: String,
       categoryId: String,
       stageId: String,
@@ -489,11 +489,9 @@ object FightsService {
       duration: BigDecimal,
       fightName: String,
       groupId: String
-  ): F[FightDescriptionDTO] = {
-    for {
-      id <- createFightId(stageId, groupId)
-    } yield new FightDescriptionDTO()
-      .setId(id)
+  ): FightDescriptionDTO = {
+    new FightDescriptionDTO()
+      .setId(createFightId)
       .setCategoryId(categoryId)
       .setRound(round)
       .setNumberInRound(numberInRound)
@@ -508,6 +506,12 @@ object FightsService {
       .setFightName("Round ${round + 1} fight ${numberInRound + 1}")
   }
 
-  private def createFightId[F[_]: IdOperations](stageId: String, groupId: String) = IdOperations[F]
-    .fightId(stageId, groupId)
+  def createCompscore(competitorId: String, placeholderId: String, order: Int, parentReferenceType: FightReferenceType = FightReferenceType.PROPAGATED): CompScoreDTO = new CompScoreDTO()
+    .setCompetitorId(competitorId)
+    .setScore(createEmptyScore)
+    .setPlaceholderId(placeholderId)
+    .setOrder(order)
+    .setParentReferenceType(parentReferenceType)
+
+  private def createFightId = UUID.randomUUID().toString
 }

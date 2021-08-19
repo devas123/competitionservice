@@ -63,7 +63,7 @@ object CompetitorSelection {
     }
 
   def asTask(state: CompetitionState): CompetitorSelectA ~> Task = {
-    val stages = getStages(state)
+    val stages = state.stages.getOrElse(Map.empty)
     def results(stageId: String) = stages
       .get(stageId)
       .flatMap(s => Option(s.getStageResultDescriptor))
@@ -72,7 +72,7 @@ object CompetitorSelection {
       .getOrElse(Map.empty)
     def fights(stageId: String) = state
       .fights
-      .map(_.filter(_.getStageId == stageId).groupMapReduce(_.getId)(identity)((a, _) => a))
+      .map(_.values.filter(_.getStageId == stageId).groupMapReduce(_.getId)(identity)((a, _) => a))
     new (CompetitorSelectA ~> Task) {
       override def apply[A](fa: CompetitorSelectA[A]): Task[A] = {
         fa match {
@@ -211,13 +211,4 @@ object CompetitorSelection {
     }
   }
    */
-
-  private def getStages(state: CompetitionState) = {
-    (
-      for {
-        st  <- state.stages
-        res <- Option(st.groupBy(_.getId).map(e => e._1 -> e._2.head))
-      } yield res
-    ).getOrElse(Map.empty)
-  }
 }

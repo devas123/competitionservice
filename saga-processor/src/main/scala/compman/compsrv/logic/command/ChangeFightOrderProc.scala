@@ -30,7 +30,7 @@ object ChangeFightOrderProc {
     val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] =
       for {
         payload <- EitherT.fromOption(command.payload, NoPayloadError())
-        fightToMove = state.fights.flatMap(_.find(fight => fight.getId == payload.getFightId))
+        fightToMove = state.fights.flatMap(_.get(payload.getFightId))
         newMatExists = state
           .schedule
           .exists(sched => sched.getMats.exists(mat => payload.getNewMatId == mat.getId))
@@ -70,7 +70,7 @@ object ChangeFightOrderProc {
   private def generateUpdates(
       payload: ChangeFightOrderPayload,
       fight: FightDescriptionDTO,
-      fights: Seq[FightDescriptionDTO]
+      fights: Map[String, FightDescriptionDTO]
   ) = {
     val newOrderOnMat                 = Math.max(payload.getNewOrderOnMat, 0)
     var startTime: Option[Instant]    = None
@@ -98,7 +98,7 @@ object ChangeFightOrderProc {
 
     if (payload.getNewMatId != fight.getMatId) {
       //if mats are different
-      for (f <- fights) {
+      for (f <- fights.values) {
         val (ms, sm) = updateStartTimes(f, payload, startTime, maxStartTime, newOrderOnMat)
         maxStartTime = ms
         startTime = sm
@@ -111,7 +111,7 @@ object ChangeFightOrderProc {
       }
     } else {
       //mats are the same
-      for (f <- fights) {
+      for (f <- fights.values) {
         val (ms, sm) = updateStartTimes(f, payload, startTime, maxStartTime, newOrderOnMat)
         maxStartTime = ms
         startTime = sm
