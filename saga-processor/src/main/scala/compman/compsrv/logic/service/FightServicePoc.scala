@@ -28,6 +28,13 @@ object FightServicePoc {
     })
   }
 
+  def markAndProcessUncompletableFights[F[_]: Monad](fights: Map[String, FightDescriptionDTO]): F[Map[String, FightDescriptionDTO]] = {
+    for {
+      marked <- markUncompletableFights[F](fights)
+      processed <- advanceCompetitorsInUncompletableFights[F](marked)
+    } yield processed
+  }
+
   def markUncompletableFights[F[_] : Monad](fights: Map[String, FightDescriptionDTO]): F[Map[String, FightDescriptionDTO]] = {
     def update(it: FightDescriptionDTO) = {
       it.getScores.find(_.getCompetitorId != null).map(cs =>

@@ -40,9 +40,9 @@ object StateOperations {
                   .setTimeZone("UTC")
               ),
               stages = Some(
-                Seq.empty
+                Map.empty
               ),
-              fights = Some(Seq.empty),
+              fights = Some(Map.empty),
               categories = Some(Seq.empty),
               registrationInfo = Some(
                 new RegistrationInfoDTO()
