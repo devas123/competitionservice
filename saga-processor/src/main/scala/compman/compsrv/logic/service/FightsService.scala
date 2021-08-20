@@ -3,12 +3,10 @@ package compman.compsrv.logic.service
 import cats.{Monad, Traverse}
 import cats.data.OptionT
 import cats.implicits._
-import compman.compsrv.logic.Operations.IdOperations
 import compman.compsrv.logic.service.CompetitorSelection.{firstNPlaces, lastNPlaces, returnIds}
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.CompetitionState
-import compman.compsrv.Main.Live.idOperations
 import zio.interop.catz._
 import zio.Task
 

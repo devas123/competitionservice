@@ -23,14 +23,9 @@ object ChangeCompetitorCategoryProc {
     val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] =
       for {
         payload <- EitherT.fromOption(command.payload, NoPayloadError())
-        oldCategoryExists = state
-          .categories
-          .exists(_.exists(cat => payload.getOldCategoryId ==  cat.getId))
-        newCategoryExists = state
-          .categories
-          .exists(_.exists(cat => payload.getNewCategoryId ==  cat.getId))
-        fighterExists = state
-          .competitors.exists(_.exists(cat => payload.getFighterId == cat.getId))
+        oldCategoryExists = state.categories.exists(_.contains(payload.getOldCategoryId))
+        newCategoryExists = state.categories.exists(_.contains(payload.getNewCategoryId))
+        fighterExists     = state.competitors.exists(_.contains(payload.getFighterId))
         event <-
           if (!oldCategoryExists) {
             EitherT.fromEither(
@@ -40,9 +35,7 @@ object ChangeCompetitorCategoryProc {
             )
           } else if (!fighterExists) {
             EitherT.fromEither(
-              Left[Errors.Error, EventDTO](
-                Errors.CompetitorDoesNotExist(payload.getFighterId)
-              )
+              Left[Errors.Error, EventDTO](Errors.CompetitorDoesNotExist(payload.getFighterId))
             )
           } else if (!newCategoryExists) {
             EitherT.fromEither(

@@ -19,32 +19,5 @@ object GenerateCategoriesFromRestrictionsProc {
   private def process[F[+_]: Monad: IdOperations: EventOperations](
       command: CategoryRegistrationStatusChangeCommand,
       state: CompetitionState
-  ): F[Either[Errors.Error, Seq[EventDTO]]] = {
-    val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] =
-      for {
-        payload <- EitherT.fromOption(command.payload, NoPayloadError())
-        exists = state
-          .categories
-          .exists(_.exists(cat => command.categoryId.forall(cid => cid == cat.getId)))
-        event <-
-          if (!exists) {
-            EitherT.fromEither(
-              Left[Errors.Error, EventDTO](
-                Errors.CategoryDoesNotExist(command.categoryId.map(Array(_)).getOrElse(Array.empty))
-              )
-            )
-          } else {
-            EitherT.liftF[F, Errors.Error, EventDTO](
-              CommandEventOperations[F, EventDTO, EventType].create(
-                `type` = EventType.CATEGORY_REGISTRATION_STATUS_CHANGED,
-                competitorId = None,
-                competitionId = command.competitionId,
-                categoryId = command.categoryId,
-                payload = Some(payload)
-              )
-            )
-          }
-      } yield Seq(event)
-    eventT.value
-  }
+  ): F[Either[Errors.Error, Seq[EventDTO]]] = ???
 }

@@ -27,7 +27,7 @@ object AddCategoryProc {
         id <- EitherT
           .liftF[F, Errors.Error, String](IdOperations[F].categoryId(payload.getCategory))
         exists <- EitherT
-          .fromOption(state.categories.map(_.exists(_.getId == id)), Errors.InternalError())
+          .fromOption(state.categories.map(_.contains(id)), Errors.InternalError())
         event <-
           if (exists) {
             EitherT.liftF[F, Errors.Error, EventDTO](

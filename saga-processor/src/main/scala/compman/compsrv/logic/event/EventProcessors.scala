@@ -81,7 +81,7 @@ object EventProcessors {
       for {
         payload <- event.payload
         newState = state.createCopy(
-          competitors = state.competitors.map(_ :+ payload.getFighter),
+          competitors = state.competitors.map(_ + (payload.getFighter.getId -> payload.getFighter)),
           competitionProperties = state.competitionProperties,
           stages = state.stages,
           fights = state.fights,

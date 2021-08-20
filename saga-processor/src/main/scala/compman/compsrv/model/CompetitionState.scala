@@ -6,21 +6,21 @@ import compman.compsrv.model.dto.schedule.ScheduleDTO
 
 trait CompetitionState {
   def id: String
-  def competitors: Option[Seq[CompetitorDTO]]
+  def competitors: Option[Map[String, CompetitorDTO]]
   def competitionProperties: Option[CompetitionPropertiesDTO]
   def stages: Option[Map[String, StageDescriptorDTO]]
   def fights: Option[Map[String, FightDescriptionDTO]]
-  def categories: Option[Seq[CategoryDescriptorDTO]]
+  def categories: Option[Map[String, CategoryDescriptorDTO]]
   def registrationInfo: Option[RegistrationInfoDTO]
   def schedule: Option[ScheduleDTO]
   def revision: Long
 
   def createCopy(
-      competitors: Option[Seq[CompetitorDTO]],
+      competitors: Option[Map[String, CompetitorDTO]],
       competitionProperties: Option[CompetitionPropertiesDTO],
       stages: Option[Map[String, StageDescriptorDTO]],
       fights: Option[Map[String, FightDescriptionDTO]],
-      categories: Option[Seq[CategoryDescriptorDTO]],
+      categories: Option[Map[String, CategoryDescriptorDTO]],
       registrationInfo: Option[RegistrationInfoDTO],
       schedule: Option[ScheduleDTO],
       revision: Long
@@ -29,21 +29,21 @@ trait CompetitionState {
 
 case class CompetitionStateImpl(
     id: String,
-    competitors: Option[Seq[CompetitorDTO]],
+    competitors: Option[Map[String, CompetitorDTO]],
     competitionProperties: Option[CompetitionPropertiesDTO],
     stages: Option[Map[String, StageDescriptorDTO]],
     fights: Option[Map[String, FightDescriptionDTO]],
-    categories: Option[Seq[CategoryDescriptorDTO]],
+    categories: Option[Map[String, CategoryDescriptorDTO]],
     registrationInfo: Option[RegistrationInfoDTO],
     schedule: Option[ScheduleDTO],
     revision: Long
 ) extends CompetitionState {
   override def createCopy(
-      competitors: Option[Seq[CompetitorDTO]],
+      competitors: Option[Map[String, CompetitorDTO]],
       competitionProperties: Option[CompetitionPropertiesDTO],
       stages: Option[Map[String, StageDescriptorDTO]],
       fights: Option[Map[String, FightDescriptionDTO]],
-      categories: Option[Seq[CategoryDescriptorDTO]],
+      categories: Option[Map[String, CategoryDescriptorDTO]],
       registrationInfo: Option[RegistrationInfoDTO],
       schedule: Option[ScheduleDTO],
       revision: Long

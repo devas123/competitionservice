@@ -24,7 +24,7 @@ object AssignRegistrationGroupCategoriesProc {
     val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] =
       for {
         payload <- EitherT.fromOption(command.payload, NoPayloadError())
-        allCategoriesExist = payload.getCategories.forall(b => state.categories.exists(_.exists(_.getId == b)))
+        allCategoriesExist = payload.getCategories.forall(b => state.categories.exists(_.contains(b)))
         groupExists = state.registrationInfo.exists(_.getRegistrationGroups.exists(_.getId == payload.getGroupId))
         periodExists = state.registrationInfo.exists(_.getRegistrationPeriods.exists(_.getId == payload.getPeriodId))
         event <- if (!allCategoriesExist) {

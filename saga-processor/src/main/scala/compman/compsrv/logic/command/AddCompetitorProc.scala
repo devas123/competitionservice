@@ -28,7 +28,7 @@ object AddCompetitorProc {
         id <- EitherT
           .liftF[F, Errors.Error, String](IdOperations[F].competitorId(payload.getCompetitor))
         exists <- EitherT
-          .fromOption(state.competitors.map(_.exists(_.getId == id)), Errors.InternalError())
+          .fromOption(state.competitors.map(_.contains(id)), Errors.InternalError())
         event <-
           if (exists) {
             EitherT.liftF[F, Errors.Error, EventDTO](

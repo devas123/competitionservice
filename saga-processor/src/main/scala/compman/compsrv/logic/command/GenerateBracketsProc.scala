@@ -4,28 +4,30 @@ import cats.Monad
 import cats.data.EitherT
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.model.{CompetitionState, Errors, Payload}
-import compman.compsrv.model.command.Commands.{CategoryRegistrationStatusChangeCommand, Command}
+import compman.compsrv.model.command.Commands.{CategoryRegistrationStatusChangeCommand, Command, GenerateBracketsCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}
-import compman.compsrv.model.Errors.NoPayloadError
+import compman.compsrv.model.Errors.{NoCategoryIdError, NoPayloadError}
+import compman.compsrv.model.commands.payload.GenerateBracketsPayload
 
 object GenerateBracketsProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
       state: CompetitionState
   ): PartialFunction[Command[P], F[Either[Errors.Error, Seq[EventDTO]]]] = {
-    case x @ CategoryRegistrationStatusChangeCommand(_, _, _) =>
+    case x @ GenerateBracketsCommand(_, _, _) =>
       process(x, state)
   }
 
   private def process[F[+_]: Monad: IdOperations: EventOperations](
-      command: CategoryRegistrationStatusChangeCommand,
+      command: GenerateBracketsCommand,
       state: CompetitionState
   ): F[Either[Errors.Error, Seq[EventDTO]]] = {
     val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] =
       for {
         payload <- EitherT.fromOption(command.payload, NoPayloadError())
+        categoryId <- EitherT.fromOption(command.categoryId, NoCategoryIdError())
         exists = state
           .categories
-          .exists(_.exists(cat => command.categoryId.forall(cid => cid == cat.getId)))
+          .exists(_.contains(categoryId))
         event <-
           if (!exists) {
             EitherT.fromEither(
@@ -46,5 +48,9 @@ object GenerateBracketsProc {
           }
       } yield Seq(event)
     eventT.value
+  }
+
+  def generateBrackets(payload: GenerateBracketsPayload, state: CompetitionState) = {
+
   }
 }
