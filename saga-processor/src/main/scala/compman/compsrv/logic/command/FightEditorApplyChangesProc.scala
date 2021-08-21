@@ -1,6 +1,7 @@
 package compman.compsrv.logic.command
 
 import cats.Monad
+import cats.implicits._
 import cats.data.{EitherT, OptionT}
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.service.{FightServicePoc, FightsService}
@@ -12,6 +13,7 @@ import compman.compsrv.model.commands.payload.{CompetitorMovedToGroup, FightEdit
 import compman.compsrv.model.dto.brackets.{BracketType, GroupDescriptorDTO, StageDescriptorDTO, StageRoundType}
 import compman.compsrv.model.dto.competition.{CompScoreDTO, FightDescriptionDTO, FightStatus}
 import compman.compsrv.model.events.payload.FightEditorChangesAppliedPayload
+import extension._
 
 import java.util.UUID
 import scala.annotation.tailrec
@@ -197,7 +199,7 @@ object FightEditorApplyChangesProc {
               .getOrElse(
                 new CompScoreDTO()
                   .setCompetitorId(cmpId)
-                  .setScore(extension.createEmptyScore)
+                  .setScore(createEmptyScore)
                   .setOrder(getMinUnusedOrder(scores, index))
               )
           })
@@ -214,10 +216,12 @@ object FightEditorApplyChangesProc {
     val actualGroupSize =
       groupFights
         .values
-        .flatMap(f => Option(f.getScores).getOrElse(Array.empty))
         .toList
+        .mapFilter(_.scores)
+        .flatten
         .distinctBy(s => Option(s.getCompetitorId).getOrElse(s.getPlaceholderId))
         .size
+
     if (actualGroupSize <= groupDescriptorDTO.getSize) {
       groupFights.map(e => {
         val (k, it) = e
@@ -226,7 +230,7 @@ object FightEditorApplyChangesProc {
             it.getScores
               .map(sc => {
                 if (sc.getCompetitorId == change.getCompetitorId) {
-                  sc.setCompetitorId(null).setScore(extension.createEmptyScore)
+                  sc.setCompetitorId(null).setScore(createEmptyScore)
                 } else {
                   sc
                 }
