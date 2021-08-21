@@ -27,7 +27,7 @@ object StateOperations {
           Task(
             CompetitionStateImpl(
               id = config.id,
-              competitors = Option(Seq.empty),
+              competitors = Option(Map.empty),
               competitionProperties = Option(
                 new CompetitionPropertiesDTO()
                   .setId(config.id)
@@ -43,7 +43,7 @@ object StateOperations {
                 Map.empty
               ),
               fights = Some(Map.empty),
-              categories = Some(Seq.empty),
+              categories = Some(Map.empty),
               registrationInfo = Some(
                 new RegistrationInfoDTO()
                   .setId(config.id)

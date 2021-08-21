@@ -7,6 +7,7 @@ import compman.compsrv.logic.service.CompetitorSelection.{firstNPlaces, lastNPla
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.CompetitionState
+import compman.compsrv.model.extension._
 import zio.interop.catz._
 import zio.Task
 
@@ -158,11 +159,6 @@ object FightsService {
   )
   private val validChars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".toCharArray
-  def createEmptyScore: ScoreDTO = new ScoreDTO()
-    .setAdvantages(0)
-    .setPenalties(0)
-    .setPoints(0)
-    .setPointGroups(Array.empty)
 
   def getWinnerId(fight: FightDescriptionDTO): Option[String] = Option(fight.getFightResult)
     .map(_.getWinnerId)

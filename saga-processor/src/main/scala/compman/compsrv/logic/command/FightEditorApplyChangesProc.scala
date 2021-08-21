@@ -4,7 +4,7 @@ import cats.Monad
 import cats.data.{EitherT, OptionT}
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.service.{FightServicePoc, FightsService}
-import compman.compsrv.model.{CompetitionState, Errors, Payload}
+import compman.compsrv.model.{extension, CompetitionState, Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, FightEditorApplyChangesCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.Errors.NoPayloadError
@@ -197,7 +197,7 @@ object FightEditorApplyChangesProc {
               .getOrElse(
                 new CompScoreDTO()
                   .setCompetitorId(cmpId)
-                  .setScore(FightsService.createEmptyScore)
+                  .setScore(extension.createEmptyScore)
                   .setOrder(getMinUnusedOrder(scores, index))
               )
           })
@@ -226,7 +226,7 @@ object FightEditorApplyChangesProc {
             it.getScores
               .map(sc => {
                 if (sc.getCompetitorId == change.getCompetitorId) {
-                  sc.setCompetitorId(null).setScore(FightsService.createEmptyScore)
+                  sc.setCompetitorId(null).setScore(extension.createEmptyScore)
                 } else {
                   sc
                 }
