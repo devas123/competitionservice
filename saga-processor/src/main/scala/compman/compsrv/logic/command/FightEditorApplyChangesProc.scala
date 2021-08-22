@@ -4,8 +4,8 @@ import cats.Monad
 import cats.implicits._
 import cats.data.{EitherT, OptionT}
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.service.{FightServicePoc, FightsService}
-import compman.compsrv.model.{extension, CompetitionState, Errors, Payload}
+import compman.compsrv.logic.service.{FightServicePoc, FightsService, generate}
+import compman.compsrv.model.{CompetitionState, Errors, Payload, extension}
 import compman.compsrv.model.command.Commands.{Command, FightEditorApplyChangesCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.Errors.NoPayloadError
@@ -14,6 +14,7 @@ import compman.compsrv.model.dto.brackets.{BracketType, GroupDescriptorDTO, Stag
 import compman.compsrv.model.dto.competition.{CompScoreDTO, FightDescriptionDTO, FightStatus}
 import compman.compsrv.model.events.payload.FightEditorChangesAppliedPayload
 import extension._
+import generate._
 
 import java.util.UUID
 import scala.annotation.tailrec
@@ -305,8 +306,7 @@ object FightEditorApplyChangesProc {
               val (tuple2, index) = arg
               val competitor1     = tuple2._1
               val competitor2     = tuple2._2
-              FightsService
-                .fightDescription(
+                fightDescription(
                   competitionId,
                   categoryId,
                   stageId,

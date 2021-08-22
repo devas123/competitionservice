@@ -1,15 +1,14 @@
 package compman.compsrv.logic.service
 
-import cats.{Monad, Traverse}
 import cats.data.OptionT
 import cats.implicits._
+import cats.{Monad, Traverse}
 import compman.compsrv.logic.service.CompetitorSelection.{firstNPlaces, lastNPlaces, returnIds}
+import compman.compsrv.model.CompetitionState
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition._
-import compman.compsrv.model.CompetitionState
-import compman.compsrv.model.extension._
-import zio.interop.catz._
 import zio.Task
+import zio.interop.catz._
 
 import java.time.Instant
 import java.util.UUID
@@ -473,39 +472,11 @@ object FightsService {
     } yield list.count(a => a) == 2
   }
 
-  def fightDescription(
-      competitionId: String,
-      categoryId: String,
-      stageId: String,
-      round: Int,
-      roundType: StageRoundType,
-      numberInRound: Int,
-      duration: BigDecimal,
-      fightName: String,
-      groupId: String
-  ): FightDescriptionDTO = {
-    new FightDescriptionDTO()
-      .setId(createFightId)
-      .setCategoryId(categoryId)
-      .setRound(round)
-      .setNumberInRound(numberInRound)
-      .setCompetitionId(competitionId)
-      .setDuration(duration.bigDecimal)
-      .setRoundType(roundType)
-      .setStageId(stageId)
-      .setFightName(fightName)
-      .setStatus(FightStatus.PENDING)
-      .setPriority(0)
-      .setGroupId(groupId)
-      .setFightName("Round ${round + 1} fight ${numberInRound + 1}")
-  }
-
   def createCompscore(competitorId: String, placeholderId: String, order: Int, parentReferenceType: FightReferenceType = FightReferenceType.PROPAGATED): CompScoreDTO = new CompScoreDTO()
     .setCompetitorId(competitorId)
-    .setScore(createEmptyScore)
+    .setScore(generate.createEmptyScore)
     .setPlaceholderId(placeholderId)
     .setOrder(order)
     .setParentReferenceType(parentReferenceType)
 
-  private def createFightId = UUID.randomUUID().toString
 }

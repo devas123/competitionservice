@@ -1,19 +1,88 @@
 package compman.compsrv.logic.service
 
+import cats.Semigroupal
 import cats.implicits._
-import compman.compsrv.logic.service.generate.FightsGenerateService.createScores
-import compman.compsrv.logic.service.FightsService.fightDescription
-import compman.compsrv.model.dto.brackets.{CompetitorStageResultDTO, FightReferenceType, StageRoundType}
-import compman.compsrv.model.dto.competition.{CompScoreDTO, FightDescriptionDTO}
 import compman.compsrv.model.Errors
+import compman.compsrv.model.dto.brackets.{CompetitorStageResultDTO, FightReferenceType, StageRoundType}
+import compman.compsrv.model.dto.competition.{CompScoreDTO, CompetitorDTO, FightDescriptionDTO, FightStatus, ScoreDTO}
+
+import java.util.UUID
 
 package object generate {
-  type CanFail[A]  = Either[Errors.Error, A]
+  type CanFail[A] = Either[Errors.Error, A]
   type ThreeFights = (FightDescriptionDTO, FightDescriptionDTO, FightDescriptionDTO)
-  type TwoFights   = (FightDescriptionDTO, FightDescriptionDTO)
+  type TwoFights = (FightDescriptionDTO, FightDescriptionDTO)
 
   import compman.compsrv.model.extension._
+
   val zero: java.math.BigDecimal = BigDecimal(0).bigDecimal
+
+  def generatePlaceholderCompetitorsForGroup(size: Int): List[CompetitorDTO] = {
+    (0 until size).map { _ => new CompetitorDTO().setId("placeholder-$it").setPlaceholder(true) }.toList
+  }
+
+  def createEmptyScore: ScoreDTO = new ScoreDTO()
+    .setAdvantages(0)
+    .setPenalties(0)
+    .setPoints(0)
+    .setPointGroups(Array.empty)
+
+  def createCompscore(competitorId: Option[String], placeHolderId: Option[String], order: Int, parentReferenceType: FightReferenceType = FightReferenceType.PROPAGATED): CompScoreDTO = {
+    new CompScoreDTO()
+      .setCompetitorId(competitorId.orNull)
+      .setPlaceholderId(placeHolderId.orNull)
+      .setOrder(order)
+      .setParentReferenceType(parentReferenceType)
+      .setScore(createEmptyScore)
+  }
+
+
+  def createFightId: String = UUID.randomUUID().toString
+
+  def fightDescription(
+                        competitionId: String,
+                        categoryId: String,
+                        stageId: String,
+                        round: Int,
+                        roundType: StageRoundType,
+                        numberInRound: Int,
+                        duration: BigDecimal,
+                        fightName: String,
+                        groupId: String
+                      ): FightDescriptionDTO = {
+    new FightDescriptionDTO()
+      .setId(createFightId)
+      .setCategoryId(categoryId)
+      .setRound(round)
+      .setNumberInRound(numberInRound)
+      .setCompetitionId(competitionId)
+      .setDuration(duration.bigDecimal)
+      .setRoundType(roundType)
+      .setStageId(stageId)
+      .setFightName(fightName)
+      .setStatus(FightStatus.PENDING)
+      .setPriority(0)
+      .setGroupId(groupId)
+      .setFightName("Round ${round + 1} fight ${numberInRound + 1}")
+  }
+
+
+  def createPairs[T](competitors: List[T], competitors2: Option[List[T]] = None): List[(T, T)] =
+    Semigroupal[List].product(competitors, competitors2.getOrElse(competitors))
+
+  def createScores(ids: List[String], refTypes: List[FightReferenceType]): CanFail[List[CompScoreDTO]] = {
+    for {
+      _ <- assertE(ids.size == refTypes.size || refTypes.size == 1,
+        Some("The sizes of ids and refTypes should match, or there should be exactly one refType.")
+      )
+    } yield if (ids.size == refTypes.size) {
+      ids.zip(refTypes).zipWithIndex.map(p => compScore(p._1._2, p._1._1, p._2))
+    }
+    else {
+      ids.zipWithIndex.map(p => compScore(refTypes.head, p._1, p._2))
+    }
+  }
+
 
   def assertE(condition: => Boolean, message: => Option[String] = None): Either[Errors.InternalError, Unit] =
     if (condition)
@@ -72,7 +141,7 @@ package object generate {
     new CompetitorStageResultDTO()
       .setStageId(stageId)
       .setCompetitorId(competitorId)
-      .setPoints(zero)
+      .setPoints(0)
       .setRound(round)
       .setRoundType(roundType)
       .setPlace(place)
