@@ -1,10 +1,11 @@
 package compman.compsrv.logic.service
 
-import cats.Semigroupal
+import cats.{Monad, Semigroupal}
+import cats.data.EitherT
 import cats.implicits._
 import compman.compsrv.model.Errors
 import compman.compsrv.model.dto.brackets.{CompetitorStageResultDTO, FightReferenceType, StageRoundType}
-import compman.compsrv.model.dto.competition.{CompScoreDTO, CompetitorDTO, FightDescriptionDTO, FightStatus, ScoreDTO}
+import compman.compsrv.model.dto.competition.{CompetitorDTO, CompScoreDTO, FightDescriptionDTO, FightStatus, ScoreDTO}
 
 import java.util.UUID
 
@@ -84,13 +85,16 @@ package object generate {
   }
 
 
-  def assertE(condition: => Boolean, message: => Option[String] = None): Either[Errors.InternalError, Unit] =
+  def assertE(condition: => Boolean, message: => Option[String] = None): Either[Errors.Error, Unit] =
     if (condition)
       Right(())
     else
       Left(Errors.InternalError(message))
 
-  def assertSingleFinal(winnerFightsAndGrandFinal: List[FightDescriptionDTO]): Either[Errors.InternalError, Unit] = {
+  def assertET[F[+_]: Monad](condition: => Boolean, message: => Option[String] = None): EitherT[F, Errors.Error, Unit] =
+    EitherT.fromEither(assertE(condition, message))
+
+  def assertSingleFinal(winnerFightsAndGrandFinal: List[FightDescriptionDTO]): CanFail[Unit] = {
     assertE(
       winnerFightsAndGrandFinal.count { it =>
         it.roundType.contains(StageRoundType.GRAND_FINAL) && it.round != null
@@ -170,7 +174,7 @@ package object generate {
       .getOrElse(Array.empty)
   }
 
-  def currentRoundFights(
+  def generateCurrentRoundFights(
     numberOfFightsInCurrentRound: Int,
     competitionId: String,
     categoryId: String,
