@@ -5,6 +5,10 @@ import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CompetitorD
 object Errors {
   sealed trait Error
   final case class InternalError(msg: Option[String] = None) extends Error
+  object InternalError {
+    def apply(msg: Option[String] = None) = new InternalError(msg)
+    def apply(msg: String) = new InternalError(Option(msg))
+  }
   final case class NoPayloadError() extends Error
   final case class NoCategoryIdError() extends Error
   final case class CompetitorAlreadyExists(id: String, competitor: CompetitorDTO) extends Error

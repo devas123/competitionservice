@@ -7,6 +7,7 @@ object Versions {
     const val zioLogging = "0.4.0"
     const val circe = "0.13.0"
     const val cats = "2.6.1"
+    const val guava = "30.1.1-jre"
     const val log4j = "2.13.3"
     const val disruptor = "3.4.2"
     const val jackson = "2.12.0"
@@ -43,6 +44,10 @@ object Libraries {
     val cats = listOf(
         "org.typelevel:cats-core_$scalaBinary:${Versions.cats}",
         "org.typelevel:cats-free_$scalaBinary:${Versions.cats}",
+    )
+
+    val guava = listOf(
+        "com.google.guava:guava:${Versions.guava}"
     )
 
     val logging = listOf(
