@@ -6,17 +6,17 @@ import compman.compsrv.model.Errors
 import scala.collection.mutable
 
 object GraphUtils {
-  def getIndegree(graph: List[Set[Int]]): List[Int] = {
-    val inDegree = Array.fill(graph.size)(0)
+  def getIndegree(graph: Array[List[Int]]): Array[Int] = {
+    val inDegree = Array.fill(graph.length)(0)
     for {
       adj <- graph
       it  <- adj
     } { inDegree(it) += 1 }
-    inDegree.toList
+    inDegree
   }
 
-  def findTopologicalOrdering(graph: List[Set[Int]], inverse: Boolean = false): CanFail[List[Int]] = {
-    val n        = graph.size
+  def findTopologicalOrdering(graph: Array[List[Int]], inverse: Boolean = false): CanFail[Array[Int]] = {
+    val n        = graph.length
     val inDegree = getIndegree(graph)
     val q        = mutable.Queue.empty[Int]
     for (i <- inDegree.indices; if inDegree(i) == 0) { q.enqueue(i) }
@@ -36,6 +36,6 @@ object GraphUtils {
       }
     }
     if (index != n) { Left(Errors.InternalError("Cycles in the graph.")) }
-    else { Right(ordering.toList) }
+    else { Right(ordering) }
   }
 }
