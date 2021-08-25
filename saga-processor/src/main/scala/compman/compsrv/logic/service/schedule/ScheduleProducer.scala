@@ -86,7 +86,7 @@ object ScheduleProducer {
         val requirementsCapacity = requiremetsGraph.requirementFightsSize
 
     def loadBalanceToMats(req: (ScheduleRequirementDTO, List[String]),
-                          periodMats: List[InternalMatScheduleContainer],
+                          periodMats: Seq[InternalMatScheduleContainer],
                           requirementsCapacity: Array[Int],
                           requiremetsGraph: RequirementsGraph,
                           accumulator: ScheduleAccumulator,
@@ -102,7 +102,7 @@ object ScheduleProducer {
       fightsDispatched1
     }
 
-
+    //TODO: StageGraph should be mutable for now.
     def updateMatAndSchedule(requirementsCapacity: Array[Int],
       requiremetsGraph: RequirementsGraph,
       req: (ScheduleRequirementDTO, List[String]),
