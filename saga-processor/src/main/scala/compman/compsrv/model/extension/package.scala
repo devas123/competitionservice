@@ -1,10 +1,27 @@
 package compman.compsrv.model
 
 import compman.compsrv.model.dto.brackets.{StageDescriptorDTO, StageRoundType}
-import compman.compsrv.model.dto.competition.{CompScoreDTO, CompetitorDTO, FightDescriptionDTO}
+import compman.compsrv.model.dto.competition.{CompetitorDTO, CompScoreDTO, FightDescriptionDTO}
 import cats.implicits._
+import compman.compsrv.model.dto.schedule.{MatIdAndSomeId, ScheduleEntryDTO, ScheduleRequirementDTO}
 
 package object extension {
+
+  implicit class SchedReqOps(s: ScheduleRequirementDTO) {
+    def categories: Option[Array[String]] = Option(s.getCategoryIds)
+    def categoriesOrEmpty: Array[String] = categories.getOrElse(Array.empty)
+    def fightIds: Option[Array[String]] = Option(s.getFightIds)
+    def fightIdsOrEmpty: Array[String] = fightIds.getOrElse(Array.empty)
+  }
+
+  implicit class SchedEntryOps(s: ScheduleEntryDTO) {
+    def categories: Option[Array[String]] = Option(s.getCategoryIds)
+    def categoriesOrEmpty: Array[String] = categories.getOrElse(Array.empty)
+    def fightIds: Option[Array[MatIdAndSomeId]] = Option(s.getFightIds)
+    def fightIdsOrEmpty: Array[MatIdAndSomeId] = fightIds.getOrElse(Array.empty)
+    def requirementIds: Option[Array[String]] = Option(s.getRequirementIds)
+    def requirementIdsOrEmpty: Array[String] = requirementIds.getOrElse(Array.empty)
+  }
 
   implicit class CompetitorOps(c: CompetitorDTO) {
     def competitorId: Option[String] = if (c.isPlaceholder) None else Option(c.getId)

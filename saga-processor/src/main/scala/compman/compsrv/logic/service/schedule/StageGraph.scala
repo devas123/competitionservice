@@ -10,7 +10,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.language.reflectiveCalls
 
-case class StageGraph(
+case class StageGraph private[schedule] (
                        private val fightsMap: Map[String, FightDescriptionDTO],
                        private val stagesGraph: Array[List[Int]],
                        private val fightsGraph: Array[List[Int]],
