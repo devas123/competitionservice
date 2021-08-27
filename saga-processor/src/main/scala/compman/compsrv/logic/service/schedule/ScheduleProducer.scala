@@ -9,15 +9,10 @@ import compman.compsrv.model.extension._
 import java.time.{Instant, ZonedDateTime, ZoneId}
 import java.time.temporal.ChronoUnit
 import java.util.UUID
-import scala.collection.{mutable, MapView}
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 object ScheduleProducer {
-
-  def pauses(req: List[ScheduleRequirementDTO]): MapView[String, List[ScheduleRequirementDTO]] = req.filter { it =>
-    it.getEntryType == ScheduleRequirementType.FIXED_PAUSE
-  }.groupBy { _.getMatId }.view.mapValues { e => e.sortBy { _.getStartTime.toEpochMilli() } }
-
   private def eightyPercentOfDurationInMillis(duration: Long): Long = duration * 8 / 10
 
   private def createPauseEntry(
