@@ -1,15 +1,14 @@
-package compman.compsrv.logic.service.generate
+package compman.compsrv.logic.service.fights
 
 import cats.Monad
 import cats.data.EitherT
-import compman.compsrv.logic.service.FightsService.{FINAL, GRAND_FINAL, SEMI_FINAL, THIRD_PLACE_FIGHT}
 import compman.compsrv.model.Errors
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition.{CompetitorDTO, FightDescriptionDTO, FightStatus}
 
 import scala.util.Random
 
-object Brackets {
+object BracketsUtils {
   import cats.implicits._
   import compman.compsrv.model.extension._
 

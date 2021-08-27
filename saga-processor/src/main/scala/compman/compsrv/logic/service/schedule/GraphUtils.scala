@@ -1,6 +1,6 @@
 package compman.compsrv.logic.service.schedule
 
-import compman.compsrv.logic.service.generate.CanFail
+import compman.compsrv.logic.service.fights.CanFail
 import compman.compsrv.model.Errors
 
 import scala.collection.mutable

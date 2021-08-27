@@ -1,4 +1,4 @@
-package compman.compsrv.logic.service.generate
+package compman.compsrv.logic.service.fights
 
 import cats.implicits._
 import cats.Monad
@@ -10,7 +10,7 @@ import compman.compsrv.model.extension._
 
 import scala.collection.{mutable, SortedSet}
 
-object Groups {
+object GroupsUtils {
 
   def createGroupFights(
     competitionId: String,

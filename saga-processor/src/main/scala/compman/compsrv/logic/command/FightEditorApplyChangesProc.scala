@@ -1,11 +1,12 @@
 package compman.compsrv.logic.command
 
 import cats.Monad
-import cats.implicits._
 import cats.data.{EitherT, OptionT}
+import cats.implicits._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.service.{FightServicePoc, FightsService, generate}
-import compman.compsrv.model.{CompetitionState, Errors, Payload, extension}
+import compman.compsrv.logic.service.fights
+import compman.compsrv.logic.service.fights._
+import compman.compsrv.model.{extension, CompetitionState, Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, FightEditorApplyChangesCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.Errors.NoPayloadError
@@ -13,8 +14,7 @@ import compman.compsrv.model.commands.payload.{CompetitorMovedToGroup, FightEdit
 import compman.compsrv.model.dto.brackets.{BracketType, GroupDescriptorDTO, StageDescriptorDTO, StageRoundType}
 import compman.compsrv.model.dto.competition.{CompScoreDTO, FightDescriptionDTO, FightStatus}
 import compman.compsrv.model.events.payload.FightEditorChangesAppliedPayload
-import extension._
-import generate._
+import compman.compsrv.model.extension._
 
 import java.util.UUID
 import scala.annotation.tailrec
@@ -79,7 +79,7 @@ object FightEditorApplyChangesProc {
       bracketChanges <- OptionT.fromOption[F](Option(payload.getBracketsChanges))
       cleanedUpdates = updates.map(f => f._1 -> (if (f._2.getStatus == FightStatus.UNCOMPLETABLE) f._2.setStatus(FightStatus.PENDING) else f._2))
       cleanedAffected = clearAffectedFights(cleanedUpdates, bracketChanges.map(_.getFightId).toSet)
-      markedFights <- OptionT.liftF(FightServicePoc.markAndProcessUncompletableFights[F](cleanedAffected))
+      markedFights <- OptionT.liftF(FightUtils.markAndProcessUncompletableFights[F](cleanedAffected))
       updates = markedFights.filter(f => allFights.contains(f._1))
       additions = markedFights.filter(f => !allFights.contains(f._1))
       removals = allFights.filter(f => f._2.getStageId == payload.getStageId && !markedFights.contains(f._1))
@@ -319,8 +319,8 @@ object FightEditorApplyChangesProc {
                 )
                 .setScores(
                   Array(
-                    FightsService.createCompscore(competitor1, newPlaceholderId(competitor1), 0),
-                    FightsService.createCompscore(competitor2, newPlaceholderId(competitor2), 1)
+                    createCompscore(Option(competitor1), Option(newPlaceholderId(competitor1)), 0),
+                    createCompscore(Option(competitor2), Option(newPlaceholderId(competitor2)), 1)
                   )
                 )
             })

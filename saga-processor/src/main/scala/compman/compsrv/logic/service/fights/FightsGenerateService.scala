@@ -1,14 +1,14 @@
-package compman.compsrv.logic.service.generate
+package compman.compsrv.logic.service.fights
 
 import cats.Monad
 import cats.data.EitherT
-import compman.compsrv.logic.service.FightsService._
+import compman.compsrv.logic.service.fights.FightUtils.filterPreliminaryFights
 import compman.compsrv.model.Errors
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition.{CompetitorDTO, FightDescriptionDTO}
 
 object FightsGenerateService {
-  def bracketsGenerator[F[+_]: Monad: CompetitionStateOperations](
+  def bracketsGenerator[F[+_]: Monad](
     competitionId: String,
     categoryId: String,
     stage: StageDescriptorDTO,
@@ -18,23 +18,23 @@ object FightsGenerateService {
     outputSize: Int
   ): PartialFunction[BracketType, F[CanFail[List[FightDescriptionDTO]]]] = {
 
-    import Brackets._
-    import Groups._
+    import BracketsUtils._
+    import GroupsUtils._
     def postProcessFights(generated: List[FightDescriptionDTO]) = {
       val fights = generated.groupMapReduce(_.getId)(identity)((a, _) => a)
       val lifted: EitherT[F, Errors.Error, List[FightDescriptionDTO]] = for {
         assignedFights <- stage.getStageOrder.toInt match {
-          case 0 => EitherT.fromEither[F](Brackets.distributeCompetitors(competitors, fights, stage.getBracketType))
+          case 0 => EitherT.fromEither[F](BracketsUtils.distributeCompetitors(competitors, fights, stage.getBracketType))
           case _ => EitherT.fromEither[F](Right(fights))
         }
         markedUncompletableFights <- EitherT
-          .liftF[F, Errors.Error, List[FightDescriptionDTO]](markAndProcessUncompletableFights[F](assignedFights))
+          .liftF[F, Errors.Error, Map[String, FightDescriptionDTO]](FightUtils.markAndProcessUncompletableFights[F](assignedFights))
         res <-
           if (stage.getStageType == StageType.PRELIMINARY) {
             EitherT.liftF[F, Errors.Error, List[FightDescriptionDTO]](
-              filterPreliminaryFights[F](outputSize, markedUncompletableFights, stage.getBracketType)
+              filterPreliminaryFights[F](outputSize, markedUncompletableFights.values.toList, stage.getBracketType)
             )
-          } else { EitherT.fromEither[F](Right[Errors.Error, List[FightDescriptionDTO]](markedUncompletableFights)) }
+          } else { EitherT.fromEither[F](Right[Errors.Error, List[FightDescriptionDTO]](markedUncompletableFights.values.toList)) }
       } yield res
       lifted
     }
@@ -67,7 +67,7 @@ object FightsGenerateService {
         } yield res).value
       case BracketType.GROUP => (for {
           generated   <- EitherT(generateStageFights(competitionId, categoryId, stage, duration, competitors))
-          distributed <- EitherT.fromEither[F](Groups.distributeCompetitors(competitors, generated))
+          distributed <- EitherT.fromEither[F](GroupsUtils.distributeCompetitors(competitors, generated))
         } yield distributed).value
     }
   }

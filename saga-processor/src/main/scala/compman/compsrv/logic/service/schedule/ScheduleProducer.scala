@@ -1,6 +1,6 @@
 package compman.compsrv.logic.service.schedule
 
-import compman.compsrv.logic.service.generate.CanFail
+import compman.compsrv.logic.service.fights.CanFail
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule._
 import compman.compsrv.model.extension._

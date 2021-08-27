@@ -9,10 +9,19 @@ import compman.compsrv.model.dto.competition.{CompetitorDTO, CompScoreDTO, Fight
 
 import java.util.UUID
 
-package object generate {
+package object fights {
   type CanFail[A] = Either[Errors.Error, A]
   type ThreeFights = (FightDescriptionDTO, FightDescriptionDTO, FightDescriptionDTO)
   type TwoFights = (FightDescriptionDTO, FightDescriptionDTO)
+
+  val SEMI_FINAL        = "Semi-final"
+  val QUARTER_FINAL     = "Quarter-final"
+  val FINAL             = "Final"
+  val WINNER_FINAL      = "Winner-final"
+  val GRAND_FINAL       = "Grand final"
+  val ELIMINATION       = "Elimination"
+  val THIRD_PLACE_FIGHT = "Third place"
+
 
   import compman.compsrv.model.extension._
 
@@ -114,8 +123,8 @@ package object generate {
   val priority: Map[StageRoundType, Int] = {
     import StageRoundType._
     Map {
-      GRAND_FINAL       -> 0
-      THIRD_PLACE_FIGHT -> 1
+      StageRoundType.GRAND_FINAL       -> 0
+      StageRoundType.THIRD_PLACE_FIGHT -> 1
       WINNER_BRACKETS   -> 2
       LOSER_BRACKETS    -> 3
       GROUP             -> 4

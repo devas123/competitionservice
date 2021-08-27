@@ -1,11 +1,15 @@
 package compman.compsrv.model
 
 import compman.compsrv.model.dto.brackets.{StageDescriptorDTO, StageRoundType}
-import compman.compsrv.model.dto.competition.{CompetitorDTO, CompScoreDTO, FightDescriptionDTO}
+import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CategoryRestrictionDTO, CompetitorDTO, CompScoreDTO, FightDescriptionDTO}
 import cats.implicits._
 import compman.compsrv.model.dto.schedule.{MatIdAndSomeId, ScheduleEntryDTO, ScheduleRequirementDTO}
 
 package object extension {
+
+  implicit class CategoryRestrictionOps(c: CategoryRestrictionDTO) {
+    def aliasOrName: String = Option(c.getAlias).getOrElse(c.getName)
+  }
 
   implicit class SchedReqOps(s: ScheduleRequirementDTO) {
     def categories: Option[Array[String]] = Option(s.getCategoryIds)
