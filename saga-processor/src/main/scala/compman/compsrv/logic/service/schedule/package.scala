@@ -27,7 +27,7 @@ package object schedule {
                                            var currentTime: Instant,
                                            name: String,
                                            matOrder: Int,
-                                           totalFights: Int,
+                                           var totalFights: Int,
                                            id: String,
                                            periodId: String,
                                            fights: ArrayBuffer[InternalFightStartTime],

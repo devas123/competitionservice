@@ -21,6 +21,8 @@ package object extension {
     def fightIdsOrEmpty: Array[MatIdAndSomeId] = fightIds.getOrElse(Array.empty)
     def requirementIds: Option[Array[String]] = Option(s.getRequirementIds)
     def requirementIdsOrEmpty: Array[String] = requirementIds.getOrElse(Array.empty)
+    def addCategoryIds(categoryIds: IterableOnce[String]): ScheduleEntryDTO = s.setCategoryIds(s.categoriesOrEmpty ++ categoryIds)
+    def addCategoryId(categoryId: String): ScheduleEntryDTO = s.setCategoryIds(s.categoriesOrEmpty :+ categoryId)
   }
 
   implicit class CompetitorOps(c: CompetitorDTO) {

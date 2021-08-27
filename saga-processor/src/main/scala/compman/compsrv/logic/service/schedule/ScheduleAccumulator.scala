@@ -9,7 +9,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 
-class ScheduleAccumulator(initialMatSchedules: List[InternalMatScheduleContainer], val competitionId: String) {
+class ScheduleAccumulator(initialMatSchedules: List[InternalMatScheduleContainer]) {
   val scheduleEntries: mutable.ArrayBuffer[ScheduleEntryDTO] = ArrayBuffer.empty[ScheduleEntryDTO]
   val matSchedules: mutable.Seq[InternalMatScheduleContainer] = ArrayBuffer.from(initialMatSchedules)
   val invalidFights: mutable.Set[String] = mutable.HashSet[String]()

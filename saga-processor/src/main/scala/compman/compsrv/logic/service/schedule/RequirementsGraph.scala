@@ -25,6 +25,7 @@ case class RequirementsGraph private[schedule] (
   def getIndex(id: String): CanFail[Int] = {
     Option(requirementIdToId.get(id)).toRight(Errors.InternalError(s"Requirement's $id index not found"))
   }
+  def getIndexOrMinus1(id: String): Int = getIndex(id).getOrElse(-1)
 }
 
 object RequirementsGraph {
@@ -68,7 +69,7 @@ object RequirementsGraph {
         val r = requirements(requirementIdToId.inverse().get(ri))
         if (r.getEntryType == ScheduleRequirementType.FIGHTS) { requirementFightIds(ri).addAll(r.fightIdsOrEmpty) }
         else if (r.getEntryType == ScheduleRequirementType.CATEGORIES) {
-          requirementFightIds(ri).addAll(categoryIdToFightIds.getOrElse(key, Set.empty) - dispatchedFights)
+          requirementFightIds(ri).addAll(categoryIdToFightIds.getOrElse(key, Set.empty) -- dispatchedFights)
         }
       }
     }
