@@ -1,5 +1,6 @@
 package compman.compsrv.logic.service.schedule
 
+import compman.compsrv.logic.service.generate.CanFail
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule._
 import compman.compsrv.model.extension._
@@ -9,6 +10,9 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+import scala.util.Try
+import cats.implicits._
+import compman.compsrv.model.Errors
 
 object ScheduleProducer {
   private def eightyPercentOfDurationInMillis(duration: Long): Long = duration * 8 / 10
@@ -51,7 +55,7 @@ object ScheduleProducer {
     periodStartTime: Map[String, Instant],
     mats: List[MatDescriptionDTO],
     timeZone: String
-  ): (List[ScheduleEntryDTO], List[InternalMatScheduleContainer], Set[String]) = {
+  ): CanFail[(List[ScheduleEntryDTO], List[InternalMatScheduleContainer], Set[String])] = Try {
     val initialFightsByMats: List[InternalMatScheduleContainer] =
       createMatScheduleContainers(mats, periodStartTime, timeZone)
     val accumulator: ScheduleAccumulator = ScheduleAccumulator(initialFightsByMats)
@@ -240,8 +244,7 @@ object ScheduleProducer {
       accumulator.scheduleEntries.toList,
       accumulator.matSchedules.filter(_ != null).toList,
       accumulator.invalidFights.toSet
-    )
-  }
+    )}.toEither.leftMap(t => Errors.InternalError(t.getMessage))
 
   private def createMatScheduleContainers(
     mats: List[MatDescriptionDTO],
