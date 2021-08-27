@@ -1,7 +1,5 @@
 package compman.compsrv.logic.service.schedule
 
-import cats.Monad
-import compman.compsrv.logic.service.generate.CanFail
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule._
 import compman.compsrv.model.extension._
@@ -45,7 +43,7 @@ object ScheduleProducer {
   private def getFightDuration(duration: Int, riskCoeff: Int, timeBetweenFights: Int): Int = duration *
     (1 + 100 / riskCoeff) + timeBetweenFights
 
-  def simulate[F[_]: Monad](
+  def simulate(
     stageGraph: StageGraph,
     requiremetsGraph: RequirementsGraph,
     periods: List[PeriodDTO],
@@ -53,23 +51,10 @@ object ScheduleProducer {
     periodStartTime: Map[String, Instant],
     mats: List[MatDescriptionDTO],
     timeZone: String
-  ): F[CanFail[(List[ScheduleEntryDTO], List[InternalMatScheduleContainer], Set[String])]] = {
-
-    val initialFightsByMats = mats.zipWithIndex.map { case (mat, i) =>
-      val initDate = ZonedDateTime.ofInstant(periodStartTime(mat.getPeriodId), ZoneId.of(timeZone))
-      InternalMatScheduleContainer(
-        timeZone = timeZone,
-        name = mat.getName,
-        id = Option(mat.getId).getOrElse(UUID.randomUUID().toString),
-        fights = ArrayBuffer.empty,
-        currentTime = initDate.toInstant,
-        totalFights = 0,
-        matOrder = Option(mat.getMatOrder).map(_.toInt).getOrElse(i),
-        periodId = mat.getPeriodId
-      )
-    }
-    val accumulator: ScheduleAccumulator = new ScheduleAccumulator(initialFightsByMats)
-
+  ): (List[ScheduleEntryDTO], List[InternalMatScheduleContainer], Set[String]) = {
+    val initialFightsByMats: List[InternalMatScheduleContainer] =
+      createMatScheduleContainers(mats, periodStartTime, timeZone)
+    val accumulator: ScheduleAccumulator = ScheduleAccumulator(initialFightsByMats)
     val pauses = req.filter { _.getEntryType == ScheduleRequirementType.FIXED_PAUSE }.groupBy { _.getMatId }.view
       .mapValues { e => e.sortBy { _.getStartTime.toEpochMilli() } }.mapValues(ArrayBuffer.from(_))
     val unfinishedRequirements = mutable.Queue.empty[ScheduleRequirementDTO]
@@ -108,8 +93,7 @@ object ScheduleProducer {
         period.getTimeBetweenFights
       )
       if (
-        pauses(mat.id) == null ||
-        pauses(mat.id).isEmpty &&
+        !(pauses(mat.id) == null || pauses(mat.id).isEmpty) &&
         mat.currentTime.toEpochMilli + eightyPercentOfDurationInMillis(duration) >= pauses(mat.id)(0)
           .getStartTime.toEpochMilli
       ) {
@@ -131,7 +115,6 @@ object ScheduleProducer {
         period.getId
       ))
       mat.totalFights += 1
-      //      log.debug("Period: ${period.id}, category: ${st.getCategoryId(fightId)}, fight: $fightId, starts: ${mat.currentTime}, mat: ${mat.id}, numberOnMat: ${mat.totalFights - 1}")
       mat.currentTime = mat.currentTime.plus(duration.toLong, ChronoUnit.SECONDS)
       StageGraph.completeFight(fightId, st)
     }
@@ -253,11 +236,31 @@ object ScheduleProducer {
         dispatchSuccessful = onlyUnfinished && n == stageGraph.getNonCompleteCount
       }
     }
-    Monad[F].pure(Right((
+    (
       accumulator.scheduleEntries.toList,
       accumulator.matSchedules.filter(_ != null).toList,
       accumulator.invalidFights.toSet
-    )))
+    )
   }
 
+  private def createMatScheduleContainers(
+    mats: List[MatDescriptionDTO],
+    periodStartTime: Map[String, Instant],
+    timeZone: String
+  ) = {
+    val initialFightsByMats = mats.zipWithIndex.map { case (mat, i) =>
+      val initDate = ZonedDateTime.ofInstant(periodStartTime(mat.getPeriodId), ZoneId.of(timeZone))
+      InternalMatScheduleContainer(
+        timeZone = timeZone,
+        name = mat.getName,
+        id = Option(mat.getId).getOrElse(UUID.randomUUID().toString),
+        fights = ArrayBuffer.empty,
+        currentTime = initDate.toInstant,
+        totalFights = 0,
+        matOrder = Option(mat.getMatOrder).map(_.toInt).getOrElse(i),
+        periodId = mat.getPeriodId
+      )
+    }
+    initialFightsByMats
+  }
 }
