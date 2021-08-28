@@ -5,7 +5,7 @@ import cats.Monad
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.model.{CompetitionState, Errors, Payload}
 import compman.compsrv.model.events.{EventDTO, EventType}
-import compman.compsrv.model.Errors.NoPayloadError
+import compman.compsrv.model.Errors.{NoCategoryIdError, NoPayloadError}
 import compman.compsrv.model.command.Commands.{CategoryRegistrationStatusChangeCommand, Command}
 
 object CategoryRegistrationStatusChangeProc {
@@ -23,7 +23,7 @@ object CategoryRegistrationStatusChangeProc {
     val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] =
       for {
         payload    <- EitherT.fromOption(command.payload, NoPayloadError())
-        categoryId <- EitherT.fromOption(command.categoryId, NoPayloadError())
+        categoryId <- EitherT.fromOption(command.categoryId, NoCategoryIdError())
         exists = state.categories.exists(_.contains(categoryId))
         event <-
           if (!exists) {
