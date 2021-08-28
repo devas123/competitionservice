@@ -11,6 +11,7 @@ object Errors {
   }
   final case class NoPayloadError() extends Error
   final case class NoCategoryIdError() extends Error
+  final case class NoCompetitionIdError() extends Error
   final case class CompetitorAlreadyExists(id: String, competitor: CompetitorDTO) extends Error
   final case class CompetitorDoesNotExist(id: String) extends Error
   final case class CategoryAlreadyExists(id: String, category: CategoryDescriptorDTO) extends Error
