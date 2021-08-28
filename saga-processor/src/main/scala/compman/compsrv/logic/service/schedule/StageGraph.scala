@@ -22,7 +22,7 @@ case class StageGraph private[schedule] (
   private val fightsInDegree: Array[Int],
   private val completedFights: Set[Int],
   private val completableFights: Set[Int],
-  private val categoryIdToFightIds: Map[String, List[String]],
+  private val categoryIdToFightIds: Map[String, Set[String]],
   private val stageIdsToFightIds: Array[List[String]]
 ) {
 
@@ -55,7 +55,7 @@ case class StageGraph private[schedule] (
     else { List.empty[String] }
   }
 
-  def getCategoryIdsToFightIds: Map[String, List[String]] = { categoryIdToFightIds }
+  def getCategoryIdsToFightIds: Map[String, Set[String]] = { categoryIdToFightIds }
 
   def getNonCompleteCount: Int = { nonCompleteCount }
 }
@@ -157,7 +157,7 @@ object StageGraph {
       fightsOrdering <- GraphUtils.findTopologicalOrdering(fightsGraph)
       completableFights    = getCompletableFights(fightsInDegree)
       completedFights      = Set.empty[Int]
-      categoryIdToFightIds = fights.groupMap(_.getCategoryId)(_.getId)
+      categoryIdToFightIds = fights.groupMap(_.getCategoryId)(_.getId).map { case (k, list) => k -> list.toSet }
     } yield new StageGraph(
       stagesGraph = stagesGraph,
       fightsGraph = fightsGraph,

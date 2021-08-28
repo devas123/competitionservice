@@ -14,7 +14,7 @@ import scala.util.Try
 import cats.implicits._
 import compman.compsrv.model.Errors
 
-object ScheduleProducer {
+private[schedule] object ScheduleProducer {
   private def eightyPercentOfDurationInMillis(duration: Long): Long = duration * 8 / 10
 
   private def createPauseEntry(

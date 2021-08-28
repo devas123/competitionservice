@@ -23,6 +23,7 @@ object Operations {
   }
 
   trait IdOperations[F[_]] {
+    def generateIdIfMissing(id: Option[String] = None): F[String]
     def uid: F[String]
     def fightId(stageId: String, groupId: String): F[String]
     def competitorId(competitor: CompetitorDTO): F[String]
@@ -98,6 +99,8 @@ object Operations {
         override def fightId(stageId: String, groupId: String): Task[String] = Task(UUID.randomUUID().toString)
 
         override def uid: Task[String] = Task(UUID.randomUUID().toString)
+
+        override def generateIdIfMissing(id: Option[String]): Task[String] = Task ( id.getOrElse(UUID.randomUUID().toString) )
       }
 
   }
