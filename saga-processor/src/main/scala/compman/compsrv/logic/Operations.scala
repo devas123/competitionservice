@@ -4,6 +4,7 @@ import cats.data.EitherT
 import cats.Monad
 import compman.compsrv.logic.Mapping.{CommandMapping, EventMapping}
 import compman.compsrv.logic.event.EventProcessors
+import compman.compsrv.logic.service.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.model._
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CompetitorDTO, RegistrationGroupDTO, RegistrationPeriodDTO}
@@ -105,7 +106,7 @@ object Operations {
 
   }
 
-  def processCommand[F[+_]: Monad: CommandMapping: IdOperations: EventOperations](
+  def processCommand[F[+_]: Monad: CommandMapping: IdOperations: EventOperations: Interpreter](
       latestState: CompetitionState,
       command: CommandDTO
   ): F[Either[Errors.Error, Seq[EventDTO]]] = {

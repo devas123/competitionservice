@@ -8,6 +8,7 @@ import compman.compsrv.logic.Operations._
 import compman.compsrv.logic.StateOperations.GetStateConfig
 import compman.compsrv.logic.actors.{CommandProcessorConfig, CompetitionProcessor, CompetitionProcessorActorRef}
 import compman.compsrv.logic.actors.Messages.ProcessCommand
+import compman.compsrv.logic.service.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.model.events.EventDTO
 import zio.{ExitCode, Has, Layer, Ref, Task, URIO, ZIO, ZLayer}
 import zio.blocking.Blocking
@@ -29,6 +30,7 @@ object Main extends zio.App {
     implicit val stateOperations: StateOperations.Service[Task] = StateOperations.Service.live
     implicit val idOperations: IdOperations[Task]               = IdOperations.live
     implicit val eventOperations: EventOperations[Task]         = EventOperations.live
+    implicit val selectInterpreter: Interpreter[Task]         = Interpreter.asTask
   }
 
   type PipelineEnvironment =

@@ -3,16 +3,47 @@ package compman.compsrv.logic.service.fights
 import cats.{Monad, Traverse}
 import cats.implicits._
 import cats.data.OptionT
-import compman.compsrv.model.dto.brackets.{BracketType, FightReferenceType, FightResultOptionDTO}
+import compman.compsrv.logic.service.fights.CompetitorSelectionUtils._
+import compman.compsrv.model.dto.brackets.{BracketType, FightReferenceType, FightResultOptionDTO, SelectorClassifier, StageInputDescriptorDTO}
 import compman.compsrv.model.dto.competition.{CompScoreDTO, FightDescriptionDTO, FightResultDTO, FightStatus}
+import compman.compsrv.model.CompetitionState
 
 object FightUtils {
+
 
   val finishedStatuses = List(FightStatus.UNCOMPLETABLE, FightStatus.FINISHED, FightStatus.WALKOVER)
   val unMovableFightStatuses: Seq[FightStatus] = finishedStatuses :+ FightStatus.IN_PROGRESS
   val notFinishedStatuses =
     List(FightStatus.PENDING, FightStatus.IN_PROGRESS, FightStatus.GET_READY, FightStatus.PAUSED)
   def ceilingNextPowerOfTwo(x: Int): Int = 1 << (32 - Integer.numberOfLeadingZeros(x - 1))
+
+  def applyStageInputDescriptorToResultsAndFights[F[+_]: Monad : Interpreter](
+                                                   descriptor: StageInputDescriptorDTO,
+                                                   previousStageId: String,
+                                                   state: CompetitionState
+                                                 ): F[List[String]] = {
+    val program =
+      if (Option(descriptor.getSelectors).exists(_.nonEmpty)) {
+        descriptor
+          .getSelectors
+          .flatMap(it => {
+            val classifier = it.getClassifier
+            classifier match {
+              case SelectorClassifier.FIRST_N_PLACES =>
+                List(firstNPlaces(it.getApplyToStageId, it.getSelectorValue.head.toInt))
+              case SelectorClassifier.LAST_N_PLACES =>
+                List(lastNPlaces(it.getApplyToStageId, it.getSelectorValue.head.toInt))
+              case SelectorClassifier.MANUAL =>
+                List(returnIds(it.getSelectorValue.toList))
+            }
+          })
+          .reduce((a, b) => CompetitorSelectionUtils.and(a, b))
+      } else {
+        firstNPlaces(previousStageId, descriptor.getNumberOfCompetitors)
+      }
+    program.foldMap(Interpreter[F].interepret(state)).map(_.toList)
+  }
+
 
   def filterPreliminaryFights[F[_]: Monad](
     outputSize: Int,

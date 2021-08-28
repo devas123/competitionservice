@@ -116,34 +116,29 @@ object BracketsUtils {
   }
   def distributeCompetitors(
     competitors: List[CompetitorDTO],
-    fights: Map[String, FightDescriptionDTO],
-    bracketType: BracketType
-  ): CanFail[Map[String, FightDescriptionDTO]] = {
-    bracketType match {
-      case BracketType.SINGLE_ELIMINATION | BracketType.DOUBLE_ELIMINATION => for {
-          _ <- assertE(
-            fights.size * 2 >= competitors.size,
-            Some(
-              s"Number of fights in the first round is ${fights.size}, which is less than required to fit ${competitors.size} competitors."
-            )
-          )
-          firstRoundFights = fights.values.filter { it =>
-            it.roundOrZero == 0 && !it.roundType.contains(StageRoundType.LOSER_BRACKETS)
-          }
-          coms            = Random.shuffle(competitors)
-          pairsWithFights = coms.drop(competitors.size).zip(coms.take(competitors.size)).zip(firstRoundFights)
-          updatedFirstRoundFights = pairsWithFights.mapFilter { tr =>
-            val ((c1, c2), f) = tr
-            for {
-              f1 <- f.pushCompetitor(c1.getId)
-              f2 <- f1.pushCompetitor(c2.getId)
-            } yield f2
-          }
-          _ <-
-            assertE(updatedFirstRoundFights.size == pairsWithFights.size, Some("Not all competitors were distributed."))
-        } yield fights ++ updatedFirstRoundFights.groupMapReduce(_.getId)(identity)((a, _) => a)
-      case _ => Left(Errors.InternalError(Some("Unsupported brackets type $bracketType")))
-    }
+    fights: Map[String, FightDescriptionDTO]): CanFail[Map[String, FightDescriptionDTO]] = {
+    for {
+      _ <- assertE(
+        fights.size * 2 >= competitors.size,
+        Some(
+          s"Number of fights in the first round is ${fights.size}, which is less than required to fit ${competitors.size} competitors."
+        )
+      )
+      firstRoundFights = fights.values.filter { it =>
+        it.roundOrZero == 0 && !it.roundType.contains(StageRoundType.LOSER_BRACKETS)
+      }
+      coms            = Random.shuffle(competitors)
+      pairsWithFights = coms.drop(competitors.size).zip(coms.take(competitors.size)).zip(firstRoundFights)
+      updatedFirstRoundFights = pairsWithFights.mapFilter { tr =>
+        val ((c1, c2), f) = tr
+        for {
+          f1 <- f.pushCompetitor(c1.getId)
+          f2 <- f1.pushCompetitor(c2.getId)
+        } yield f2
+      }
+      _ <-
+        assertE(updatedFirstRoundFights.size == pairsWithFights.size, Some("Not all competitors were distributed."))
+    } yield fights ++ updatedFirstRoundFights.groupMapReduce(_.getId)(identity)((a, _) => a)
   }
 
   def buildStageResults(

@@ -4,7 +4,7 @@ import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.service.fights.FightsGenerateService
+import compman.compsrv.logic.service.fights.FightsService
 import compman.compsrv.model.{CompetitionState, Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, GenerateBracketsCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}
@@ -124,7 +124,7 @@ object GenerateBracketsProc {
       if (stage.getStageOrder == 0) { state.competitors.map(_.values.toList).getOrElse(List.empty) }
       else { List.empty }
     twoFighterFights <- EitherT(
-      FightsGenerateService.bracketsGenerator[F](state.id, categoryId, stageWithIds, size, duration, comps, outputSize)
+      FightsService.bracketsGenerator[F](state.id, categoryId, stageWithIds, size, duration, comps, outputSize)
         .apply(stageWithIds.getBracketType)
     )
   } yield stageWithIds.setName(Option(stageWithIds.getName).getOrElse("Default brackets")).setStageStatus(status).setInputDescriptor(inputDescriptor).setStageResultDescriptor(stageWithIds.getStageResultDescriptor).setStageStatus(StageStatus.WAITING_FOR_COMPETITORS).setNumberOfFights(twoFighterFights.size) -> twoFighterFights

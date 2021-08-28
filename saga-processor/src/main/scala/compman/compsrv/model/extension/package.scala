@@ -65,6 +65,7 @@ package object extension {
     def hasPlaceholder(placeholderId: String): Boolean = scores.exists(_.exists(_.getPlaceholderId == placeholderId))
 
     def scoresSize: Int = scores.map(_.length).getOrElse(0)
+    def scoresOrEmpty: Array[CompScoreDTO] = scores.getOrElse(Array.empty)
 
     def round: Option[Int] = Option(f.getRound).map(_.toInt)
 

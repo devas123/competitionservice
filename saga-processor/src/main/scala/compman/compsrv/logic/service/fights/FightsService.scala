@@ -7,7 +7,19 @@ import compman.compsrv.model.Errors
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition.{CompetitorDTO, FightDescriptionDTO}
 
-object FightsGenerateService {
+object FightsService {
+
+  def distributeCompetitors[F[+_]: Monad](competitors: List[CompetitorDTO], fights: Map[String, FightDescriptionDTO]): PartialFunction[BracketType, F[CanFail[List[FightDescriptionDTO]]]] = {
+    case BracketType.DOUBLE_ELIMINATION | BracketType.SINGLE_ELIMINATION =>
+       Monad[F].pure {
+         BracketsUtils.distributeCompetitors(competitors, fights).map(_.values.toList)
+       }
+    case BracketType.GROUP =>
+       Monad[F].pure {
+         GroupsUtils.distributeCompetitors(competitors, fights.values.toList)
+       }
+  }
+
   def bracketsGenerator[F[+_]: Monad](
     competitionId: String,
     categoryId: String,
@@ -24,7 +36,7 @@ object FightsGenerateService {
       val fights = generated.groupMapReduce(_.getId)(identity)((a, _) => a)
       val lifted: EitherT[F, Errors.Error, List[FightDescriptionDTO]] = for {
         assignedFights <- stage.getStageOrder.toInt match {
-          case 0 => EitherT.fromEither[F](BracketsUtils.distributeCompetitors(competitors, fights, stage.getBracketType))
+          case 0 => EitherT.fromEither[F](BracketsUtils.distributeCompetitors(competitors, fights))
           case _ => EitherT.fromEither[F](Right(fights))
         }
         markedUncompletableFights <- EitherT

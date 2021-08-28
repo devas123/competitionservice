@@ -2,6 +2,7 @@ package compman.compsrv.logic
 
 import cats.Monad
 import compman.compsrv.logic.command._
+import compman.compsrv.logic.service.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.model.command.Commands.Command
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.{CompetitionState, Errors, Payload}
@@ -9,7 +10,7 @@ import compman.compsrv.model.{CompetitionState, Errors, Payload}
 object CommandProcessors {
   import Operations._
 
-  def process[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
+  def process[F[+_]: Monad: IdOperations: EventOperations: Interpreter, P <: Payload](
       command: Command[P],
       state: CompetitionState
   ): F[Either[Errors.Error, Seq[EventDTO]]] = {
