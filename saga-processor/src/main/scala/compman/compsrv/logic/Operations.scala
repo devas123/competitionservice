@@ -23,6 +23,7 @@ object Operations {
   }
 
   trait IdOperations[F[_]] {
+    def uid: F[String]
     def fightId(stageId: String, groupId: String): F[String]
     def competitorId(competitor: CompetitorDTO): F[String]
     def categoryId(category: CategoryDescriptorDTO): F[String]
@@ -95,6 +96,8 @@ object Operations {
         override def registrationGroupId(group: RegistrationGroupDTO): Task[String] = Task(util.UUID.randomUUID().toString)
 
         override def fightId(stageId: String, groupId: String): Task[String] = Task(UUID.randomUUID().toString)
+
+        override def uid: Task[String] = Task(UUID.randomUUID().toString)
       }
 
   }
