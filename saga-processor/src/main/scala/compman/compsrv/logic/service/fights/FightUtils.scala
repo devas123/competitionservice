@@ -103,7 +103,7 @@ object FightUtils {
     })
   }
 
-  def markAndProcessUncompletableFights[F[_]: Monad](
+  def markAndProcessUncompletableFights[F[+_]: Monad](
     fights: Map[String, FightDescriptionDTO]
   ): F[Map[String, FightDescriptionDTO]] = {
     for {

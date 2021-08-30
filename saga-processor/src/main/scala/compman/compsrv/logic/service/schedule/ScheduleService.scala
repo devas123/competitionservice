@@ -3,7 +3,7 @@ package compman.compsrv.logic.service.schedule
 import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
-import compman.compsrv.logic.service.fights.{assertET, CanFail}
+import compman.compsrv.logic.service.fights.{assertET, assertETErr, CanFail}
 import compman.compsrv.logic.Operations.IdOperations
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.{FightStartTimePairDTO, PeriodDTO, ScheduleDTO}

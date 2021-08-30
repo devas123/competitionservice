@@ -4,9 +4,8 @@ import cats.Monad
 import cats.data.{EitherT, OptionT}
 import cats.implicits._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.service.fights
 import compman.compsrv.logic.service.fights._
-import compman.compsrv.model.{extension, CompetitionState, Errors, Payload}
+import compman.compsrv.model.{CompetitionState, Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, FightEditorApplyChangesCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.Errors.NoPayloadError

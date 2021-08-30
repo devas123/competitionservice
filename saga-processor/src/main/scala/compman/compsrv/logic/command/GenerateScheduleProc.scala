@@ -3,7 +3,7 @@ package compman.compsrv.logic.command
 import cats.Monad
 import cats.data.EitherT
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.service.fights.{assertET, CanFail}
+import compman.compsrv.logic.service.fights.{assertET, assertETErr, CanFail}
 import compman.compsrv.logic.service.schedule.{ScheduleService, StageGraph}
 import compman.compsrv.model.{CompetitionState, Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, GenerateScheduleCommand}

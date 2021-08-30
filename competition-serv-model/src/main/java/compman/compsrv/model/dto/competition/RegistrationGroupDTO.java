@@ -11,7 +11,6 @@ import java.math.BigDecimal;
 @Accessors(chain = true)
 public class RegistrationGroupDTO {
     private String id;
-    private String registrationInfoId;
     private String displayName;
     private Boolean defaultGroup;
     private BigDecimal registrationFee;
