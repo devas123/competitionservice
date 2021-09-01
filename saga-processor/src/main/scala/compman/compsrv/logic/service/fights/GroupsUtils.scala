@@ -118,7 +118,7 @@ object GroupsUtils {
     fights: List[FightDescriptionDTO],
     stageId: String,
     fightResultOptions: List[FightResultOptionDTO]
-  ): List[CompetitorStageResultDTO] = {
+  ): CanFail[List[CompetitorStageResultDTO]] = {
     stageStatus match {
       case StageStatus.FINISHED =>
         val competitorPointsMap = mutable.Map.empty[String, (Int, Int, String)]
@@ -156,12 +156,12 @@ object GroupsUtils {
               }
           }
         }
-        competitorPointsMap.toList.sortBy { pair => pair._2._1 * 10000 + pair._2._2 }.zipWithIndex.map { v =>
+        Right(competitorPointsMap.toList.sortBy { pair => pair._2._1 * 10000 + pair._2._2 }.zipWithIndex.map { v =>
           val (e, i) = v
           new CompetitorStageResultDTO().setRound(0).setGroupId(e._2._3).setCompetitorId(e._1).setPoints(e._2._1)
             .setPlace(i + 1).setStageId(stageId)
-        }
-      case _ => List.empty
+        })
+      case _ => Left(Errors.InternalError("Stage is not finished."))
     }
   }
 }

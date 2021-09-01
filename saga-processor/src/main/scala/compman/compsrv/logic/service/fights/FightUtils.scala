@@ -1,15 +1,15 @@
 package compman.compsrv.logic.service.fights
 
 import cats.{Monad, Traverse}
-import cats.implicits._
 import cats.data.OptionT
+import cats.implicits._
 import compman.compsrv.logic.service.fights.CompetitorSelectionUtils._
-import compman.compsrv.model.dto.brackets.{BracketType, FightReferenceType, FightResultOptionDTO, SelectorClassifier, StageInputDescriptorDTO}
+import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition.{CompScoreDTO, FightDescriptionDTO, FightResultDTO, FightStatus}
 import compman.compsrv.model.CompetitionState
+import compman.compsrv.model.events.payload.CompetitorAssignmentDescriptor
 
 object FightUtils {
-
 
   val finishedStatuses = List(FightStatus.UNCOMPLETABLE, FightStatus.FINISHED, FightStatus.WALKOVER)
   val unMovableFightStatuses: Seq[FightStatus] = finishedStatuses :+ FightStatus.IN_PROGRESS
@@ -17,33 +17,26 @@ object FightUtils {
     List(FightStatus.PENDING, FightStatus.IN_PROGRESS, FightStatus.GET_READY, FightStatus.PAUSED)
   def ceilingNextPowerOfTwo(x: Int): Int = 1 << (32 - Integer.numberOfLeadingZeros(x - 1))
 
-  def applyStageInputDescriptorToResultsAndFights[F[+_]: Monad : Interpreter](
-                                                   descriptor: StageInputDescriptorDTO,
-                                                   previousStageId: String,
-                                                   state: CompetitionState
-                                                 ): F[List[String]] = {
+  def applyStageInputDescriptorToResultsAndFights[F[+_]: Monad: Interpreter](
+    descriptor: StageInputDescriptorDTO,
+    previousStageId: String,
+    state: CompetitionState
+  ): F[List[String]] = {
     val program =
       if (Option(descriptor.getSelectors).exists(_.nonEmpty)) {
-        descriptor
-          .getSelectors
-          .flatMap(it => {
-            val classifier = it.getClassifier
-            classifier match {
-              case SelectorClassifier.FIRST_N_PLACES =>
-                List(firstNPlaces(it.getApplyToStageId, it.getSelectorValue.head.toInt))
-              case SelectorClassifier.LAST_N_PLACES =>
-                List(lastNPlaces(it.getApplyToStageId, it.getSelectorValue.head.toInt))
-              case SelectorClassifier.MANUAL =>
-                List(returnIds(it.getSelectorValue.toList))
-            }
-          })
-          .reduce((a, b) => CompetitorSelectionUtils.and(a, b))
-      } else {
-        firstNPlaces(previousStageId, descriptor.getNumberOfCompetitors)
-      }
+        descriptor.getSelectors.flatMap(it => {
+          val classifier = it.getClassifier
+          classifier match {
+            case SelectorClassifier.FIRST_N_PLACES =>
+              List(firstNPlaces(it.getApplyToStageId, it.getSelectorValue.head.toInt))
+            case SelectorClassifier.LAST_N_PLACES =>
+              List(lastNPlaces(it.getApplyToStageId, it.getSelectorValue.head.toInt))
+            case SelectorClassifier.MANUAL => List(returnIds(it.getSelectorValue.toList))
+          }
+        }).reduce((a, b) => CompetitorSelectionUtils.and(a, b))
+      } else { firstNPlaces(previousStageId, descriptor.getNumberOfCompetitors) }
     program.foldMap(Interpreter[F].interepret(state)).map(_.toList)
   }
-
 
   def filterPreliminaryFights[F[_]: Monad](
     outputSize: Int,
@@ -82,25 +75,27 @@ object FightUtils {
     sourceFight: String,
     referenceType: FightReferenceType,
     fights: Map[String, FightDescriptionDTO]
-  ): F[Map[String, FightDescriptionDTO]] = {
-    Monad[F].tailRecM((competitorId, sourceFight, referenceType, fights))(tuple => {
-      val (cid, sf, rt, fs) = tuple
-      val eitherT = for {
-        fight <- fs.get(sf)
-        targetFightId = if (referenceType == FightReferenceType.LOSER) fight.getLoseFight else fight.getWinFight
-        targetFight <- fs.get(targetFightId)
-        updatedFights = fs +
-          (targetFight.getId -> targetFight.setScores(targetFight.getScores.map(s =>
+  ): F[(Map[String, FightDescriptionDTO], List[CompetitorAssignmentDescriptor])] = {
+    Monad[F].tailRecM((competitorId, sourceFight, referenceType, fights, List.empty[CompetitorAssignmentDescriptor])) {
+      case (cid, sf, rt, fs, up) =>
+        val eitherT = for {
+          fight <- fs.get(sf)
+          targetFightId = if (referenceType == FightReferenceType.LOSER) fight.getLoseFight else fight.getWinFight
+          targetFight <- fs.get(targetFightId)
+          update = targetFight.setScores(targetFight.getScores.map(s =>
             if (s.getParentFightId == sf && s.getParentReferenceType == rt) { s.setCompetitorId(cid) }
             else s
-          )))
-        res =
-          if (targetFight.getStatus == FightStatus.UNCOMPLETABLE) {
-            Left((cid, targetFight.getId, FightReferenceType.WINNER, updatedFights))
-          } else { Right(updatedFights) }
-      } yield res
-      Monad[F].pure(eitherT.getOrElse(Right(fs)))
-    })
+          ))
+          updatedFights = fs + (targetFight.getId -> update)
+          assignment = new CompetitorAssignmentDescriptor().setToFightId(targetFightId).setFromFightId(sf)
+            .setCompetitorId(cid).setReferenceType(rt)
+          res =
+            if (targetFight.getStatus == FightStatus.UNCOMPLETABLE) {
+              Left((cid, targetFight.getId, FightReferenceType.WINNER, updatedFights, up :+ assignment))
+            } else { Right((updatedFights, up :+ assignment)) }
+        } yield res
+        Monad[F].pure(eitherT.getOrElse(Right((fs, up))))
+    }
   }
 
   def markAndProcessUncompletableFights[F[+_]: Monad](
@@ -140,10 +135,14 @@ object FightUtils {
     for {
       uncompletableFights <- Monad[F].pure(markedFights.filter(e => e._2.getStatus == FightStatus.UNCOMPLETABLE))
       uncompletableFightsScores = getUncompletableFightScores(uncompletableFights)
-      mapped <- uncompletableFightsScores.foldM(uncompletableFights)((acc, elem) =>
-        advanceFighterToSiblingFights[F](elem._1, elem._2, FightReferenceType.WINNER, acc)
-      )
-    } yield mapped
+      mapped <- uncompletableFightsScores
+        .foldM((uncompletableFights, List.empty[CompetitorAssignmentDescriptor]))((acc, elem) =>
+          advanceFighterToSiblingFights[F](elem._1, elem._2, FightReferenceType.WINNER, acc._1).map(p => {
+            val assignments = acc._2 ++ p._2
+            (p._1, assignments)
+          })
+        )
+    } yield mapped._1
   }
 
   private def checkIfFightIsPackedOrCanBePackedEventually[F[_]: Monad](

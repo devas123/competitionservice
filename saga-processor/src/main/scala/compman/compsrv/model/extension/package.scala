@@ -1,7 +1,7 @@
 package compman.compsrv.model
 
 import compman.compsrv.model.dto.brackets.{StageDescriptorDTO, StageRoundType}
-import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CategoryRestrictionDTO, CompetitorDTO, CompScoreDTO, FightDescriptionDTO}
+import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CategoryRestrictionDTO, CompetitorDTO, CompScoreDTO, FightDescriptionDTO, FightResultDTO}
 import cats.implicits._
 import compman.compsrv.model.dto.schedule.{MatIdAndSomeId, ScheduleEntryDTO, ScheduleRequirementDTO}
 
@@ -50,13 +50,15 @@ package object extension {
               roundType: StageRoundType = f.getRoundType,
               winFight: String = f.getWinFight,
               loseFight: String = f.getLoseFight,
-              scores: Array[CompScoreDTO] = f.getScores
+              scores: Array[CompScoreDTO] = f.getScores,
+              fightResult: FightResultDTO = f.getFightResult
             ): FightDescriptionDTO = f
       .setWinFight(winFight)
       .setScores(scores)
       .setLoseFight(loseFight)
       .setRoundType(roundType)
       .setFightName(fightName)
+      .setFightResult(fightResult)
 
     def competitors: List[String] = scores.map(_.toList.mapFilter(s => Option(s.getCompetitorId))).getOrElse(List.empty)
 
