@@ -3,7 +3,6 @@ package compman.compsrv.logic
 import cats.data.EitherT
 import cats.Monad
 import compman.compsrv.logic.Mapping.{CommandMapping, EventMapping}
-import compman.compsrv.logic.event.EventProcessors
 import compman.compsrv.logic.service.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.model._
 import compman.compsrv.model.commands.CommandDTO

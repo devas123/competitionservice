@@ -16,15 +16,15 @@ trait CompetitionState {
   def revision: Long
 
   def createCopy(
-      competitors: Option[Map[String, CompetitorDTO]],
-      competitionProperties: Option[CompetitionPropertiesDTO],
-      stages: Option[Map[String, StageDescriptorDTO]],
-      fights: Option[Map[String, FightDescriptionDTO]],
-      categories: Option[Map[String, CategoryDescriptorDTO]],
-      registrationInfo: Option[RegistrationInfoDTO],
-      schedule: Option[ScheduleDTO],
-      revision: Long
-  ): CompetitionState
+                  competitors: Option[Map[String, CompetitorDTO]] = competitors,
+                  competitionProperties: Option[CompetitionPropertiesDTO] = competitionProperties,
+                  stages: Option[Map[String, StageDescriptorDTO]] = stages,
+                  fights: Option[Map[String, FightDescriptionDTO]] = fights,
+                  categories: Option[Map[String, CategoryDescriptorDTO]] = categories,
+                  registrationInfo: Option[RegistrationInfoDTO] = registrationInfo,
+                  schedule: Option[ScheduleDTO] = schedule,
+                  revision: Long = revision
+                ): CompetitionState
 }
 
 case class CompetitionStateImpl(

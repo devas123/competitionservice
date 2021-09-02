@@ -83,16 +83,6 @@ object Events {
     override val fightId: Option[String]      = None
   }
 
-  final case class CompetitionInfoEvent(
-      payload: Option[CompetitionInfoPayload],
-      competitionId: Option[String],
-      categoryId: Option[String],
-      sequenceNumber: Long
-  ) extends Event[CompetitionInfoPayload] {
-    override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
-  }
-
   final case class CompetitionPropertiesUpdatedEvent(
       payload: Option[CompetitionPropertiesUpdatedPayload],
       competitionId: Option[String],
