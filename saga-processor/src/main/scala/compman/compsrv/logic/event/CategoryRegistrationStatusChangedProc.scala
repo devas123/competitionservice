@@ -2,33 +2,25 @@ package compman.compsrv.logic.event
 
 import cats.Monad
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.event.Events.{CompetitorAddedEvent, Event}
+import compman.compsrv.model.event.Events.{CategoryRegistrationStatusChanged, CompetitorAddedEvent, Event}
 import compman.compsrv.model.{CompetitionState, Payload}
 
 object CategoryRegistrationStatusChangedProc {
   def apply[F[+_] : Monad : IdOperations : EventOperations, P <: Payload](
                                                                            state: CompetitionState
                                                                          ): PartialFunction[Event[P], F[CompetitionState]] = {
-    case x: CompetitorAddedEvent =>
+    case x: CategoryRegistrationStatusChanged =>
       apply[F](x, state)
   }
 
   private def apply[F[+_] : Monad : IdOperations : EventOperations](
-                                                                     event: CompetitorAddedEvent,
+                                                                     event: CategoryRegistrationStatusChanged,
                                                                      state: CompetitionState
                                                                    ): F[CompetitionState] = {
     val eventT = for {
       payload <- event.payload
-      newState = state.createCopy(
-        competitors = state.competitors.map(_ + (payload.getFighter.getId -> payload.getFighter)),
-        competitionProperties = state.competitionProperties,
-        stages = state.stages,
-        fights = state.fights,
-        categories = state.categories,
-        registrationInfo = state.registrationInfo,
-        schedule = state.schedule,
-        revision = state.revision + 1
-      )
+      comProps <- state.registrationInfo
+      newState = state.createCopy(registrationInfo = Some(comProps.setRegistrationOpen(payload.isNewStatus)))
     } yield newState
     Monad[F].pure(eventT.getOrElse(state))
   }

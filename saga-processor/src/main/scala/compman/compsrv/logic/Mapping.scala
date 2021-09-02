@@ -402,7 +402,7 @@ object Mapping {
               )
 
             case COMPETITION_CATEGORIES_ADDED =>
-              Events.CompetitionCategoriesEvent(
+              Events.CompetitionCategoriesAddedEvent(
                 Try {
                   eventDto.getPayload.asInstanceOf[CompetitionCategoriesPayload]
                 }.toOption,

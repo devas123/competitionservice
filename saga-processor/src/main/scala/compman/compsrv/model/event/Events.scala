@@ -63,7 +63,7 @@ object Events {
       sequenceNumber: Long
   ) extends PayloadlessEvent
 
-  final case class CompetitionCategoriesEvent(
+  final case class CompetitionCategoriesAddedEvent(
       payload: Option[CompetitionCategoriesPayload],
       competitionId: Option[String],
       categoryId: Option[String],
