@@ -1,11 +1,44 @@
 package compman.compsrv.model
 
 import compman.compsrv.model.dto.brackets.{StageDescriptorDTO, StageRoundType}
-import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CategoryRestrictionDTO, CompetitorDTO, CompScoreDTO, FightDescriptionDTO, FightResultDTO}
+import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CategoryRestrictionDTO, CompScoreDTO, CompetitionPropertiesDTO, CompetitorDTO, FightDescriptionDTO, FightResultDTO}
 import cats.implicits._
 import compman.compsrv.model.dto.schedule.{MatIdAndSomeId, ScheduleEntryDTO, ScheduleRequirementDTO}
 
+import java.time.Instant
+
 package object extension {
+
+  private def parseDate(date: Any, default: Option[Instant] = None) = if (date != null) {
+    Some(Instant.ofEpochMilli(date.toString.toLong))
+  } else {
+    default
+  }
+
+  implicit class CompetitionPropertiesOps(c: CompetitionPropertiesDTO) {
+    def applyProperties(props: Map[String, String]): CompetitionPropertiesDTO = {
+      for {
+        pr <- Option(props)
+        bracketsPublished <- pr.get("bracketsPublished").map(_.toBoolean).orElse(Option(c.getBracketsPublished).map(_.booleanValue()))
+        startDate <- parseDate(pr("startDate"), Option(c.getStartDate))
+        endDate <- parseDate(pr("endDate"), Option(c.getEndDate))
+        emailNotificationsEnabled <- pr.get("emailNotificationsEnabled").map(_.toBoolean).orElse(Option(c.getEmailNotificationsEnabled).map(_.booleanValue()))
+        competitionName <- pr.get("competitionName").orElse(Option(c.getCompetitionName))
+        emailTemplate <- pr.get("emailTemplate").orElse(Option(c.getEmailTemplate))
+        schedulePublished <- pr.get("schedulePublished").map(_.toBoolean).orElse(Option(c.getSchedulePublished).map(_.booleanValue()))
+        timeZone <- pr.get("timeZone").orElse(Option(c.getTimeZone))
+      } yield c
+        .setBracketsPublished(bracketsPublished)
+        .setStartDate(startDate)
+        .setEndDate(endDate)
+        .setEmailNotificationsEnabled(emailNotificationsEnabled)
+        .setCompetitionName(competitionName)
+        .setEmailTemplate(emailTemplate)
+        .setSchedulePublished(schedulePublished)
+        .setTimeZone(timeZone)
+
+    }.getOrElse(c)
+  }
 
   implicit class CategoryRestrictionOps(c: CategoryRestrictionDTO) {
     def aliasOrName: String = Option(c.getAlias).getOrElse(c.getName)
@@ -13,8 +46,11 @@ package object extension {
 
   implicit class SchedReqOps(s: ScheduleRequirementDTO) {
     def categories: Option[Array[String]] = Option(s.getCategoryIds)
+
     def categoriesOrEmpty: Array[String] = categories.getOrElse(Array.empty)
+
     def fightIds: Option[Array[String]] = Option(s.getFightIds)
+
     def fightIdsOrEmpty: Array[String] = fightIds.getOrElse(Array.empty)
   }
 

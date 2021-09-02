@@ -8,7 +8,7 @@ import compman.compsrv.model.{CompetitionState, Payload}
 object BracketsGeneratedProc {
   def apply[F[+_] : Monad : IdOperations : EventOperations, P <: Payload](
                                                                            state: CompetitionState
-                                                                         ): PartialFunction[Event[P], F[CompetitionState]] = {
+                                                                         ): PartialFunction[Event[P], F[Option[CompetitionState]]] = {
     case x: BracketsGeneratedEvent =>
       apply[F](x, state)
   }
@@ -16,12 +16,12 @@ object BracketsGeneratedProc {
   private def apply[F[+_] : Monad : IdOperations : EventOperations](
                                                                      event: BracketsGeneratedEvent,
                                                                      state: CompetitionState
-                                                                   ): F[CompetitionState] = {
+                                                                   ): F[Option[CompetitionState]] = {
     val eventT = for {
       payload <- event.payload
       currentStages <- state.stages
       newState = state.createCopy(stages = Some(currentStages ++ payload.getStages.map(s => s.getId -> s)), revision = state.revision + 1)
     } yield newState
-    Monad[F].pure(eventT.getOrElse(state))
+    Monad[F].pure(eventT)
   }
 }

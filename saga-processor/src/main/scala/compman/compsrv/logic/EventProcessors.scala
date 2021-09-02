@@ -12,11 +12,10 @@ object EventProcessors {
   def applyEvent[F[+_]: Monad: IdOperations: EventOperations: EventMapping, P <: Payload](
     event: Events.Event[P],
     state: CompetitionState
-  ): F[CompetitionState] = List(
+  ): F[CompetitionState] = Monad[F].map(List(
     CategoryRegistrationStatusChangedProc(state),
     BracketsGeneratedProc(state),
     CategoryAddedProc(state),
-    CompetitionCategoriesProc(state),
     CompetitionCreatedProc(state),
     CompetitionPropertiesUpdatedProc(state),
     CompetitionStatusUpdatedProc(state),
@@ -40,5 +39,5 @@ object EventProcessors {
     ScheduleGeneratedProc(state),
     StageResultSetProc(state),
     StageStatusUpdatedProc(state),
-  ).reduce((a, b) => a.orElse(b)).apply(event)
+  ).reduce((a, b) => a.orElse(b)).apply(event))(_.map(s => s.createCopy(revision = s.revision + 1)).getOrElse(state))
 }

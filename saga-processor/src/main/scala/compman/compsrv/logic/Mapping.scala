@@ -401,16 +401,6 @@ object Mapping {
                 eventDto.getVersion
               )
 
-            case COMPETITION_CATEGORIES_ADDED =>
-              Events.CompetitionCategoriesAddedEvent(
-                Try {
-                  eventDto.getPayload.asInstanceOf[CompetitionCategoriesPayload]
-                }.toOption,
-                Option(eventDto.getCompetitionId),
-                Option(eventDto.getCategoryId),
-                eventDto.getVersion
-              )
-
             case COMPETITION_CREATED =>
               CompetitionCreatedEvent(
                 Try {

@@ -63,16 +63,6 @@ object Events {
       sequenceNumber: Long
   ) extends PayloadlessEvent
 
-  final case class CompetitionCategoriesAddedEvent(
-      payload: Option[CompetitionCategoriesPayload],
-      competitionId: Option[String],
-      categoryId: Option[String],
-      sequenceNumber: Long
-  ) extends Event[CompetitionCategoriesPayload] {
-    override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
-  }
-
   final case class CompetitionCreatedEvent(
       payload: Option[CompetitionCreatedPayload],
       competitionId: Option[String],

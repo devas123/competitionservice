@@ -1,38 +1,31 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
-import cats.data.OptionT
-import cats.implicits._
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
-import compman.compsrv.model.event.Events.{CategoryAddedEvent, CompetitorAddedEvent, Event}
+import compman.compsrv.model.event.Events.{CompetitionPropertiesUpdatedEvent, Event}
+import compman.compsrv.model.extension._
 import compman.compsrv.model.{CompetitionState, Payload}
+
+import scala.jdk.CollectionConverters.MapHasAsScala
 
 object CompetitionPropertiesUpdatedProc {
   def apply[F[+_] : Monad : IdOperations : EventOperations, P <: Payload](
                                                                            state: CompetitionState
-                                                                         ): PartialFunction[Event[P], F[CompetitionState]] = {
-    case x: CompetitorAddedEvent =>
+                                                                         ): PartialFunction[Event[P], F[Option[CompetitionState]]] = {
+    case x: CompetitionPropertiesUpdatedEvent =>
       apply[F](x, state)
   }
 
   private def apply[F[+_] : Monad : IdOperations : EventOperations](
-                                                                     event: CompetitorAddedEvent,
+                                                                     event: CompetitionPropertiesUpdatedEvent,
                                                                      state: CompetitionState
-                                                                   ): F[CompetitionState] = {
+                                                                   ): F[Option[CompetitionState]] = {
     val eventT = for {
       payload <- event.payload
-      newState = state.createCopy(
-        competitors = state.competitors.map(_ + (payload.getFighter.getId -> payload.getFighter)),
-        competitionProperties = state.competitionProperties,
-        stages = state.stages,
-        fights = state.fights,
-        categories = state.categories,
-        registrationInfo = state.registrationInfo,
-        schedule = state.schedule,
-        revision = state.revision + 1
-      )
+      props = payload.getProperties.asScala.toMap
+      stateProps <- state.competitionProperties
+      newState = state.createCopy(competitionProperties = Some(stateProps.applyProperties(props)))
     } yield newState
-    Monad[F].pure(eventT.getOrElse(state))
+    Monad[F].pure(eventT)
   }
 }
