@@ -15,9 +15,11 @@ object Versions {
     const val rocksdb: String = "6.13.3"
 }
 
+data class Dep(val group: String, val artifactId: String, val version: String, val classifier: String)
+
 object Libraries {
 
-    val rocksdb = listOf (
+    val rocksdb = listOf(
         "org.rocksdb:rocksdbjni:${Versions.rocksdb}"
     )
 
@@ -25,6 +27,13 @@ object Libraries {
         "dev.zio:zio_$scalaBinary:${Versions.zio}",
         "dev.zio:zio-streams_$scalaBinary:${Versions.zio}",
         "dev.zio:zio-kafka_$scalaBinary:${Versions.zioKafka}"
+    )
+
+    val zioTest = Dep(
+        group = "dev.zio",
+        artifactId = "zio-test_$scalaBinary",
+        version = Versions.zio,
+        classifier = "test"
     )
 
     val zioConfig = listOf(

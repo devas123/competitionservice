@@ -7,7 +7,7 @@ import zio.duration.Duration
 private[actors] case class Timers(
     private val self: CompetitionProcessorActorRef,
     private val timers: Ref[Map[String, Fiber[Throwable, Unit]]],
-    private val processorConfig: CommandProcessorConfig
+    private val processorConfig: CommandProcessorOperations
 ) {
   def startDestroyTimer[A](key: String, timeout: Duration): Task[Unit] = {
     def create = (ZIO.sleep(timeout) <* (self ! Stop)).fork.provideLayer(processorConfig.clockLayer)

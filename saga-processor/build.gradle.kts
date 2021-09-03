@@ -1,4 +1,3 @@
-
 plugins {
     id("competitions-mgr.java-conventions")
     scala
@@ -20,6 +19,13 @@ dependencies {
     implementation(project(":compservice-annotations"))
     testImplementation("org.scalatest:scalatest_$scalaBinary:3.2.8")
     testImplementation("junit:junit:4.13")
-
+    testImplementation("junit:junit:4.13")
+    Libraries.zioTest.apply {
+        testImplementation(
+            group = group,
+            name = artifactId,
+            version = version
+        )
+    }
 }
 description = "saga processor"
