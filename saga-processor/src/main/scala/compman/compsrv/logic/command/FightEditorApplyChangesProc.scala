@@ -318,8 +318,8 @@ object FightEditorApplyChangesProc {
                 )
                 .setScores(
                   Array(
-                    createCompscore(Option(competitor1), Option(newPlaceholderId(competitor1)), 0),
-                    createCompscore(Option(competitor2), Option(newPlaceholderId(competitor2)), 1)
+                    createCompscoreForGroup(Option(competitor1), Option(newPlaceholderId(competitor1)), 0),
+                    createCompscoreForGroup(Option(competitor2), Option(newPlaceholderId(competitor2)), 1)
                   )
                 )
             })

@@ -37,7 +37,7 @@ package object fights {
     .setPoints(0)
     .setPointGroups(Array.empty)
 
-  def createCompscore(competitorId: Option[String], placeHolderId: Option[String], order: Int, parentReferenceType: FightReferenceType = FightReferenceType.PROPAGATED): CompScoreDTO = {
+  def createCompscoreForGroup(competitorId: Option[String], placeHolderId: Option[String], order: Int, parentReferenceType: FightReferenceType = FightReferenceType.PROPAGATED): CompScoreDTO = {
     new CompScoreDTO()
       .setCompetitorId(competitorId.orNull)
       .setPlaceholderId(placeHolderId.orNull)

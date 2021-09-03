@@ -2,33 +2,29 @@ package compman.compsrv.logic.event
 
 import cats.Monad
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.event.Events.{CompetitorAddedEvent, Event}
 import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.event.Events.{Event, RegistrationGroupCategoriesAssignedEvent}
 
 object RegistrationGroupCategoriesAssignedProc {
-  def apply[F[+_] : Monad : IdOperations : EventOperations, P <: Payload](
-                                                                           state: CompetitionState
-                                                                         ): PartialFunction[Event[P], F[Option[CompetitionState]]] = {
-    case x: CompetitorAddedEvent =>
-      apply[F](x, state)
+  def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
+    state: CompetitionState
+  ): PartialFunction[Event[P], F[Option[CompetitionState]]] = { case x: RegistrationGroupCategoriesAssignedEvent =>
+    apply[F](x, state)
   }
 
-  private def apply[F[+_] : Monad : IdOperations : EventOperations](
-                                                                     event: CompetitorAddedEvent,
-                                                                     state: CompetitionState
-                                                                   ): F[Option[CompetitionState]] = {
+  private def apply[F[+_]: Monad: IdOperations: EventOperations](
+    event: RegistrationGroupCategoriesAssignedEvent,
+    state: CompetitionState
+  ): F[Option[CompetitionState]] = {
     val eventT = for {
-      payload <- event.payload
-      newState = state.createCopy(
-        competitors = state.competitors.map(_ + (payload.getFighter.getId -> payload.getFighter)),
-        competitionProperties = state.competitionProperties,
-        stages = state.stages,
-        fights = state.fights,
-        categories = state.categories,
-        registrationInfo = state.registrationInfo,
-        schedule = state.schedule,
-        revision = state.revision + 1
-      )
+      payload     <- event.payload
+      regInfo     <- state.registrationInfo
+      groups      <- Option(regInfo.getRegistrationGroups)
+      targetGroup <- groups.find(_.getId == payload.getGroupId)
+      ind           = groups.indexOf(targetGroup)
+      updatedGroup  = targetGroup.setCategories(payload.getCategories)
+      updatedGroups = (groups.slice(0, ind) :+ updatedGroup) ++ groups.slice(ind + 1, groups.length)
+      newState      = state.createCopy(registrationInfo = Some(regInfo.setRegistrationGroups(updatedGroups)))
     } yield newState
     Monad[F].pure(eventT)
   }

@@ -36,8 +36,8 @@ object GroupsUtils {
         fightName = "Round 0 fight $ind",
         groupId = groupId
       ).setScores(Array(
-        createCompscore(comps._2.competitorId, comps._1.placeholderId, 0),
-        createCompscore(comps._1.competitorId, comps._2.placeholderId, 1)
+        createCompscoreForGroup(comps._2.competitorId, comps._1.placeholderId, 0),
+        createCompscoreForGroup(comps._1.competitorId, comps._2.placeholderId, 1)
       ))
     }
   }
