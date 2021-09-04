@@ -9,5 +9,7 @@ kafkarun
 .metals
 .vscode/
 
+app-db
+
 compservice.db
 
