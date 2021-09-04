@@ -31,16 +31,14 @@ final class CompetitionProcessor {
       self <- context.self
       _    <- info(s"Received a command $command")
       res <- command match {
-        case ProcessCommand(fa) => timers.startDestroyTimer(DefaultTimerKey, DefaultTimerDuration) *> {
+        case ProcessCommand(cmd) => timers.startDestroyTimer(DefaultTimerKey, DefaultTimerDuration) *> {
             for {
-              withId <- RIO {
-                fa.setId(Option(fa.getId).getOrElse(UUID.randomUUID().toString))
-                fa
-              }
+              _ <-
+                if (cmd.getId == null) RIO.fail(new IllegalArgumentException(s"Command $cmd has no ID")) else RIO.unit
               res <- Live.withContext(
-                _.annotate(LogAnnotation.CorrelationId, Option(withId.getId).map(UUID.fromString))
-                  .annotate(Annotations.competitionId, Option(withId.getCompetitionId))
-              ) { Operations.processCommand[LIO](state, withId) }
+                _.annotate(LogAnnotation.CorrelationId, Option(cmd.getId).map(UUID.fromString))
+                  .annotate(Annotations.competitionId, Option(cmd.getCompetitionId))
+              ) { Operations.processCommand[LIO](state, cmd) }
             } yield res
           }
         case Stop => self.stop.as(Right(Seq.empty))

@@ -8,7 +8,12 @@ import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.logic.service.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.model._
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CompetitorDTO, RegistrationGroupDTO, RegistrationPeriodDTO}
+import compman.compsrv.model.dto.competition.{
+  CategoryDescriptorDTO,
+  CompetitorDTO,
+  RegistrationGroupDTO,
+  RegistrationPeriodDTO
+}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import zio.Task
 
@@ -86,31 +91,39 @@ object Operations {
       override def registrationPeriodId(competitor: RegistrationPeriodDTO): LIO[String] =
         Task(util.UUID.randomUUID().toString)
 
-      override def registrationGroupId(group: RegistrationGroupDTO): LIO[String] =
-        Task(util.UUID.randomUUID().toString)
+      override def registrationGroupId(group: RegistrationGroupDTO): LIO[String] = Task(util.UUID.randomUUID().toString)
 
       override def fightId(stageId: String, groupId: String): LIO[String] = Task(UUID.randomUUID().toString)
 
       override def uid: LIO[String] = Task(UUID.randomUUID().toString)
 
-      override def generateIdIfMissing(id: Option[String]): LIO[String] =
-        Task(id.getOrElse(UUID.randomUUID().toString))
+      override def generateIdIfMissing(id: Option[String]): LIO[String] = Task(id.getOrElse(UUID.randomUUID().toString))
     }
 
   }
 
-  def processCommand[F[+_]: CompetitionLogging.Service: Monad: CommandMapping: IdOperations: EventOperations: Interpreter](
+  def processCommand[F[
+    +_
+  ]: CompetitionLogging.Service: Monad: CommandMapping: IdOperations: EventOperations: Interpreter](
     latestState: CompetitionState,
     command: CommandDTO
   ): F[Either[Errors.Error, Seq[EventDTO]]] = {
+    import cats.implicits._
     val either: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
       mapped        <- EitherT.liftF(Mapping.mapCommandDto(command))
       eventsToApply <- EitherT(CommandProcessors.process(mapped, latestState))
-    } yield eventsToApply
+      n = latestState.revision
+      enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) => {
+        ev.setLocalEventNumber(n + ind).setCorrelationId(command.getId)
+        ev
+      })
+    } yield enrichedEvents
     either.value
   }
 
-  def applyEvent[F[+_]: CompetitionLogging.Service: Monad: EventMapping: StateOperations.Service: IdOperations: EventOperations](
+  def applyEvent[F[
+    +_
+  ]: CompetitionLogging.Service: Monad: EventMapping: StateOperations.Service: IdOperations: EventOperations](
     latestState: CompetitionState,
     event: EventDTO
   ): F[CompetitionState] = {

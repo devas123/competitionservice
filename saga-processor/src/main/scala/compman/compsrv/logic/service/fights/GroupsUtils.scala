@@ -3,6 +3,7 @@ package compman.compsrv.logic.service.fights
 import cats.implicits._
 import cats.Monad
 import cats.data.EitherT
+import compman.compsrv.logic._
 import compman.compsrv.model.Errors
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition.{CompetitorDTO, FightDescriptionDTO}
@@ -126,24 +127,15 @@ object GroupsUtils {
           val pointsDescriptor = fightResultOptions.find { p => p.getId == fight.getFightResult.getResultTypeId }
           pointsDescriptor.map(_.isDraw) match {
             case Some(true) => fight.competitors.foreach { it =>
-                competitorPointsMap.updateWith(it) { u =>
-                  val basis = u.getOrElse((0, 0, fight.getGroupId))
-                  Some((
-                    pointsDescriptor.map(_.getWinnerPoints.toInt).getOrElse(0) + basis._1,
-                    pointsDescriptor.map(_.getWinnerAdditionalPoints.toInt).getOrElse(0) + basis._2,
-                    basis._3
-                  ))
-                }
+                updateCompetitorPointsMap(competitorPointsMap, pointsDescriptor, fight.getGroupId, it)
               }
             case _ =>
-              competitorPointsMap.updateWith(fight.getFightResult.getWinnerId) { u =>
-                val basis = u.getOrElse((0, 0, fight.getGroupId))
-                Some((
-                  pointsDescriptor.map(_.getWinnerPoints.toInt).getOrElse(0) + basis._1,
-                  pointsDescriptor.map(_.getWinnerAdditionalPoints.toInt).getOrElse(0) + basis._2,
-                  basis._3
-                ))
-              }
+              updateCompetitorPointsMap(
+                competitorPointsMap,
+                pointsDescriptor,
+                fight.getGroupId,
+                fight.getFightResult.getWinnerId
+              )
               fight.winnerId.map { it =>
                 competitorPointsMap.updateWith(it) { u =>
                   val basis = u.getOrElse((0, 0, fight.getGroupId))
@@ -162,6 +154,22 @@ object GroupsUtils {
             .setPlace(i + 1).setStageId(stageId)
         })
       case _ => Left(Errors.InternalError("Stage is not finished."))
+    }
+  }
+
+  private def updateCompetitorPointsMap(
+    competitorPointsMap: mutable.Map[String, (Int, Int, String)],
+    pointsDescriptor: Option[FightResultOptionDTO],
+    groupId: String,
+    it: String
+  ) = {
+    competitorPointsMap.updateWith(it) { u =>
+      val basis = u.getOrElse((0, 0, groupId))
+      Some((
+        pointsDescriptor.map(_.getWinnerPoints.toInt).getOrElse(0) + basis._1,
+        pointsDescriptor.map(_.getWinnerAdditionalPoints.toInt).getOrElse(0) + basis._2,
+        basis._3
+      ))
     }
   }
 }

@@ -3,8 +3,8 @@ package compman.compsrv.logic.command
 import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
+import compman.compsrv.logic._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.service.fights
 import compman.compsrv.logic.service.fights.FightUtils
 import compman.compsrv.model.{CompetitionState, Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, UpdateStageStatusCommand}
@@ -38,8 +38,10 @@ object UpdateStageStatusProc {
 
     val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
       payload <- EitherT.fromOption[F](command.payload, NoPayloadError())
-      _ <- fights
-        .assertETErr[F](state.stages.exists(_.contains(payload.getStageId)), Errors.StageDoesNotExist(payload.getStageId))
+      _ <- assertETErr[F](
+        state.stages.exists(_.contains(payload.getStageId)),
+        Errors.StageDoesNotExist(payload.getStageId)
+      )
       stageId = payload.getStageId
       e = payload.getStatus match {
         case StageStatus.APPROVED | StageStatus.WAITING_FOR_APPROVAL | StageStatus.WAITING_FOR_COMPETITORS =>

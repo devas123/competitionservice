@@ -2,8 +2,8 @@ package compman.compsrv.logic.command
 
 import cats.Monad
 import cats.data.EitherT
+import compman.compsrv.logic._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.service.fights
 import compman.compsrv.model.{CompetitionState, Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, RegistrationPeriodAddRegistrationGroupCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}
@@ -26,7 +26,7 @@ object RegistrationPeriodAddRegistrationGroupProc {
       periodExists = state.registrationInfo
         .exists(_.getRegistrationPeriods.exists(per => payload.getPeriodId == per.getId))
       groupId = payload.getGroupId
-      _ <- fights.assertETErr(
+      _ <- assertETErr(
         state.registrationInfo.exists(_.getRegistrationGroups.exists(_.getId == groupId)),
         Errors.RegistrationGroupDoesNotExist(groupId)
       )

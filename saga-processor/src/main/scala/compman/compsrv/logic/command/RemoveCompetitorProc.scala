@@ -2,8 +2,8 @@ package compman.compsrv.logic.command
 
 import cats.Monad
 import cats.data.EitherT
+import compman.compsrv.logic._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.service.fights
 import compman.compsrv.model.{CompetitionState, Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, RemoveCompetitorCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}
@@ -23,7 +23,7 @@ object RemoveCompetitorProc {
   ): F[Either[Errors.Error, Seq[EventDTO]]] = {
     val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
       payload <- EitherT.fromOption(command.payload, NoPayloadError())
-      _ <- fights.assertETErr(
+      _ <- assertETErr(
         state.competitors.exists(_.contains(payload.getCompetitorId)),
         Errors.CompetitorDoesNotExist(payload.getCompetitorId)
       )

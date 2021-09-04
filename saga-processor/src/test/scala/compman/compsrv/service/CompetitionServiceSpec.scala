@@ -83,6 +83,8 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
         events <- eventsRef.get
       } yield assert(events)(isNonEmpty) && assert(events.head.getType)(equalTo(EventType.COMPETITION_CREATED)) &&
         assert(events.head.getPayload)(not(isNull)) &&
-        assert(events.head.getPayload)(isSubtype[CompetitionCreatedPayload](anything))
+        assert(events.head.getPayload)(isSubtype[CompetitionCreatedPayload](anything)) &&
+        assert(events.head.getCorrelationId)(equalTo(command.getId)) &&
+        assert(events.head.getLocalEventNumber.toLong)(equalTo(0L))
     }).provideLayer(loggingLayer ++ Clock.live)
 }

@@ -3,8 +3,8 @@ package compman.compsrv.logic.command
 import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
+import compman.compsrv.logic._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.service.fights
 import compman.compsrv.logic.service.fights.{FightsService, FightUtils}
 import compman.compsrv.model.{CompetitionState, Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, SetFightResultCommand}
@@ -12,7 +12,7 @@ import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.events.payload.{FightCompetitorsAssignedPayload, StageResultSetPayload}
 import compman.compsrv.model.Errors.NoPayloadError
 import compman.compsrv.model.commands.payload.SetFightResultPayload
-import compman.compsrv.model.dto.brackets.{CompetitorStageResultDTO, FightReferenceType, StageStatus}
+import compman.compsrv.model.dto.brackets.{FightReferenceType, StageStatus}
 import compman.compsrv.model.dto.competition.{FightDescriptionDTO, FightStatus}
 import compman.compsrv.model.extension.FightDescrOps
 
@@ -52,9 +52,9 @@ object SetFightResultProc {
       payload <- EitherT.fromOption[F](command.payload, NoPayloadError())
       fightId = payload.getFightId
       fr      = payload.getFightResult
-      _ <- fights.assertET[F](fr != null, Some("Fight result missing"))
+      _ <- assertET[F](fr != null, Some("Fight result missing"))
       winnerId = fr.getWinnerId
-      _ <- fights.assertETErr[F](state.fights.exists(_.contains(fightId)), Errors.FightDoesNotExist(fightId))
+      _ <- assertETErr[F](state.fights.exists(_.contains(fightId)), Errors.FightDoesNotExist(fightId))
       fight   = state.fights.flatMap(_.get(fightId)).get
       stageId = fight.getStageId
       stageFights <- EitherT
@@ -94,7 +94,8 @@ object SetFightResultProc {
           } yield List(dashboardFightResultSetEvent, stageResultSetEvent)
           k
         } else {
-          val k: EitherT[F, Errors.Error, List[EventDTO]] = EitherT.rightT[F, Errors.Error](List(dashboardFightResultSetEvent))
+          val k: EitherT[F, Errors.Error, List[EventDTO]] = EitherT
+            .rightT[F, Errors.Error](List(dashboardFightResultSetEvent))
           k
         }
     } yield events ++ fightUpdates
@@ -110,7 +111,7 @@ object SetFightResultProc {
   ) = {
     FightReferenceType.values().toList.foldMapM[F, List[EventDTO]](ref => {
       val k: EitherT[F, Errors.Error, List[EventDTO]] = for {
-        _  <- fights.assertET[F](winnerId != null, Some("Winner ID missing"))
+        _  <- assertET[F](winnerId != null, Some("Winner ID missing"))
         id <- EitherT.fromOption[F](getIdToProceed(ref, fight, payload), Errors.InternalError())
         assignments <- EitherT
           .liftF(FightUtils.advanceFighterToSiblingFights[F](id, payload.getFightId, ref, stageFights))

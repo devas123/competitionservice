@@ -1,11 +1,11 @@
 package compman.compsrv.logic.service
 
-import cats.{Monad, Semigroupal}
-import cats.data.EitherT
+import cats.Semigroupal
 import cats.implicits._
+import compman.compsrv.logic.assertE
 import compman.compsrv.model.Errors
 import compman.compsrv.model.dto.brackets.{CompetitorStageResultDTO, FightReferenceType, StageRoundType}
-import compman.compsrv.model.dto.competition.{CompetitorDTO, CompScoreDTO, FightDescriptionDTO, FightStatus, ScoreDTO}
+import compman.compsrv.model.dto.competition._
 
 import java.util.UUID
 
@@ -92,24 +92,6 @@ package object fights {
       ids.zipWithIndex.map(p => compScore(refTypes.head, p._1, p._2))
     }
   }
-
-
-  def assertE(condition: => Boolean, message: => Option[String] = None): Either[Errors.Error, Unit] =
-    if (condition)
-      Right(())
-    else
-      Left(Errors.InternalError(message))
-
-  def assertEErr(condition: => Boolean, error: => Errors.Error): Either[Errors.Error, Unit] =
-    if (condition)
-      Right(())
-    else
-      Left(error)
-
-  def assertET[F[+_]: Monad](condition: => Boolean, message: => Option[String] = None): EitherT[F, Errors.Error, Unit] =
-    EitherT.fromEither(assertE(condition, message))
-  def assertETErr[F[+_]: Monad](condition: => Boolean, error: => Errors.Error): EitherT[F, Errors.Error, Unit] =
-    EitherT.fromEither(assertEErr(condition, error))
 
   def assertSingleFinal(winnerFightsAndGrandFinal: List[FightDescriptionDTO]): CanFail[Unit] = {
     assertE(

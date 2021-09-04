@@ -2,6 +2,7 @@ package compman.compsrv.logic.service.fights
 
 import cats.Monad
 import cats.data.EitherT
+import compman.compsrv.logic._
 import compman.compsrv.model.Errors
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition.{CompetitorDTO, FightDescriptionDTO, FightStatus}
@@ -116,7 +117,8 @@ object BracketsUtils {
   }
   def distributeCompetitors(
     competitors: List[CompetitorDTO],
-    fights: Map[String, FightDescriptionDTO]): CanFail[Map[String, FightDescriptionDTO]] = {
+    fights: Map[String, FightDescriptionDTO]
+  ): CanFail[Map[String, FightDescriptionDTO]] = {
     for {
       _ <- assertE(
         fights.size * 2 >= competitors.size,
@@ -136,8 +138,7 @@ object BracketsUtils {
           f2 <- f1.pushCompetitor(c2.getId)
         } yield f2
       }
-      _ <-
-        assertE(updatedFirstRoundFights.size == pairsWithFights.size, Some("Not all competitors were distributed."))
+      _ <- assertE(updatedFirstRoundFights.size == pairsWithFights.size, Some("Not all competitors were distributed."))
     } yield fights ++ updatedFirstRoundFights.groupMapReduce(_.getId)(identity)((a, _) => a)
   }
 
