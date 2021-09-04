@@ -1,8 +1,8 @@
-package compman.compsrv.logic.service.fights
+package compman.compsrv.logic.fights
 
 import cats.Monad
 import cats.data.EitherT
-import compman.compsrv.logic.service.fights.FightUtils.filterPreliminaryFights
+import compman.compsrv.logic.fights.FightUtils.filterPreliminaryFights
 import compman.compsrv.model.Errors
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition.{CompetitorDTO, FightDescriptionDTO}

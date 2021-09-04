@@ -4,8 +4,8 @@ import cats.Monad
 import cats.data.EitherT
 import compman.compsrv.logic._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.service.fights.CanFail
-import compman.compsrv.logic.service.schedule.{ScheduleService, StageGraph}
+import compman.compsrv.logic.fights.CanFail
+import compman.compsrv.logic.schedule.{ScheduleService, StageGraph}
 import compman.compsrv.model.{CompetitionState, Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, GenerateScheduleCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}

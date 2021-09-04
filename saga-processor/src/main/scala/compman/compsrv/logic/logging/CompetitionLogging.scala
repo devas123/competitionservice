@@ -1,6 +1,6 @@
 package compman.compsrv.logic.logging
 
-import zio.{RIO, Task, ZLayer}
+import zio.{RIO, ZLayer}
 import zio.logging.{log, LogAnnotation, LogContext, Logging}
 import zio.logging.slf4j.Slf4jLogger
 

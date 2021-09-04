@@ -1,4 +1,4 @@
-package compman.compsrv.logic.service.schedule
+package compman.compsrv.logic.schedule
 
 import compman.compsrv.model.dto.schedule.{ScheduleEntryDTO, ScheduleEntryType, ScheduleRequirementDTO}
 import compman.compsrv.model.extension._

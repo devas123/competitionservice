@@ -1,4 +1,4 @@
-package compman.compsrv.logic.service.category
+package compman.compsrv.logic.category
 
 import compman.compsrv.model.commands.payload.{AdjacencyList, GenerateCategoriesFromRestrictionsPayload}
 import compman.compsrv.model.dto.competition._

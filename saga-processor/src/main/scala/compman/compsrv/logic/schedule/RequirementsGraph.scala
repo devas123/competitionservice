@@ -1,8 +1,8 @@
-package compman.compsrv.logic.service.schedule
+package compman.compsrv.logic.schedule
 
 import cats.implicits._
 import com.google.common.collect.{BiMap, HashBiMap}
-import compman.compsrv.logic.service.fights.CanFail
+import compman.compsrv.logic.fights.CanFail
 import compman.compsrv.model.dto.schedule.{ScheduleRequirementDTO, ScheduleRequirementType}
 import compman.compsrv.model.extension._
 import compman.compsrv.model.Errors
@@ -10,7 +10,7 @@ import compman.compsrv.model.Errors
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-case class RequirementsGraph private[schedule] (
+case class RequirementsGraph private[schedule](
   private val requirementIdToId: BiMap[String, Int] = HashBiMap.create(),
   private val graph: Array[List[Int]],
   private val categoryRequirements: Map[String, List[Int]],

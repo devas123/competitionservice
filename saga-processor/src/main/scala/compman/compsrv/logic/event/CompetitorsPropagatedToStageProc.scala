@@ -2,6 +2,7 @@ package compman.compsrv.logic.event
 
 import cats.Monad
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
+import compman.compsrv.logic.fights.createEmptyScore
 import compman.compsrv.model.{CompetitionState, Payload}
 import compman.compsrv.model.dto.brackets.FightReferenceType
 import compman.compsrv.model.dto.competition.CompScoreDTO
@@ -22,7 +23,6 @@ object CompetitorsPropagatedToStageProc {
   ): F[Option[CompetitionState]] = {
     import cats.implicits._
     import compman.compsrv.model.extension._
-    import compman.compsrv.logic.service.fights._
     val eventT = for {
       payload <- event.payload
       fights  <- state.fights

@@ -5,7 +5,7 @@ import cats.data.EitherT
 import cats.implicits._
 import compman.compsrv.logic._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.service.fights.{FightsService, FightUtils}
+import compman.compsrv.logic.fights.{FightsService, FightUtils}
 import compman.compsrv.model.{CompetitionState, Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, SetFightResultCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}

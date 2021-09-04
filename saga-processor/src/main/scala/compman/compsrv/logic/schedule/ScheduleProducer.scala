@@ -1,9 +1,11 @@
-package compman.compsrv.logic.service.schedule
+package compman.compsrv.logic.schedule
 
-import compman.compsrv.logic.service.fights.CanFail
+import cats.implicits._
+import compman.compsrv.logic.fights.CanFail
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule._
 import compman.compsrv.model.extension._
+import compman.compsrv.model.Errors
 
 import java.time.{Instant, ZonedDateTime, ZoneId}
 import java.time.temporal.ChronoUnit
@@ -11,8 +13,6 @@ import java.util.UUID
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Try
-import cats.implicits._
-import compman.compsrv.model.Errors
 
 private[schedule] object ScheduleProducer {
   private def eightyPercentOfDurationInMillis(duration: Long): Long = duration * 8 / 10

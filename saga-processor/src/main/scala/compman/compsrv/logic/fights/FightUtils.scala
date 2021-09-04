@@ -1,9 +1,9 @@
-package compman.compsrv.logic.service.fights
+package compman.compsrv.logic.fights
 
 import cats.{Monad, Traverse}
 import cats.data.OptionT
 import cats.implicits._
-import compman.compsrv.logic.service.fights.CompetitorSelectionUtils._
+import compman.compsrv.logic.fights.CompetitorSelectionUtils._
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition.{CompScoreDTO, FightDescriptionDTO, FightResultDTO, FightStatus}
 import compman.compsrv.model.CompetitionState

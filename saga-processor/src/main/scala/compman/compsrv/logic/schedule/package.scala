@@ -1,4 +1,4 @@
-package compman.compsrv.logic.service
+package compman.compsrv.logic
 
 import java.time.Instant
 import scala.collection.mutable.ArrayBuffer

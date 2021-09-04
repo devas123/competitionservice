@@ -10,7 +10,7 @@ import compman.compsrv.logic.actors.{CommandProcessorOperations, CompetitionProc
 import compman.compsrv.logic.actors.Messages.ProcessCommand
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.logic.logging.CompetitionLogging.Live.loggingLayer
-import compman.compsrv.logic.service.fights.CompetitorSelectionUtils.Interpreter
+import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.model.events.EventDTO
 import zio.{ExitCode, Has, Ref, Task, URIO, ZIO, ZLayer}
 import zio.blocking.Blocking

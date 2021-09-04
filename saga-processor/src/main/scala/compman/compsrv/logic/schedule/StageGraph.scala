@@ -1,7 +1,7 @@
-package compman.compsrv.logic.service.schedule
+package compman.compsrv.logic.schedule
 
 import com.google.common.collect.{BiMap, HashBiMap}
-import compman.compsrv.logic.service.fights.CanFail
+import compman.compsrv.logic.fights.CanFail
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.extension._
@@ -10,7 +10,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.language.reflectiveCalls
 
-case class StageGraph private[schedule] (
+case class StageGraph private[schedule](
   private val fightsMap: Map[String, FightDescriptionDTO],
   private val stagesGraph: Array[List[Int]],
   private val fightsGraph: Array[List[Int]],

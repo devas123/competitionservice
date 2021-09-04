@@ -1,7 +1,7 @@
 package compman.compsrv.logic.command
 
-import cats.data.EitherT
 import cats.{Monad, Traverse}
+import cats.data.EitherT
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.model.{CompetitionState, Errors, Payload}
 import compman.compsrv.model.command.Commands.{AddRegistrationGroupCommand, Command}

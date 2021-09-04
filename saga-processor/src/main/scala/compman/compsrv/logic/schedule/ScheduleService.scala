@@ -1,11 +1,11 @@
-package compman.compsrv.logic.service.schedule
+package compman.compsrv.logic.schedule
 
 import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
 import compman.compsrv.logic._
-import compman.compsrv.logic.service.fights.CanFail
 import compman.compsrv.logic.Operations.IdOperations
+import compman.compsrv.logic.fights.CanFail
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.{FightStartTimePairDTO, PeriodDTO, ScheduleDTO}
 import compman.compsrv.model.extension._

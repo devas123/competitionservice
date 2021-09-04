@@ -2,8 +2,8 @@ package compman.compsrv.logic.event
 
 import cats.Monad
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.event.Events.{CompetitionCreatedEvent, Event}
 import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.event.Events.{CompetitionCreatedEvent, Event}
 
 object CompetitionCreatedProc {
   def apply[F[+_] : Monad : IdOperations : EventOperations, P <: Payload](

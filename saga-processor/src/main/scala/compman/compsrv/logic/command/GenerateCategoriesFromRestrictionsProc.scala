@@ -2,13 +2,13 @@ package compman.compsrv.logic.command
 
 import cats.Monad
 import cats.data.EitherT
+import cats.implicits._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.service.category.CategoryGenerateService
+import compman.compsrv.logic.category.CategoryGenerateService
 import compman.compsrv.model.{CompetitionState, Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, GenerateCategoriesFromRestrictionsCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.Errors.NoPayloadError
-import cats.implicits._
 import compman.compsrv.model.events.payload.CategoryAddedPayload
 
 object GenerateCategoriesFromRestrictionsProc {

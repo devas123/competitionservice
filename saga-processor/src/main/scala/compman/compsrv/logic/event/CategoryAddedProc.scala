@@ -3,9 +3,9 @@ package compman.compsrv.logic.event
 import cats.Monad
 import cats.data.OptionT
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
+import compman.compsrv.model.{CompetitionState, Payload}
 import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
 import compman.compsrv.model.event.Events.{CategoryAddedEvent, Event}
-import compman.compsrv.model.{CompetitionState, Payload}
 
 object CategoryAddedProc {
   def apply[F[+_] : Monad : IdOperations : EventOperations, P <: Payload](

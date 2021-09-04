@@ -2,9 +2,10 @@ package compman.compsrv.logic.command
 
 import cats.Monad
 import cats.data.EitherT
+import compman.compsrv.model.extension._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.service.fights.{FightsService, FightUtils}
-import compman.compsrv.logic.service.fights.CompetitorSelectionUtils.Interpreter
+import compman.compsrv.logic.fights.{FightsService, FightUtils}
+import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.model.{CompetitionState, Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, PropagateCompetitorsCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}
@@ -12,6 +13,8 @@ import compman.compsrv.model.events.payload.{CompetitorAssignmentDescriptor, Com
 import compman.compsrv.model.Errors.{InternalError, NoPayloadError}
 import compman.compsrv.model.commands.payload.PropagateCompetitorsPayload
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
+
+import scala.jdk.CollectionConverters._
 
 object PropagateCompetitorsProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations: Interpreter, P <: Payload](
@@ -24,8 +27,6 @@ object PropagateCompetitorsProc {
     command: PropagateCompetitorsCommand,
     state: CompetitionState
   ): F[Either[Errors.Error, Seq[EventDTO]]] = {
-    import compman.compsrv.model.extension._
-    import scala.jdk.CollectionConverters._
     val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
       payload <- EitherT.fromOption[F](command.payload, NoPayloadError())
       stage   <- EitherT.fromOption[F](state.stages.flatMap(_.get(payload.getPreviousStageId)), NoPayloadError())

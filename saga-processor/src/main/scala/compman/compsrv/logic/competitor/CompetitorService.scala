@@ -1,4 +1,4 @@
-package compman.compsrv.logic.service.competitor
+package compman.compsrv.logic.competitor
 
 import compman.compsrv.model.dto.competition.{AcademyDTO, CompetitorDTO}
 

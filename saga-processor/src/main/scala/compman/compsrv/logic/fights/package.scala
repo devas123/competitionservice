@@ -1,4 +1,4 @@
-package compman.compsrv.logic.service
+package compman.compsrv.logic
 
 import cats.Semigroupal
 import cats.implicits._

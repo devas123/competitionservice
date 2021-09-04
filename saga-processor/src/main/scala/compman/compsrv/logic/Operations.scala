@@ -3,17 +3,12 @@ package compman.compsrv.logic
 import cats.data.EitherT
 import cats.Monad
 import compman.compsrv.logic.Mapping.{CommandMapping, EventMapping}
+import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compman.compsrv.logic.service.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.model._
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.dto.competition.{
-  CategoryDescriptorDTO,
-  CompetitorDTO,
-  RegistrationGroupDTO,
-  RegistrationPeriodDTO
-}
+import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CompetitorDTO, RegistrationGroupDTO, RegistrationPeriodDTO}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import zio.Task
 
