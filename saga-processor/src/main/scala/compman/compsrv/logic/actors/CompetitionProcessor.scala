@@ -1,8 +1,7 @@
 package compman.compsrv.logic.actors
 
-import compman.compsrv.logic.{Operations, StateOperations}
+import compman.compsrv.logic.Operations
 import compman.compsrv.logic.actors.CompetitionProcessor.Context
-import compman.compsrv.logic.StateOperations.GetStateConfig
 import compman.compsrv.logic.actors.Messages._
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
 import compman.compsrv.model.{CompetitionState, Errors}
@@ -52,8 +51,7 @@ final class CompetitionProcessor {
   ) { Operations.applyEvent[LIO](state, eventDTO) }
 
   private def makeActor(
-    id: String,
-    getStateConfig: GetStateConfig,
+    getStateConfig: ActorConfig,
     processorOperations: CommandProcessorOperations,
     context: Context,
     mailboxSize: Int
@@ -89,11 +87,11 @@ final class CompetitionProcessor {
     }
 
     for {
-      config       <- StateOperations.createConfig(getStateConfig)
       statePromise <- Promise.make[Throwable, Ref[CompetitionState]]
+      config = getStateConfig
       _ <- (for {
         initial <- processorOperations.getLatestState(config)
-        events  <- processorOperations.retrieveEvents(id)
+        events  <- processorOperations.retrieveEvents(config.eventTopic)
         updated <- events.foldLeft[LIO[CompetitionState]](RIO(initial))((a, b) => a.flatMap(applyEvent(_, b)))
         s       <- Ref.make(updated)
         _       <- statePromise.succeed(s)
@@ -122,12 +120,11 @@ object CompetitionProcessor {
   private val DefaultActorMailboxSize: Int = 100
 
   def apply(
-    id: String,
-    getStateConfig: GetStateConfig,
+    actorConfig: ActorConfig,
     processorConfig: CommandProcessorOperations,
     context: Context,
     mailboxSize: Int = DefaultActorMailboxSize
   )(postStop: () => LIO[Unit]): RIO[Logging with Clock, CompetitionProcessorActorRef] = new CompetitionProcessor()
-    .makeActor(id, getStateConfig, processorConfig, context, mailboxSize)(postStop)
+    .makeActor(actorConfig, processorConfig, context, mailboxSize)(postStop)
 
 }

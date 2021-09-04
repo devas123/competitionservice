@@ -14,9 +14,11 @@ dependencies {
     Libraries.zioConfig.forEach { implementation(it) }
     Libraries.circle.forEach { implementation(it) }
     Libraries.jackson.forEach { implementation(it) }
-    Libraries.embeddedKafka.forEach { testImplementation(it) }
+    Libraries.rocksdb.forEach { implementation(it) }
     implementation(project(":competition-serv-model"))
     implementation(project(":compservice-annotations"))
+
+    Libraries.embeddedKafka.forEach { testImplementation(it) }
     testImplementation("org.scalatest:scalatest_$scalaBinary:3.2.8")
     testImplementation("junit:junit:4.13")
     testImplementation("junit:junit:4.13")

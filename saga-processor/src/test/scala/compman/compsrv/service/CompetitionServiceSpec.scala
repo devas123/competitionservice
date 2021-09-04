@@ -1,8 +1,7 @@
 package compman.compsrv.service
 
 import compman.compsrv.jackson.SerdeApi.eventSerialized
-import compman.compsrv.logic.StateOperations.GetStateConfig
-import compman.compsrv.logic.actors.{CommandProcessorOperations, CompetitionProcessor, CompetitionProcessorActorRef}
+import compman.compsrv.logic.actors.{ActorConfig, CommandProcessorOperations, CompetitionProcessor, CompetitionProcessorActorRef}
 import compman.compsrv.logic.actors.Messages.ProcessCommand
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.commands.{CommandDTO, CommandType}
@@ -10,7 +9,6 @@ import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.events.payload.CompetitionCreatedPayload
-import compman.compsrv.service.Deps._
 import zio.{Has, Ref, Task, ZLayer}
 import zio.blocking.Blocking
 import zio.clock.Clock
@@ -25,28 +23,29 @@ import zio.test.Assertion._
 import java.time.Instant
 import java.util.UUID
 
-object Deps {
-  val competitionId   = "test-competition-id"
-  val groupId: String = UUID.randomUUID().toString
-  val clientId        = "client"
-  private val brokers = List("localhost:9092")
-  val consumerSettings: ConsumerSettings = ConsumerSettings(brokers).withGroupId(groupId).withClientId(clientId)
-    .withCloseTimeout(30.seconds).withPollTimeout(10.millis).withProperty("enable.auto.commit", "false")
-    .withProperty("auto.offset.reset", "earliest")
-
-  val producerSettings: ProducerSettings = ProducerSettings(brokers)
-  val consumerLayer: ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]] = Consumer.make(consumerSettings)
-    .toLayer
-  val producerLayer: ZLayer[Any, Throwable, Has[Producer.Service[Any, String, EventDTO]]] = Producer
-    .make[Any, String, EventDTO](producerSettings, Serde.string, eventSerialized).toLayer
-  val layers: ZLayer[Clock with Blocking with Any, Throwable, Has[Consumer.Service] with Has[
-    Producer.Service[Any, String, EventDTO]
-  ]]                                              = consumerLayer ++ producerLayer
-  val loggingLayer: ZLayer[Any, Nothing, Logging] = CompetitionLogging.Live.loggingLayer
-}
 
 object CompetitionServiceSpec extends DefaultRunnableSpec {
+  object Deps {
+    val competitionId   = "test-competition-id"
+    val groupId: String = UUID.randomUUID().toString
+    val clientId        = "client"
+    private val brokers = List("localhost:9092")
+    val consumerSettings: ConsumerSettings = ConsumerSettings(brokers).withGroupId(groupId).withClientId(clientId)
+      .withCloseTimeout(30.seconds).withPollTimeout(10.millis).withProperty("enable.auto.commit", "false")
+      .withProperty("auto.offset.reset", "earliest")
+
+    val producerSettings: ProducerSettings = ProducerSettings(brokers)
+    val consumerLayer: ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]] = Consumer.make(consumerSettings)
+      .toLayer
+    val producerLayer: ZLayer[Any, Throwable, Has[Producer.Service[Any, String, EventDTO]]] = Producer
+      .make[Any, String, EventDTO](producerSettings, Serde.string, eventSerialized).toLayer
+    val layers: ZLayer[Clock with Blocking with Any, Throwable, Has[Consumer.Service] with Has[
+      Producer.Service[Any, String, EventDTO]
+    ]]                                              = consumerLayer ++ producerLayer
+    val loggingLayer: ZLayer[Any, Nothing, Logging] = CompetitionLogging.Live.loggingLayer
+  }
   import zio.test.environment._
+  import Deps._
 
   def spec: Spec[TestEnvironment, TestFailure[Throwable], TestSuccess] =
     suite("The Competition Processor should")(testM("Accept commands") {
@@ -54,9 +53,8 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
         actorsRef <- Ref.make(Map.empty[String, CompetitionProcessorActorRef])
         eventsRef <- Ref.make(Seq.empty[EventDTO])
         processor <- CompetitionProcessor(
-          competitionId,
-          GetStateConfig(competitionId),
-          CommandProcessorOperations.test(testEnvironment, eventsRef),
+          ActorConfig(competitionId),
+          CommandProcessorOperations.test(eventsRef),
           CompetitionProcessor.Context(actorsRef, competitionId)
         )(() => actorsRef.update(m => m - competitionId))
         _ <- actorsRef.update(m => m + (competitionId -> processor))

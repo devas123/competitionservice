@@ -5,12 +5,11 @@ import compman.compsrv.jackson.SerdeApi.{commandDeserializer, eventSerialized}
 import compman.compsrv.logic._
 import compman.compsrv.logic.actors.CompetitionProcessor.Context
 import compman.compsrv.logic.Operations._
-import compman.compsrv.logic.StateOperations.GetStateConfig
-import compman.compsrv.logic.actors.{CommandProcessorOperations, CompetitionProcessor, CompetitionProcessorActorRef}
+import compman.compsrv.logic.actors.{ActorConfig, CommandProcessorOperations, CompetitionProcessor, CompetitionProcessorActorRef}
 import compman.compsrv.logic.actors.Messages.ProcessCommand
+import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.logic.logging.CompetitionLogging.Live.loggingLayer
-import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.model.events.EventDTO
 import zio.{ExitCode, Has, Ref, Task, URIO, ZIO, ZLayer}
 import zio.blocking.Blocking
@@ -24,12 +23,11 @@ import zio.logging.Logging
 object Main extends zio.App {
 
   object Live {
-    implicit val commandMapping: Mapping.CommandMapping[LIO]   = compman.compsrv.logic.Mapping.CommandMapping.live
-    implicit val eventMapping: Mapping.EventMapping[LIO]       = compman.compsrv.logic.Mapping.EventMapping.live
-    implicit val stateOperations: StateOperations.Service[LIO] = StateOperations.Service.live
-    implicit val idOperations: IdOperations[LIO]               = IdOperations.live
-    implicit val eventOperations: EventOperations[LIO]         = EventOperations.live
-    implicit val selectInterpreter: Interpreter[LIO]           = Interpreter.asTask
+    implicit val commandMapping: Mapping.CommandMapping[LIO] = compman.compsrv.logic.Mapping.CommandMapping.live
+    implicit val eventMapping: Mapping.EventMapping[LIO]     = compman.compsrv.logic.Mapping.EventMapping.live
+    implicit val idOperations: IdOperations[LIO]             = IdOperations.live
+    implicit val eventOperations: EventOperations[LIO]       = EventOperations.live
+    implicit val selectInterpreter: Interpreter[LIO]         = Interpreter.asTask
     implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO] =
       compman.compsrv.logic.logging.CompetitionLogging.Live.live
   }
@@ -52,15 +50,15 @@ object Main extends zio.App {
     val program: ZIO[PipelineEnvironment, Any, Any] = Consumer
       .subscribeAnd(Subscription.topics(appConfig.consumer.topic)).plainStream(Serde.string, commandDeserializer)
       .mapM(record => {
-        val getStateConfig: GetStateConfig = createGetStateConfig(record.key)
-        val commandProcessorConfig         = createCommandProcessorConfig(consumerLayer, producerLayer)
-        val context                        = Context(refActorsMap, record.key)
+        val actorConfig: ActorConfig = createActorConfig(record.key)
+        val commandProcessorConfig      = createCommandProcessorConfig(consumerLayer, producerLayer)
+        val context                     = Context(refActorsMap, record.key)
         (for {
           map <- refActorsMap.get
           actor <-
             if (map.contains(record.key)) Task.effectTotal(map(record.key))
             else {
-              CompetitionProcessor(record.key, getStateConfig, commandProcessorConfig, context)(() =>
+              CompetitionProcessor(actorConfig, commandProcessorConfig, context)(() =>
                 refActorsMap.update(m => m - record.key)
               )
             }
@@ -72,7 +70,7 @@ object Main extends zio.App {
     program.provideSomeLayer(Clock.live ++ Blocking.live ++ layers ++ loggingLayer)
   }
 
-  private def createGetStateConfig(competitionId: String) = GetStateConfig(competitionId)
+  private def createActorConfig(competitionId: String) = ActorConfig(competitionId)
   private def createCommandProcessorConfig(
     consumerLayer: ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]],
     producerLayer: ZLayer[Any, Throwable, Has[Producer.Service[Any, String, EventDTO]]]

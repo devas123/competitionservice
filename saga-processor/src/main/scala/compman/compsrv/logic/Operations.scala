@@ -118,7 +118,7 @@ object Operations {
 
   def applyEvent[F[
     +_
-  ]: CompetitionLogging.Service: Monad: EventMapping: StateOperations.Service: IdOperations: EventOperations](
+  ]: CompetitionLogging.Service: Monad: EventMapping: IdOperations: EventOperations](
     latestState: CompetitionState,
     event: EventDTO
   ): F[CompetitionState] = {
