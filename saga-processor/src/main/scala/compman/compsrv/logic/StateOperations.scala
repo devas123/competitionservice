@@ -1,7 +1,8 @@
 package compman.compsrv.logic
 
 import compman.compsrv.logic.StateOperations.GetStateConfig.defaultEventsTopic
-import zio.Task
+import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import zio.RIO
 
 object StateOperations {
   trait GetStateConfig {
@@ -23,8 +24,7 @@ object StateOperations {
   object Service {
     def apply[F[+_]](implicit F: Service[F]): Service[F] = F
 
-    val live: Service[Task] = (getStateConfig: GetStateConfig) => Task
-      .effectTotal(getStateConfig)
+    val live: Service[LIO] = (getStateConfig: GetStateConfig) => RIO.effectTotal(getStateConfig)
 
   }
 

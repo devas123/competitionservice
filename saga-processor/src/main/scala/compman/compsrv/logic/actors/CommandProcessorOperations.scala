@@ -2,12 +2,13 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.jackson.SerdeApi
 import compman.compsrv.logic.StateOperations.GetStateConfig
+import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.{CompetitionState, CompetitionStateImpl}
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
 import org.apache.kafka.clients.producer.ProducerRecord
-import zio.{Chunk, Has, Layer, Ref, Task, ZLayer}
+import zio.{Chunk, Has, Layer, Ref, RIO, ZLayer}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.consumer.{Consumer, Subscription}
@@ -18,9 +19,9 @@ import java.time.Instant
 
 trait CommandProcessorOperations {
   def clockLayer: Layer[Nothing, Clock]
-  def retrieveEvents(id: String): Task[List[EventDTO]]
-  def persistEvents(events: Seq[EventDTO]): Task[Unit]
-  def getLatestState(config: GetStateConfig): Task[CompetitionState] = Task {
+  def retrieveEvents(id: String): LIO[List[EventDTO]]
+  def persistEvents(events: Seq[EventDTO]): LIO[Unit]
+  def getLatestState(config: GetStateConfig): LIO[CompetitionState] = RIO {
     CompetitionStateImpl(
       id = config.id,
       competitors = Option(Map.empty),
@@ -50,10 +51,10 @@ object CommandProcessorOperations {
 
     new CommandProcessorOperations {
       override def clockLayer: Layer[Nothing, Clock] = Clock.live
-      override def retrieveEvents(id: String): Task[List[EventDTO]] = Consumer.subscribeAnd(Subscription.topics(id))
+      override def retrieveEvents(id: String): LIO[List[EventDTO]] = Consumer.subscribeAnd(Subscription.topics(id))
         .plainStream(Serde.string, SerdeApi.eventDeserializer).runCollect.map(_.map(_.value).toList)
         .provideSomeLayer(consumerLayer).provideLayer(clockLayer ++ Blocking.live)
-      override def persistEvents(events: Seq[EventDTO]): Task[Unit] = {
+      override def persistEvents(events: Seq[EventDTO]): LIO[Unit] = {
         zio.kafka.producer.Producer.produceChunk[Any, String, EventDTO](Chunk.fromIterable(events).map(e =>
           new ProducerRecord[String, EventDTO](e.getCompetitionId, e)
         )).provideLayer(producerLayer ++ Blocking.live).ignore
@@ -67,15 +68,14 @@ object CommandProcessorOperations {
   ): CommandProcessorOperations = {
     new CommandProcessorOperations {
       self =>
-      override def retrieveEvents(id: String): Task[List[EventDTO]] = Task.effectTotal(List.empty)
-      override def persistEvents(events: Seq[EventDTO]): Task[Unit] = for {
+      override def retrieveEvents(id: String): LIO[List[EventDTO]] = RIO.effectTotal(List.empty)
+      override def persistEvents(events: Seq[EventDTO]): LIO[Unit] = for {
         _ <- eventReceiver.update(evts => evts ++ events)
       } yield ()
       override def clockLayer: Layer[Nothing, Clock] = clock
 
-      override def getLatestState(config: GetStateConfig): Task[CompetitionState] = {
-        initialState.map(Task.effectTotal(_))
-          .getOrElse(super.getLatestState(config))
+      override def getLatestState(config: GetStateConfig): LIO[CompetitionState] = {
+        initialState.map(RIO.effectTotal(_)).getOrElse(super.getLatestState(config))
       }
     }
   }

@@ -4,10 +4,12 @@ import compman.compsrv.jackson.SerdeApi.eventSerialized
 import compman.compsrv.logic.StateOperations.GetStateConfig
 import compman.compsrv.logic.actors.{CommandProcessorOperations, CompetitionProcessor, CompetitionProcessorActorRef}
 import compman.compsrv.logic.actors.Messages.ProcessCommand
+import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.commands.{CommandDTO, CommandType}
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
 import compman.compsrv.model.events.{EventDTO, EventType}
+import compman.compsrv.model.events.payload.CompetitionCreatedPayload
 import compman.compsrv.service.Deps._
 import zio.{Has, Ref, Task, ZLayer}
 import zio.blocking.Blocking
@@ -16,6 +18,7 @@ import zio.duration.durationInt
 import zio.kafka.consumer.{Consumer, ConsumerSettings}
 import zio.kafka.producer.{Producer, ProducerSettings}
 import zio.kafka.serde.Serde
+import zio.logging.Logging
 import zio.test._
 import zio.test.Assertion._
 
@@ -38,11 +41,13 @@ object Deps {
     .make[Any, String, EventDTO](producerSettings, Serde.string, eventSerialized).toLayer
   val layers: ZLayer[Clock with Blocking with Any, Throwable, Has[Consumer.Service] with Has[
     Producer.Service[Any, String, EventDTO]
-  ]] = consumerLayer ++ producerLayer
+  ]]                                              = consumerLayer ++ producerLayer
+  val loggingLayer: ZLayer[Any, Nothing, Logging] = CompetitionLogging.Live.loggingLayer
 }
 
 object CompetitionServiceSpec extends DefaultRunnableSpec {
   import zio.test.environment._
+
   def spec: Spec[TestEnvironment, TestFailure[Throwable], TestSuccess] =
     suite("The Competition Processor should")(testM("Accept commands") {
       for {
@@ -76,7 +81,8 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
         _      <- processor ! ProcessCommand(command)
         _      <- Task { Thread.sleep(1000) }
         events <- eventsRef.get
-        _      <- Task { println(events) }
-      } yield assert(events)(isNonEmpty) && assert(events.head.getType)(equalTo(EventType.COMPETITION_CREATED))
-    })
+      } yield assert(events)(isNonEmpty) && assert(events.head.getType)(equalTo(EventType.COMPETITION_CREATED)) &&
+        assert(events.head.getPayload)(not(isNull)) &&
+        assert(events.head.getPayload)(isSubtype[CompetitionCreatedPayload](anything))
+    }).provideLayer(loggingLayer ++ Clock.live)
 }

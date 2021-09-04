@@ -3,6 +3,8 @@ package compman.compsrv.logic
 import cats.data.EitherT
 import cats.Monad
 import compman.compsrv.logic.Mapping.{CommandMapping, EventMapping}
+import compman.compsrv.logic.logging.CompetitionLogging
+import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.logic.service.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.model._
 import compman.compsrv.model.commands.CommandDTO
@@ -35,93 +37,82 @@ object Operations {
   trait CommandEventOperations[F[+_], A, T] {
     def lift(obj: => Seq[A]): F[Seq[A]]
     def create[P <: Payload](
-        `type`: EventType,
-        competitionId: Option[String] = None,
-        competitorId: Option[String] = None,
-        fightId: Option[String] = None,
-        categoryId: Option[String] = None,
-        payload: Option[P]
+      `type`: EventType,
+      competitionId: Option[String] = None,
+      competitorId: Option[String] = None,
+      fightId: Option[String] = None,
+      categoryId: Option[String] = None,
+      payload: Option[P]
     ): F[A]
     def error(error: => Errors.Error): F[Either[Errors.Error, A]]
   }
   trait EventOperations[F[+_]] extends CommandEventOperations[F, EventDTO, EventType]
 
   object EventOperations {
-    val live: EventOperations[Task] =
-      new EventOperations[Task] {
-        override def lift(obj: => Seq[EventDTO]): Task[Seq[EventDTO]] = Task(obj)
+    val live: EventOperations[LIO] = new EventOperations[LIO] {
+      override def lift(obj: => Seq[EventDTO]): LIO[Seq[EventDTO]] = Task(obj)
 
-        override def error(error: => Errors.Error): Task[Either[Errors.Error, EventDTO]] = Task {
-          Left(error)
-        }
+      override def error(error: => Errors.Error): LIO[Either[Errors.Error, EventDTO]] = Task { Left(error) }
 
-        override def create[P <: Payload](
-            `type`: EventType,
-            competitionId: Option[String],
-            competitorId: Option[String],
-            fightId: Option[String],
-            categoryId: Option[String],
-            payload: Option[P]
-        ): Task[EventDTO] = Task {
-          val e = new EventDTO()
-          e.setType(`type`)
-          competitionId.foreach(e.setCompetitionId)
-          competitorId.foreach(e.setCompetitorId)
-          categoryId.foreach(e.setCategoryId)
-          payload.foreach(e.setPayload)
-          e
-        }
+      override def create[P <: Payload](
+        `type`: EventType,
+        competitionId: Option[String],
+        competitorId: Option[String],
+        fightId: Option[String],
+        categoryId: Option[String],
+        payload: Option[P]
+      ): LIO[EventDTO] = Task {
+        val e = new EventDTO()
+        e.setType(`type`)
+        competitionId.foreach(e.setCompetitionId)
+        competitorId.foreach(e.setCompetitorId)
+        categoryId.foreach(e.setCategoryId)
+        payload.foreach(e.setPayload)
+        e
       }
+    }
 
   }
 
   object CommandEventOperations {
-    def apply[F[+_], A, T](implicit
-        F: CommandEventOperations[F, A, T]
-    ): CommandEventOperations[F, A, T] = F
+    def apply[F[+_], A, T](implicit F: CommandEventOperations[F, A, T]): CommandEventOperations[F, A, T] = F
   }
   object IdOperations {
     def apply[F[_]](implicit F: IdOperations[F]): IdOperations[F] = F
 
-    val live: IdOperations[Task] =
-      new IdOperations[Task] {
-        override def competitorId(competitor: CompetitorDTO): Task[String] = Task(
-          util.UUID.randomUUID().toString
-        )
-        override def categoryId(competitor: CategoryDescriptorDTO): Task[String] = Task(
-          util.UUID.randomUUID().toString
-        )
-        override def registrationPeriodId(competitor: RegistrationPeriodDTO): Task[String] =
-          Task(util.UUID.randomUUID().toString)
+    val live: IdOperations[LIO] = new IdOperations[LIO] {
+      override def competitorId(competitor: CompetitorDTO): LIO[String]       = Task(util.UUID.randomUUID().toString)
+      override def categoryId(competitor: CategoryDescriptorDTO): LIO[String] = Task(util.UUID.randomUUID().toString)
+      override def registrationPeriodId(competitor: RegistrationPeriodDTO): LIO[String] =
+        Task(util.UUID.randomUUID().toString)
 
-        override def registrationGroupId(group: RegistrationGroupDTO): Task[String] = Task(util.UUID.randomUUID().toString)
+      override def registrationGroupId(group: RegistrationGroupDTO): LIO[String] =
+        Task(util.UUID.randomUUID().toString)
 
-        override def fightId(stageId: String, groupId: String): Task[String] = Task(UUID.randomUUID().toString)
+      override def fightId(stageId: String, groupId: String): LIO[String] = Task(UUID.randomUUID().toString)
 
-        override def uid: Task[String] = Task(UUID.randomUUID().toString)
+      override def uid: LIO[String] = Task(UUID.randomUUID().toString)
 
-        override def generateIdIfMissing(id: Option[String]): Task[String] = Task ( id.getOrElse(UUID.randomUUID().toString) )
-      }
+      override def generateIdIfMissing(id: Option[String]): LIO[String] =
+        Task(id.getOrElse(UUID.randomUUID().toString))
+    }
 
   }
 
-  def processCommand[F[+_]: Monad: CommandMapping: IdOperations: EventOperations: Interpreter](
-      latestState: CompetitionState,
-      command: CommandDTO
+  def processCommand[F[+_]: CompetitionLogging.Service: Monad: CommandMapping: IdOperations: EventOperations: Interpreter](
+    latestState: CompetitionState,
+    command: CommandDTO
   ): F[Either[Errors.Error, Seq[EventDTO]]] = {
-    val either: EitherT[F, Errors.Error, Seq[EventDTO]] =
-      for {
-        mapped        <- EitherT.liftF(Mapping.mapCommandDto(command))
-        eventsToApply <- EitherT(CommandProcessors.process(mapped, latestState))
-      } yield eventsToApply
+    val either: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
+      mapped        <- EitherT.liftF(Mapping.mapCommandDto(command))
+      eventsToApply <- EitherT(CommandProcessors.process(mapped, latestState))
+    } yield eventsToApply
     either.value
   }
 
-  def applyEvent[F[
-      +_
-  ]: Monad: EventMapping: StateOperations.Service: IdOperations: EventOperations](
-      latestState: CompetitionState,
-      event: EventDTO
+  def applyEvent[F[+_]: CompetitionLogging.Service: Monad: EventMapping: StateOperations.Service: IdOperations: EventOperations](
+    latestState: CompetitionState,
+    event: EventDTO
   ): F[CompetitionState] = {
     import cats.implicits._
     for {

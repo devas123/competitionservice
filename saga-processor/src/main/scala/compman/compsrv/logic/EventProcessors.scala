@@ -3,13 +3,14 @@ package compman.compsrv.logic
 import cats.Monad
 import compman.compsrv.logic.Mapping.EventMapping
 import compman.compsrv.logic.event._
+import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.{CompetitionState, Payload}
 import compman.compsrv.model.event.Events
 
 object EventProcessors {
   import Operations._
 
-  def applyEvent[F[+_]: Monad: IdOperations: EventOperations: EventMapping, P <: Payload](
+  def applyEvent[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations: EventMapping, P <: Payload](
     event: Events.Event[P],
     state: CompetitionState
   ): F[CompetitionState] = Monad[F].map(

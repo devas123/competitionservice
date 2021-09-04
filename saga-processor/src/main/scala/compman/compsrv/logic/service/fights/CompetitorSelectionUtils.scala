@@ -3,6 +3,7 @@ package compman.compsrv.logic.service.fights
 import cats.{~>, Monad, MonoidK, Show}
 import cats.free.Free
 import cats.implicits._
+import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.brackets.StageRoundType
 import compman.compsrv.model.CompetitionState
 import zio.Task
@@ -16,15 +17,15 @@ object CompetitorSelectionUtils {
   object Interpreter {
     def apply[F[+_]: Monad](implicit F: Interpreter[F]): Interpreter[F] = F
 
-    val asTask: Interpreter[Task] = (state: CompetitionState) => {
+    val asTask: Interpreter[LIO] = (state: CompetitionState) => {
       val stages = state.stages.getOrElse(Map.empty)
       def results(stageId: String) = stages.get(stageId).flatMap(s => Option(s.getStageResultDescriptor))
         .flatMap(s => Option(s.getCompetitorResults))
         .map(res => res.groupMapReduce(_.getCompetitorId)(identity)((a, _) => a)).getOrElse(Map.empty)
       def fights(stageId: String) = state.fights
         .map(_.values.filter(_.getStageId == stageId).groupMapReduce(_.getId)(identity)((a, _) => a))
-      new (CompetitorSelectA ~> Task) {
-        override def apply[A](fa: CompetitorSelectA[A]): Task[A] = {
+      new (CompetitorSelectA ~> LIO) {
+        override def apply[A](fa: CompetitorSelectA[A]): LIO[A] = {
           fa match {
             case FirstNPlaces(stageId, n) =>
               Task(results(stageId).values.toSeq.sortBy(_.getPlace).take(n).map(_.getCompetitorId).asInstanceOf[A])

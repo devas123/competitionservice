@@ -1,5 +1,6 @@
 package compman.compsrv.logic
 
+import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.command.Commands
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.Payload
@@ -22,7 +23,7 @@ object Mapping {
   object CommandMapping {
     def apply[F[_]](implicit F: CommandMapping[F]): CommandMapping[F] = F
 
-    val live: CommandMapping[Task] =
+    val live: CommandMapping[LIO] =
       (commandDTO: CommandDTO) =>
         Task {
           commandDTO.getType match {
@@ -285,9 +286,9 @@ object Mapping {
   object EventMapping {
     def apply[F[+_]](implicit F: EventMapping[F]): EventMapping[F] = F
 
-    val live: EventMapping[Task] =
-      new EventMapping[Task] {
-        override def mapEventDto(eventDto: EventDTO): Task[Events.Event[Payload]] = Task {
+    val live: EventMapping[LIO] =
+      new EventMapping[LIO] {
+        override def mapEventDto(eventDto: EventDTO): LIO[Events.Event[Payload]] = Task {
           eventDto.getType match {
             case BRACKETS_GENERATED =>
               BracketsGeneratedEvent(
