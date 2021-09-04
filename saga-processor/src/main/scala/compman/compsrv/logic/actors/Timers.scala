@@ -7,12 +7,12 @@ import zio.clock.Clock
 import zio.duration.Duration
 import zio.logging.Logging
 
-private[actors] case class Timers(
+private[actors] case class Timers[Env](
   private val self: CompetitionProcessorActorRef,
   private val timers: Ref[Map[String, Fiber[Throwable, Unit]]],
-  private val processorConfig: CommandProcessorOperations
+  private val processorConfig: CommandProcessorOperations[Env]
 ) {
-  def startDestroyTimer[A](key: String, timeout: Duration): RIO[Logging with Clock, Unit] = {
+  def startDestroyTimer[A](key: String, timeout: Duration): RIO[Env with Logging with Clock, Unit] = {
     def create = (RIO.sleep(timeout) <* (self ! Stop)).fork
     for {
       map <- timers.get

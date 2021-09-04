@@ -6,7 +6,7 @@ import zio.config.magnolia.DeriveConfigDescriptor
 import zio.config.typesafe.TypesafeConfigSource
 import com.typesafe.config.ConfigFactory
 
-final case class AppConfig(consumer: ConsumerConfig, producer: ProducerConfig, enrichmentConfig: EnrichmentConfig)
+final case class AppConfig(consumer: ConsumerConfig, producer: ProducerConfig, snapshotConfig: SnapshotConfig)
 
 final case class ConsumerConfig(bootstrapServers: String, topic: String, groupId: String) {
   def brokers: List[String] = bootstrapServers.split(",").toList
@@ -16,7 +16,7 @@ final case class ProducerConfig(bootstrapServers: String, topic: String) {
   def brokers: List[String] = bootstrapServers.split(",").toList
 }
 
-final case class EnrichmentConfig(baseEndpoint: String)
+final case class SnapshotConfig(databasePath: String)
 
 object AppConfig {
   private val descriptor = DeriveConfigDescriptor.descriptor[AppConfig]

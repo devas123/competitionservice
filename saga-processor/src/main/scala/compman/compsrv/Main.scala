@@ -5,13 +5,13 @@ import compman.compsrv.jackson.SerdeApi.{commandDeserializer, eventSerialized}
 import compman.compsrv.logic._
 import compman.compsrv.logic.actors.CompetitionProcessor.Context
 import compman.compsrv.logic.Operations._
-import compman.compsrv.logic.actors.{ActorConfig, CommandProcessorOperations, CompetitionProcessor, CompetitionProcessorActorRef}
+import compman.compsrv.logic.actors._
 import compman.compsrv.logic.actors.Messages.ProcessCommand
 import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.logic.logging.CompetitionLogging.Live.loggingLayer
 import compman.compsrv.model.events.EventDTO
-import zio.{ExitCode, Has, Ref, Task, URIO, ZIO, ZLayer}
+import zio.{ExitCode, Ref, Task, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -32,7 +32,7 @@ object Main extends zio.App {
       compman.compsrv.logic.logging.CompetitionLogging.Live.live
   }
 
-  type PipelineEnvironment = Clock with Blocking with Consumer with Producer[Any, String, EventDTO] with Logging
+  type PipelineEnvironment = Clock with Blocking with Consumer with Producer[Any, String, EventDTO] with Logging with SnapshotService.Snapshot
 
   def createProgram(
     appConfig: AppConfig,
@@ -46,13 +46,14 @@ object Main extends zio.App {
 
     val consumerLayer = Consumer.make(consumerSettings).toLayer
     val producerLayer = Producer.make[Any, String, EventDTO](producerSettings, Serde.string, eventSerialized).toLayer
-    val layers        = consumerLayer ++ producerLayer
+    val snapshotLayer = SnapshotService.live(appConfig.snapshotConfig.databasePath).toLayer
+    val layers        = consumerLayer ++ producerLayer ++ snapshotLayer
     val program: ZIO[PipelineEnvironment, Any, Any] = Consumer
       .subscribeAnd(Subscription.topics(appConfig.consumer.topic)).plainStream(Serde.string, commandDeserializer)
       .mapM(record => {
         val actorConfig: ActorConfig = createActorConfig(record.key)
-        val commandProcessorConfig      = createCommandProcessorConfig(consumerLayer, producerLayer)
-        val context                     = Context(refActorsMap, record.key)
+        val commandProcessorConfig   = createCommandProcessorConfig
+        val context                  = Context(refActorsMap, record.key)
         (for {
           map <- refActorsMap.get
           actor <-
@@ -71,10 +72,7 @@ object Main extends zio.App {
   }
 
   private def createActorConfig(competitionId: String) = ActorConfig(competitionId)
-  private def createCommandProcessorConfig(
-    consumerLayer: ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]],
-    producerLayer: ZLayer[Any, Throwable, Has[Producer.Service[Any, String, EventDTO]]]
-  ) = CommandProcessorOperations(consumerLayer, producerLayer)
+  private def createCommandProcessorConfig             = CommandProcessorOperations()
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
     (for {
       competitionProcessorsMap <- Ref.make(Map.empty[String, CompetitionProcessorActorRef])

@@ -1,25 +1,28 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.jackson.SerdeApi
+import compman.compsrv.logic.actors.CompetitionProcessor.LiveEnv
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.{CompetitionState, CompetitionStateImpl}
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
 import org.apache.kafka.clients.producer.ProducerRecord
-import zio.{Chunk, Has, Ref, RIO, ZLayer}
+import zio.{Chunk, Ref, RIO, URIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.consumer.{Consumer, Subscription}
-import zio.kafka.producer.Producer
 import zio.kafka.serde.Serde
+import zio.logging.Logging
 
 import java.time.Instant
 
-trait CommandProcessorOperations {
-  def retrieveEvents(id: String): LIO[List[EventDTO]]
-  def persistEvents(events: Seq[EventDTO]): LIO[Unit]
-  def getLatestState(config: ActorConfig): LIO[CompetitionState] = RIO {
+trait CommandProcessorOperations[-E] {
+  def retrieveEvents(id: String): RIO[E, List[EventDTO]]
+  def persistEvents(events: Seq[EventDTO]): RIO[E, Unit]
+  def getStateSnapshot(id: String): URIO[E with SnapshotService.Snapshot, Option[CompetitionState]]
+  def saveStateSnapshot(state: CompetitionState): URIO[E with SnapshotService.Snapshot, Unit]
+  def createInitialState(config: ActorConfig): LIO[CompetitionState] = RIO {
     CompetitionStateImpl(
       id = config.id,
       competitors = Option(Map.empty),
@@ -42,36 +45,47 @@ trait CommandProcessorOperations {
 }
 
 object CommandProcessorOperations {
-  def apply(
-    consumerLayer: ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]],
-    producerLayer: ZLayer[Any, Throwable, Has[Producer.Service[Any, String, EventDTO]]]
-  ): CommandProcessorOperations = {
+  def apply(): CommandProcessorOperations[LiveEnv] = {
 
-    new CommandProcessorOperations {
-      override def retrieveEvents(id: String): LIO[List[EventDTO]] = Consumer.subscribeAnd(Subscription.topics(id))
-        .plainStream(Serde.string, SerdeApi.eventDeserializer).runCollect.map(_.map(_.value).toList)
-        .provideSomeLayer(consumerLayer).provideLayer(Clock.live ++ Blocking.live)
-      override def persistEvents(events: Seq[EventDTO]): LIO[Unit] = {
+    new CommandProcessorOperations[LiveEnv] {
+      override def retrieveEvents(id: String): RIO[LiveEnv, List[EventDTO]] = Consumer
+        .subscribeAnd(Subscription.topics(id)).plainStream(Serde.string, SerdeApi.eventDeserializer).runCollect
+        .map(_.map(_.value).toList)
+      override def persistEvents(events: Seq[EventDTO]): RIO[LiveEnv, Unit] = {
         zio.kafka.producer.Producer.produceChunk[Any, String, EventDTO](Chunk.fromIterable(events).map(e =>
           new ProducerRecord[String, EventDTO](e.getCompetitionId, e)
-        )).provideLayer(producerLayer ++ Blocking.live).ignore
+        )).ignore
       }
+
+      override def getStateSnapshot(id: String): URIO[LiveEnv, Option[CompetitionState]] = SnapshotService.load(id)
+
+      override def saveStateSnapshot(state: CompetitionState): URIO[LiveEnv, Unit] = SnapshotService.save(state)
     }
   }
+
+  type NoKafka = Clock with Blocking with Logging
   def test(
     eventReceiver: Ref[Seq[EventDTO]],
+    stateSnapshots: Ref[Map[String, CompetitionState]],
     initialState: Option[CompetitionState] = None
-  ): CommandProcessorOperations = {
-    new CommandProcessorOperations {
+  ): CommandProcessorOperations[NoKafka] = {
+    new CommandProcessorOperations[NoKafka] {
       self =>
-      override def retrieveEvents(id: String): LIO[List[EventDTO]] = RIO.effectTotal(List.empty)
-      override def persistEvents(events: Seq[EventDTO]): LIO[Unit] = for {
+      override def retrieveEvents(id: String): RIO[NoKafka, List[EventDTO]] = RIO.effectTotal(List.empty)
+      override def persistEvents(events: Seq[EventDTO]): RIO[NoKafka, Unit] = for {
         _ <- eventReceiver.update(evts => evts ++ events)
       } yield ()
 
-      override def getLatestState(config: ActorConfig): LIO[CompetitionState] = {
-        initialState.map(RIO.effectTotal(_)).getOrElse(super.getLatestState(config))
+      override def createInitialState(config: ActorConfig): LIO[CompetitionState] = {
+        initialState.map(RIO.effectTotal(_)).getOrElse(super.createInitialState(config))
       }
+
+      override def getStateSnapshot(id: String): URIO[NoKafka with SnapshotService.Snapshot, Option[CompetitionState]] =
+        for { map <- stateSnapshots.get } yield map.get(id)
+
+      override def saveStateSnapshot(state: CompetitionState): URIO[NoKafka with SnapshotService.Snapshot, Unit] = for {
+        _ <- stateSnapshots.update(_ + (state.id -> state))
+      } yield ()
     }
   }
 

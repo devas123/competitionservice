@@ -1,7 +1,7 @@
 package compman.compsrv.service
 
 import compman.compsrv.jackson.SerdeApi.eventSerialized
-import compman.compsrv.logic.actors.{ActorConfig, CommandProcessorOperations, CompetitionProcessor, CompetitionProcessorActorRef}
+import compman.compsrv.logic.actors._
 import compman.compsrv.logic.actors.Messages.ProcessCommand
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.commands.{CommandDTO, CommandType}
@@ -9,6 +9,7 @@ import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.events.payload.CompetitionCreatedPayload
+import compman.compsrv.model.CompetitionState
 import zio.{Has, Ref, Task, ZLayer}
 import zio.blocking.Blocking
 import zio.clock.Clock
@@ -22,7 +23,6 @@ import zio.test.Assertion._
 
 import java.time.Instant
 import java.util.UUID
-
 
 object CompetitionServiceSpec extends DefaultRunnableSpec {
   object Deps {
@@ -41,8 +41,9 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
       .make[Any, String, EventDTO](producerSettings, Serde.string, eventSerialized).toLayer
     val layers: ZLayer[Clock with Blocking with Any, Throwable, Has[Consumer.Service] with Has[
       Producer.Service[Any, String, EventDTO]
-    ]]                                              = consumerLayer ++ producerLayer
-    val loggingLayer: ZLayer[Any, Nothing, Logging] = CompetitionLogging.Live.loggingLayer
+    ]]                                                                      = consumerLayer ++ producerLayer
+    val loggingLayer: ZLayer[Any, Nothing, Logging]                         = CompetitionLogging.Live.loggingLayer
+    val snapshotLayer: ZLayer[Any, Throwable, Has[SnapshotService.Service]] = SnapshotService.test.toLayer
   }
   import zio.test.environment._
   import Deps._
@@ -50,11 +51,12 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
   def spec: Spec[TestEnvironment, TestFailure[Throwable], TestSuccess] =
     suite("The Competition Processor should")(testM("Accept commands") {
       for {
-        actorsRef <- Ref.make(Map.empty[String, CompetitionProcessorActorRef])
-        eventsRef <- Ref.make(Seq.empty[EventDTO])
+        actorsRef    <- Ref.make(Map.empty[String, CompetitionProcessorActorRef])
+        eventsRef    <- Ref.make(Seq.empty[EventDTO])
+        snapshotsRef <- Ref.make(Map.empty[String, CompetitionState])
         processor <- CompetitionProcessor(
           ActorConfig(competitionId),
-          CommandProcessorOperations.test(eventsRef),
+          CommandProcessorOperations.test(eventsRef, snapshotsRef),
           CompetitionProcessor.Context(actorsRef, competitionId)
         )(() => actorsRef.update(m => m - competitionId))
         _ <- actorsRef.update(m => m + (competitionId -> processor))
@@ -84,5 +86,5 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
         assert(events.head.getPayload)(isSubtype[CompetitionCreatedPayload](anything)) &&
         assert(events.head.getCorrelationId)(equalTo(command.getId)) &&
         assert(events.head.getLocalEventNumber.toLong)(equalTo(0L))
-    }).provideLayer(loggingLayer ++ Clock.live)
+    }).provideLayer(loggingLayer ++ Clock.live ++ Blocking.live)
 }
