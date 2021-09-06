@@ -48,10 +48,10 @@ object SnapshotService {
       mapper <- ZIO.effectTotal(ObjectMapperFactory.createObjectMapper)
     } yield Live(rocksDB = db, mapper = mapper)).toManaged(_.close)
   }
-  def test: ZManaged[Any, Throwable, Service] = {
+  def test: ZManaged[Any, Nothing, Service] = {
     (for {
       map <- Ref.make(Map.empty[String, CompetitionState])
-      r   <- ZIO.effect(Test(map))
+      r   <- ZIO.effectTotal(Test(map))
     } yield r).toManaged(_ => ZIO.unit)
   }
 }

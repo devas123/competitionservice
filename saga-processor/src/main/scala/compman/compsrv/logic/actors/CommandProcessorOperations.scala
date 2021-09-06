@@ -18,7 +18,7 @@ import zio.logging.Logging
 import java.time.Instant
 
 trait CommandProcessorOperations[-E] {
-  def retrieveEvents(id: String): RIO[E, List[EventDTO]]
+  def retrieveEvents(id: String, offset: Long): RIO[E, List[EventDTO]]
   def persistEvents(events: Seq[EventDTO]): RIO[E, Unit]
   def getStateSnapshot(id: String): URIO[E with SnapshotService.Snapshot, Option[CompetitionState]]
   def saveStateSnapshot(state: CompetitionState): URIO[E with SnapshotService.Snapshot, Unit]
@@ -45,34 +45,36 @@ trait CommandProcessorOperations[-E] {
 }
 
 object CommandProcessorOperations {
-  def apply(): CommandProcessorOperations[LiveEnv] = {
+  def apply[E](): CommandProcessorOperations[E with LiveEnv] = {
 
-    new CommandProcessorOperations[LiveEnv] {
-      override def retrieveEvents(id: String): RIO[LiveEnv, List[EventDTO]] = Consumer
-        .subscribeAnd(Subscription.topics(id)).plainStream(Serde.string, SerdeApi.eventDeserializer).runCollect
+    new CommandProcessorOperations[E with LiveEnv] {
+      override def retrieveEvents(id: String, offset: Long): RIO[E with LiveEnv, List[EventDTO]] = Consumer
+        .subscribeAnd(Subscription.topics(id))
+        .plainStream(Serde.string, SerdeApi.eventDeserializer)
+        .filter(_.offset.offset >= offset)
+        .runCollect
         .map(_.map(_.value).toList)
-      override def persistEvents(events: Seq[EventDTO]): RIO[LiveEnv, Unit] = {
+      override def persistEvents(events: Seq[EventDTO]): RIO[E with LiveEnv, Unit] = {
         zio.kafka.producer.Producer.produceChunk[Any, String, EventDTO](Chunk.fromIterable(events).map(e =>
           new ProducerRecord[String, EventDTO](e.getCompetitionId, e)
         )).ignore
       }
 
-      override def getStateSnapshot(id: String): URIO[LiveEnv, Option[CompetitionState]] = SnapshotService.load(id)
+      override def getStateSnapshot(id: String): URIO[E with LiveEnv, Option[CompetitionState]] = SnapshotService.load(id)
 
-      override def saveStateSnapshot(state: CompetitionState): URIO[LiveEnv, Unit] = SnapshotService.save(state)
+      override def saveStateSnapshot(state: CompetitionState): URIO[E with LiveEnv, Unit] = SnapshotService.save(state)
     }
   }
 
-  type NoKafka = Clock with Blocking with Logging
-  def test(
+  def test[Env](
     eventReceiver: Ref[Seq[EventDTO]],
     stateSnapshots: Ref[Map[String, CompetitionState]],
     initialState: Option[CompetitionState] = None
-  ): CommandProcessorOperations[NoKafka] = {
-    new CommandProcessorOperations[NoKafka] {
+  ): CommandProcessorOperations[Env with Clock with Blocking with Logging] = {
+    new CommandProcessorOperations[Env with Clock with Blocking with Logging] {
       self =>
-      override def retrieveEvents(id: String): RIO[NoKafka, List[EventDTO]] = RIO.effectTotal(List.empty)
-      override def persistEvents(events: Seq[EventDTO]): RIO[NoKafka, Unit] = for {
+      override def retrieveEvents(id: String, offset: Long): RIO[Env with Clock with Blocking with Logging, List[EventDTO]] = RIO.effectTotal(List.empty)
+      override def persistEvents(events: Seq[EventDTO]): RIO[Env with Clock with Blocking with Logging, Unit] = for {
         _ <- eventReceiver.update(evts => evts ++ events)
       } yield ()
 
@@ -80,10 +82,10 @@ object CommandProcessorOperations {
         initialState.map(RIO.effectTotal(_)).getOrElse(super.createInitialState(config))
       }
 
-      override def getStateSnapshot(id: String): URIO[NoKafka with SnapshotService.Snapshot, Option[CompetitionState]] =
+      override def getStateSnapshot(id: String): URIO[Env with Clock with Blocking with Logging with SnapshotService.Snapshot, Option[CompetitionState]] =
         for { map <- stateSnapshots.get } yield map.get(id)
 
-      override def saveStateSnapshot(state: CompetitionState): URIO[NoKafka with SnapshotService.Snapshot, Unit] = for {
+      override def saveStateSnapshot(state: CompetitionState): URIO[Env with Clock with Blocking with Logging with SnapshotService.Snapshot, Unit] = for {
         _ <- stateSnapshots.update(_ + (state.id -> state))
       } yield ()
     }

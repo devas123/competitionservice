@@ -52,7 +52,7 @@ object Main extends zio.App {
       .subscribeAnd(Subscription.topics(appConfig.consumer.topic)).plainStream(Serde.string, commandDeserializer)
       .mapM(record => {
         val actorConfig: ActorConfig = createActorConfig(record.key)
-        val commandProcessorConfig   = createCommandProcessorConfig
+        val commandProcessorConfig   = createCommandProcessorConfig[PipelineEnvironment]
         val context                  = Context(refActorsMap, record.key)
         (for {
           map <- refActorsMap.get
@@ -72,7 +72,7 @@ object Main extends zio.App {
   }
 
   private def createActorConfig(competitionId: String) = ActorConfig(competitionId)
-  private def createCommandProcessorConfig             = CommandProcessorOperations()
+  private def createCommandProcessorConfig[E]            = CommandProcessorOperations[E]()
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
     (for {
       competitionProcessorsMap <- Ref.make(Map.empty[String, CompetitionProcessorActorRef])

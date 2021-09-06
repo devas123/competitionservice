@@ -4,17 +4,17 @@ import compman.compsrv.logic.Operations
 import compman.compsrv.logic.actors.CompetitionProcessor.Context
 import compman.compsrv.logic.actors.Messages._
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
-import compman.compsrv.model.{CompetitionState, Errors}
 import compman.compsrv.model.events.EventDTO
-import zio.{Fiber, Promise, Queue, Ref, RIO, Task}
+import compman.compsrv.model.{CompetitionState, Errors}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.consumer.Consumer
 import zio.kafka.producer.Producer
 import zio.logging.{LogAnnotation, Logging}
+import zio.{Fiber, Promise, Queue, RIO, Ref, Task, ZIO}
 
-import java.util.concurrent.TimeUnit
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 final class CompetitionProcessor {
   import compman.compsrv.Main.Live._
@@ -54,21 +54,23 @@ final class CompetitionProcessor {
   ) { Operations.applyEvent[LIO](state, eventDTO) }
 
   private def makeActor[Env](
-                         getStateConfig: ActorConfig,
-                         processorOperations: CommandProcessorOperations[Env],
-                         context: Context,
-                         mailboxSize: Int
-  )(postStop: () => LIO[Unit]): RIO[Env with Logging with Clock, CompetitionProcessorActorRef] = {
+                              actorConfig: ActorConfig,
+                              processorOperations: CommandProcessorOperations[Env],
+                              context: Context,
+                              mailboxSize: Int
+                            )(postStop: () => LIO[Unit]): RIO[Env with Logging with Clock with SnapshotService.Snapshot, CompetitionProcessorActorRef] = {
     def process(
-      msg: PendingMessage[Seq[EventDTO]],
-      stateRef: Ref[CompetitionState],
-      ts: Timers[Env]
-    ): RIO[Env with Logging with Clock, Unit] = {
+                 msg: PendingMessage[Seq[EventDTO]],
+                 stateRef: Ref[CompetitionState],
+                 ts: Timers[Env]
+               ): RIO[Env with Logging with Clock with SnapshotService.Snapshot, Unit] = {
       for {
         state <- stateRef.get
         (command, promise) = msg
         receiver <- receive(context, state, command, ts)
-        effectfulCompleter  = (s: CompetitionState, a: Seq[EventDTO]) => stateRef.set(s) *> promise.succeed(a)
+        effectfulCompleter = (s: CompetitionState, a: Seq[EventDTO]) => stateRef.set(s) *> {
+          if (s.revision % 10 == 0 || a.size >= 10) processorOperations.saveStateSnapshot(s) else ZIO.effect(())
+        } *> promise.succeed(a)
         idempotentCompleter = (a: Seq[EventDTO]) => promise.succeed(a)
         fullCompleter = (
           (
@@ -91,13 +93,12 @@ final class CompetitionProcessor {
 
     for {
       statePromise <- Promise.make[Throwable, Ref[CompetitionState]]
-      config = getStateConfig
       _ <- (for {
-        initial <- processorOperations.createInitialState(config)
-        events  <- processorOperations.retrieveEvents(config.eventTopic)
-        updated <- events.foldLeft[LIO[CompetitionState]](RIO(initial))((a, b) => a.flatMap(applyEvent(_, b)))
-        s       <- Ref.make(updated)
-        _       <- statePromise.succeed(s)
+        latest <- processorOperations.getStateSnapshot(actorConfig.id) >>= (_.map(Task(_)).getOrElse(processorOperations.createInitialState(actorConfig)))
+        events <- processorOperations.retrieveEvents(actorConfig.eventTopic, latest.revision)
+        updated <- events.foldLeft[LIO[CompetitionState]](RIO(latest))((a, b) => a.flatMap(applyEvent(_, b)))
+        s <- Ref.make(updated)
+        _ <- statePromise.succeed(s)
       } yield ()).fork
       queue <- Queue.sliding[PendingMessage[Seq[EventDTO]]](mailboxSize)
       actor = CompetitionProcessorActorRef(queue)(postStop)
@@ -125,11 +126,11 @@ object CompetitionProcessor {
   private val DefaultActorMailboxSize: Int = 100
 
   def apply[Env](
-             actorConfig: ActorConfig,
-             processorConfig: CommandProcessorOperations[Env],
-             context: Context,
-             mailboxSize: Int = DefaultActorMailboxSize
-  )(postStop: () => LIO[Unit]): RIO[Env with Logging with Clock, CompetitionProcessorActorRef] = new CompetitionProcessor()
+                  actorConfig: ActorConfig,
+                  processorConfig: CommandProcessorOperations[Env with Logging with Clock with Blocking],
+                  context: Context,
+                  mailboxSize: Int = DefaultActorMailboxSize
+                )(postStop: () => LIO[Unit]): RIO[Env with Logging with Clock with Blocking with SnapshotService.Snapshot, CompetitionProcessorActorRef] = new CompetitionProcessor()
     .makeActor(actorConfig, processorConfig, context, mailboxSize)(postStop)
 
 }

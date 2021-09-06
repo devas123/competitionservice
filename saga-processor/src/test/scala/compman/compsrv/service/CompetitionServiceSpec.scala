@@ -10,7 +10,7 @@ import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, Competit
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.events.payload.CompetitionCreatedPayload
 import compman.compsrv.model.CompetitionState
-import zio.{Has, Ref, Task, ZLayer}
+import zio.{Has, Layer, Ref, Task, ZLayer}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -39,11 +39,8 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
       .toLayer
     val producerLayer: ZLayer[Any, Throwable, Has[Producer.Service[Any, String, EventDTO]]] = Producer
       .make[Any, String, EventDTO](producerSettings, Serde.string, eventSerialized).toLayer
-    val layers: ZLayer[Clock with Blocking with Any, Throwable, Has[Consumer.Service] with Has[
-      Producer.Service[Any, String, EventDTO]
-    ]]                                                                      = consumerLayer ++ producerLayer
-    val loggingLayer: ZLayer[Any, Nothing, Logging]                         = CompetitionLogging.Live.loggingLayer
-    val snapshotLayer: ZLayer[Any, Throwable, Has[SnapshotService.Service]] = SnapshotService.test.toLayer
+    val loggingLayer: Layer[Nothing, Logging] = CompetitionLogging.Live.loggingLayer
+    val snapshotLayer: Layer[Nothing, SnapshotService.Snapshot] = SnapshotService.test.toLayer
   }
   import zio.test.environment._
   import Deps._
@@ -54,7 +51,7 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
         actorsRef    <- Ref.make(Map.empty[String, CompetitionProcessorActorRef])
         eventsRef    <- Ref.make(Seq.empty[EventDTO])
         snapshotsRef <- Ref.make(Map.empty[String, CompetitionState])
-        processor <- CompetitionProcessor(
+        processor <- CompetitionProcessor[Any](
           ActorConfig(competitionId),
           CommandProcessorOperations.test(eventsRef, snapshotsRef),
           CompetitionProcessor.Context(actorsRef, competitionId)
@@ -78,13 +75,15 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
           cmd
         }
 
-        _      <- processor ! ProcessCommand(command)
-        _      <- Task { Thread.sleep(1000) }
+        _ <- processor ! ProcessCommand(command)
+        _ <- Task {
+          Thread.sleep(1000)
+        }
         events <- eventsRef.get
       } yield assert(events)(isNonEmpty) && assert(events.head.getType)(equalTo(EventType.COMPETITION_CREATED)) &&
         assert(events.head.getPayload)(not(isNull)) &&
         assert(events.head.getPayload)(isSubtype[CompetitionCreatedPayload](anything)) &&
         assert(events.head.getCorrelationId)(equalTo(command.getId)) &&
         assert(events.head.getLocalEventNumber.toLong)(equalTo(0L))
-    }).provideLayer(loggingLayer ++ Clock.live ++ Blocking.live)
+    }).provideLayer(loggingLayer ++ snapshotLayer ++ Clock.live ++ Blocking.live)
 }
