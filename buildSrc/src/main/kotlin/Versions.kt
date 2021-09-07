@@ -13,12 +13,18 @@ object Versions {
     const val jackson = "2.12.0"
     const val kafka = "2.4.1.1"
     const val rocksdb: String = "6.13.3"
+    const val http4s: String = "0.23.3"
 }
 
 data class Dep(val group: String, val artifactId: String, val version: String, val classifier: String)
 
 object Libraries {
 
+    val http4s = listOf(
+        "org.http4s:http4s-dsl_${scalaBinary}:${Versions.http4s}",
+        "org.http4s:http4s-blaze-server_${scalaBinary}:${Versions.http4s}",
+        "org.http4s:http4s-blaze-clien_${scalaBinary}:${Versions.http4s}"
+    )
     val rocksdb = listOf(
         "org.rocksdb:rocksdbjni:${Versions.rocksdb}"
     )
