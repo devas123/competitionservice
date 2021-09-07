@@ -5,13 +5,8 @@ plugins {
 }
 
 repositories {
+    mavenCentral()
     mavenLocal()
-    maven {
-        url = uri("https://repo.spring.io/libs-milestone")
-    }
-    maven {
-        url = uri("https://repo.maven.apache.org/maven2/")
-    }
 }
 
 group = "competitions-mgr"
@@ -21,6 +16,4 @@ java.sourceCompatibility = JavaVersion.VERSION_11
 
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
-    options.isFork = true
-    options.isIncremental = true
 }
