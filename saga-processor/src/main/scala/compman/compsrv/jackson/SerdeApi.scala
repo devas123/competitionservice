@@ -11,14 +11,14 @@ object SerdeApi {
 
   val objectMapper: ObjectMapper = ObjectMapperFactory.createObjectMapper
 
-  val eventSerialized: Serializer[Any, EventDTO] =
-    new Serializer[Any, EventDTO] {
+  val byteSerialized: Serializer[Any, Array[Byte]] =
+    new Serializer[Any, Array[Byte]] {
       override def serialize(
           topic: String,
           headers: Headers,
-          value: EventDTO
+          value: Array[Byte]
       ): RIO[Any, Array[Byte]] = RIO {
-        objectMapper.writeValueAsBytes(value)
+        value
       }
 
       override def configure(props: Map[String, AnyRef], isKey: Boolean): Task[Unit] = Task.unit

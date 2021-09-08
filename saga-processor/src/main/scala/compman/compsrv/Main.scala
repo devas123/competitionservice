@@ -1,24 +1,22 @@
 package compman.compsrv
 
 import compman.compsrv.config.AppConfig
-import compman.compsrv.jackson.SerdeApi.{commandDeserializer, eventSerialized}
-import compman.compsrv.logic._
-import compman.compsrv.logic.actors.CompetitionProcessor.Context
+import compman.compsrv.jackson.SerdeApi.{byteSerialized, commandDeserializer}
 import compman.compsrv.logic.Operations._
-import compman.compsrv.logic.actors._
+import compman.compsrv.logic._
+import compman.compsrv.logic.actors.CompetitionProcessor.{Context, LiveEnv}
 import compman.compsrv.logic.actors.Messages.ProcessCommand
+import compman.compsrv.logic.actors._
 import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.logic.logging.CompetitionLogging.Live.loggingLayer
-import compman.compsrv.model.events.EventDTO
-import zio.{ExitCode, Ref, Task, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
 import zio.kafka.consumer.{Consumer, ConsumerSettings, Subscription}
 import zio.kafka.producer.{Producer, ProducerSettings}
 import zio.kafka.serde.Serde
-import zio.logging.Logging
+import zio.{ExitCode, Ref, Task, URIO, ZIO}
 
 object Main extends zio.App {
 
@@ -32,7 +30,7 @@ object Main extends zio.App {
       compman.compsrv.logic.logging.CompetitionLogging.Live.live
   }
 
-  type PipelineEnvironment = Clock with Blocking with Consumer with Producer[Any, String, EventDTO] with Logging with SnapshotService.Snapshot
+  type PipelineEnvironment = LiveEnv
 
   def createProgram(
     appConfig: AppConfig,
@@ -45,22 +43,22 @@ object Main extends zio.App {
     val producerSettings = ProducerSettings(appConfig.producer.brokers)
 
     val consumerLayer = Consumer.make(consumerSettings).toLayer
-    val producerLayer = Producer.make[Any, String, EventDTO](producerSettings, Serde.string, eventSerialized).toLayer
+    val producerLayer = Producer.make[Any, String, Array[Byte]](producerSettings, Serde.string, byteSerialized).toLayer
     val snapshotLayer = SnapshotService.live(appConfig.snapshotConfig.databasePath).toLayer
     val layers        = consumerLayer ++ producerLayer ++ snapshotLayer
     val program: ZIO[PipelineEnvironment, Any, Any] = Consumer
       .subscribeAnd(Subscription.topics(appConfig.consumer.topic)).plainStream(Serde.string, commandDeserializer)
       .mapM(record => {
         val actorConfig: ActorConfig = createActorConfig(record.key)
-        val commandProcessorConfig   = createCommandProcessorConfig[PipelineEnvironment]
         val context                  = Context(refActorsMap, record.key)
         (for {
           map <- refActorsMap.get
+          commandProcessorOperations   <- createCommandProcessorConfig[PipelineEnvironment]
           actor <-
             if (map.contains(record.key)) Task.effectTotal(map(record.key))
             else {
-              CompetitionProcessor(actorConfig, commandProcessorConfig, context)(() =>
-                refActorsMap.update(m => m - record.key)
+              CompetitionProcessor(actorConfig, commandProcessorOperations, context)(() =>
+                refActorsMap.update(m => m - record.key) *> commandProcessorOperations.sendNotifications(Seq(CompetitionProcessingStopped(record.key)))
               )
             }
           _ <- refActorsMap.set(map + (record.key -> actor))

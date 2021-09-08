@@ -117,7 +117,7 @@ final class CompetitionProcessor {
 }
 
 object CompetitionProcessor {
-  type LiveEnv = Logging with Clock with Blocking with Consumer with Producer[Any, String, EventDTO] with SnapshotService.Snapshot
+  type LiveEnv = Logging with Clock with Blocking with Consumer with Producer[Any, String, Array[Byte]] with SnapshotService.Snapshot
 
   case class Context(actorsMapRef: Ref[Map[String, CompetitionProcessorActorRef]], id: String) {
     def self: Task[CompetitionProcessorActorRef] = for { map <- actorsMapRef.get } yield map(id)
@@ -130,7 +130,7 @@ object CompetitionProcessor {
                   processorConfig: CommandProcessorOperations[Env with Logging with Clock with Blocking],
                   context: Context,
                   mailboxSize: Int = DefaultActorMailboxSize
-                )(postStop: () => LIO[Unit]): RIO[Env with Logging with Clock with Blocking with SnapshotService.Snapshot, CompetitionProcessorActorRef] = new CompetitionProcessor()
+                )(postStop: () => RIO[Env with Logging with Clock with Blocking with SnapshotService.Snapshot, Unit]): RIO[Env with Logging with Clock with Blocking with SnapshotService.Snapshot, CompetitionProcessorActorRef] = new CompetitionProcessor()
     .makeActor(actorConfig, processorConfig, context, mailboxSize)(postStop)
 
 }

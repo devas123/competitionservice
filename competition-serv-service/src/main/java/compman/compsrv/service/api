@@ -1,21 +1,20 @@
-/store/defaultrestrictions
-/store/infotemplate
-
-/store/competition
-/store/competition/id
-/store/competition/id/schedule
-/store/competition/id/dashboard
-/store/competition/id/registration
-/store/competition/id/category
-/store/competition/id/category/id
-/store/competition/id/category/id/fight
-/store/competition/id/category/id/fight/id
-/store/competition/id/category/id/fight/id/resultoptions
-/store/competition/id/category/id/stage
-/store/competition/id/category/id/stage/id
-/store/competition/id/category/id/stage/id/fights
-/store/competition/id/mat
-/store/competition/id/mat/id
-/store/competition/id/mat/id/fight
-/store/competition/id/competitor
-/store/competition/id/competitor/id
+GET /store/defaultrestrictions
+GET /store/competition
+GET /store/competition/id
+GET /store/competition/id/infotemplate
+GET /store/competition/id/schedule
+GET /store/competition/id/dashboard
+GET /store/competition/id/registration
+GET /store/competition/id/category
+GET /store/competition/id/category/id
+GET /store/competition/id/category/id/fight
+GET /store/competition/id/category/id/fight/id
+GET /store/competition/id/category/id/fight/id/resultoptions
+GET /store/competition/id/category/id/stage
+GET /store/competition/id/category/id/stage/id
+GET /store/competition/id/category/id/stage/id/fight
+GET /store/competition/id/mat
+GET /store/competition/id/mat/id
+GET /store/competition/id/mat/id/fight
+GET /store/competition/id/competitor
+GET /store/competition/id/competitor/id

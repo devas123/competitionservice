@@ -1,25 +1,23 @@
 package compman.compsrv.service
 
-import compman.compsrv.jackson.SerdeApi.eventSerialized
-import compman.compsrv.logic.actors._
 import compman.compsrv.logic.actors.Messages.ProcessCommand
+import compman.compsrv.logic.actors._
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.commands.{CommandDTO, CommandType}
-import compman.compsrv.model.commands.payload.CreateCompetitionPayload
-import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
-import compman.compsrv.model.events.{EventDTO, EventType}
-import compman.compsrv.model.events.payload.CompetitionCreatedPayload
 import compman.compsrv.model.CompetitionState
-import zio.{Has, Layer, Ref, Task, ZLayer}
+import compman.compsrv.model.commands.payload.CreateCompetitionPayload
+import compman.compsrv.model.commands.{CommandDTO, CommandType}
+import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
+import compman.compsrv.model.events.payload.CompetitionCreatedPayload
+import compman.compsrv.model.events.{EventDTO, EventType}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
-import zio.kafka.consumer.{Consumer, ConsumerSettings}
-import zio.kafka.producer.{Producer, ProducerSettings}
-import zio.kafka.serde.Serde
+import zio.kafka.consumer.ConsumerSettings
+import zio.kafka.producer.ProducerSettings
 import zio.logging.Logging
-import zio.test._
 import zio.test.Assertion._
+import zio.test._
+import zio.{Layer, Ref, Task}
 
 import java.time.Instant
 import java.util.UUID
@@ -35,15 +33,12 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
       .withProperty("auto.offset.reset", "earliest")
 
     val producerSettings: ProducerSettings = ProducerSettings(brokers)
-    val consumerLayer: ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]] = Consumer.make(consumerSettings)
-      .toLayer
-    val producerLayer: ZLayer[Any, Throwable, Has[Producer.Service[Any, String, EventDTO]]] = Producer
-      .make[Any, String, EventDTO](producerSettings, Serde.string, eventSerialized).toLayer
     val loggingLayer: Layer[Nothing, Logging] = CompetitionLogging.Live.loggingLayer
     val snapshotLayer: Layer[Nothing, SnapshotService.Snapshot] = SnapshotService.test.toLayer
   }
-  import zio.test.environment._
+
   import Deps._
+  import zio.test.environment._
 
   def spec: Spec[TestEnvironment, TestFailure[Throwable], TestSuccess] =
     suite("The Competition Processor should")(testM("Accept commands") {

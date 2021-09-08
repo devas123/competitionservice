@@ -1,6 +1,6 @@
 package compman.compsrv.logic.actors
 
-import compman.compsrv.jackson.SerdeApi
+import compman.compsrv.jackson.{ObjectMapperFactory, SerdeApi}
 import compman.compsrv.logic.actors.CompetitionProcessor.LiveEnv
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.{CompetitionState, CompetitionStateImpl}
@@ -8,7 +8,7 @@ import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, Competit
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
 import org.apache.kafka.clients.producer.ProducerRecord
-import zio.{Chunk, Ref, RIO, URIO}
+import zio.{Chunk, RIO, Ref, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.consumer.{Consumer, Subscription}
@@ -19,7 +19,11 @@ import java.time.Instant
 
 trait CommandProcessorOperations[-E] {
   def retrieveEvents(id: String, offset: Long): RIO[E, List[EventDTO]]
+
   def persistEvents(events: Seq[EventDTO]): RIO[E, Unit]
+
+  def sendNotifications(notifications: Seq[CommandProcessorNotification]): RIO[E, Unit]
+
   def getStateSnapshot(id: String): URIO[E with SnapshotService.Snapshot, Option[CompetitionState]]
   def saveStateSnapshot(state: CompetitionState): URIO[E with SnapshotService.Snapshot, Unit]
   def createInitialState(config: ActorConfig): LIO[CompetitionState] = RIO {
@@ -45,25 +49,34 @@ trait CommandProcessorOperations[-E] {
 }
 
 object CommandProcessorOperations {
-  def apply[E](): CommandProcessorOperations[E with LiveEnv] = {
+  def apply[E](): RIO[E with LiveEnv, CommandProcessorOperations[E with LiveEnv]] = {
+    for {
+      mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
+      operations = new CommandProcessorOperations[E with LiveEnv] {
+        override def retrieveEvents(id: String, offset: Long): RIO[E with LiveEnv, List[EventDTO]] = Consumer
+          .subscribeAnd(Subscription.topics(id))
+          .plainStream(Serde.string, SerdeApi.eventDeserializer)
+          .filter(_.offset.offset >= offset)
+          .runCollect
+          .map(_.map(_.value).toList)
 
-    new CommandProcessorOperations[E with LiveEnv] {
-      override def retrieveEvents(id: String, offset: Long): RIO[E with LiveEnv, List[EventDTO]] = Consumer
-        .subscribeAnd(Subscription.topics(id))
-        .plainStream(Serde.string, SerdeApi.eventDeserializer)
-        .filter(_.offset.offset >= offset)
-        .runCollect
-        .map(_.map(_.value).toList)
-      override def persistEvents(events: Seq[EventDTO]): RIO[E with LiveEnv, Unit] = {
-        zio.kafka.producer.Producer.produceChunk[Any, String, EventDTO](Chunk.fromIterable(events).map(e =>
-          new ProducerRecord[String, EventDTO](e.getCompetitionId, e)
-        )).ignore
+        override def persistEvents(events: Seq[EventDTO]): RIO[E with LiveEnv, Unit] = {
+          zio.kafka.producer.Producer.produceChunk[Any, String, Array[Byte]](Chunk.fromIterable(events).map(e =>
+            new ProducerRecord[String, Array[Byte]](e.getCompetitionId, mapper.writeValueAsBytes(e))
+          )).ignore
+        }
+
+        override def getStateSnapshot(id: String): URIO[E with LiveEnv, Option[CompetitionState]] = SnapshotService.load(id)
+
+        override def saveStateSnapshot(state: CompetitionState): URIO[E with LiveEnv, Unit] = SnapshotService.save(state)
+
+        override def sendNotifications(notifications: Seq[CommandProcessorNotification]): RIO[E with LiveEnv, Unit] = {
+          zio.kafka.producer.Producer.produceChunk[Any, String, Array[Byte]](Chunk.fromIterable(notifications).map(e =>
+            new ProducerRecord[String, Array[Byte]](e.competitionId.get, mapper.writeValueAsBytes(e))
+          )).ignore
+        }
       }
-
-      override def getStateSnapshot(id: String): URIO[E with LiveEnv, Option[CompetitionState]] = SnapshotService.load(id)
-
-      override def saveStateSnapshot(state: CompetitionState): URIO[E with LiveEnv, Unit] = SnapshotService.save(state)
-    }
+    } yield operations
   }
 
   def test[Env](
@@ -88,6 +101,8 @@ object CommandProcessorOperations {
       override def saveStateSnapshot(state: CompetitionState): URIO[Env with Clock with Blocking with Logging with SnapshotService.Snapshot, Unit] = for {
         _ <- stateSnapshots.update(_ + (state.id -> state))
       } yield ()
+
+      override def sendNotifications(notifications: Seq[CommandProcessorNotification]): RIO[Env with Clock with Blocking with Logging, Unit] = RIO(())
     }
   }
 
