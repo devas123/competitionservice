@@ -12,6 +12,7 @@ dependencies {
     Libraries.zioConfig.forEach { implementation(it) }
     Libraries.circle.forEach { implementation(it) }
     Libraries.http4s.forEach { implementation(it) }
+    Libraries.quill.forEach { implementation(it) }
     implementation(project(":competition-serv-model"))
     implementation(project(":compservice-annotations"))
 

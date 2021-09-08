@@ -14,6 +14,7 @@ object Versions {
     const val kafka = "2.4.1.1"
     const val rocksdb: String = "6.13.3"
     const val http4s: String = "0.23.3"
+    const val quill: String = "3.8.0"
 }
 
 data class Dep(val group: String, val artifactId: String, val version: String, val classifier: String)
@@ -27,6 +28,10 @@ object Libraries {
     )
     val rocksdb = listOf(
         "org.rocksdb:rocksdbjni:${Versions.rocksdb}"
+    )
+
+    val quill = listOf(
+        "io.getquill:quill-cassandra_${scalaBinary}:${Versions.quill}"
     )
 
     val zio = listOf(

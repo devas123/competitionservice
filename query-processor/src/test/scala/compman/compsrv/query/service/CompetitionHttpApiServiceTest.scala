@@ -6,8 +6,7 @@ import zio._
 import zio.interop.catz._
 import zio.test._
 import zio.test.Assertion._
-import TestAspect._
-import Uri._
+import zio.test.TestAspect._
 
 object CompetitionHttpApiServiceTest extends DefaultRunnableSpec {
   override def spec: ZSpec[Any, Throwable] = suite("routes suite")(
