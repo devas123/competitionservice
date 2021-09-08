@@ -6,7 +6,7 @@ import org.http4s.{HttpRoutes, Request, Response}
 import zio.Task
 import zio.interop.catz._
 
-object Hello1Service {
+object CompetitionHttpApiService {
 
   private val dsl = Http4sDsl[Task]
   import dsl._

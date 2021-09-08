@@ -1,5 +1,5 @@
 package compman.compsrv.query
-import compman.compsrv.query.service.Hello1Service
+import compman.compsrv.query.service.CompetitionHttpApiService
 import org.http4s.blaze.server.BlazeServerBuilder
 import zio._
 import zio.interop.catz._
@@ -11,7 +11,7 @@ object QueryServiceMain extends zio.App {
       implicit rts =>
         BlazeServerBuilder[Task]
           .bindHttp(8080, "localhost")
-          .withHttpApp(Hello1Service.service)
+          .withHttpApp(CompetitionHttpApiService.service)
           .serve
           .compile
           .drain
