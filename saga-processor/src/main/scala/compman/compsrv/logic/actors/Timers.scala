@@ -3,14 +3,15 @@ package compman.compsrv.logic.actors
 import compman.compsrv.logic.actors.Messages._
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import zio.{Fiber, Ref, RIO}
+import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.Duration
 import zio.logging.Logging
 
 private[actors] case class Timers[Env](
-  private val self: CompetitionProcessorActorRef,
-  private val timers: Ref[Map[String, Fiber[Throwable, Unit]]],
-  private val processorConfig: CommandProcessorOperations[Env]
+                                        private val self: CompetitionProcessorActorRef[Env],
+                                        private val timers: Ref[Map[String, Fiber[Throwable, Unit]]],
+                                        private val processorConfig: CommandProcessorOperations[Env with Logging with Clock with Blocking]
 ) {
   def startDestroyTimer[A](key: String, timeout: Duration): RIO[Env with Logging with Clock, Unit] = {
     def create = (RIO.sleep(timeout) <* (self ! Stop)).fork

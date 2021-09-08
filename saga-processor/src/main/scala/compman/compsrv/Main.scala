@@ -4,7 +4,7 @@ import compman.compsrv.config.AppConfig
 import compman.compsrv.jackson.SerdeApi.{byteSerialized, commandDeserializer}
 import compman.compsrv.logic.Operations._
 import compman.compsrv.logic._
-import compman.compsrv.logic.actors.CompetitionProcessor.{Context, LiveEnv}
+import compman.compsrv.logic.actors.CompetitionProcessorActor.{Context, LiveEnv}
 import compman.compsrv.logic.actors.Messages.ProcessCommand
 import compman.compsrv.logic.actors._
 import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
@@ -34,7 +34,7 @@ object Main extends zio.App {
 
   def createProgram(
     appConfig: AppConfig,
-    refActorsMap: Ref[Map[String, CompetitionProcessorActorRef]]
+    refActorsMap: Ref[Map[String, CompetitionProcessorActorRef[PipelineEnvironment]]]
   ): ZIO[Any with Clock with Blocking, Any, Any] = {
     val consumerSettings = ConsumerSettings(appConfig.consumer.brokers).withGroupId(appConfig.consumer.groupId)
       .withClientId("client").withCloseTimeout(30.seconds).withPollTimeout(10.millis)
@@ -57,7 +57,7 @@ object Main extends zio.App {
           actor <-
             if (map.contains(record.key)) Task.effectTotal(map(record.key))
             else {
-              CompetitionProcessor(actorConfig, commandProcessorOperations, context)(() =>
+              CompetitionProcessorActor(actorConfig, commandProcessorOperations, context)(() =>
                 refActorsMap.update(m => m - record.key) *> commandProcessorOperations.sendNotifications(Seq(CompetitionProcessingStopped(record.key)))
               )
             }
@@ -73,7 +73,7 @@ object Main extends zio.App {
   private def createCommandProcessorConfig[E]            = CommandProcessorOperations[E]()
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
     (for {
-      competitionProcessorsMap <- Ref.make(Map.empty[String, CompetitionProcessorActorRef])
+      competitionProcessorsMap <- Ref.make(Map.empty[String, CompetitionProcessorActorRef[PipelineEnvironment]])
       program                  <- AppConfig.load().flatMap(config => createProgram(config, competitionProcessorsMap))
     } yield program).exitCode
   }

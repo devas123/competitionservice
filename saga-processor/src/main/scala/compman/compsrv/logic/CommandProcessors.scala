@@ -15,7 +15,7 @@ object CommandProcessors {
     command: Command[P],
     state: CompetitionState
   ): F[Either[Errors.Error, Seq[EventDTO]]] = {
-    List(
+    Seq(
       AddCategoryProc(state),
       AddCompetitorProc(state),
       AddRegistrationGroupProc(state),

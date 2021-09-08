@@ -1,21 +1,20 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.Messages._
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.Errors
 import compman.compsrv.model.events.EventDTO
-import zio.{Promise, Queue}
+import zio.{Promise, Queue, RIO, Task}
 
-final case class CompetitionProcessorActorRef(
+final case class CompetitionProcessorActorRef[Env](
     private val queue: Queue[(Message, zio.Promise[Errors.Error, Seq[EventDTO]])]
-)(private val postStop: () => LIO[Unit]) {
-  def !(fa: Message): LIO[Unit] =
+)(private val postStop: () => RIO[Env, Unit]) {
+  def !(fa: Message): Task[Unit] =
     for {
       promise <- Promise.make[Errors.Error, Seq[EventDTO]]
       _       <- queue.offer((fa, promise))
     } yield ()
 
-  private[actors] val stop: LIO[List[_]] =
+  private[actors] val stop: RIO[Env, List[_]] =
     for {
       tall <- queue.takeAll
       _    <- queue.shutdown

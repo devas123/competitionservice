@@ -4,7 +4,7 @@ import cats.data.EitherT
 import cats.Monad
 import compman.compsrv.logic.Mapping.{CommandMapping, EventMapping}
 import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
-import compman.compsrv.logic.logging.CompetitionLogging
+import compman.compsrv.logic.logging.{info, CompetitionLogging}
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model._
 import compman.compsrv.model.commands.CommandDTO
@@ -99,7 +99,7 @@ object Operations {
 
   def processCommand[F[
     +_
-  ]: CompetitionLogging.Service: Monad: CommandMapping: IdOperations: EventOperations: Interpreter](
+  ]: Monad: CommandMapping: IdOperations: CompetitionLogging.Service: EventOperations: Interpreter](
     latestState: CompetitionState,
     command: CommandDTO
   ): F[Either[Errors.Error, Seq[EventDTO]]] = {
@@ -107,6 +107,7 @@ object Operations {
     val either: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
       mapped        <- EitherT.liftF(Mapping.mapCommandDto(command))
       eventsToApply <- EitherT(CommandProcessors.process(mapped, latestState))
+      _ <- EitherT.liftF(info(s"Received events: $eventsToApply"))
       n = latestState.revision
       enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) => {
         ev.setLocalEventNumber(n + ind).setCorrelationId(command.getId)

@@ -1,23 +1,23 @@
 package compman.compsrv.service
 
-import compman.compsrv.logic.actors.Messages.ProcessCommand
 import compman.compsrv.logic.actors._
+import compman.compsrv.logic.actors.Messages.ProcessCommand
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.CompetitionState
-import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.commands.{CommandDTO, CommandType}
+import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
-import compman.compsrv.model.events.payload.CompetitionCreatedPayload
 import compman.compsrv.model.events.{EventDTO, EventType}
+import compman.compsrv.model.events.payload.CompetitionCreatedPayload
+import zio.{Layer, Queue, Ref}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
 import zio.kafka.consumer.ConsumerSettings
 import zio.kafka.producer.ProducerSettings
 import zio.logging.Logging
-import zio.test.Assertion._
 import zio.test._
-import zio.{Layer, Ref, Task}
+import zio.test.Assertion._
 
 import java.time.Instant
 import java.util.UUID
@@ -43,13 +43,14 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
   def spec: Spec[TestEnvironment, TestFailure[Throwable], TestSuccess] =
     suite("The Competition Processor should")(testM("Accept commands") {
       for {
-        actorsRef    <- Ref.make(Map.empty[String, CompetitionProcessorActorRef])
-        eventsRef    <- Ref.make(Seq.empty[EventDTO])
+        actorsRef    <- Ref.make(Map.empty[String, CompetitionProcessorActorRef[Any]])
+        eventsQueue    <- Queue.unbounded[EventDTO]
+        notificationQueue    <- Queue.unbounded[CommandProcessorNotification]
         snapshotsRef <- Ref.make(Map.empty[String, CompetitionState])
-        processor <- CompetitionProcessor[Any](
+        processor <- CompetitionProcessorActor[Any](
           ActorConfig(competitionId),
-          CommandProcessorOperations.test(eventsRef, snapshotsRef),
-          CompetitionProcessor.Context(actorsRef, competitionId)
+          CommandProcessorOperations.test(eventsQueue, notificationQueue, snapshotsRef),
+          CompetitionProcessorActor.Context(actorsRef, competitionId)
         )(() => actorsRef.update(m => m - competitionId))
         _ <- actorsRef.update(m => m + (competitionId -> processor))
         command = {
@@ -71,11 +72,14 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
         }
 
         _ <- processor ! ProcessCommand(command)
-        _ <- Task {
-          Thread.sleep(1000)
-        }
-        events <- eventsRef.get
-      } yield assert(events)(isNonEmpty) && assert(events.head.getType)(equalTo(EventType.COMPETITION_CREATED)) &&
+        f <- eventsQueue.takeN(1).fork
+        f1 <- notificationQueue.takeN(1).fork
+        eventsO <- f.join.timeout(10.seconds)
+        notificationsO <- f1.join.timeout(10.seconds)
+        events = eventsO.get
+        notifications = notificationsO.get
+      } yield assert(events)(isNonEmpty) && assert(notifications)(isNonEmpty) &&
+        assert(events.head.getType)(equalTo(EventType.COMPETITION_CREATED)) &&
         assert(events.head.getPayload)(not(isNull)) &&
         assert(events.head.getPayload)(isSubtype[CompetitionCreatedPayload](anything)) &&
         assert(events.head.getCorrelationId)(equalTo(command.getId)) &&

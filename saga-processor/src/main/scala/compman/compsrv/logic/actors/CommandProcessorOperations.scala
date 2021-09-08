@@ -1,14 +1,14 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.jackson.{ObjectMapperFactory, SerdeApi}
-import compman.compsrv.logic.actors.CompetitionProcessor.LiveEnv
+import compman.compsrv.logic.actors.CompetitionProcessorActor.LiveEnv
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.{CompetitionState, CompetitionStateImpl}
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
 import org.apache.kafka.clients.producer.ProducerRecord
-import zio.{Chunk, RIO, Ref, URIO, ZIO}
+import zio.{Chunk, Queue, Ref, RIO, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.consumer.{Consumer, Subscription}
@@ -80,15 +80,16 @@ object CommandProcessorOperations {
   }
 
   def test[Env](
-    eventReceiver: Ref[Seq[EventDTO]],
-    stateSnapshots: Ref[Map[String, CompetitionState]],
-    initialState: Option[CompetitionState] = None
+                 eventReceiver: Queue[EventDTO],
+                 notificationReceiver: Queue[CommandProcessorNotification],
+                 stateSnapshots: Ref[Map[String, CompetitionState]],
+                 initialState: Option[CompetitionState] = None
   ): CommandProcessorOperations[Env with Clock with Blocking with Logging] = {
     new CommandProcessorOperations[Env with Clock with Blocking with Logging] {
       self =>
       override def retrieveEvents(id: String, offset: Long): RIO[Env with Clock with Blocking with Logging, List[EventDTO]] = RIO.effectTotal(List.empty)
       override def persistEvents(events: Seq[EventDTO]): RIO[Env with Clock with Blocking with Logging, Unit] = for {
-        _ <- eventReceiver.update(evts => evts ++ events)
+        _ <- eventReceiver.offerAll(events)
       } yield ()
 
       override def createInitialState(config: ActorConfig): LIO[CompetitionState] = {
@@ -102,7 +103,7 @@ object CommandProcessorOperations {
         _ <- stateSnapshots.update(_ + (state.id -> state))
       } yield ()
 
-      override def sendNotifications(notifications: Seq[CommandProcessorNotification]): RIO[Env with Clock with Blocking with Logging, Unit] = RIO(())
+      override def sendNotifications(notifications: Seq[CommandProcessorNotification]): RIO[Env with Clock with Blocking with Logging, Unit] = notificationReceiver.offerAll(notifications).ignore
     }
   }
 
