@@ -41,19 +41,18 @@ object Main extends zio.App {
       .withProperty("enable.auto.commit", "false").withProperty("auto.offset.reset", "earliest")
 
     val producerSettings = ProducerSettings(appConfig.producer.brokers)
-
     val consumerLayer = Consumer.make(consumerSettings).toLayer
     val producerLayer = Producer.make[Any, String, Array[Byte]](producerSettings, Serde.string, byteSerialized).toLayer
     val snapshotLayer = SnapshotService.live(appConfig.snapshotConfig.databasePath).toLayer
     val layers        = consumerLayer ++ producerLayer ++ snapshotLayer
     val program: ZIO[PipelineEnvironment, Any, Any] = Consumer
-      .subscribeAnd(Subscription.topics(appConfig.consumer.topic)).plainStream(Serde.string, commandDeserializer)
+      .subscribeAnd(Subscription.topics(appConfig.consumer.commandsTopic)).plainStream(Serde.string, commandDeserializer)
       .mapM(record => {
-        val actorConfig: ActorConfig = createActorConfig(record.key)
-        val context                  = Context(refActorsMap, record.key)
+        val actorConfig: ActorConfig = ActorConfig(record.key, s"${appConfig.commandProcessor.eventsTopicPrefix}_${record.key}", appConfig.commandProcessor.actorIdleTimeoutMillis)
+        val context = Context(refActorsMap, record.key)
         (for {
           map <- refActorsMap.get
-          commandProcessorOperations   <- createCommandProcessorConfig[PipelineEnvironment]
+          commandProcessorOperations <- createCommandProcessorConfig[PipelineEnvironment]
           actor <-
             if (map.contains(record.key)) Task.effectTotal(map(record.key))
             else {
@@ -69,12 +68,12 @@ object Main extends zio.App {
     program.provideSomeLayer(Clock.live ++ Blocking.live ++ layers ++ loggingLayer)
   }
 
-  private def createActorConfig(competitionId: String) = ActorConfig(competitionId)
-  private def createCommandProcessorConfig[E]            = CommandProcessorOperations[E]()
+  private def createCommandProcessorConfig[E] = CommandProcessorOperations[E]()
+
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
     (for {
       competitionProcessorsMap <- Ref.make(Map.empty[String, CompetitionProcessorActorRef[PipelineEnvironment]])
-      program                  <- AppConfig.load().flatMap(config => createProgram(config, competitionProcessorsMap))
+      program <- AppConfig.load().flatMap(config => createProgram(config, competitionProcessorsMap))
     } yield program).exitCode
   }
 }

@@ -48,10 +48,10 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
         notificationQueue    <- Queue.unbounded[CommandProcessorNotification]
         snapshotsRef <- Ref.make(Map.empty[String, CompetitionState])
         processor <- CompetitionProcessorActor[Any](
-          ActorConfig(competitionId),
+          ActorConfig(competitionId, "test-events", Some(3000L)),
           CommandProcessorOperations.test(eventsQueue, notificationQueue, snapshotsRef),
           CompetitionProcessorActor.Context(actorsRef, competitionId)
-        )(() => actorsRef.update(m => m - competitionId))
+        )(() => actorsRef.update(m => m - competitionId) *> notificationQueue.offer(CompetitionProcessingStopped(competitionId)).ignore)
         _ <- actorsRef.update(m => m + (competitionId -> processor))
         command = {
           val cmd = new CommandDTO()
@@ -73,9 +73,9 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
 
         _ <- processor ! ProcessCommand(command)
         f <- eventsQueue.takeN(1).fork
-        f1 <- notificationQueue.takeN(1).fork
+        f1 <- notificationQueue.takeN(2).fork
         eventsO <- f.join.timeout(10.seconds)
-        notificationsO <- f1.join.timeout(10.seconds)
+        notificationsO <- f1.join.timeout(30.seconds)
         events = eventsO.get
         notifications = notificationsO.get
       } yield assert(events)(isNonEmpty) && assert(notifications)(isNonEmpty) &&

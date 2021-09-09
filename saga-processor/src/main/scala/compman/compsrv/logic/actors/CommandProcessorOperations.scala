@@ -28,10 +28,10 @@ trait CommandProcessorOperations[-E] {
   def saveStateSnapshot(state: CompetitionState): URIO[E with SnapshotService.Snapshot, Unit]
   def createInitialState(config: ActorConfig): LIO[CompetitionState] = RIO {
     CompetitionStateImpl(
-      id = config.id,
+      id = config.competitionId,
       competitors = Option(Map.empty),
       competitionProperties = Option(
-        new CompetitionPropertiesDTO().setId(config.id).setStatus(CompetitionStatus.CREATED)
+        new CompetitionPropertiesDTO().setId(config.competitionId).setStatus(CompetitionStatus.CREATED)
           .setCreationTimestamp(Instant.now()).setBracketsPublished(false).setSchedulePublished(false)
           .setStaffIds(Array.empty).setEmailNotificationsEnabled(false).setTimeZone("UTC")
       ),
@@ -39,10 +39,10 @@ trait CommandProcessorOperations[-E] {
       fights = Some(Map.empty),
       categories = Some(Map.empty),
       registrationInfo = Some(
-        new RegistrationInfoDTO().setId(config.id).setRegistrationGroups(Array.empty)
+        new RegistrationInfoDTO().setId(config.competitionId).setRegistrationGroups(Array.empty)
           .setRegistrationPeriods(Array.empty).setRegistrationOpen(false)
       ),
-      schedule = Some(new ScheduleDTO().setId(config.id).setMats(Array.empty).setPeriods(Array.empty)),
+      schedule = Some(new ScheduleDTO().setId(config.competitionId).setMats(Array.empty).setPeriods(Array.empty)),
       revision = 0L
     )
   }

@@ -24,26 +24,29 @@ final class CompetitionProcessorActor {
   private val DefaultTimerKey      = "stopTimer"
   private val DefaultTimerDuration = zio.duration.Duration(5, TimeUnit.MINUTES)
   private def receive[Env](
-    context: Context[Env],
-    state: CompetitionState,
-    command: Message,
-    timers: Timers[Env]
-  ): RIO[Env with Logging with Clock, Either[Errors.Error, Seq[EventDTO]]] = {
+                            context: Context[Env],
+                            actorConfig: ActorConfig,
+                            state: CompetitionState,
+                            command: Message,
+                            timers: Timers[Env]
+                          ): RIO[Env with Logging with Clock, Either[Errors.Error, Seq[EventDTO]]] = {
     for {
       self <- context.self
       _    <- info(s"Received a command $command")
       res <- command match {
-        case ProcessCommand(cmd) => timers.startDestroyTimer(DefaultTimerKey, DefaultTimerDuration) *> {
-            for {
-              _ <-
-                if (cmd.getId == null) RIO.fail(new IllegalArgumentException(s"Command $cmd has no ID")) else RIO.unit
-              res <- Live.withContext(
-                _.annotate(LogAnnotation.CorrelationId, Option(cmd.getId).map(UUID.fromString))
-                  .annotate(Annotations.competitionId, Option(cmd.getCompetitionId))
-              ) { Operations.processCommand[LIO](state, cmd) }
-            } yield res
-          }
-        case Stop => self.stop.as(Right(Seq.empty))
+        case ProcessCommand(cmd) => timers.startDestroyTimer(DefaultTimerKey, actorConfig.actorIdleTimeoutMillis.map(zio.duration.Duration(_, TimeUnit.MILLISECONDS)).getOrElse(DefaultTimerDuration)) *> {
+          for {
+            _ <-
+              if (cmd.getId == null) RIO.fail(new IllegalArgumentException(s"Command $cmd has no ID")) else RIO.unit
+            res <- Live.withContext(
+              _.annotate(LogAnnotation.CorrelationId, Option(cmd.getId).map(UUID.fromString))
+                .annotate(Annotations.competitionId, Option(cmd.getCompetitionId))
+            ) {
+              Operations.processCommand[LIO](state, cmd)
+            }
+          } yield res
+        }
+        case Stop => info(s"Stopping actor for competition ${actorConfig.competitionId}") *> self.stop.as(Right(Seq.empty))
       }
     } yield res
   }
@@ -68,7 +71,7 @@ final class CompetitionProcessorActor {
       for {
         state <- stateRef.get
         (command, promise) = msg
-        receiver <- receive(context, state, command, ts)
+        receiver <- receive(context, actorConfig, state, command, ts)
         effectfulCompleter = (s: CompetitionState, a: Seq[EventDTO]) => stateRef.set(s) *> {
           if (s.revision % 10 == 0 || a.size >= 10) processorOperations.saveStateSnapshot(s) else ZIO.effect(())
         } *> promise.succeed(a)
@@ -95,7 +98,7 @@ final class CompetitionProcessorActor {
     for {
       statePromise <- Promise.make[Throwable, Ref[CompetitionState]]
       _ <- (for {
-        latest <- processorOperations.getStateSnapshot(actorConfig.id) >>= (_.map(Task(_)).getOrElse(processorOperations.createInitialState(actorConfig)))
+        latest <- processorOperations.getStateSnapshot(actorConfig.competitionId) >>= (_.map(Task(_)).getOrElse(processorOperations.createInitialState(actorConfig)))
         events <- processorOperations.retrieveEvents(actorConfig.eventTopic, latest.revision)
         updated <- events.foldLeft[LIO[CompetitionState]](RIO(latest))((a, b) => a.flatMap(applyEvent(_, b)))
         s <- Ref.make(updated)
@@ -107,7 +110,7 @@ final class CompetitionProcessorActor {
       ts = Timers[Env](actor, timersMap, processorOperations)
       _ <- (for {
         state <- statePromise.await
-        _ <- processorOperations.sendNotifications(Seq(CompetitionProcessingStarted(actorConfig.id)))
+        _ <- processorOperations.sendNotifications(Seq(CompetitionProcessingStarted(actorConfig.competitionId)))
         loop <- (for {
           t <- queue.take
           _ <- process(t, state, ts)

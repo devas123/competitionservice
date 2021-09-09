@@ -16,8 +16,8 @@ final case class CompetitionProcessorActorRef[Env](
 
   private[actors] val stop: RIO[Env, List[_]] =
     for {
-      tall <- queue.takeAll
+      tail <- queue.takeAll
       _    <- queue.shutdown
       _    <- postStop()
-    } yield tall
+    } yield tail
 }
