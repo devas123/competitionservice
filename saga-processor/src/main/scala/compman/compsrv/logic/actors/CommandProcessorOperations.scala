@@ -1,6 +1,7 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.jackson.{ObjectMapperFactory, SerdeApi}
+import compman.compsrv.logic.actors.CommandProcessorOperations.KafkaTopicConfig
 import compman.compsrv.logic.actors.CompetitionProcessorActor.LiveEnv
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.{CompetitionState, CompetitionStateImpl}
@@ -8,9 +9,10 @@ import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, Competit
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
 import org.apache.kafka.clients.producer.ProducerRecord
-import zio.{Chunk, Queue, Ref, RIO, URIO, ZIO}
+import zio.{Chunk, Queue, RIO, Ref, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
+import zio.kafka.admin.AdminClient
 import zio.kafka.consumer.{Consumer, Subscription}
 import zio.kafka.serde.Serde
 import zio.logging.Logging
@@ -24,8 +26,12 @@ trait CommandProcessorOperations[-E] {
 
   def sendNotifications(notifications: Seq[CommandProcessorNotification]): RIO[E, Unit]
 
+  def createTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig): RIO[E, Unit]
+
   def getStateSnapshot(id: String): URIO[E with SnapshotService.Snapshot, Option[CompetitionState]]
+
   def saveStateSnapshot(state: CompetitionState): URIO[E with SnapshotService.Snapshot, Unit]
+
   def createInitialState(config: ActorConfig): LIO[CompetitionState] = RIO {
     CompetitionStateImpl(
       id = config.competitionId,
@@ -46,10 +52,13 @@ trait CommandProcessorOperations[-E] {
       revision = 0L
     )
   }
+
 }
 
 object CommandProcessorOperations {
-  def apply[E](): RIO[E with LiveEnv, CommandProcessorOperations[E with LiveEnv]] = {
+  case class KafkaTopicConfig(numPartitions: Int = 1, replicationFactor: Short = 1, additionalProperties: Map[String, String] = Map.empty)
+
+  def apply[E](adminClient: AdminClient): RIO[E with LiveEnv, CommandProcessorOperations[E with LiveEnv]] = {
     for {
       mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
       operations = new CommandProcessorOperations[E with LiveEnv] {
@@ -75,6 +84,12 @@ object CommandProcessorOperations {
             new ProducerRecord[String, Array[Byte]](e.competitionId.get, mapper.writeValueAsBytes(e))
           )).ignore
         }
+
+        override def createTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig): RIO[E with LiveEnv, Unit] = for {
+          topics <- adminClient.listTopics()
+          _ <- if (topics.contains(topic)) RIO(()) else adminClient.createTopic(AdminClient.NewTopic(topic,
+            topicConfig.numPartitions, topicConfig.replicationFactor))
+        } yield ()
       }
     } yield operations
   }
@@ -97,13 +112,15 @@ object CommandProcessorOperations {
       }
 
       override def getStateSnapshot(id: String): URIO[Env with Clock with Blocking with Logging with SnapshotService.Snapshot, Option[CompetitionState]] =
-        for { map <- stateSnapshots.get } yield map.get(id)
+        for {map <- stateSnapshots.get} yield map.get(id)
 
       override def saveStateSnapshot(state: CompetitionState): URIO[Env with Clock with Blocking with Logging with SnapshotService.Snapshot, Unit] = for {
         _ <- stateSnapshots.update(_ + (state.id -> state))
       } yield ()
 
       override def sendNotifications(notifications: Seq[CommandProcessorNotification]): RIO[Env with Clock with Blocking with Logging, Unit] = notificationReceiver.offerAll(notifications).ignore
+
+      override def createTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig): RIO[Env with Clock with Blocking with Logging, Unit] = RIO(())
     }
   }
 

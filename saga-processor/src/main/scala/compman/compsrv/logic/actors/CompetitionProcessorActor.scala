@@ -1,6 +1,7 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.Operations
+import compman.compsrv.logic.actors.CommandProcessorOperations.KafkaTopicConfig
 import compman.compsrv.logic.actors.CompetitionProcessorActor.Context
 import compman.compsrv.logic.actors.Messages._
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
@@ -98,6 +99,7 @@ final class CompetitionProcessorActor {
     for {
       statePromise <- Promise.make[Throwable, Ref[CompetitionState]]
       _ <- (for {
+        _ <- processorOperations.createTopicIfMissing(actorConfig.eventTopic, KafkaTopicConfig())
         latest <- processorOperations.getStateSnapshot(actorConfig.competitionId) >>= (_.map(Task(_)).getOrElse(processorOperations.createInitialState(actorConfig)))
         events <- processorOperations.retrieveEvents(actorConfig.eventTopic, latest.revision)
         updated <- events.foldLeft[LIO[CompetitionState]](RIO(latest))((a, b) => a.flatMap(applyEvent(_, b)))
