@@ -2,8 +2,8 @@ package compman.compsrv.query.service
 
 import cats.data.Kleisli
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.query.actors.CompetitionApiActor.{ApiCommand, GetCompetitionInfoTemplate}
-import compman.compsrv.query.actors.CompetitionProcessorActorRef
+import compman.compsrv.query.actors.behavior.CompetitionApiActor.{ApiCommand, GetCompetitionInfoTemplate}
+import compman.compsrv.query.actors.ActorRef
 import org.http4s.{HttpRoutes, Request, Response}
 import org.http4s.dsl.Http4sDsl
 import zio.Task
@@ -17,7 +17,7 @@ object CompetitionHttpApiService {
   import dsl._
   val timeout: Duration = 10.seconds
   val decoder           = new ObjectMapper()
-  def service(apiActor: CompetitionProcessorActorRef[ApiCommand]): Kleisli[Task, Request[Task], Response[Task]] = HttpRoutes.of[Task] {
+  def service(apiActor: ActorRef[ApiCommand]): Kleisli[Task, Request[Task], Response[Task]] = HttpRoutes.of[Task] {
     case GET -> Root => Ok("hello!")
     case GET -> Root / "store" / "defaultrestrictions" => for {
         response <- apiActor ? GetCompetitionInfoTemplate

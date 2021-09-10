@@ -1,4 +1,4 @@
-package compman.compsrv.query.repository
+package compman.compsrv.query.service.repository
 
 import compman.compsrv.model.dto.competition.CategoryStateDTO
 import compman.compsrv.query.model.{CompetitionInfoTemplate, CompetitionProperties}

@@ -1,7 +1,8 @@
 package compman.compsrv.query.service
 
-import compman.compsrv.query.actors.CompetitionApiActor.{ActorConfig, ActorSystem}
-import compman.compsrv.query.actors.CompetitionApiActor
+import compman.compsrv.query.actors.behavior.CompetitionApiActor
+import compman.compsrv.query.actors.ActorSystem
+import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import org.http4s._
 import org.http4s.implicits._
 import zio._

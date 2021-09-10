@@ -1,6 +1,7 @@
 package compman.compsrv.query
-import compman.compsrv.query.actors.CompetitionApiActor
-import compman.compsrv.query.actors.CompetitionApiActor.{ActorConfig, ActorSystem}
+import compman.compsrv.query.actors.ActorSystem
+import compman.compsrv.query.actors.ActorSystem.ActorConfig
+import compman.compsrv.query.actors.behavior.CompetitionApiActor
 import compman.compsrv.query.service.CompetitionHttpApiService
 import org.http4s.blaze.server.BlazeServerBuilder
 import zio._

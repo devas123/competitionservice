@@ -1,9 +1,9 @@
 package compman.compsrv.query.actors
 
-import compman.compsrv.query.actors.CompetitionApiActor.PendingMessage
+import compman.compsrv.query.actors.ActorSystem.PendingMessage
 import zio.{Promise, Queue, Task}
 
-final case class CompetitionProcessorActorRef[Msg[+_]](
+final case class ActorRef[Msg[+_]](
   private val queue: Queue[PendingMessage[Msg, _]]
 )(private val postStop: () => Task[Unit]) {
   def ![A](fa: Msg[A]): Task[Unit] = for {

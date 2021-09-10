@@ -112,7 +112,7 @@ final class CompetitionProcessorActor {
       ts = Timers[Env](actor, timersMap)
       _ <- (for {
         state <- statePromise.await
-        _ <- processorOperations.sendNotifications(Seq(CompetitionProcessingStarted(actorConfig.competitionId)))
+        _ <- processorOperations.sendNotifications(Seq(CompetitionProcessingStarted(actorConfig.competitionId, actorConfig.eventTopic)))
         loop <- (for {
           t <- queue.take
           _ <- process(t, state, ts)
