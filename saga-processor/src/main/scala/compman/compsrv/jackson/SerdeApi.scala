@@ -11,7 +11,7 @@ object SerdeApi {
 
   val objectMapper: ObjectMapper = ObjectMapperFactory.createObjectMapper
 
-  val byteSerialized: Serializer[Any, Array[Byte]] =
+  val byteSerializer: Serializer[Any, Array[Byte]] =
     new Serializer[Any, Array[Byte]] {
       override def serialize(
           topic: String,

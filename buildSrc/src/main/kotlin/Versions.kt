@@ -1,7 +1,6 @@
 const val scalaBinary = "2.13"
 
 object Versions {
-    const val zioActors: String = "0.0.9"
     const val zio = "1.0.8"
     const val zioKafka = "0.13.0"
     const val zioConfig = "1.0.0"
@@ -41,10 +40,6 @@ object Libraries {
         "dev.zio:zio-kafka_$scalaBinary:${Versions.zioKafka}"
     )
 
-    val zioActors = listOf(
-        "dev.zio:zio-actors_$scalaBinary:${Versions.zioActors}"
-    )
-
     val zioTest = Dep(
         group = "dev.zio",
         artifactId = "zio-test_$scalaBinary",
@@ -69,6 +64,7 @@ object Libraries {
     val cats = listOf(
         "org.typelevel:cats-core_$scalaBinary:${Versions.cats}",
         "org.typelevel:cats-free_$scalaBinary:${Versions.cats}",
+        "org.typelevel:cats-kernel_$scalaBinary:${Versions.cats}",
     )
 
     val guava = listOf(

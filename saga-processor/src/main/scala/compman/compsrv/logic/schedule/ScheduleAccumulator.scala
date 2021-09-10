@@ -1,7 +1,7 @@
 package compman.compsrv.logic.schedule
 
 import compman.compsrv.model.dto.schedule.{ScheduleEntryDTO, ScheduleEntryType, ScheduleRequirementDTO}
-import compman.compsrv.model.extension._
+import compman.compsrv.model.extensions._
 
 import java.time.Instant
 import java.util.UUID

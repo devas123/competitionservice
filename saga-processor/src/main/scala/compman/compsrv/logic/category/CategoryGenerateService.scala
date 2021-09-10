@@ -29,7 +29,7 @@ object CategoryGenerateService {
     .setId(UUID.randomUUID().toString).setType(CategoryRestrictionType.Value).setValue(value).setName("Gender")
 
   def printCategory(cat: CategoryDescriptorDTO): String = {
-    import compman.compsrv.model.extension._
+    import compman.compsrv.model.extensions._
     val sv = new StringBuilder()
     if (cat.getRestrictions != null) {
       cat.getRestrictions.foreach { it =>

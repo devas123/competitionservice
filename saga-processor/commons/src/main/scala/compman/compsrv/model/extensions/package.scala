@@ -1,13 +1,13 @@
 package compman.compsrv.model
 
-import cats.implicits._
 import compman.compsrv.model.dto.brackets.{StageDescriptorDTO, StageRoundType}
 import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.dto.schedule.{MatIdAndSomeId, ScheduleEntryDTO, ScheduleRequirementDTO}
 
 import java.time.Instant
 
-package object extension {
+package object extensions {
+  import cats.implicits._
 
   private def parseDate(date: Any, default: Option[Instant] = None) =
     if (date != null) { Some(Instant.ofEpochMilli(date.toString.toLong)) }

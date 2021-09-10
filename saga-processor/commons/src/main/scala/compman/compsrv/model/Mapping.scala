@@ -1,11 +1,10 @@
-package compman.compsrv.logic
+package compman.compsrv.model
 
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.command.Commands
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.Payload
-import compman.compsrv.model.commands.CommandType._
 import compman.compsrv.model.commands.payload._
+import compman.compsrv.model.commands.CommandType._
 import compman.compsrv.model.event.Events
 import compman.compsrv.model.event.Events._
 import compman.compsrv.model.events.EventDTO

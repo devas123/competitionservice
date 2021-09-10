@@ -4,7 +4,7 @@ import com.google.common.collect.{BiMap, HashBiMap}
 import compman.compsrv.logic.fights.CanFail
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
-import compman.compsrv.model.extension._
+import compman.compsrv.model.extensions._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer

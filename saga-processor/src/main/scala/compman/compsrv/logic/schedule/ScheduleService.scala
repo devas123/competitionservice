@@ -8,7 +8,7 @@ import compman.compsrv.logic.Operations.IdOperations
 import compman.compsrv.logic.fights.CanFail
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.{FightStartTimePairDTO, PeriodDTO, ScheduleDTO}
-import compman.compsrv.model.extension._
+import compman.compsrv.model.extensions._
 
 object ScheduleService {
   def generateSchedule[F[+_]: Monad: IdOperations](

@@ -16,6 +16,7 @@ dependencies {
     Libraries.rocksdb.forEach { implementation(it) }
     implementation(project(":competition-serv-model"))
     implementation(project(":compservice-annotations"))
+    implementation(project(":saga-processor:commons"))
 
     Libraries.embeddedKafka.forEach { testImplementation(it) }
     testImplementation("org.scalatest:scalatest_$scalaBinary:3.2.8")

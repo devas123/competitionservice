@@ -4,7 +4,7 @@ import cats.implicits._
 import compman.compsrv.logic.fights.CanFail
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule._
-import compman.compsrv.model.extension._
+import compman.compsrv.model.extensions._
 import compman.compsrv.model.Errors
 
 import java.time.{Instant, ZonedDateTime, ZoneId}

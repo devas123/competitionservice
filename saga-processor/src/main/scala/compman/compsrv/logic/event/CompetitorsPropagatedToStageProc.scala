@@ -22,7 +22,7 @@ object CompetitorsPropagatedToStageProc {
     state: CompetitionState
   ): F[Option[CompetitionState]] = {
     import cats.implicits._
-    import compman.compsrv.model.extension._
+    import compman.compsrv.model.extensions._
     val eventT = for {
       payload <- event.payload
       fights  <- state.fights

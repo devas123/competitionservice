@@ -2,7 +2,7 @@ package compman.compsrv.logic.command
 
 import cats.Monad
 import cats.data.EitherT
-import compman.compsrv.model.extension._
+import compman.compsrv.model.extensions._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.fights.{FightsService, FightUtils}
 import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter

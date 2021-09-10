@@ -1,7 +1,7 @@
 package compman.compsrv
 
 import compman.compsrv.config.AppConfig
-import compman.compsrv.jackson.SerdeApi.{byteSerialized, commandDeserializer}
+import compman.compsrv.jackson.SerdeApi.{byteSerializer, commandDeserializer}
 import compman.compsrv.logic.Operations._
 import compman.compsrv.logic._
 import compman.compsrv.logic.actors.CompetitionProcessorActor.{Context, LiveEnv}
@@ -10,6 +10,7 @@ import compman.compsrv.logic.actors._
 import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.logic.logging.CompetitionLogging.Live.loggingLayer
+import compman.compsrv.model.Mapping
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -22,8 +23,8 @@ import zio.{ExitCode, Ref, Task, URIO, ZIO}
 object Main extends zio.App {
 
   object Live {
-    implicit val commandMapping: Mapping.CommandMapping[LIO] = compman.compsrv.logic.Mapping.CommandMapping.live
-    implicit val eventMapping: Mapping.EventMapping[LIO]     = compman.compsrv.logic.Mapping.EventMapping.live
+    implicit val commandMapping: Mapping.CommandMapping[LIO] = Mapping.CommandMapping.live
+    implicit val eventMapping: Mapping.EventMapping[LIO]     = model.Mapping.EventMapping.live
     implicit val idOperations: IdOperations[LIO]             = IdOperations.live
     implicit val eventOperations: EventOperations[LIO]       = EventOperations.live
     implicit val selectInterpreter: Interpreter[LIO]         = Interpreter.asTask
@@ -45,7 +46,7 @@ object Main extends zio.App {
     val adminSettings = AdminClientSettings(appConfig.producer.brokers)
     val admin = AdminClient.make(adminSettings)
     val consumerLayer = Consumer.make(consumerSettings).toLayer
-    val producerLayer = Producer.make[Any, String, Array[Byte]](producerSettings, Serde.string, byteSerialized).toLayer
+    val producerLayer = Producer.make[Any, String, Array[Byte]](producerSettings, Serde.string, byteSerializer).toLayer
     val snapshotLayer = SnapshotService.live(appConfig.snapshotConfig.databasePath).toLayer
     val layers = consumerLayer ++ producerLayer ++ snapshotLayer
     val program: ZIO[PipelineEnvironment, Any, Any] = Consumer

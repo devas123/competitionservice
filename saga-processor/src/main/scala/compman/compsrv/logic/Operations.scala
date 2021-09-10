@@ -2,7 +2,7 @@ package compman.compsrv.logic
 
 import cats.data.EitherT
 import cats.Monad
-import compman.compsrv.logic.Mapping.{CommandMapping, EventMapping}
+import compman.compsrv.model.Mapping.{CommandMapping, EventMapping}
 import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.{info, CompetitionLogging}
 import compman.compsrv.logic.logging.CompetitionLogging.LIO

@@ -17,6 +17,7 @@ dependencies {
     Libraries.quill.forEach { implementation(it) }
     implementation(project(":competition-serv-model"))
     implementation(project(":compservice-annotations"))
+    implementation(project(":saga-processor:commons"))
 
     Libraries.embeddedKafka.forEach { testImplementation(it) }
     Libraries.zioTest.apply {

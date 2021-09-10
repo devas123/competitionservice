@@ -23,7 +23,7 @@ package object fights {
   val THIRD_PLACE_FIGHT = "Third place"
 
 
-  import compman.compsrv.model.extension._
+  import compman.compsrv.model.extensions._
 
   val zero: java.math.BigDecimal = BigDecimal(0).bigDecimal
 

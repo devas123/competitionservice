@@ -11,7 +11,7 @@ import scala.util.Random
 
 object BracketsUtils {
   import cats.implicits._
-  import compman.compsrv.model.extension._
+  import compman.compsrv.model.extensions._
 
   def getLastRoundFightForCompetitor(fights: List[FightDescriptionDTO], cid: String): CanFail[FightDescriptionDTO] = {
     val a = fights.filter(f => f.containsFighter(cid) && !f.winnerId.contains(cid)).maxByOption(_.getRound)

@@ -1,7 +1,7 @@
 package compman.compsrv.logic
 
 import cats.Monad
-import compman.compsrv.logic.Mapping.EventMapping
+import compman.compsrv.model.Mapping.EventMapping
 import compman.compsrv.logic.event._
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.{CompetitionState, Payload}

@@ -4,7 +4,7 @@ import cats.Monad
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
 import compman.compsrv.model.{CompetitionState, Payload}
 import compman.compsrv.model.event.Events.{CompetitionPropertiesUpdatedEvent, Event}
-import compman.compsrv.model.extension._
+import compman.compsrv.model.extensions._
 
 import scala.jdk.CollectionConverters.MapHasAsScala
 

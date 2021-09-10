@@ -13,7 +13,7 @@ import compman.compsrv.model.commands.payload.{CompetitorMovedToGroup, FightEdit
 import compman.compsrv.model.dto.brackets.{BracketType, GroupDescriptorDTO, StageDescriptorDTO, StageRoundType}
 import compman.compsrv.model.dto.competition.{CompScoreDTO, FightDescriptionDTO, FightStatus}
 import compman.compsrv.model.events.payload.FightEditorChangesAppliedPayload
-import compman.compsrv.model.extension._
+import compman.compsrv.model.extensions._
 
 import java.util.UUID
 import scala.annotation.tailrec

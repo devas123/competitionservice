@@ -20,7 +20,7 @@ trait ActorBehavior[R, S, Msg[+_]] {
     context: Context[Msg],
     initState: S,
     timers: Timers[R, Msg]
-  ): RIO[R, (Seq[Fiber[Throwable, Any]], Seq[Msg[Any]])] = RIO((Seq.empty, Seq.empty))
+  ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg[Any]])] = RIO((Seq.empty, Seq.empty))
 
   def makeActor(
     id: String,

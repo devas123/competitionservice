@@ -14,7 +14,7 @@ import compman.compsrv.model.Errors.NoPayloadError
 import compman.compsrv.model.commands.payload.SetFightResultPayload
 import compman.compsrv.model.dto.brackets.{FightReferenceType, StageStatus}
 import compman.compsrv.model.dto.competition.{FightDescriptionDTO, FightStatus}
-import compman.compsrv.model.extension.FightDescrOps
+import compman.compsrv.model.extensions.FightDescrOps
 
 object SetFightResultProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](

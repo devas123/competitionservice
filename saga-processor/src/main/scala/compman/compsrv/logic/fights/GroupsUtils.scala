@@ -7,7 +7,7 @@ import compman.compsrv.logic._
 import compman.compsrv.model.Errors
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition.{CompetitorDTO, FightDescriptionDTO}
-import compman.compsrv.model.extension._
+import compman.compsrv.model.extensions._
 
 import scala.collection.{mutable, SortedSet}
 

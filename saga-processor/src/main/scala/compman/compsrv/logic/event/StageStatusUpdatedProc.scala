@@ -14,7 +14,7 @@ object StageStatusUpdatedProc {
     event: StageStatusUpdatedEvent,
     state: CompetitionState
   ): F[Option[CompetitionState]] = {
-    import compman.compsrv.model.extension._
+    import compman.compsrv.model.extensions._
     val eventT = for {
       payload <- event.payload
       status  <- Option(payload.getStatus)
