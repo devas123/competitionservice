@@ -109,7 +109,7 @@ final class CompetitionProcessorActor {
       queue <- Queue.sliding[PendingMessage[Seq[EventDTO]]](mailboxSize)
       actor = CompetitionProcessorActorRef[Env](queue)(postStop)
       timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
-      ts = Timers[Env](actor, timersMap, processorOperations)
+      ts = Timers[Env](actor, timersMap)
       _ <- (for {
         state <- statePromise.await
         _ <- processorOperations.sendNotifications(Seq(CompetitionProcessingStarted(actorConfig.competitionId)))

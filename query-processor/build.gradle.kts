@@ -9,6 +9,8 @@ dependencies {
     Libraries.cats.forEach { implementation(it) }
     Libraries.logging.forEach { implementation(it) }
     Libraries.zio.forEach { implementation(it) }
+    Libraries.zioLogging.forEach { implementation(it) }
+    Libraries.jackson.forEach { implementation(it) }
     Libraries.zioConfig.forEach { implementation(it) }
     Libraries.circle.forEach { implementation(it) }
     Libraries.http4s.forEach { implementation(it) }
@@ -17,6 +19,13 @@ dependencies {
     implementation(project(":compservice-annotations"))
 
     Libraries.embeddedKafka.forEach { testImplementation(it) }
+    Libraries.zioTest.apply {
+        testImplementation(
+            group = group,
+            name = artifactId,
+            version = version
+        )
+    }
     testImplementation("org.scalatest:scalatest_$scalaBinary:3.2.8")
     testImplementation("junit:junit:4.13")
 }

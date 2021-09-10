@@ -1,18 +1,15 @@
-package compman.compsrv.logic.actors
+package compman.compsrv.query.actors
 
-import compman.compsrv.logic.actors.Messages._
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import zio.{Fiber, Ref, RIO}
 import zio.clock.Clock
 import zio.duration.Duration
-import zio.logging.Logging
 
-private[actors] case class Timers[Env](
-                                        private val self: CompetitionProcessorActorRef[Env],
+private[actors] case class Timers[R, Msg[+_]](
+                                        private val self: CompetitionProcessorActorRef[Msg],
                                         private val timers: Ref[Map[String, Fiber[Throwable, Unit]]]
 ) {
-  def startDestroyTimer[A](key: String, timeout: Duration): RIO[Env with Logging with Clock, Unit] = {
-    def create = (RIO.sleep(timeout) <* (self ! Stop)).fork
+  def startTimer[A](key: String, timeout: Duration, msg: Msg[A]): RIO[R with Clock, Unit] = {
+    def create = (RIO.sleep(timeout) <* (self ! msg)).fork
     for {
       map <- timers.get
       maybeTimer = map.get(key)
@@ -26,7 +23,7 @@ private[actors] case class Timers[Env](
       _ <- timers.update(map => map + (key -> fiber))
     } yield ()
   }
-  def cancelTimer[A](key: String): LIO[Unit] = {
+  def cancelTimer[A](key: String): RIO[R with Clock, Unit] = {
     for {
       fiber <- timers.modify(ts => {
         val fiber = ts.get(key)
