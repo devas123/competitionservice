@@ -31,7 +31,7 @@ object Libraries {
     )
 
     val quill = listOf(
-        "io.getquill:quill-cassandra_${scalaBinary}:${Versions.quill}"
+        "io.getquill:quill-cassandra-zio_${scalaBinary}:${Versions.quill}"
     )
 
     val zio = listOf(

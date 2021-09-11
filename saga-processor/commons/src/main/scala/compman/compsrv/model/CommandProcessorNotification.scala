@@ -1,20 +1,27 @@
 package compman.compsrv.model
 
 import compman.compsrv.model.NotificationTypes.NotificationType
+import compman.compsrv.model.dto.competition.CompetitionStatus
+
+import java.time.Instant
 
 sealed trait CommandProcessorNotification {
   val notificationType: NotificationType
-  val competitionId: Option[String]
-  val eventTopic: Option[String] = None
 }
 
-final case class CompetitionProcessingStarted(id: String, topic: String) extends CommandProcessorNotification {
+final case class CompetitionProcessingStarted(
+  id: String,
+  topic: String,
+  creatorId: String,
+  createdAt: Instant,
+  startsAt: Instant,
+  endsAt: Instant,
+  timeZone: String,
+  status: CompetitionStatus
+) extends CommandProcessorNotification {
   override val notificationType: NotificationType = NotificationTypes.ProcessingStarted
-  override val competitionId: Option[String] = Some(id)
-  override val eventTopic: Option[String] = Some(topic)
 }
 
 final case class CompetitionProcessingStopped(id: String) extends CommandProcessorNotification {
   override val notificationType: NotificationType = NotificationTypes.ProcessingStopped
-  override val competitionId: Option[String] = Some(id)
 }
