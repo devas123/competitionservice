@@ -25,14 +25,17 @@ object CompetitionEventListenerSupervisor {
       ): RIO[ManagedCompetitions.Service with Clock with R, (Unit, A)] = {
         command match {
           case ReceivedNotification(notification) => notification match {
-              case CompetitionProcessingStarted(id, topic) => context
-                  .make[R, CompetitionApiActor.ActorState, CompetitionApiActor.ApiCommand](
+              case CompetitionProcessingStarted(id, topic) => for {
+                  _ <- ManagedCompetitions.addManagedCompetition(ManagedCompetitions.ManagedCompetition(id, topic))
+                  res <- context.make[R, CompetitionApiActor.ActorState, CompetitionApiActor.ApiCommand](
                     id,
                     ActorConfig(),
                     CompetitionApiActor.initialState,
                     CompetitionApiActor.behavior[R](eventStreaming, topic)
-                  ).map(_ => ((), ().asInstanceOf[A])) // start new actor if not started
+                  ).map(_ => ((), ().asInstanceOf[A]))
+                } yield res // start new actor if not started
               case CompetitionProcessingStopped(id) => for {
+                  _     <- ManagedCompetitions.deleteManagedCompetition(  id)
                   child <- context.findChild[Any](id)
                   _ <- child match {
                     case Some(value) => value.stop.ignore
