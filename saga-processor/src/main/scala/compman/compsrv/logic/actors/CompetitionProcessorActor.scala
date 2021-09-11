@@ -6,13 +6,13 @@ import compman.compsrv.logic.actors.CompetitionProcessorActor.Context
 import compman.compsrv.logic.actors.Messages._
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.model.{CompetitionState, Errors}
+import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionState, Errors}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.consumer.Consumer
 import zio.kafka.producer.Producer
 import zio.logging.{LogAnnotation, Logging}
-import zio.{Fiber, Promise, Queue, RIO, Ref, Task, ZIO}
+import zio.{Fiber, Promise, Queue, Ref, RIO, Task, ZIO}
 
 import java.util.UUID
 import java.util.concurrent.TimeUnit

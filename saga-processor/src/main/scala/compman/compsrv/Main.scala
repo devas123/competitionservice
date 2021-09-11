@@ -10,7 +10,7 @@ import compman.compsrv.logic.actors._
 import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.logic.logging.CompetitionLogging.Live.loggingLayer
-import compman.compsrv.model.Mapping
+import compman.compsrv.model.{CompetitionProcessingStopped, Mapping}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt

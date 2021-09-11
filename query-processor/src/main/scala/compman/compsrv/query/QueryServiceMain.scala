@@ -2,7 +2,9 @@ package compman.compsrv.query
 import compman.compsrv.query.actors.ActorSystem
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.actors.behavior.CompetitionApiActor
+import compman.compsrv.query.config.AppConfig
 import compman.compsrv.query.service.CompetitionHttpApiService
+import compman.compsrv.query.service.kafka.EventStreamingService
 import org.http4s.blaze.server.BlazeServerBuilder
 import zio._
 import zio.interop.catz._
@@ -10,11 +12,16 @@ import zio.interop.catz._
 object QueryServiceMain extends zio.App {
 
   val server: ZIO[zio.ZEnv, Throwable, Unit] = for {
+    config <- AppConfig.load()
     actorSystem <- ActorSystem("test")
-    actor <- actorSystem
-      .make("queryApiActor", ActorConfig(), CompetitionApiActor.initialState, CompetitionApiActor.behavior)
+    actor <- actorSystem.make(
+      "queryApiActor",
+      ActorConfig(),
+      CompetitionApiActor.initialState,
+      CompetitionApiActor.behavior(EventStreamingService.live(config.consumer.brokers), config.competitionEventListener.competitionNotificationsTopic)
+    )
     srv <- ZIO.runtime[ZEnv].flatMap { implicit rts =>
-      BlazeServerBuilder[Task].bindHttp(8080, "localhost").withHttpApp(CompetitionHttpApiService.service(actor)).serve
+      BlazeServerBuilder[Task].bindHttp(8080, "0.0.0.0").withHttpApp(CompetitionHttpApiService.service(actor)).serve
         .compile.drain
     }
   } yield srv

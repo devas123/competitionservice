@@ -56,6 +56,16 @@ private[actors] final class ActorSystem(
     _        <- ZIO.foreach_(children)(_._2.stop)
     _        <- childrenRef.set(Map.empty)
   } yield ()
+  def select[F[+_]](path: String): Task[ActorRef[F]] = {
+    for {
+      actorMap <- refActorMap.get
+      actorRef <- actorMap.get(path) match {
+        case Some(value) => for { actor <- IO.effectTotal(value.asInstanceOf[ActorRef[F]]) } yield actor
+        case None        => IO.fail(new Exception(s"No such actor $path in local ActorSystem."))
+      }
+    } yield actorRef
+
+  }
 
 }
 object ActorSystem {

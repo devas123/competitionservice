@@ -4,12 +4,12 @@ import compman.compsrv.jackson.{ObjectMapperFactory, SerdeApi}
 import compman.compsrv.logic.actors.CommandProcessorOperations.KafkaTopicConfig
 import compman.compsrv.logic.actors.CompetitionProcessorActor.LiveEnv
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compman.compsrv.model.{CompetitionState, CompetitionStateImpl}
+import compman.compsrv.model.{CommandProcessorNotification, CompetitionState, CompetitionStateImpl}
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
 import org.apache.kafka.clients.producer.ProducerRecord
-import zio.{Chunk, Queue, RIO, Ref, URIO, ZIO}
+import zio.{Chunk, Queue, Ref, RIO, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.admin.AdminClient

@@ -3,7 +3,7 @@ package compman.compsrv.service
 import compman.compsrv.logic.actors._
 import compman.compsrv.logic.actors.Messages.ProcessCommand
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.CompetitionState
+import compman.compsrv.model.{CommandProcessorNotification, CompetitionProcessingStopped, CompetitionState}
 import compman.compsrv.model.commands.{CommandDTO, CommandType}
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}

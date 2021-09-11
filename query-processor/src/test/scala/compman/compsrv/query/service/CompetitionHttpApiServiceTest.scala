@@ -3,6 +3,7 @@ package compman.compsrv.query.service
 import compman.compsrv.query.actors.behavior.CompetitionApiActor
 import compman.compsrv.query.actors.ActorSystem
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
+import compman.compsrv.query.service.kafka.EventStreamingService
 import org.http4s._
 import org.http4s.implicits._
 import zio._
@@ -12,14 +13,21 @@ import zio.test.Assertion._
 import zio.test.TestAspect._
 
 object CompetitionHttpApiServiceTest extends DefaultRunnableSpec {
-  override def spec: ZSpec[Any, Throwable] = (suite("routes suite")(
-    testM("root request returns Ok") {
-      for {
-        actorSystem <- ActorSystem("test")
-        actor <- actorSystem.make("test", ActorConfig(), CompetitionApiActor.initialState, CompetitionApiActor.behavior)
-        response <- CompetitionHttpApiService.service(actor).run(Request[Task](Method.GET, uri"/"))
-      } yield assert(response.status)(equalTo(Status.Ok))
-    },
+  override def spec: ZSpec[Any, Throwable] =
+    (suite("routes suite")(
+      testM("root request returns Ok") {
+        for {
+          actorSystem <- ActorSystem("test")
+          topic = "Test_topic"
+          actor <- actorSystem.make(
+            "test",
+            ActorConfig(),
+            CompetitionApiActor.initialState,
+            CompetitionApiActor.behavior(EventStreamingService.test(Map.empty), topic)
+          )
+          response <- CompetitionHttpApiService.service(actor).run(Request[Task](Method.GET, uri"/"))
+        } yield assert(response.status)(equalTo(Status.Ok))
+      }
 //    testM("root request returns Ok, using assertM instead") {
 //      assertM(CompetitionHttpApiService.service.run(Request[Task](Method.GET, uri"/")).map(_.status))(
 //        equalTo(Status.Ok))
@@ -35,6 +43,5 @@ object CompetitionHttpApiServiceTest extends DefaultRunnableSpec {
 //      } yield body
 //      assertM(io)(equalTo("hello!"))
 //    }
-
-  ) @@ sequential
-).provideLayer(Clock.live)}
+    ) @@ sequential).provideLayer(Clock.live)
+}
