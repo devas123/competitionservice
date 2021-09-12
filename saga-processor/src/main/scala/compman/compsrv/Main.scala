@@ -3,7 +3,6 @@ package compman.compsrv
 import compman.compsrv.config.AppConfig
 import compman.compsrv.jackson.SerdeApi.{byteSerializer, commandDeserializer}
 import compman.compsrv.logic.Operations._
-import compman.compsrv.logic._
 import compman.compsrv.logic.actors.CompetitionProcessorActor.{Context, LiveEnv}
 import compman.compsrv.logic.actors.Messages.ProcessCommand
 import compman.compsrv.logic.actors._
@@ -63,7 +62,7 @@ object Main extends zio.App {
                 for {
                   commandProcessorOperations <- createCommandProcessorConfig[PipelineEnvironment](adm)
                   act <- CompetitionProcessorActor(actorConfig, commandProcessorOperations, context)(() =>
-                    refActorsMap.update(m => m - record.key) *> commandProcessorOperations.sendNotifications(Seq(CompetitionProcessingStopped(record.key)))
+                    refActorsMap.update(m => m - record.key) *> commandProcessorOperations.sendNotifications(record.key, Seq(CompetitionProcessingStopped(record.key)))
                   )
                 } yield act
               }

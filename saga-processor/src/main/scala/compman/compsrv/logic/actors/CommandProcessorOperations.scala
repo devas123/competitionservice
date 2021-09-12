@@ -24,7 +24,7 @@ trait CommandProcessorOperations[-E] {
 
   def persistEvents(events: Seq[EventDTO]): RIO[E, Unit]
 
-  def sendNotifications(notifications: Seq[CommandProcessorNotification]): RIO[E, Unit]
+  def sendNotifications(competitionId: String, notifications: Seq[CommandProcessorNotification]): RIO[E, Unit]
 
   def createTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig): RIO[E, Unit]
 
@@ -79,9 +79,9 @@ object CommandProcessorOperations {
 
         override def saveStateSnapshot(state: CompetitionState): URIO[E with LiveEnv, Unit] = SnapshotService.save(state)
 
-        override def sendNotifications(notifications: Seq[CommandProcessorNotification]): RIO[E with LiveEnv, Unit] = {
+        override def sendNotifications(competitionId: String, notifications: Seq[CommandProcessorNotification]): RIO[E with LiveEnv, Unit] = {
           zio.kafka.producer.Producer.produceChunk[Any, String, Array[Byte]](Chunk.fromIterable(notifications).map(e =>
-            new ProducerRecord[String, Array[Byte]](e.competitionId.get, mapper.writeValueAsBytes(e))
+            new ProducerRecord[String, Array[Byte]](competitionId, mapper.writeValueAsBytes(e))
           )).ignore
         }
 
@@ -118,7 +118,7 @@ object CommandProcessorOperations {
         _ <- stateSnapshots.update(_ + (state.id -> state))
       } yield ()
 
-      override def sendNotifications(notifications: Seq[CommandProcessorNotification]): RIO[Env with Clock with Blocking with Logging, Unit] = notificationReceiver.offerAll(notifications).ignore
+      override def sendNotifications(competitionId: String, notifications: Seq[CommandProcessorNotification]): RIO[Env with Clock with Blocking with Logging, Unit] = notificationReceiver.offerAll(notifications).ignore
 
       override def createTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig): RIO[Env with Clock with Blocking with Logging, Unit] = RIO(())
     }

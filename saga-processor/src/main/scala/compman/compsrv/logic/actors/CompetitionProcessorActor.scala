@@ -122,7 +122,7 @@ final class CompetitionProcessorActor {
         _ <- if (s.competitionProperties.isEmpty) Task.fail(new RuntimeException(s"Competition properties are missing: $s")) else Task.unit
         props = s.competitionProperties.get
         _ <- processorOperations
-          .sendNotifications(Seq(CompetitionProcessingStarted(actorConfig.competitionId, actorConfig.eventTopic,
+          .sendNotifications(actorConfig.competitionId, Seq(CompetitionProcessingStarted(actorConfig.competitionId, actorConfig.eventTopic,
             props.getCreatorId, props.getCreationTimestamp, props.getStartDate, props.getEndDate, props.getTimeZone, props.getStatus
           )))
         loop <- (for {
