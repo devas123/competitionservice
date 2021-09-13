@@ -1,26 +1,26 @@
 package compman.compsrv.query.service.event
 
 import cats.Monad
-import compman.compsrv.model.{CompetitionState, Payload}
+import cats.data.OptionT
+import cats.implicits._
+import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{BracketsGeneratedEvent, Event}
+import compman.compsrv.query.model.mapping.DtoMapping
+import compman.compsrv.query.service.repository.CompetitionUpdateOperations
 
 object BracketsGeneratedProc {
-  def apply[F[+_] : Monad, P <: Payload](
-                                                                           state: CompetitionState
-                                                                         ): PartialFunction[Event[P], F[Option[CompetitionState]]] = {
+  def apply[F[+_] : Monad : CompetitionUpdateOperations, P <: Payload](): PartialFunction[Event[P], F[Unit]] = {
     case x: BracketsGeneratedEvent =>
-      apply[F](x, state)
+      apply[F](x)
   }
 
-  private def apply[F[+_] : Monad](
-                                                                     event: BracketsGeneratedEvent,
-                                                                     state: CompetitionState
-                                                                   ): F[Option[CompetitionState]] = {
-    val eventT = for {
-      payload <- event.payload
-      currentStages <- state.stages
-      newState = state.createCopy(stages = Some(currentStages ++ payload.getStages.map(s => s.getId -> s)), revision = state.revision + 1)
-    } yield newState
-    Monad[F].pure(eventT)
-  }
+  private def apply[F[+_] : Monad : CompetitionUpdateOperations](
+                                                                  event: BracketsGeneratedEvent
+                                                                ): F[Unit] = {
+    for {
+      payload <- OptionT.fromOption[F](event.payload)
+      mappedStages <- payload.getStages.toList.traverse(dto => OptionT(DtoMapping.mapStageDescriptor[F](dto)))
+      _ <- OptionT.liftF(mappedStages.traverse(CompetitionUpdateOperations[F].addStage(_)))
+    } yield ()
+  }.value.map(_ => ())
 }

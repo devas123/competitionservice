@@ -6,6 +6,7 @@ import java.time.Instant
 
 case class ScheduleEntry(
   id: String,
+  competitionId: String,
   categoryIds: Set[String],
   fightIds: Set[MatIdAndSomeId],
   periodId: String,

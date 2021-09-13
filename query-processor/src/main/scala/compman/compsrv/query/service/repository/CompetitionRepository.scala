@@ -69,6 +69,9 @@ trait CompetitionQueryOperations[F[+_]] {
   def getPeriodsByCompetitionId(competitionId: String): F[List[Period]]
 
   def getPeriodById(competitionId: String)(id: String): F[Option[Period]]
+
+  def getStagesByCategory(competitionId: String)(categoryId: String): F[List[StageDescriptor]]
+  def getStageById(competitionId: String)(id: String): F[Option[StageDescriptor]]
 }
 
 object CompetitionQueryOperations {
