@@ -11,7 +11,7 @@ object EventProcessors {
   def applyEvent[F[+_]: CompetitionLogging.Service: Monad: EventMapping, P <: Payload](
     event: Events.Event[P],
     state: CompetitionState
-  ): F[CompetitionState] = Monad[F].map(
+  ): F[Unit] = Monad[F].map(
     List(
       CategoryRegistrationStatusChangedProc(state),
       BracketsGeneratedProc(state),
