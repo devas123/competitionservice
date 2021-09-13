@@ -9,18 +9,16 @@ import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.CompetitionUpdateOperations
 
 object BracketsGeneratedProc {
-  def apply[F[+_] : Monad : CompetitionUpdateOperations, P <: Payload](): PartialFunction[Event[P], F[Unit]] = {
-    case x: BracketsGeneratedEvent =>
-      apply[F](x)
+  def apply[F[+_]: Monad: CompetitionUpdateOperations, P <: Payload](): PartialFunction[Event[P], F[Unit]] = {
+    case x: BracketsGeneratedEvent => apply[F](x)
   }
 
-  private def apply[F[+_] : Monad : CompetitionUpdateOperations](
-                                                                  event: BracketsGeneratedEvent
-                                                                ): F[Unit] = {
+  private def apply[F[+_]: Monad: CompetitionUpdateOperations](event: BracketsGeneratedEvent): F[Unit] = {
     for {
-      payload <- OptionT.fromOption[F](event.payload)
-      mappedStages <- payload.getStages.toList.traverse(dto => OptionT(DtoMapping.mapStageDescriptor[F](dto)))
-      _ <- OptionT.liftF(mappedStages.traverse(CompetitionUpdateOperations[F].addStage(_)))
+      payload      <- OptionT.fromOption[F](event.payload)
+      rawStages <- OptionT.fromOption[F](Option(payload.getStages))
+      mappedStages <- rawStages.toList.traverse(dto => OptionT.liftF(DtoMapping.mapStageDescriptor[F](dto)))
+      _            <- OptionT.liftF(mappedStages.traverse(CompetitionUpdateOperations[F].addStage(_)))
     } yield ()
   }.value.map(_ => ())
 }

@@ -1,26 +1,25 @@
 package compman.compsrv.query.service.event
 
 import cats.Monad
-import compman.compsrv.model.{CompetitionState, Payload}
-import compman.compsrv.model.event.Events.{Event, StageStatusUpdatedEvent}
+import cats.data.OptionT
+import compman.compsrv.model.Payload
+import compman.compsrv.model.event.Events.{CategoryAddedEvent, Event}
+import compman.compsrv.query.model.mapping.DtoMapping
+import compman.compsrv.query.service.repository.CompetitionUpdateOperations
 
 object StageStatusUpdatedProc {
-  def apply[F[+_]: Monad, P <: Payload](
-    state: CompetitionState
-  ): PartialFunction[Event[P], F[Option[CompetitionState]]] = { case x: StageStatusUpdatedEvent => apply[F](x, state) }
-
-  private def apply[F[+_]: Monad](
-    event: StageStatusUpdatedEvent,
-    state: CompetitionState
-  ): F[Option[CompetitionState]] = {
-    import compman.compsrv.model.extensions._
-    val eventT = for {
-      payload <- event.payload
-      status  <- Option(payload.getStatus)
-      stages  <- state.stages
-      stage   <- stages.get(payload.getStageId)
-      newState = state.updateStage(stage.setStageStatus(status))
-    } yield newState
-    Monad[F].pure(eventT)
+  import cats.implicits._
+  def apply[F[+_]: Monad: CompetitionUpdateOperations, P <: Payload](): PartialFunction[Event[P], F[Unit]] = {
+    case x: CategoryAddedEvent => apply[F](x)
   }
+
+  private def apply[F[+_]: Monad: CompetitionUpdateOperations](event: CategoryAddedEvent): F[Unit] = {
+    for {
+      payload       <- OptionT.fromOption[F](event.payload)
+      competitionId <- OptionT.fromOption[F](event.competitionId)
+      dto           <- OptionT.fromOption[F](Option(payload.getCategoryState))
+      category      <- OptionT.liftF(DtoMapping.mapCategoryDescriptor[F](competitionId)(dto))
+      _             <- OptionT.liftF(CompetitionUpdateOperations[F].addCategory(category))
+    } yield ()
+  }.value.map(_ => ())
 }

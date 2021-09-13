@@ -1,30 +1,25 @@
 package compman.compsrv.query.service.event
 
 import cats.Monad
-import compman.compsrv.model.{CompetitionState, Payload}
-import compman.compsrv.model.event.Events.{Event, RegistrationGroupCategoriesAssignedEvent}
+import cats.data.OptionT
+import compman.compsrv.model.Payload
+import compman.compsrv.model.event.Events.{CategoryAddedEvent, Event}
+import compman.compsrv.query.model.mapping.DtoMapping
+import compman.compsrv.query.service.repository.CompetitionUpdateOperations
 
 object RegistrationGroupCategoriesAssignedProc {
-  def apply[F[+_]: Monad, P <: Payload](
-    state: CompetitionState
-  ): PartialFunction[Event[P], F[Option[CompetitionState]]] = { case x: RegistrationGroupCategoriesAssignedEvent =>
-    apply[F](x, state)
+  import cats.implicits._
+  def apply[F[+_]: Monad: CompetitionUpdateOperations, P <: Payload](): PartialFunction[Event[P], F[Unit]] = {
+    case x: CategoryAddedEvent => apply[F](x)
   }
 
-  private def apply[F[+_]: Monad](
-    event: RegistrationGroupCategoriesAssignedEvent,
-    state: CompetitionState
-  ): F[Option[CompetitionState]] = {
-    val eventT = for {
-      payload     <- event.payload
-      regInfo     <- state.registrationInfo
-      groups      <- Option(regInfo.getRegistrationGroups)
-      targetGroup <- groups.find(_.getId == payload.getGroupId)
-      ind           = groups.indexOf(targetGroup)
-      updatedGroup  = targetGroup.setCategories(payload.getCategories)
-      updatedGroups = (groups.slice(0, ind) :+ updatedGroup) ++ groups.slice(ind + 1, groups.length)
-      newState      = state.createCopy(registrationInfo = Some(regInfo.setRegistrationGroups(updatedGroups)))
-    } yield newState
-    Monad[F].pure(eventT)
-  }
+  private def apply[F[+_]: Monad: CompetitionUpdateOperations](event: CategoryAddedEvent): F[Unit] = {
+    for {
+      payload       <- OptionT.fromOption[F](event.payload)
+      competitionId <- OptionT.fromOption[F](event.competitionId)
+      dto           <- OptionT.fromOption[F](Option(payload.getCategoryState))
+      category      <- OptionT.liftF(DtoMapping.mapCategoryDescriptor[F](competitionId)(dto))
+      _             <- OptionT.liftF(CompetitionUpdateOperations[F].addCategory(category))
+    } yield ()
+  }.value.map(_ => ())
 }

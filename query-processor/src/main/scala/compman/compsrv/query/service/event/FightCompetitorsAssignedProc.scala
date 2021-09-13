@@ -1,43 +1,25 @@
 package compman.compsrv.query.service.event
 
 import cats.Monad
-import compman.compsrv.model.{CompetitionState, Payload}
-import compman.compsrv.model.event.Events.{Event, FightCompetitorsAssignedEvent}
+import cats.data.OptionT
+import compman.compsrv.model.Payload
+import compman.compsrv.model.event.Events.{CategoryAddedEvent, Event}
+import compman.compsrv.query.model.mapping.DtoMapping
+import compman.compsrv.query.service.repository.CompetitionUpdateOperations
 
 object FightCompetitorsAssignedProc {
-  def apply[F[+_]: Monad, P <: Payload](
-    state: CompetitionState
-  ): PartialFunction[Event[P], F[Option[CompetitionState]]] = { case x: FightCompetitorsAssignedEvent =>
-    apply[F](x, state)
+  import cats.implicits._
+  def apply[F[+_]: Monad: CompetitionUpdateOperations, P <: Payload](): PartialFunction[Event[P], F[Unit]] = {
+    case x: CategoryAddedEvent => apply[F](x)
   }
 
-  private def apply[F[+_]: Monad](
-    event: FightCompetitorsAssignedEvent,
-    state: CompetitionState
-  ): F[Option[CompetitionState]] = {
-    import cats.implicits._
-    import compman.compsrv.model.extensions._
-    val eventT = for {
-      payload     <- event.payload
-      assignments <- Option(payload.getAssignments)
-      fights      <- state.fights
-      updates = assignments.toList.mapFilter(ass =>
-        for {
-          fromFight <- fights.get(ass.getFromFightId)
-          toFight   <- fights.get(ass.getToFightId)
-        } yield (ass, fromFight, toFight)
-      ).mapFilter { case (ass, fromFight, toFight) =>
-        for {
-          scores <- Option(toFight.getScores)
-          score  <- scores.find(_.getParentFightId == fromFight.getId)
-          index               = scores.indexOf(score)
-          parentReferenceType = Option(score.getParentReferenceType).getOrElse(ass.getReferenceType)
-          newScore            = score.setCompetitorId(ass.getCompetitorId).setParentReferenceType(parentReferenceType)
-          newScores           = (scores.slice(0, index) :+ newScore) ++ scores.slice(index + 1, scores.length)
-        } yield toFight.setScores(newScores)
-      }
-      newState = state.updateFights(updates)
-    } yield newState
-    Monad[F].pure(eventT)
-  }
+  private def apply[F[+_]: Monad: CompetitionUpdateOperations](event: CategoryAddedEvent): F[Unit] = {
+    for {
+      payload       <- OptionT.fromOption[F](event.payload)
+      competitionId <- OptionT.fromOption[F](event.competitionId)
+      dto           <- OptionT.fromOption[F](Option(payload.getCategoryState))
+      category      <- OptionT.liftF(DtoMapping.mapCategoryDescriptor[F](competitionId)(dto))
+      _             <- OptionT.liftF(CompetitionUpdateOperations[F].addCategory(category))
+    } yield ()
+  }.value.map(_ => ())
 }
