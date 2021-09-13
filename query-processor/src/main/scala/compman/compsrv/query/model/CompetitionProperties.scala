@@ -7,7 +7,7 @@ import java.time.Instant
 case class CompetitionProperties(
   id: String,
   creatorId: String,
-  staffIds: Array[String],
+  staffIds: Set[String],
   competitionName: String,
   infoTemplate: CompetitionInfoTemplate,
   startDate: Instant,

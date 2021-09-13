@@ -4,10 +4,10 @@ import cats.Monad
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events
-import compman.compsrv.query.service.repository.CompetitionUpdateOperations
+import compman.compsrv.query.service.repository.{CompetitionQueryOperations, CompetitionUpdateOperations}
 
 object EventProcessors {
-  def applyEvent[F[+_]: CompetitionLogging.Service: Monad: CompetitionUpdateOperations, P <: Payload](
+  def applyEvent[F[+_]: CompetitionLogging.Service: Monad: CompetitionQueryOperations: CompetitionUpdateOperations, P <: Payload](
     event: Events.Event[P]
   ): F[Unit] = List(
     CategoryRegistrationStatusChangedProc(),

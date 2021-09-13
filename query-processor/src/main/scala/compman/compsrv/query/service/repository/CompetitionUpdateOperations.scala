@@ -4,6 +4,7 @@ import compman.compsrv.query.model._
 
 trait CompetitionUpdateOperations[F[+_]] {
   def addCompetitionProperties(competitionProperties: CompetitionProperties): F[Unit]
+  def updateCompetitionProperties(competitionProperties: CompetitionProperties): F[Unit]
 
   def removeCompetitionProperties(id: String): F[Unit]
 
@@ -21,7 +22,14 @@ trait CompetitionUpdateOperations[F[+_]] {
 
   def removeCategory(competitionId: String)(id: String): F[Unit]
 
+  def addCompetitor(competitor: Competitor): F[Unit]
+
+  def updateCompetitor(competitor: Competitor): F[Unit]
+
+  def removeCompetitor(competitionId: String)(id: String): F[Unit]
+
   def addFight(fight: Fight): F[Unit]
+  def updateFight(fight: Fight): F[Unit]
 
   def removeFight(competitionId: String)(id: String): F[Unit]
 
