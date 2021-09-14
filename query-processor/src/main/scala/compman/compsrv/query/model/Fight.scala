@@ -1,6 +1,6 @@
 package compman.compsrv.query.model
 
-import compman.compsrv.model.dto.brackets.FightReferenceType
+import compman.compsrv.model.dto.brackets.{FightReferenceType, StageRoundType}
 import io.getquill.Udt
 
 import java.time.Instant
@@ -11,14 +11,25 @@ case class Fight(
   categoryId: String,
   scheduleInfo: Option[ScheduleInfo],
   bracketsInfo: Option[BracketsInfo],
-  fightResult: String,
+  fightResult: Option[FightResult],
   scores: Set[CompScore]
 )
 
-case class ScheduleInfo(matId: String, matName: String, numberOnMat: Int, periodId: String, startTime: Instant)
-    extends Udt
-case class BracketsInfo(stageId: String, numberInRound: Int, numberOnMat: Int, winFight: String, loseFight: String)
-    extends Udt
+case class ScheduleInfo(
+  mat: Option[Mat] = None,
+  numberOnMat: Option[Int] = None,
+  periodId: Option[String] = None,
+  startTime: Option[Instant] = None,
+  invalid: Option[Boolean] = None,
+  scheduleEntryId: Option[String] = None
+) extends Udt
+case class BracketsInfo(
+  stageId: String,
+  numberInRound: Int,
+  winFight: String,
+  loseFight: String,
+  roundType: StageRoundType
+) extends Udt
 case class CompScore(
   placeholderId: String,
   competitorId: String,
@@ -30,3 +41,5 @@ case class CompScore(
 
 case class Score(points: Integer, advantages: Integer, penalties: Integer, pointGroups: Set[PointGroup]) extends Udt
 case class PointGroup(id: String, name: String, priority: Int, value: Int)                               extends Udt
+
+case class FightResult(winnerId: String, resultTypeId: String, reason: String)

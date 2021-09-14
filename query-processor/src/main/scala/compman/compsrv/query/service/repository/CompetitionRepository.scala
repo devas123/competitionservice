@@ -45,6 +45,7 @@ trait CompetitionQueryOperations[F[+_]] {
   def getFightsByStage(competitionId: String)(stageId: String): F[List[Fight]]
 
   def getFightById(competitionId: String)(id: String): F[Option[Fight]]
+  def getFightsByIds(competitionId: String)(ids: Seq[String]): F[List[Fight]]
 
   def getCompetitorById(competitionId: String)(id: String): F[Option[Competitor]]
 

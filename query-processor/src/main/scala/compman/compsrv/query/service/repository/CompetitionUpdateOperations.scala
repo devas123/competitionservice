@@ -4,8 +4,8 @@ import compman.compsrv.query.model._
 
 trait CompetitionUpdateOperations[F[+_]] {
   def addCompetitionProperties(competitionProperties: CompetitionProperties): F[Unit]
-  def updateCompetitionProperties(competitionProperties: CompetitionProperties): F[Unit]
 
+  def updateCompetitionProperties(competitionProperties: CompetitionProperties): F[Unit]
   def removeCompetitionProperties(id: String): F[Unit]
 
   def addCompetitionInfoTemplate(competitionId: String)(competitionInfoTemplate: CompetitionInfoTemplate): F[Unit]
@@ -29,9 +29,13 @@ trait CompetitionUpdateOperations[F[+_]] {
   def removeCompetitor(competitionId: String)(id: String): F[Unit]
 
   def addFight(fight: Fight): F[Unit]
+
+  def addFights(fights: Seq[Fight]): F[Unit]
   def updateFight(fight: Fight): F[Unit]
+  def updateFights(fights: Seq[Fight]): F[Unit]
 
   def removeFight(competitionId: String)(id: String): F[Unit]
+  def removeFights(competitionId: String)(ids: Seq[String]): F[Unit]
 
   def addRegistrationGroup(group: RegistrationGroup): F[Unit]
 
@@ -50,6 +54,7 @@ trait CompetitionUpdateOperations[F[+_]] {
   def removeScheduleRequirement(competitionId: String)(id: String): F[Unit]
 
   def addPeriod(entry: Period): F[Unit]
+  def updatePeriods(entries: Seq[Period]): F[Unit]
 
   def removePeriod(competitionId: String)(id: String): F[Unit]
 }

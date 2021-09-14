@@ -3,6 +3,7 @@ package compman.compsrv.query.model.mapping
 import cats.Monad
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition._
+import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.query.model._
 
 object DtoMapping {
@@ -79,6 +80,22 @@ object DtoMapping {
         .getOrElse(Set.empty)
     )
   }
+
+  def mapMat(dto: MatDescriptionDTO): Mat = { Mat(dto.getId, Option(dto.getName), dto.getMatOrder) }
+
+  def mapFight(dto: FightDescriptionDTO, mat: Option[Mat]): Fight = {
+    Fight(
+      dto.getId,
+      dto.getCompetitionId,
+      dto.getCategoryId,
+      Some(ScheduleInfo(mat, Option(dto.getNumberOnMat).map(_.toInt), Option(dto.getPeriod), Option(dto.getStartTime))),
+      Some(BracketsInfo(dto.getStageId, dto.getNumberInRound, dto.getWinFight, dto.getLoseFight, dto.getRoundType)),
+      Option(dto.getFightResult).map(mapFightResult),
+      Option(dto.getScores).map(_.toSet).map(_.map(mapCompScore)).getOrElse(Set.empty)
+    )
+  }
+
+  private def mapFightResult(d: FightResultDTO) = { FightResult(d.getWinnerId, d.getResultTypeId, d.getReason) }
 
   def mapFightResultOption(dto: FightResultOptionDTO): FightResultOption = FightResultOption(
     dto.getId,

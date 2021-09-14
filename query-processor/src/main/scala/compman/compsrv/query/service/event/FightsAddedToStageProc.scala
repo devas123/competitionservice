@@ -3,23 +3,26 @@ package compman.compsrv.query.service.event
 import cats.Monad
 import cats.data.OptionT
 import compman.compsrv.model.Payload
-import compman.compsrv.model.event.Events.{CategoryAddedEvent, Event}
+import compman.compsrv.model.event.Events.{Event, FightsAddedToStageEvent}
 import compman.compsrv.query.model.mapping.DtoMapping
-import compman.compsrv.query.service.repository.CompetitionUpdateOperations
+import compman.compsrv.query.service.repository.{CompetitionQueryOperations, CompetitionUpdateOperations}
 
 object FightsAddedToStageProc {
   import cats.implicits._
-  def apply[F[+_]: Monad: CompetitionUpdateOperations, P <: Payload](): PartialFunction[Event[P], F[Unit]] = {
-    case x: CategoryAddedEvent => apply[F](x)
-  }
+  def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations, P <: Payload]()
+    : PartialFunction[Event[P], F[Unit]] = { case x: FightsAddedToStageEvent => apply[F](x) }
 
-  private def apply[F[+_]: Monad: CompetitionUpdateOperations](event: CategoryAddedEvent): F[Unit] = {
+  private def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations](
+    event: FightsAddedToStageEvent
+  ): F[Unit] = {
     for {
       payload       <- OptionT.fromOption[F](event.payload)
       competitionId <- OptionT.fromOption[F](event.competitionId)
-      dto           <- OptionT.fromOption[F](Option(payload.getCategoryState))
-      category      <- OptionT.liftF(DtoMapping.mapCategoryDescriptor[F](competitionId)(dto))
-      _             <- OptionT.liftF(CompetitionUpdateOperations[F].addCategory(category))
+      fights        <- OptionT.fromOption[F](Option(payload.getFights))
+      periods       <- OptionT.liftF(CompetitionQueryOperations[F].getPeriodsByCompetitionId(competitionId))
+      mats   = periods.flatMap(_.mats).groupMapReduce(_.id)(identity)((a, _) => a)
+      mapped = fights.map(f => DtoMapping.mapFight(f, Option(f.getMatId).flatMap(mats.get)))
+      _ <- OptionT.liftF(CompetitionUpdateOperations[F].addFights(mapped.toIndexedSeq))
     } yield ()
   }.value.map(_ => ())
 }
