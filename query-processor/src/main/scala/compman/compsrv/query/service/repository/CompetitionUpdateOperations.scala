@@ -1,5 +1,6 @@
 package compman.compsrv.query.service.repository
 
+import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.query.model._
 
 trait CompetitionUpdateOperations[F[+_]] {
@@ -18,6 +19,7 @@ trait CompetitionUpdateOperations[F[+_]] {
   def addStage(stageDescriptor: StageDescriptor): F[Unit]
 
   def updateStage(stageDescriptor: StageDescriptor): F[Unit]
+  def updateStageStatus(competitionId: String)(stageId: String, newStatus: StageStatus): F[Unit]
 
   def addCategory(category: Category): F[Unit]
 

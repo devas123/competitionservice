@@ -16,7 +16,8 @@ object DtoMapping {
       id = dto.getId,
       competitionId = competitionId,
       categoryIds = Option(dto.getCategoryIds).map(_.toSet).getOrElse(Set.empty),
-      fightIds = Option(dto.getFightIds).map(_.toSeq).getOrElse(Seq.empty).map(d => MatIdAndSomeId(d.getMatId, d.getSomeId, Option(d.getStartTime))),
+      fightIds = Option(dto.getFightIds).map(_.toSeq).getOrElse(Seq.empty)
+        .map(d => MatIdAndSomeId(d.getMatId, d.getSomeId, Option(d.getStartTime))),
       periodId = dto.getPeriodId,
       description = dto.getDescription,
       name = dto.getName,
@@ -114,10 +115,10 @@ object DtoMapping {
       dto.getName,
       dto.isForceManualAssignment,
       dto.getOutputSize,
-      Option(dto.getFightResultOptions).map(_.toSet).map(_.map(mapFightResultOption)).getOrElse(Set.empty),
-      Option(dto.getCompetitorResults).map(_.toSet).map(_.map(mapCompetitorStageResult)).getOrElse(Set.empty),
-      Option(dto.getAdditionalGroupSortingDescriptors).map(_.toSet).map(_.map(mapAdditionalGroupSortingDescriptor))
-        .getOrElse(Set.empty)
+      Option(dto.getFightResultOptions).map(_.toSeq).map(_.map(mapFightResultOption)).getOrElse(Seq.empty),
+      Option(dto.getCompetitorResults).map(_.toSeq).map(_.map(mapCompetitorStageResult)).getOrElse(Seq.empty),
+      Option(dto.getAdditionalGroupSortingDescriptors).map(_.toSeq).map(_.map(mapAdditionalGroupSortingDescriptor))
+        .getOrElse(Seq.empty)
     )
   }
 
@@ -194,8 +195,8 @@ object DtoMapping {
       s.getStageOrder,
       s.getWaitForPrevious,
       s.getHasThirdPlaceFight,
-      Option(s.getGroupDescriptors).map(_.toSet)
-        .map(_.map(dto => GroupDescriptor(dto.getId, Option(dto.getName), dto.getSize))).getOrElse(Set.empty),
+      Option(s.getGroupDescriptors).map(_.toSeq)
+        .map(_.map(dto => GroupDescriptor(dto.getId, Option(dto.getName), dto.getSize))).getOrElse(Seq.empty),
       s.getNumberOfFights,
       Option(s.getFightDuration).map(_.longValue()).getOrElse(0L)
     )
@@ -217,7 +218,7 @@ object DtoMapping {
     )
   }
 
-  def mapRegistrationPeriod[F[+_] : Monad](competitionId: String)(r: RegistrationPeriodDTO): F[RegistrationPeriod] =
+  def mapRegistrationPeriod[F[+_]: Monad](competitionId: String)(r: RegistrationPeriodDTO): F[RegistrationPeriod] =
     Monad[F].pure {
       RegistrationPeriod(
         competitionId,
@@ -243,7 +244,9 @@ object DtoMapping {
       )
     }
 
-  def mapCompetitionProperties[F[+_] : Monad](registrationOpen: Boolean)(r: CompetitionPropertiesDTO): F[CompetitionProperties] = Monad[F].pure {
+  def mapCompetitionProperties[F[+_]: Monad](
+    registrationOpen: Boolean
+  )(r: CompetitionPropertiesDTO): F[CompetitionProperties] = Monad[F].pure {
     CompetitionProperties(
       r.getId,
       r.getCreatorId,
