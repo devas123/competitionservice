@@ -4,11 +4,51 @@ import cats.Monad
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
+import compman.compsrv.model.dto.schedule.{PeriodDTO, ScheduleEntryDTO, ScheduleRequirementDTO}
 import compman.compsrv.query.model._
 
 object DtoMapping {
   def createEmptyScore: ScoreDTO = new ScoreDTO().setAdvantages(0).setPenalties(0).setPoints(0)
     .setPointGroups(Array.empty)
+
+  def mapScheduleEntry(competitionId: String)(dto: ScheduleEntryDTO): ScheduleEntry = {
+    ScheduleEntry(
+      id = dto.getId,
+      competitionId = competitionId,
+      categoryIds = Option(dto.getCategoryIds).map(_.toSet).getOrElse(Set.empty),
+      fightIds = Option(dto.getFightIds).map(_.toSeq).getOrElse(Seq.empty).map(d => MatIdAndSomeId(d.getMatId, d.getSomeId, Option(d.getStartTime))),
+      periodId = dto.getPeriodId,
+      description = dto.getDescription,
+      name = dto.getName,
+      color = dto.getColor,
+      entryType = dto.getEntryType,
+      requirementIds = Option(dto.getRequirementIds).map(_.toSet).getOrElse(Set.empty),
+      startTime = dto.getStartTime,
+      endTime = dto.getEndTime,
+      numberOfFights = dto.getNumberOfFights,
+      duration = dto.getDuration,
+      order = dto.getOrder
+    )
+  }
+
+  def mapScheduleRequirement(competitionId: String)(dto: ScheduleRequirementDTO): ScheduleRequirement = {
+    ScheduleRequirement(
+      dto.getId,
+      competitionId,
+      Option(dto.getCategoryIds).map(_.toSet).getOrElse(Set.empty),
+      Option(dto.getFightIds).map(_.toSet).getOrElse(Set.empty),
+      dto.getMatId,
+      dto.getPeriodId,
+      dto.getName,
+      dto.getColor,
+      dto.getEntryType,
+      dto.isForce,
+      dto.getStartTime,
+      dto.getEndTime,
+      dto.getDurationSeconds,
+      dto.getEntryOrder
+    )
+  }
 
   def mapCompScore(o: CompScoreDTO): CompScore = {
     CompScore(
@@ -161,7 +201,23 @@ object DtoMapping {
     )
   }
 
-  def mapRegistrationPeriod[F[+_]: Monad](competitionId: String)(r: RegistrationPeriodDTO): F[RegistrationPeriod] =
+  def mapPeriod(competitionId: String)(dto: PeriodDTO)(mats: Seq[Mat]): Period = {
+    Period(
+      competitionId,
+      Option(dto.getName),
+      dto.getId,
+      mats,
+      dto.getStartTime,
+      dto.getEndTime,
+      dto.getIsActive,
+      dto.getTimeBetweenFights,
+      dto.getRiskPercent.intValue(),
+      Option(dto.getScheduleEntries).map(_.map(mapScheduleEntry(competitionId))).getOrElse(Array.empty).toSeq,
+      Option(dto.getScheduleRequirements).map(_.map(mapScheduleRequirement(competitionId))).getOrElse(Array.empty).toSeq
+    )
+  }
+
+  def mapRegistrationPeriod[F[+_] : Monad](competitionId: String)(r: RegistrationPeriodDTO): F[RegistrationPeriod] =
     Monad[F].pure {
       RegistrationPeriod(
         competitionId,
@@ -187,7 +243,7 @@ object DtoMapping {
       )
     }
 
-  def mapCompetitionProperties[F[+_]: Monad](r: CompetitionPropertiesDTO): F[CompetitionProperties] = Monad[F].pure {
+  def mapCompetitionProperties[F[+_] : Monad](registrationOpen: Boolean)(r: CompetitionPropertiesDTO): F[CompetitionProperties] = Monad[F].pure {
     CompetitionProperties(
       r.getId,
       r.getCreatorId,
@@ -199,6 +255,7 @@ object DtoMapping {
       r.getBracketsPublished,
       r.getEndDate,
       r.getTimeZone,
+      registrationOpen,
       r.getCreationTimestamp,
       r.getStatus
     )

@@ -24,7 +24,7 @@ object CompetitionCreatedProc {
       regPeriods <- OptionT.liftF(rawPeriods.toList.traverse(DtoMapping.mapRegistrationPeriod[F](competitionId)))
 
       compPropertiesDTO     <- OptionT.fromOption[F](Option(payload.getProperties))
-      competitionProperties <- OptionT.liftF(DtoMapping.mapCompetitionProperties[F](compPropertiesDTO))
+      competitionProperties <- OptionT.liftF(DtoMapping.mapCompetitionProperties[F](registrationOpen = false)(compPropertiesDTO))
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].addCompetitionProperties(competitionProperties))
       _ <- OptionT.liftF(regGroups.traverse(CompetitionUpdateOperations[F].addRegistrationGroup))
       _ <- OptionT.liftF(regPeriods.traverse(CompetitionUpdateOperations[F].addRegistrationPeriod))

@@ -13,7 +13,9 @@ case class Period(
   endTime: Instant,
   active: Boolean,
   timeBetweenFights: Int,
-  riskCoefficient: Int
+  riskCoefficient: Int,
+  scheduleEntries: Seq[ScheduleEntry],
+  scheduleRequirements: Seq[ScheduleRequirement]
 )
 
 case class Mat(id: String, name: Option[String], matOrder: Int) extends Udt
