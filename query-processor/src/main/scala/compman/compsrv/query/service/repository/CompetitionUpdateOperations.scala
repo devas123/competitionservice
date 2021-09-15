@@ -38,10 +38,13 @@ trait CompetitionUpdateOperations[F[+_]] {
   def removeFights(competitionId: String)(ids: Seq[String]): F[Unit]
 
   def addRegistrationGroup(group: RegistrationGroup): F[Unit]
+  def addRegistrationGroups(groups: Seq[RegistrationGroup]): F[Unit]
+  def updateRegistrationGroup(group: RegistrationGroup): F[Unit]
 
   def removeRegistrationGroup(competitionId: String)(id: String): F[Unit]
 
   def addRegistrationPeriod(period: RegistrationPeriod): F[Unit]
+  def updateRegistrationPeriod(period: RegistrationPeriod): F[Unit]
 
   def removeRegistrationPeriod(competitionId: String)(id: String): F[Unit]
 

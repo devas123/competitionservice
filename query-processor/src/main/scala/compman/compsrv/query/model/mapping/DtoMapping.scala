@@ -182,7 +182,8 @@ object DtoMapping {
           currency = "Rub",
           r.getRegistrationFee.intValue(),
           Option(r.getRegistrationFee.remainder(BigDecimal(10)).intValue)
-        )
+        ),
+        categories = Option(r.getCategories).map(_.toSet).getOrElse(Set.empty)
       )
     }
 
