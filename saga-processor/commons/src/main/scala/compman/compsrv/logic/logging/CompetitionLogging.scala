@@ -7,6 +7,7 @@ import zio.logging.slf4j.Slf4jLogger
 import java.io.{PrintWriter, StringWriter}
 
 object CompetitionLogging {
+
   trait Service[F[+_]] {
     def info(msg: => String): F[Unit]
     def info(msg: => String, args: Any*): F[Unit]

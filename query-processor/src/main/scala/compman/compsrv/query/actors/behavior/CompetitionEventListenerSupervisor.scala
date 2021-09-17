@@ -6,7 +6,7 @@ import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
-import compman.compsrv.query.service.repository.ManagedCompetitions
+import compman.compsrv.query.service.repository.ManagedCompetitionsOperations
 import zio.{Fiber, RIO, Tag, Task, ZIO}
 import zio.clock.Clock
 
@@ -15,20 +15,20 @@ object CompetitionEventListenerSupervisor {
   case class ReceivedNotification(notification: CommandProcessorNotification) extends ActorMessages[Unit]
   def behavior[R: Tag](
     eventStreaming: EventStreaming[R]
-  ): ActorBehavior[ManagedCompetitions.Service[R] with Clock with R, Unit, ActorMessages] =
-    new ActorBehavior[ManagedCompetitions.Service[R] with Clock with R, Unit, ActorMessages] {
+  ): ActorBehavior[ManagedCompetitionsOperations.Service[R] with Clock with R, Unit, ActorMessages] =
+    new ActorBehavior[ManagedCompetitionsOperations.Service[R] with Clock with R, Unit, ActorMessages] {
       override def receive[A](
         context: Context[ActorMessages],
         actorConfig: ActorConfig,
         state: Unit,
         command: ActorMessages[A],
-        timers: Timers[ManagedCompetitions.Service[R] with Clock with R, ActorMessages]
-      ): RIO[ManagedCompetitions.Service[R] with Clock with R, (Unit, A)] = {
+        timers: Timers[ManagedCompetitionsOperations.Service[R] with Clock with R, ActorMessages]
+      ): RIO[ManagedCompetitionsOperations.Service[R] with Clock with R, (Unit, A)] = {
         command match {
           case ReceivedNotification(notification) => notification match {
               case CompetitionProcessingStarted(id, topic, creatorId, createdAt, startsAt, endsAt, timeZone, status) =>
                 for {
-                  _ <- ManagedCompetitions.addManagedCompetition[R](
+                  _ <- ManagedCompetitionsOperations.addManagedCompetition[R](
                     ManagedCompetition(id, topic, creatorId, createdAt, startsAt, endsAt, timeZone, status)
                   )
                   res <- context.make[R, CompetitionApiActor.ActorState, CompetitionApiActor.ApiCommand](
@@ -39,7 +39,7 @@ object CompetitionEventListenerSupervisor {
                   ).map(_ => ((), ().asInstanceOf[A]))
                 } yield res // start new actor if not started
               case CompetitionProcessingStopped(id) => for {
-                  _     <- ManagedCompetitions.deleteManagedCompetition[R](id)
+                  _     <- ManagedCompetitionsOperations.deleteManagedCompetition[R](id)
                   child <- context.findChild[Any](id)
                   _ <- child match {
                     case Some(value) => value.stop.ignore
@@ -54,8 +54,8 @@ object CompetitionEventListenerSupervisor {
         actorConfig: ActorConfig,
         context: Context[ActorMessages],
         initState: Unit,
-        timers: Timers[ManagedCompetitions.Service[R] with Clock with R, ActorMessages]
-      ): RIO[ManagedCompetitions.Service[
+        timers: Timers[ManagedCompetitionsOperations.Service[R] with Clock with R, ActorMessages]
+      ): RIO[ManagedCompetitionsOperations.Service[
         R
       ] with Clock with R, (Seq[Fiber.Runtime[Throwable, Unit]], Seq[ActorMessages[Any]])] = {
         for {
