@@ -18,7 +18,7 @@ CREATE TABLE if not exists query_service.competition_properties
     registration_open  Boolean,
     creation_timestamp timestamp,
     status             varchar,
-    primary key ( id, creation_timestamp )
+    primary key ( id, creation_timestamp, creator_id, status, start_date )
 
 );
 
@@ -142,7 +142,7 @@ CREATE TABLE if not exists query_service.managed_competition
     ends_at        timestamp,
     time_zone      varchar,
     status         varchar,
-    primary key ( competition_id, created_at )
+    primary key ( competition_id, created_at, creator_id, starts_at, status )
 );
 
 create type if not exists query_service.schedule_entry(
