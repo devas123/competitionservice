@@ -8,6 +8,7 @@ import java.time.Instant
 case class Fight(
   id: String,
   competitionId: String,
+  stageId: String,
   categoryId: String,
   scheduleInfo: Option[ScheduleInfo],
   bracketsInfo: Option[BracketsInfo],
@@ -22,14 +23,8 @@ case class ScheduleInfo(
   startTime: Option[Instant] = None,
   invalid: Option[Boolean] = None,
   scheduleEntryId: Option[String] = None
-) extends Udt
-case class BracketsInfo(
-  stageId: String,
-  numberInRound: Int,
-  winFight: String,
-  loseFight: String,
-  roundType: StageRoundType
-) extends Udt
+)                                                                                                           extends Udt
+case class BracketsInfo(numberInRound: Int, winFight: String, loseFight: String, roundType: StageRoundType) extends Udt
 case class CompScore(
   placeholderId: String,
   competitorId: String,
@@ -40,6 +35,6 @@ case class CompScore(
 ) extends Udt
 
 case class Score(points: Int, advantages: Int, penalties: Int, pointGroups: Set[PointGroup]) extends Udt
-case class PointGroup(id: String, name: String, priority: Int, value: Int)                               extends Udt
+case class PointGroup(id: String, name: String, priority: Int, value: Int)                   extends Udt
 
 case class FightResult(winnerId: String, resultTypeId: String, reason: String)

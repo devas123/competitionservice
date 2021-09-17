@@ -128,9 +128,10 @@ object DtoMapping {
     Fight(
       dto.getId,
       dto.getCompetitionId,
+      dto.getStageId,
       dto.getCategoryId,
       Some(ScheduleInfo(mat, Option(dto.getNumberOnMat).map(_.toInt), Option(dto.getPeriod), Option(dto.getStartTime))),
-      Some(BracketsInfo(dto.getStageId, dto.getNumberInRound, dto.getWinFight, dto.getLoseFight, dto.getRoundType)),
+      Some(BracketsInfo(dto.getNumberInRound, dto.getWinFight, dto.getLoseFight, dto.getRoundType)),
       Option(dto.getFightResult).map(mapFightResult),
       Option(dto.getScores).map(_.toSet).map(_.map(mapCompScore)).getOrElse(Set.empty)
     )
