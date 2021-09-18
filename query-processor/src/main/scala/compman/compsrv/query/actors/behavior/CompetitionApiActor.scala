@@ -2,7 +2,7 @@ package compman.compsrv.query.actors.behavior
 
 import compman.compsrv.query.actors.{ActorBehavior, Context, Timers}
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
-import compman.compsrv.query.model.CompetitionInfoTemplate
+import compman.compsrv.query.model.CompetitionProperties._
 import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
 import zio.RIO
 

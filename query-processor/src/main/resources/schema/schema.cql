@@ -1,15 +1,13 @@
 DROP KEYSPACE IF EXISTS query_service;
 CREATE KEYSPACE if not exists query_service with replication = {'class':'SimpleStrategy', 'replication_factor':1};
-CREATE TYPE if not exists query_service.competition_info_template (
-    template blob
-    );
+
 CREATE TABLE if not exists query_service.competition_properties
 (
-    id                 uuid,
+    id                 varchar,
     creator_id         varchar,
     staff_ids          set<varchar>,
     competition_name   varchar,
-    info_template      query_service.competition_info_template,
+    template           blob,
     start_date         timestamp,
     schedule_published Boolean,
     brackets_published Boolean,

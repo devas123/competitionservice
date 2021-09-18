@@ -6,6 +6,7 @@ import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.{PeriodDTO, ScheduleEntryDTO, ScheduleRequirementDTO}
 import compman.compsrv.query.model._
+import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 
 object DtoMapping {
   def createEmptyScore: ScoreDTO = new ScoreDTO().setAdvantages(0).setPenalties(0).setPoints(0)

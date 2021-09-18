@@ -20,11 +20,12 @@ object RegistrationInfoUpdatedProc {
       dto <- OptionT.fromOption[F](Option(payload.getRegistrationInfo))
       rawGroups = Option(dto.getRegistrationGroups).map(_.toList).getOrElse(List.empty)
       rawPeriods = Option(dto.getRegistrationPeriods).map(_.toList).getOrElse(List.empty)
+      regOpen = Option(dto.getRegistrationOpen).exists(_.booleanValue())
       registrationGroups <- OptionT.liftF(rawGroups.traverse(DtoMapping.mapRegistrationGroup[F](competitionId)))
       registrationPeriods <- OptionT.liftF(rawPeriods.traverse(DtoMapping.mapRegistrationPeriod[F](competitionId)))
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateRegistrationGroups(registrationGroups))
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateRegistrationPeriods(registrationPeriods))
-      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateRegistrationOpen(competitionId))
+      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateRegistrationOpen(competitionId)(regOpen))
     } yield ()
   }.value.map(_ => ())
 }
