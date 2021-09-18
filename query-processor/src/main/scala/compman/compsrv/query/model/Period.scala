@@ -18,4 +18,4 @@ case class Period(
   scheduleRequirements: Seq[ScheduleRequirement]
 )
 
-case class Mat(id: String, name: Option[String], matOrder: Int) extends Udt
+case class Mat(matId: String, name: Option[String], matOrder: Int) extends Udt

@@ -37,4 +37,4 @@ case class CompScore(
 case class Score(points: Int, advantages: Int, penalties: Int, pointGroups: Set[PointGroup]) extends Udt
 case class PointGroup(id: String, name: String, priority: Int, value: Int)                   extends Udt
 
-case class FightResult(winnerId: String, resultTypeId: String, reason: String)
+case class FightResult(winnerId: String, resultTypeId: String, reason: String) extends Udt

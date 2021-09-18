@@ -28,7 +28,7 @@ object FightEditorChangesAppliedProc {
       updates       <- OptionT.fromOption[F](Option(payload.getUpdates))
       removedFights <- OptionT.fromOption[F](Option(payload.getRemovedFighids))
       periods       <- OptionT.liftF(CompetitionQueryOperations[F].getPeriodsByCompetitionId(competitionId))
-      mats = periods.flatMap(_.mats).groupMapReduce(_.id)(identity)((a, _) => a)
+      mats = periods.flatMap(_.mats).groupMapReduce(_.matId)(identity)((a, _) => a)
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].addFights(newFights.map(f => mapFight(mats, f)).toIndexedSeq))
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateFights(updates.map(f => mapFight(mats, f)).toIndexedSeq))
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].removeFights(competitionId)(removedFights.toIndexedSeq))

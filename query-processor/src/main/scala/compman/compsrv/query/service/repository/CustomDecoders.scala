@@ -1,7 +1,7 @@
 package compman.compsrv.query.service.repository
 
 import compman.compsrv.model.dto.brackets._
-import compman.compsrv.model.dto.competition.CompetitionStatus
+import compman.compsrv.model.dto.competition.{CategoryRestrictionType, CompetitionStatus}
 import io.getquill.MappedEncoding
 
 trait CustomDecoders {
@@ -28,4 +28,8 @@ trait CustomDecoders {
     MappedEncoding[String, StageType](StageType.valueOf)
   implicit val stageStatusDecoder: MappedEncoding[String, StageStatus] =
     MappedEncoding[String, StageStatus](StageStatus.valueOf)
+  implicit val categoryRestrictionTypeDecoder: MappedEncoding[String, CategoryRestrictionType] =
+    MappedEncoding[String, CategoryRestrictionType](CategoryRestrictionType.valueOf)
+  implicit val fightReferenceTypeDecoder: MappedEncoding[String, FightReferenceType] =
+    MappedEncoding[String, FightReferenceType](FightReferenceType.valueOf)
 }

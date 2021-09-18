@@ -21,7 +21,7 @@ object FightPropertiesUpdatedProc {
       dto           <- OptionT.fromOption[F](Option(payload.getUpdate))
       existing      <- OptionT(CompetitionQueryOperations[F].getFightById(competitionId)(dto.getFightId))
       periods       <- OptionT.liftF(CompetitionQueryOperations[F].getPeriodsByCompetitionId(competitionId))
-      mats         = periods.flatMap(_.mats).groupMapReduce(_.id)(identity)((a, _) => a)
+      mats         = periods.flatMap(_.mats).groupMapReduce(_.matId)(identity)((a, _) => a)
       scheduleInfo = existing.scheduleInfo.getOrElse(ScheduleInfo(None, None, None, None))
       mat          = Option(dto.getMatId).flatMap(mats.get)
       updatedSchedule = scheduleInfo

@@ -4,7 +4,7 @@ import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
-import io.getquill.{CassandraZioContext, SnakeCase}
+import io.getquill.{CassandraZioContext, EntityQuery, SnakeCase}
 import io.getquill.context.cassandra.encoding.{Decoders, Encoders}
 
 trait CompetitionQueryOperations[F[+_]] {
@@ -25,7 +25,7 @@ trait CompetitionQueryOperations[F[+_]] {
   def getFightsByStage(competitionId: String)(stageId: String): F[List[Fight]]
 
   def getFightById(competitionId: String)(id: String): F[Option[Fight]]
-  def getFightsByIds(competitionId: String)(ids: Seq[String]): F[List[Fight]]
+  def getFightsByIds(competitionId: String)(ids: Set[String]): F[List[Fight]]
 
   def getCompetitorById(competitionId: String)(id: String): F[Option[Competitor]]
 
@@ -74,6 +74,23 @@ object CompetitionQueryOperations {
         new CassandraZioContext(SnakeCase) with CustomDecoders with CustomEncoders with Encoders with Decoders
 
       import ctx._
+
+      private def executeQueryAndFilterResults(
+        log: CompetitionLogging.Service[LIO],
+        searchString: Option[String],
+        drop: Int,
+        take: Int,
+        select: Quoted[EntityQuery[Competitor]]
+      ) = {
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select)
+          filtered = res.filter(c =>
+            searchString.isEmpty || searchString.exists(s => c.firstName.contains(s) || c.lastName.contains(s))
+          )
+        } yield (filtered.slice(drop, drop + take), Pagination(drop, take, filtered.size))
+      }
+
       override def getCompetitionProperties(id: String): RepoIO[Option[CompetitionProperties]] = {
         val select = quote { query[CompetitionProperties].filter(_.id == lift(id)) }
         for {
@@ -82,41 +99,126 @@ object CompetitionQueryOperations {
         } yield res
       }
 
-      override def getCategoriesByCompetitionId(competitionId: String): RepoIO[List[Category]] = ???
+      override def getCategoriesByCompetitionId(competitionId: String): RepoIO[List[Category]] = {
+        val select = quote { query[Category].filter(_.competitionId == lift(competitionId)) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select)
+        } yield res
+      }
 
-      override def getCompetitionInfoTemplate(competitionId: String): RepoIO[Option[CompetitionInfoTemplate]] = ???
+      override def getCompetitionInfoTemplate(competitionId: String): RepoIO[Option[CompetitionInfoTemplate]] = {
+        val select = quote { query[CompetitionProperties].filter(_.id == lift(competitionId)) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select).map(_.headOption.map(_.infoTemplate))
+        } yield res
+      }
 
-      override def getCategoryById(competitionId: String)(id: String): RepoIO[Option[Category]] = ???
+      override def getCategoryById(competitionId: String)(id: String): RepoIO[Option[Category]] = {
+        val select = quote { query[Category].filter(c => c.competitionId == lift(competitionId) && c.id == lift(id)) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select).map(_.headOption)
+        } yield res
+      }
 
       override def searchCategory(
         competitionId: String
-      )(searchString: String, pagination: Option[Pagination]): RepoIO[(List[Category], Pagination)] = ???
+      )(searchString: String, pagination: Option[Pagination]): RepoIO[(List[Category], Pagination)] = {
+        val drop   = pagination.map(_.offset).getOrElse(0)
+        val take   = pagination.map(_.maxResults).getOrElse(30)
+        val select = quote { query[Category].filter(c => c.competitionId == lift(competitionId)) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select)
+          filtered = res.filter(c => c.name.exists(_.contains(searchString)))
+          resSize  = filtered.size
+        } yield (filtered.slice(drop, drop + take), Pagination(drop, take, resSize))
+      }
 
-      override def getFightsByMat(competitionId: String)(matId: String): RepoIO[List[Fight]] = ???
+      override def getFightsByMat(competitionId: String)(matId: String): RepoIO[List[Fight]] = {
+        val select = quote {
+          query[Fight]
+            .filter(f => f.competitionId == lift(competitionId))
+        }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select)
+        } yield res
+      }
 
-      override def getFightsByStage(competitionId: String)(stageId: String): RepoIO[List[Fight]] = ???
+      override def getFightsByStage(competitionId: String)(stageId: String): RepoIO[List[Fight]] = {
+        val select =
+          quote { query[Fight].filter(f => f.competitionId == lift(competitionId) && f.stageId == lift(stageId)) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select)
+        } yield res
+      }
 
-      override def getFightById(competitionId: String)(id: String): RepoIO[Option[Fight]] = ???
+      override def getFightById(competitionId: String)(id: String): RepoIO[Option[Fight]] = {
+        val select = quote { query[Fight].filter(f => f.competitionId == lift(competitionId) && f.id == lift(id)) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select).map(_.headOption)
+        } yield res
+      }
 
-      override def getFightsByIds(competitionId: String)(ids: Seq[String]): RepoIO[List[Fight]] = ???
+      override def getFightsByIds(competitionId: String)(ids: Set[String]): RepoIO[List[Fight]] = {
+        val select = quote(query[Fight]).dynamic
+          .filterIf(ids.nonEmpty)(f => quote(f.competitionId == lift(competitionId) && liftQuery(ids).contains(f.id)))
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select)
+        } yield res
+      }
 
-      override def getCompetitorById(competitionId: String)(id: String): RepoIO[Option[Competitor]] = ???
+      override def getCompetitorById(competitionId: String)(id: String): RepoIO[Option[Competitor]] = {
+        val select = quote { query[Competitor].filter(f => f.competitionId == lift(competitionId) && f.id == lift(id)) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select).map(_.headOption)
+        } yield res
+      }
 
       override def getCompetitorsByCategoryId(competitionId: String)(
         categoryId: String,
         pagination: Option[Pagination],
         searchString: Option[String]
-      ): RepoIO[(List[Competitor], Pagination)] = ???
+      ): RepoIO[(List[Competitor], Pagination)] = {
+        val drop = pagination.map(_.offset).getOrElse(0)
+        val take = pagination.map(_.maxResults).getOrElse(30)
+        val select = quote {
+          query[Competitor]
+            .filter(f => f.competitionId == lift(competitionId) && f.categories.contains(lift(categoryId)))
+            .allowFiltering
+        }
+        executeQueryAndFilterResults(log, searchString, drop, take, select)
+      }
 
       override def getCompetitorsByCompetitionId(
         competitionId: String
-      )(pagination: Option[Pagination], searchString: Option[String]): RepoIO[(List[Competitor], Pagination)] = ???
+      )(pagination: Option[Pagination], searchString: Option[String]): RepoIO[(List[Competitor], Pagination)] = {
+        val drop   = pagination.map(_.offset).getOrElse(0)
+        val take   = pagination.map(_.maxResults).getOrElse(30)
+        val select = quote { query[Competitor].filter(f => f.competitionId == lift(competitionId)) }
+        executeQueryAndFilterResults(log, searchString, drop, take, select)
+      }
 
       override def getCompetitorsByAcademyId(competitionId: String)(
         academyId: String,
         pagination: Option[Pagination],
         searchString: Option[String]
-      ): RepoIO[(List[Competitor], Pagination)] = ???
+      ): RepoIO[(List[Competitor], Pagination)] = {
+        val drop = pagination.map(_.offset).getOrElse(0)
+        val take = pagination.map(_.maxResults).getOrElse(30)
+        val select = quote {
+          query[Competitor]
+            .filter(f => f.competitionId == lift(competitionId) && f.academy.exists(_.id == lift(academyId)))
+        }
+        executeQueryAndFilterResults(log, searchString, drop, take, select)
+      }
 
       override def getRegistrationGroups(competitionId: String): RepoIO[List[RegistrationGroup]] = ???
 

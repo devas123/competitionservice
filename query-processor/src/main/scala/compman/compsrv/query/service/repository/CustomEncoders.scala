@@ -1,7 +1,7 @@
 package compman.compsrv.query.service.repository
 
-import compman.compsrv.model.dto.brackets.{BracketType, DistributionType, GroupSortDirection, GroupSortSpecifier, LogicalOperator, OperatorType, SelectorClassifier, StageRoundType, StageStatus, StageType}
-import compman.compsrv.model.dto.competition.CompetitionStatus
+import compman.compsrv.model.dto.brackets._
+import compman.compsrv.model.dto.competition.{CategoryRestrictionType, CompetitionStatus}
 import io.getquill.MappedEncoding
 
 trait CustomEncoders {
@@ -22,10 +22,12 @@ trait CustomEncoders {
     MappedEncoding[SelectorClassifier, String](_.name())
   implicit val operatorTypeEncoder: MappedEncoding[OperatorType, String] =
     MappedEncoding[OperatorType, String](_.name())
-  implicit val bracketTypeEncoder: MappedEncoding[BracketType, String] =
-    MappedEncoding[BracketType, String](_.name())
-  implicit val stageTypeEncoder: MappedEncoding[StageType, String] =
-    MappedEncoding[StageType, String](_.name())
-  implicit val stageStatusEncoder: MappedEncoding[StageStatus, String] =
-    MappedEncoding[StageStatus, String](_.name())
+  implicit val bracketTypeEncoder: MappedEncoding[BracketType, String] = MappedEncoding[BracketType, String](_.name())
+  implicit val stageTypeEncoder: MappedEncoding[StageType, String]     = MappedEncoding[StageType, String](_.name())
+  implicit val stageStatusEncoder: MappedEncoding[StageStatus, String] = MappedEncoding[StageStatus, String](_.name())
+  implicit val categoryRestrictionTypeEncoder: MappedEncoding[CategoryRestrictionType, String] =
+    MappedEncoding[CategoryRestrictionType, String](_.name())
+  implicit val fightReferenceTypeEncoder: MappedEncoding[FightReferenceType, String] =
+    MappedEncoding[FightReferenceType, String](_.name())
+
 }

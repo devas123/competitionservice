@@ -19,7 +19,7 @@ object FightCompetitorsAssignedProc {
       competitionId <- OptionT.fromOption[F](event.competitionId)
       assignments   <- OptionT.fromOption[F](Option(payload.getAssignments))
       fightIds = assignments.toList.flatMap(ass => (ass.getToFightId, ass.getFromFightId).toList).filter(_ != null)
-        .distinct
+        .toSet
       fightsList <- OptionT.liftF(CompetitionQueryOperations[F].getFightsByIds(competitionId)(fightIds))
       fights = fightsList.groupMapReduce(_.id)(identity)((a, _) => a)
       updates = assignments.toList.mapFilter(ass =>

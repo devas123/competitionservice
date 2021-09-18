@@ -19,9 +19,9 @@ object FightStartTimeUpdatedProc {
       payload       <- OptionT.fromOption[F](event.payload)
       competitionId <- OptionT.fromOption[F](event.competitionId)
       updates       <- OptionT.fromOption[F](Option(payload.getNewFights))
-      existing <- OptionT.liftF(CompetitionQueryOperations[F].getFightsByIds(competitionId)(updates.map(_.getFightId).toIndexedSeq))
+      existing <- OptionT.liftF(CompetitionQueryOperations[F].getFightsByIds(competitionId)(updates.map(_.getFightId).toSet))
       periods  <- OptionT.liftF(CompetitionQueryOperations[F].getPeriodsByCompetitionId(competitionId))
-      mats       = periods.flatMap(_.mats).groupMapReduce(_.id)(identity)((a, _) => a)
+      mats       = periods.flatMap(_.mats).groupMapReduce(_.matId)(identity)((a, _) => a)
       updatesMap = updates.groupMapReduce(_.getFightId)(identity)((a, _) => a)
       existingUpdated = existing.map { f =>
         val u = updatesMap(f.id)
