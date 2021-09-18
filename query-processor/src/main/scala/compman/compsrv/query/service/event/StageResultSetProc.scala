@@ -21,7 +21,7 @@ object StageResultSetProc {
       stageId       <- OptionT.fromOption[F](Option(payload.getStageId))
       resultsDto    <- OptionT.fromOption[F](Option(payload.getResults))
       stage         <- OptionT(CompetitionQueryOperations[F].getStageById(competitionId)(stageId))
-      mappedResults = resultsDto.map(DtoMapping.mapCompetitorStageResult).toSeq
+      mappedResults = resultsDto.map(DtoMapping.mapCompetitorStageResult).toList
       resultDescriptor <- OptionT.fromOption[F](stage.stageResultDescriptor)
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateStage(stage.copy(stageResultDescriptor =
         Some(resultDescriptor.copy(competitorResults = mappedResults))

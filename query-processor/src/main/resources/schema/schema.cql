@@ -235,9 +235,8 @@ create type if not exists query_service.competitor_selector (
     );
 
 create type if not exists query_service.stage_input_descriptor(
-    descriptor_id varchar,
     number_of_competitors Int,
-    selectors frozen<competitor_selector>,
+    selectors frozen<list<frozen<competitor_selector>>>,
     distribution_type varchar
     );
 
@@ -269,7 +268,6 @@ create type if not exists query_service.additional_group_sorting_descriptor(
     );
 
 create type if not exists query_service.stage_result_descriptor(
-    descrioptor_id varchar,
     name varchar,
     force_manual_assignment Boolean,
     output_size Int,

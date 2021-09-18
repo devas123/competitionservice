@@ -116,12 +116,11 @@ object CompetitionUpdateOperations {
         addCompetitionInfoTemplate(competitionId)(CompetitionInfoTemplate(Array.empty))
 
       override def addStage(stageDescriptor: StageDescriptor): RepoIO[Unit] = {
-//        val statement = quote { query[StageDescriptor].insert(liftCaseClass(stageDescriptor)) }
-//        for {
-//          _ <- log.info(statement.toString)
-//          _ <- run(statement)
-//        } yield ()
-        ???
+        val statement = quote { query[StageDescriptor].insert(liftCaseClass(stageDescriptor)) }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
       }
 
       override def updateStage(stageDescriptor: StageDescriptor): RepoIO[Unit] = ???

@@ -16,19 +16,18 @@ case class StageDescriptor(
   stageOrder: Int,
   waitForPrevious: Boolean,
   hasThirdPlaceFight: Boolean,
-  groupDescriptors: Seq[GroupDescriptor],
+  groupDescriptors: List[GroupDescriptor],
   numberOfFights: Int,
   fightDuration: Long
 )
 
 case class StageResultDescriptor(
-  id: String,
   name: String,
   forceManualAssignment: Boolean,
   outputSize: Int,
-  fightResultOptions: Seq[FightResultOption],
-  competitorResults: Seq[CompetitorStageResult],
-  additionalGroupSortingDescriptors: Seq[AdditionalGroupSortingDescriptor]
+  fightResultOptions: List[FightResultOption],
+  competitorResults: List[CompetitorStageResult],
+  additionalGroupSortingDescriptors: List[AdditionalGroupSortingDescriptor]
 ) extends Udt
 
 case class AdditionalGroupSortingDescriptor(
@@ -48,30 +47,29 @@ case class CompetitorStageResult(
 ) extends Udt
 
 case class FightResultOption(
-  id: String,
-  description: String,
-  shortName: String,
-  draw: Boolean,
-  winnerPoints: Int,
-  winnerAdditionalPoints: Int = 0,
-  loserPoints: Int = 0,
-  loserAdditionalPoints: Int = 0
+                              optionId: String,
+                              description: String,
+                              shortName: String,
+                              draw: Boolean,
+                              winnerPoints: Int,
+                              winnerAdditionalPoints: Int = 0,
+                              loserPoints: Int = 0,
+                              loserAdditionalPoints: Int = 0
 ) extends Udt
 
 case class CompetitorSelector(
-  id: String,
-  applyToStageId: String,
-  logicalOperator: LogicalOperator,
-  classifier: SelectorClassifier,
-  operator: OperatorType,
-  selectorValue: Set[String]
+                               selectorId: String,
+                               applyToStageId: String,
+                               logicalOperator: LogicalOperator,
+                               classifier: SelectorClassifier,
+                               operator: OperatorType,
+                               selectorValue: Set[String]
 ) extends Udt
 
 case class StageInputDescriptor(
-  id: String,
   numberOfCompetitors: Int,
-  selectors: Set[CompetitorSelector],
+  selectors: List[CompetitorSelector],
   distributionType: DistributionType
 ) extends Udt
 
-case class GroupDescriptor(id: String, name: Option[String], size: Int) extends Udt
+case class GroupDescriptor(groupId: String, name: Option[String], size: Int) extends Udt

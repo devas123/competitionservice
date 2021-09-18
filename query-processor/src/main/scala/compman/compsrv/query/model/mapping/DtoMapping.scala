@@ -112,14 +112,13 @@ object DtoMapping {
 
   def mapStageResultDescriptor(dto: StageResultDescriptorDTO): StageResultDescriptor = {
     StageResultDescriptor(
-      dto.getId,
       dto.getName,
       dto.isForceManualAssignment,
       dto.getOutputSize,
-      Option(dto.getFightResultOptions).map(_.toSeq).map(_.map(mapFightResultOption)).getOrElse(Seq.empty),
-      Option(dto.getCompetitorResults).map(_.toSeq).map(_.map(mapCompetitorStageResult)).getOrElse(Seq.empty),
-      Option(dto.getAdditionalGroupSortingDescriptors).map(_.toSeq).map(_.map(mapAdditionalGroupSortingDescriptor))
-        .getOrElse(Seq.empty)
+      Option(dto.getFightResultOptions).map(_.toList).map(_.map(mapFightResultOption)).getOrElse(List.empty),
+      Option(dto.getCompetitorResults).map(_.toList).map(_.map(mapCompetitorStageResult)).getOrElse(List.empty),
+      Option(dto.getAdditionalGroupSortingDescriptors).map(_.toList).map(_.map(mapAdditionalGroupSortingDescriptor))
+        .getOrElse(List.empty)
     )
   }
 
@@ -166,9 +165,8 @@ object DtoMapping {
   )
 
   def mapStageInputDescriptor(d: StageInputDescriptorDTO): StageInputDescriptor = StageInputDescriptor(
-    d.getId,
     d.getNumberOfCompetitors,
-    Option(d.getSelectors).map(_.toSet).map(_.map(mapCompetitorSelector)).getOrElse(Set.empty),
+    Option(d.getSelectors).map(_.toList).map(_.map(mapCompetitorSelector)).getOrElse(List.empty),
     d.getDistributionType
   )
 
@@ -197,8 +195,8 @@ object DtoMapping {
       s.getStageOrder,
       s.getWaitForPrevious,
       s.getHasThirdPlaceFight,
-      Option(s.getGroupDescriptors).map(_.toSeq)
-        .map(_.map(dto => GroupDescriptor(dto.getId, Option(dto.getName), dto.getSize))).getOrElse(Seq.empty),
+      Option(s.getGroupDescriptors).map(_.toList)
+        .map(_.map(dto => GroupDescriptor(dto.getId, Option(dto.getName), dto.getSize))).getOrElse(List.empty),
       s.getNumberOfFights,
       Option(s.getFightDuration).map(_.longValue()).getOrElse(0L)
     )

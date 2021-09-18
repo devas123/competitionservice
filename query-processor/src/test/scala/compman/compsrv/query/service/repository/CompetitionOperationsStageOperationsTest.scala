@@ -9,7 +9,7 @@ import zio.test.TestAspect._
 import zio.ZLayer
 import zio.logging.Logging
 
-object CompetitionOperationsTest extends DefaultRunnableSpec with TestEntities {
+object CompetitionOperationsStageOperationsTest extends DefaultRunnableSpec with TestEntities {
   type Env = QuillCassandraEnvironment with Logging
   private val cassandraEnvironment = CassandraZioSession
     .fromContextConfig(CassandraContextConfig(ConfigFactory.load().getConfig("ctx")))
@@ -19,19 +19,11 @@ object CompetitionOperationsTest extends DefaultRunnableSpec with TestEntities {
     .live(CompetitionLogging.Live.live)
   val layers: ZLayer[Any, Throwable, Env] = cassandraEnvironment ++ CompetitionLogging.Live.loggingLayer
   override def spec: ZSpec[Any, Throwable] = suite("competition operations")(
-    testM("query should return none when there are no competitions") {
+    testM("should save stage") {
       (for {
-        _ <- CompetitionUpdateOperations[RepoIO].removeCompetitionProperties("managedCompetition")
-        props <- CompetitionQueryOperations.getCompetitionProperties("managedCompetition")
-      } yield assert(props)(
-        isNone
-      )).provideLayer(layers)
-    },
-    testM("should save competition") {
-      (for {
-        _ <- CompetitionUpdateOperations[RepoIO].addCompetitionProperties(competitionProperties)
-        props <- CompetitionQueryOperations.getCompetitionProperties(competitionId)
-      } yield assert(props)(isSome)).provideLayer(layers)
+        _ <- CompetitionUpdateOperations[RepoIO].addStage(stageDescriptor)
+      } yield assert(Some(()))(isSome)).provideLayer(layers)
     }
+
   ) @@ sequential
 }
