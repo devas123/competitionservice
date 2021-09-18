@@ -4,7 +4,6 @@ import cats.Monad
 import cats.data.OptionT
 import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, FightPropertiesUpdatedEvent}
-import compman.compsrv.query.model.ScheduleInfo
 import compman.compsrv.query.service.repository.{CompetitionQueryOperations, CompetitionUpdateOperations}
 
 object FightPropertiesUpdatedProc {
@@ -20,14 +19,12 @@ object FightPropertiesUpdatedProc {
       competitionId <- OptionT.fromOption[F](event.competitionId)
       dto           <- OptionT.fromOption[F](Option(payload.getUpdate))
       existing      <- OptionT(CompetitionQueryOperations[F].getFightById(competitionId)(dto.getFightId))
-      periods       <- OptionT.liftF(CompetitionQueryOperations[F].getPeriodsByCompetitionId(competitionId))
-      mats         = periods.flatMap(_.mats).groupMapReduce(_.matId)(identity)((a, _) => a)
-      scheduleInfo = existing.scheduleInfo.getOrElse(ScheduleInfo(None, None, None, None))
-      mat          = Option(dto.getMatId).flatMap(mats.get)
+      scheduleInfo = existing.scheduleInfo
+      mat          = Option(dto.getMatId)
       updatedSchedule = scheduleInfo
-        .copy(mat = mat, numberOnMat = Option(dto.getNumberOnMat), startTime = Option(dto.getStartTime))
+        .copy(matId = mat, numberOnMat = Option(dto.getNumberOnMat), startTime = Option(dto.getStartTime))
       _ <- OptionT
-        .liftF(CompetitionUpdateOperations[F].updateFight(existing.copy(scheduleInfo = Some(updatedSchedule))))
+        .liftF(CompetitionUpdateOperations[F].updateFight(existing.copy(scheduleInfo = updatedSchedule)))
     } yield ()
   }.value.map(_ => ())
 }

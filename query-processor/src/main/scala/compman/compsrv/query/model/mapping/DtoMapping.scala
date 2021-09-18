@@ -122,15 +122,22 @@ object DtoMapping {
     )
   }
 
-  def mapMat(dto: MatDescriptionDTO): Mat = { Mat(dto.getId, Option(dto.getName), dto.getMatOrder) }
+  def mapMat(dto: MatDescriptionDTO): Mat = { Mat(dto.getId, dto.getName, dto.getMatOrder) }
 
-  def mapFight(dto: FightDescriptionDTO, mat: Option[Mat]): Fight = {
+  def mapFight(dto: FightDescriptionDTO): Fight = {
     Fight(
       dto.getId,
       dto.getCompetitionId,
       dto.getStageId,
       dto.getCategoryId,
-      Some(ScheduleInfo(mat, Option(dto.getNumberOnMat).map(_.toInt), Option(dto.getPeriod), Option(dto.getStartTime))),
+      ScheduleInfo(
+        Option(dto.getMatId),
+        Option(dto.getNumberOnMat).map(_.toInt),
+        Option(dto.getPeriod),
+        Option(dto.getStartTime),
+        Option(dto.getInvalid),
+        Option(dto.getScheduleEntryId)
+      ),
       Some(BracketsInfo(dto.getNumberInRound, dto.getWinFight, dto.getLoseFight, dto.getRoundType)),
       Option(dto.getFightResult).map(mapFightResult),
       Option(dto.getScores).map(_.toSet).map(_.map(mapCompScore)).getOrElse(Set.empty)

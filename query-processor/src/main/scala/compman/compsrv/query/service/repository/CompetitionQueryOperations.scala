@@ -139,8 +139,8 @@ object CompetitionQueryOperations {
 
       override def getFightsByMat(competitionId: String)(matId: String): RepoIO[List[Fight]] = {
         val select = quote {
-          query[Fight]
-            .filter(f => f.competitionId == lift(competitionId))
+          query[Fight].filter(f =>
+            f.competitionId == lift(competitionId) && f.scheduleInfo.matId.contains(lift(matId)))
         }
         for {
           _   <- log.info(select.toString)
