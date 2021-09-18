@@ -10,7 +10,7 @@ import zio._
 import zio.interop.catz._
 
 object QueryServiceMain extends zio.App {
-
+//  EventStreamingService.live(config.consumer.brokers), config.competitionEventListener.competitionNotificationsTopic
   val server: ZIO[zio.ZEnv, Throwable, Unit] = for {
     config <- AppConfig.load()
     actorSystem <- ActorSystem("test")
@@ -18,7 +18,7 @@ object QueryServiceMain extends zio.App {
       "queryApiActor",
       ActorConfig(),
       CompetitionApiActor.initialState,
-      CompetitionApiActor.behavior(EventStreamingService.live(config.consumer.brokers), config.competitionEventListener.competitionNotificationsTopic)
+      CompetitionApiActor.behavior[Any]()
     )
     srv <- ZIO.runtime[ZEnv].flatMap { implicit rts =>
       BlazeServerBuilder[Task].bindHttp(8080, "0.0.0.0").withHttpApp(CompetitionHttpApiService.service(actor)).serve

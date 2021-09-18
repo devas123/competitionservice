@@ -23,7 +23,7 @@ object CompetitionHttpApiServiceTest extends DefaultRunnableSpec {
             "test",
             ActorConfig(),
             CompetitionApiActor.initialState,
-            CompetitionApiActor.behavior(EventStreamingService.test(Map.empty), topic)
+            CompetitionApiActor.behavior[Any]()
           )
           response <- CompetitionHttpApiService.service(actor).run(Request[Task](Method.GET, uri"/"))
         } yield assert(response.status)(equalTo(Status.Ok))

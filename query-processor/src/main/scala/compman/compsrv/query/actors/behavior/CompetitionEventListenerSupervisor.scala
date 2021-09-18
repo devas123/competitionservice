@@ -31,11 +31,11 @@ object CompetitionEventListenerSupervisor {
                   _ <- ManagedCompetitionsOperations.addManagedCompetition[R](
                     ManagedCompetition(id, topic, creatorId, createdAt, startsAt, endsAt, timeZone, status)
                   )
-                  res <- context.make[R, CompetitionApiActor.ActorState, CompetitionApiActor.ApiCommand](
+                  res <- context.make[R, CompetitionEventListener.ActorState, CompetitionEventListener.ApiCommand](
                     id,
                     ActorConfig(),
-                    CompetitionApiActor.initialState,
-                    CompetitionApiActor.behavior[R](eventStreaming, topic)
+                    CompetitionEventListener.initialState,
+                    CompetitionEventListener.behavior[R](eventStreaming, topic)
                   ).map(_ => ((), ().asInstanceOf[A]))
                 } yield res // start new actor if not started
               case CompetitionProcessingStopped(id) => for {

@@ -2,7 +2,7 @@ package compman.compsrv.query.service
 
 import cats.data.Kleisli
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.query.actors.behavior.CompetitionApiActor.{ApiCommand, GetCompetitionInfoTemplate}
+import compman.compsrv.query.actors.behavior.CompetitionApiActor._
 import compman.compsrv.query.actors.ActorRef
 import org.http4s.{HttpRoutes, Request, Response}
 import org.http4s.dsl.Http4sDsl
@@ -18,30 +18,44 @@ object CompetitionHttpApiService {
   val timeout: Duration = 10.seconds
   val decoder           = new ObjectMapper()
   def service(apiActor: ActorRef[ApiCommand]): Kleisli[Task, Request[Task], Response[Task]] = HttpRoutes.of[Task] {
-    case GET -> Root => Ok("hello!")
-    case GET -> Root / "store" / "defaultrestrictions" => for {
-        response <- apiActor ? GetCompetitionInfoTemplate
-        m = Response[Task](body = fs2.Stream.fromIterator[Task](decoder.writeValueAsBytes(response).iterator, 1))
-      } yield m
-
-    case GET -> Root / "store" / "competition"                                                               => ???
-    case GET -> Root / "store" / "competition" / "id"                                                        => ???
-    case GET -> Root / "store" / "competition" / "id" / "infotemplate"                                       => ???
-    case GET -> Root / "store" / "competition" / "id" / "schedule"                                           => ???
-    case GET -> Root / "store" / "competition" / "id" / "dashboard"                                          => ???
-    case GET -> Root / "store" / "competition" / "id" / "registration"                                       => ???
-    case GET -> Root / "store" / "competition" / "id" / "category"                                           => ???
-    case GET -> Root / "store" / "competition" / "id" / "category" / "id"                                    => ???
-    case GET -> Root / "store" / "competition" / "id" / "category" / "id" / "fight"                          => ???
-    case GET -> Root / "store" / "competition" / "id" / "category" / "id" / "fight" / "id"                   => ???
-    case GET -> Root / "store" / "competition" / "id" / "category" / "id" / "fight" / "id" / "resultoptions" => ???
-    case GET -> Root / "store" / "competition" / "id" / "category" / "id" / "stage"                          => ???
-    case GET -> Root / "store" / "competition" / "id" / "category" / "id" / "stage" / "id"                   => ???
-    case GET -> Root / "store" / "competition" / "id" / "category" / "id" / "stage" / "id" / "fight"         => ???
-    case GET -> Root / "store" / "competition" / "id" / "mat"                                                => ???
-    case GET -> Root / "store" / "competition" / "id" / "mat" / "id"                                         => ???
-    case GET -> Root / "store" / "competition" / "id" / "mat" / "id" / "fight"                               => ???
-    case GET -> Root / "store" / "competition" / "id" / "competitor"                                         => ???
-    case GET -> Root / "store" / "competition" / "id" / "competitor" / "id"                                  => ???
+    case GET -> Root                                   => Ok("hello!")
+    case GET -> Root / "store" / "defaultrestrictions" => sendApiCommand(apiActor, GetDefaultRestrictions)
+    case GET -> Root / "store" / "competition"         => sendApiCommand(apiActor, GetAllCompetitions())
+    case GET -> Root / "store" / "competition" / id    => sendApiCommand(apiActor, GetCompetitionProperties(id))
+    case GET -> Root / "store" / "competition" / id / "infotemplate" =>
+      sendApiCommand(apiActor, GetCompetitionInfoTemplate(id))
+    case GET -> Root / "store" / "competition" / id / "schedule"  => sendApiCommand(apiActor, GetSchedule(id))
+    case GET -> Root / "store" / "competition" / id / "dashboard" => sendApiCommand(apiActor, GetDashboard(id))
+    case GET -> Root / "store" / "competition" / id / "registration" =>
+      sendApiCommand(apiActor, GetRegistrationInfo(id))
+    case GET -> Root / "store" / "competition" / id / "category" => sendApiCommand(apiActor, GetCategories(id))
+    case GET -> Root / "store" / "competition" / id / "category" / categoryId =>
+      sendApiCommand(apiActor, GetCategory(id, categoryId))
+    case GET -> Root / "store" / "competition" / id / "category" / categoryId / "fight" =>
+      sendApiCommand(apiActor, GetFightsByMatsByCategory(id, categoryId))
+    case GET -> Root / "store" / "competition" / id / "category" / categoryId / "fight" / fightId =>
+      sendApiCommand(apiActor, GetFightById(id, categoryId, fightId))
+    case GET -> Root / "store" / "competition" / id / "category" / categoryId / "fight" / fightId / "resultoptions" =>
+      sendApiCommand(apiActor, GetFightResulOptions(id, categoryId, fightId))
+    case GET -> Root / "store" / "competition" / id / "category" / categoryId / "stage" =>
+      sendApiCommand(apiActor, GetStagesForCategory(id, categoryId))
+    case GET -> Root / "store" / "competition" / id / "category" / categoryId / "stage" / stageId =>
+      sendApiCommand(apiActor, GetStageById(id, categoryId, stageId))
+    case GET -> Root / "store" / "competition" / id / "category" / categoryId / "stage" / stageId / "fight" =>
+      sendApiCommand(apiActor, GetStageFights(id, categoryId, stageId))
+    case GET -> Root / "store" / "competition" / id / "mat"         => sendApiCommand(apiActor, GetMats(id))
+    case GET -> Root / "store" / "competition" / id / "mat" / matId => sendApiCommand(apiActor, GetMat(id, matId))
+    case GET -> Root / "store" / "competition" / id / "mat" / matId / "fight" =>
+      sendApiCommand(apiActor, GetMatFights(id, matId))
+    case GET -> Root / "store" / "competition" / id / "competitor" => sendApiCommand(apiActor, GetCompetitors(id))
+    case GET -> Root / "store" / "competition" / id / "competitor" / competitorId =>
+      sendApiCommand(apiActor, GetCompetitor(id, competitorId))
   }.orNotFound
+
+  private def sendApiCommand[T](apiActor: ActorRef[ApiCommand], apiCommand: ApiCommand[T]) = {
+    for {
+      response <- apiActor ? apiCommand
+      m = Response[Task](body = fs2.Stream.fromIterator[Task](decoder.writeValueAsBytes(response).iterator, 1))
+    } yield m
+  }
 }
