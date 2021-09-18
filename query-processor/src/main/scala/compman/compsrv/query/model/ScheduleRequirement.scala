@@ -1,6 +1,7 @@
 package compman.compsrv.query.model
 
 import compman.compsrv.model.dto.schedule.ScheduleRequirementType
+import io.getquill.Udt
 
 import java.time.Instant
 
@@ -19,4 +20,4 @@ case class ScheduleRequirement(
   endTime: Instant,
   durationSeconds: Int,
   entryOrder: Int
-)
+) extends Udt

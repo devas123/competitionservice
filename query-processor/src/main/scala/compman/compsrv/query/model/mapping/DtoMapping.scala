@@ -17,7 +17,7 @@ object DtoMapping {
       id = dto.getId,
       competitionId = competitionId,
       categoryIds = Option(dto.getCategoryIds).map(_.toSet).getOrElse(Set.empty),
-      fightIds = Option(dto.getFightIds).map(_.toSeq).getOrElse(Seq.empty)
+      fightIds = Option(dto.getFightIds).map(_.toList).getOrElse(List.empty)
         .map(d => MatIdAndSomeId(d.getMatId, d.getSomeId, Option(d.getStartTime))),
       periodId = dto.getPeriodId,
       description = dto.getDescription,
@@ -214,14 +214,14 @@ object DtoMapping {
       competitionId,
       Option(dto.getName),
       dto.getId,
-      mats,
+      mats.toList,
       dto.getStartTime,
       dto.getEndTime,
       dto.getIsActive,
       dto.getTimeBetweenFights,
       dto.getRiskPercent.intValue(),
-      Option(dto.getScheduleEntries).map(_.map(mapScheduleEntry(competitionId))).getOrElse(Array.empty).toSeq,
-      Option(dto.getScheduleRequirements).map(_.map(mapScheduleRequirement(competitionId))).getOrElse(Array.empty).toSeq
+      Option(dto.getScheduleEntries).map(_.map(mapScheduleEntry(competitionId))).getOrElse(Array.empty).toList,
+      Option(dto.getScheduleRequirements).map(_.map(mapScheduleRequirement(competitionId))).getOrElse(Array.empty).toList
     )
   }
 

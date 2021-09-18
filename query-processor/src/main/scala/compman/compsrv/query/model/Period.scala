@@ -5,17 +5,17 @@ import io.getquill.Udt
 import java.time.Instant
 
 case class Period(
-  comppetitionId: String,
+  competitionId: String,
   name: Option[String],
   id: String,
-  mats: Seq[Mat],
+  mats: List[Mat],
   startTime: Instant,
   endTime: Instant,
   active: Boolean,
   timeBetweenFights: Int,
   riskCoefficient: Int,
-  scheduleEntries: Seq[ScheduleEntry],
-  scheduleRequirements: Seq[ScheduleRequirement]
+  scheduleEntries: List[ScheduleEntry],
+  scheduleRequirements: List[ScheduleRequirement]
 )
 
 case class Mat(matId: String, name: String, matOrder: Int) extends Udt

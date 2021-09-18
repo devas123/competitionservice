@@ -2,6 +2,7 @@ package compman.compsrv.query.service.repository
 
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition.{CategoryRestrictionType, CompetitionStatus}
+import compman.compsrv.model.dto.schedule.{ScheduleEntryType, ScheduleRequirementType}
 import io.getquill.MappedEncoding
 
 trait CustomDecoders {
@@ -32,4 +33,8 @@ trait CustomDecoders {
     MappedEncoding[String, CategoryRestrictionType](CategoryRestrictionType.valueOf)
   implicit val fightReferenceTypeDecoder: MappedEncoding[String, FightReferenceType] =
     MappedEncoding[String, FightReferenceType](FightReferenceType.valueOf)
+  implicit val scheduleEntryTypeDecoder: MappedEncoding[String, ScheduleEntryType] =
+    MappedEncoding[String, ScheduleEntryType](ScheduleEntryType.valueOf)
+  implicit val scheduleRequirementTypeDecoder: MappedEncoding[String, ScheduleRequirementType] =
+    MappedEncoding[String, ScheduleRequirementType](ScheduleRequirementType.valueOf)
 }

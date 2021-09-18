@@ -139,8 +139,7 @@ object CompetitionQueryOperations {
 
       override def getFightsByMat(competitionId: String)(matId: String): RepoIO[List[Fight]] = {
         val select = quote {
-          query[Fight].filter(f =>
-            f.competitionId == lift(competitionId) && f.scheduleInfo.matId.contains(lift(matId)))
+          query[Fight].filter(f => f.competitionId == lift(competitionId) && f.scheduleInfo.matId.contains(lift(matId)))
         }
         for {
           _   <- log.info(select.toString)
@@ -220,29 +219,100 @@ object CompetitionQueryOperations {
         executeQueryAndFilterResults(log, searchString, drop, take, select)
       }
 
-      override def getRegistrationGroups(competitionId: String): RepoIO[List[RegistrationGroup]] = ???
+      override def getRegistrationGroups(competitionId: String): RepoIO[List[RegistrationGroup]] = {
+        val select = quote { query[RegistrationGroup].filter(rg => rg.competitionId == lift(competitionId)) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select)
+        } yield res
+      }
 
-      override def getRegistrationGroupById(competitionId: String)(id: String): RepoIO[Option[RegistrationGroup]] = ???
+      override def getRegistrationGroupById(competitionId: String)(id: String): RepoIO[Option[RegistrationGroup]] = {
+        val select =
+          quote { query[RegistrationGroup].filter(rg => rg.competitionId == lift(competitionId) && rg.id == lift(id)) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select).map(_.headOption)
+        } yield res
+      }
 
-      override def getRegistrationPeriods(competitionId: String): RepoIO[List[RegistrationPeriod]] = ???
+      override def getRegistrationPeriods(competitionId: String): RepoIO[List[RegistrationPeriod]] = {
+        val select = quote { query[RegistrationPeriod].filter(rg => rg.competitionId == lift(competitionId)) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select)
+        } yield res
+      }
 
-      override def getRegistrationPeriodById(competitionId: String)(id: String): RepoIO[Option[RegistrationPeriod]] =
-        ???
+      override def getRegistrationPeriodById(competitionId: String)(id: String): RepoIO[Option[RegistrationPeriod]] = {
+        val select =
+          quote { query[RegistrationPeriod].filter(rg => rg.competitionId == lift(competitionId) && rg.id == lift(id)) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select).map(_.headOption)
+        } yield res
+      }
 
-      override def getScheduleEntriesByPeriodId(competitionId: String)(periodId: String): RepoIO[List[ScheduleEntry]] =
-        ???
+      private def periodQuery(competitionId: String, periodId: String) = quote {
+        query[Period]
+          .filter(rg => rg.competitionId == lift(competitionId) && rg.id == lift(periodId))
+      }
+
+      override def getScheduleEntriesByPeriodId(
+        competitionId: String
+      )(periodId: String): RepoIO[List[ScheduleEntry]] = {
+        val select = quote { periodQuery(competitionId, periodId).map(_.scheduleEntries) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select).map(_.flatten)
+        } yield res
+      }
 
       override def getScheduleRequirementsByPeriodId(
         competitionId: String
-      )(periodId: String): RepoIO[List[ScheduleRequirement]] = ???
+      )(periodId: String): RepoIO[List[ScheduleRequirement]] = {
+        val select = quote { periodQuery(competitionId, periodId).map(_.scheduleRequirements) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select).map(_.flatten)
+        } yield res
+      }
 
-      override def getPeriodsByCompetitionId(competitionId: String): RepoIO[List[Period]] = ???
+      override def getPeriodsByCompetitionId(competitionId: String): RepoIO[List[Period]] = {
+        val select = quote { query[Period].filter(rg => rg.competitionId == lift(competitionId)) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select)
+        } yield res
+      }
 
-      override def getPeriodById(competitionId: String)(id: String): RepoIO[Option[Period]] = ???
+      override def getPeriodById(competitionId: String)(id: String): RepoIO[Option[Period]] = {
+        val select = quote { periodQuery(competitionId, id) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select).map(_.headOption)
+        } yield res
+      }
 
-      override def getStagesByCategory(competitionId: String)(categoryId: String): RepoIO[List[StageDescriptor]] = ???
+      override def getStagesByCategory(competitionId: String)(categoryId: String): RepoIO[List[StageDescriptor]] = {
+        val select = quote {
+          query[StageDescriptor]
+            .filter(rg => rg.competitionId == lift(competitionId) && rg.categoryId == lift(categoryId))
+        }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select)
+        } yield res
+      }
 
-      override def getStageById(competitionId: String)(id: String): RepoIO[Option[StageDescriptor]] = ???
+      override def getStageById(competitionId: String)(id: String): RepoIO[Option[StageDescriptor]] = {
+        val select =
+          quote { query[StageDescriptor].filter(rg => rg.competitionId == lift(competitionId) && rg.id == lift(id)) }
+        for {
+          _   <- log.info(select.toString)
+          res <- run(select).map(_.headOption)
+        } yield res
+      }
     }
 
   def getCompetitionProperties[F[+_]: CompetitionQueryOperations](id: String): F[Option[CompetitionProperties]] =

@@ -21,7 +21,7 @@ object MatsUpdatedProc {
       dto           <- OptionT.fromOption[F](Option(payload.getMats))
       newMatsByPeriods = dto.groupMap(_.getPeriodId)(DtoMapping.mapMat)
       periods <- OptionT.liftF(CompetitionQueryOperations[F].getPeriodsByCompetitionId(competitionId))
-      updatedPeriods = periods.map(o => o.copy(mats = newMatsByPeriods.getOrElse(o.id, Array.empty).toSeq))
+      updatedPeriods = periods.map(o => o.copy(mats = newMatsByPeriods.getOrElse(o.id, Array.empty).toList))
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].updatePeriods(updatedPeriods))
     } yield ()
   }.value.map(_ => ())

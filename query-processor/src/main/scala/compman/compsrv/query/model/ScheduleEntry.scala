@@ -1,6 +1,7 @@
 package compman.compsrv.query.model
 
 import compman.compsrv.model.dto.schedule.ScheduleEntryType
+import io.getquill.Udt
 
 import java.time.Instant
 
@@ -8,7 +9,7 @@ case class ScheduleEntry(
   id: String,
   competitionId: String,
   categoryIds: Set[String],
-  fightIds: Seq[MatIdAndSomeId],
+  fightIds: List[MatIdAndSomeId],
   periodId: String,
   description: String,
   name: String,
@@ -20,4 +21,4 @@ case class ScheduleEntry(
   numberOfFights: Int,
   duration: Int,
   order: Int
-)
+) extends Udt
