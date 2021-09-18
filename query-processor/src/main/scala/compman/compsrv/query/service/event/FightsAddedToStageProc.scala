@@ -17,12 +17,9 @@ object FightsAddedToStageProc {
   ): F[Unit] = {
     for {
       payload       <- OptionT.fromOption[F](event.payload)
-      competitionId <- OptionT.fromOption[F](event.competitionId)
       fights        <- OptionT.fromOption[F](Option(payload.getFights))
-      periods       <- OptionT.liftF(CompetitionQueryOperations[F].getPeriodsByCompetitionId(competitionId))
-      mats   = periods.flatMap(_.mats).groupMapReduce(_.matId)(identity)((a, _) => a)
       mapped = fights.map(f => DtoMapping.mapFight(f))
-      _ <- OptionT.liftF(CompetitionUpdateOperations[F].addFights(mapped.toIndexedSeq))
+      _ <- OptionT.liftF(CompetitionUpdateOperations[F].addFights(mapped.toList))
     } yield ()
   }.value.map(_ => ())
 }

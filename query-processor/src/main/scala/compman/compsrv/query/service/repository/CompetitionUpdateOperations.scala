@@ -25,30 +25,23 @@ trait CompetitionUpdateOperations[F[+_]] {
   def updateCompetitor(competitor: Competitor): F[Unit]
   def removeCompetitor(competitionId: String)(id: String): F[Unit]
   def addFight(fight: Fight): F[Unit]
-  def addFights(fights: Seq[Fight]): F[Unit]
+  def addFights(fights: List[Fight]): F[Unit]
   def updateFight(fight: Fight): F[Unit]
-  def updateFights(fights: Seq[Fight]): F[Unit]
+  def updateFights(fights: List[Fight]): F[Unit]
   def removeFight(competitionId: String)(id: String): F[Unit]
-  def removeFights(competitionId: String)(ids: Seq[String]): F[Unit]
+  def removeFights(competitionId: String)(ids: List[String]): F[Unit]
   def addRegistrationGroup(group: RegistrationGroup): F[Unit]
-  def addRegistrationGroups(groups: Seq[RegistrationGroup]): F[Unit]
+  def addRegistrationGroups(groups: List[RegistrationGroup]): F[Unit]
   def updateRegistrationGroup(group: RegistrationGroup): F[Unit]
-  def updateRegistrationGroups(groups: Seq[RegistrationGroup]): F[Unit]
+  def updateRegistrationGroups(groups: List[RegistrationGroup]): F[Unit]
   def removeRegistrationGroup(competitionId: String)(id: String): F[Unit]
   def addRegistrationPeriod(period: RegistrationPeriod): F[Unit]
   def updateRegistrationPeriod(period: RegistrationPeriod): F[Unit]
-  def updateRegistrationPeriods(periods: Seq[RegistrationPeriod]): F[Unit]
+  def updateRegistrationPeriods(periods: List[RegistrationPeriod]): F[Unit]
   def removeRegistrationPeriod(competitionId: String)(id: String): F[Unit]
-  def addScheduleEntry(entry: ScheduleEntry): F[Unit]
-  def addScheduleEntries(entries: Seq[ScheduleEntry]): F[Unit]
-  def removeScheduleEntry(competitionId: String)(id: String): F[Unit]
-  def removeScheduleEntries(competitionId: String): F[Unit]
-  def addScheduleRequirement(entry: ScheduleRequirement): F[Unit]
-  def removeScheduleRequirement(competitionId: String)(id: String): F[Unit]
-  def removeScheduleRequirements(competitionId: String): F[Unit]
   def addPeriod(entry: Period): F[Unit]
-  def addPeriods(entries: Seq[Period]): F[Unit]
-  def updatePeriods(entries: Seq[Period]): F[Unit]
+  def addPeriods(entries: List[Period]): F[Unit]
+  def updatePeriods(entries: List[Period]): F[Unit]
   def removePeriod(competitionId: String)(id: String): F[Unit]
   def removePeriods(competitionId: String): F[Unit]
 }
@@ -123,76 +116,276 @@ object CompetitionUpdateOperations {
         } yield ()
       }
 
-      override def updateStage(stageDescriptor: StageDescriptor): RepoIO[Unit] = ???
+      override def updateStage(stageDescriptor: StageDescriptor): RepoIO[Unit] = {
+        val statement = quote {
+          query[StageDescriptor].filter(_.id == lift(stageDescriptor.id)).update(liftCaseClass(stageDescriptor))
+        }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
+      override def updateStageStatus(competitionId: String)(stageId: String, newStatus: StageStatus): RepoIO[Unit] = {
+        val statement =
+          quote { query[StageDescriptor].filter(_.id == lift(stageId)).update(_.stageStatus -> lift(newStatus)) }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def updateStageStatus(competitionId: String)(stageId: String, newStatus: StageStatus): RepoIO[Unit] = ???
-
-      override def addCategory(category: Category): RepoIO[Unit] = ???
+      override def addCategory(category: Category): RepoIO[Unit] = {
+        val statement = quote { query[Category].insert(liftCaseClass(category)) }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
       override def updateCategoryRegistrationStatus(
         competitionId: String
-      )(id: String, newStatus: Boolean): RepoIO[Unit] = ???
+      )(id: String, newStatus: Boolean): RepoIO[Unit] = {
+        val statement = quote { query[Category].filter(_.id == lift(id)).update(_.registrationOpen -> lift(newStatus)) }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def removeCategory(competitionId: String)(id: String): RepoIO[Unit] = ???
+      override def removeCategory(competitionId: String)(id: String): RepoIO[Unit] = {
+        val statement =
+          quote { query[Category].filter(c => c.competitionId == lift(competitionId) && c.id == lift(id)).delete }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def addCompetitor(competitor: Competitor): RepoIO[Unit] = ???
+      override def addCompetitor(competitor: Competitor): RepoIO[Unit] = {
+        val statement = quote { query[Competitor].insert(liftCaseClass(competitor)) }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def updateCompetitor(competitor: Competitor): RepoIO[Unit] = ???
+      override def updateCompetitor(competitor: Competitor): RepoIO[Unit] = {
+        val statement =
+          quote { query[Competitor].filter(_.id == lift(competitor.id)).update(liftCaseClass(competitor)) }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def removeCompetitor(competitionId: String)(id: String): RepoIO[Unit] = ???
+      override def removeCompetitor(competitionId: String)(id: String): RepoIO[Unit] = {
+        val statement =
+          quote { query[Competitor].filter(c => c.competitionId == lift(competitionId) && c.id == lift(id)).delete }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def addFight(fight: Fight): RepoIO[Unit] = ???
+      override def addFight(fight: Fight): RepoIO[Unit] = {
+        val statement = quote { query[Fight].insert(liftCaseClass(fight)) }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def addFights(fights: Seq[Fight]): RepoIO[Unit] = ???
+      override def addFights(fights: List[Fight]): RepoIO[Unit] = {
+        val statement = quote { liftQuery(fights).foreach(fight1 => query[Fight].insert(fight1)) }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def updateFight(fight: Fight): RepoIO[Unit] = ???
+      override def updateFight(fight: Fight): RepoIO[Unit] = {
+        val statement = quote { query[Fight].filter(_.id == lift(fight.id)).update(liftCaseClass(fight)) }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def updateFights(fights: Seq[Fight]): RepoIO[Unit] = ???
+      override def updateFights(fights: List[Fight]): RepoIO[Unit] = {
+        val statement =
+          quote { liftQuery(fights).foreach(fight2 => query[Fight].filter(_.id == fight2.id).update(fight2)) }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def removeFight(competitionId: String)(id: String): RepoIO[Unit] = ???
+      override def removeFight(competitionId: String)(id: String): RepoIO[Unit] = {
+        val statement = quote {
+          query[Fight].filter(fight3 => fight3.competitionId == lift(competitionId) && fight3.id == lift(id)).delete
+        }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def removeFights(competitionId: String)(ids: Seq[String]): RepoIO[Unit] = ???
+      override def removeFights(competitionId: String)(ids: List[String]): RepoIO[Unit] = {
+        val statement = quote {
+          liftQuery(ids).foreach(id =>
+            query[Fight].filter(fight4 => fight4.competitionId == lift(competitionId) && fight4.id == id).delete
+          )
+        }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
 
-      override def addRegistrationGroup(group: RegistrationGroup): RepoIO[Unit] = ???
+      }
 
-      override def addRegistrationGroups(groups: Seq[RegistrationGroup]): RepoIO[Unit] = ???
+      override def addRegistrationGroup(group: RegistrationGroup): RepoIO[Unit] = {
+        val statement = quote { query[RegistrationGroup].insert(liftCaseClass(group)) }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def updateRegistrationGroup(group: RegistrationGroup): RepoIO[Unit] = ???
+      override def addRegistrationGroups(groups: List[RegistrationGroup]): RepoIO[Unit] = {
+        val statement = quote { liftQuery(groups).foreach(group => query[RegistrationGroup].insert(group)) }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def updateRegistrationGroups(groups: Seq[RegistrationGroup]): RepoIO[Unit] = ???
+      override def updateRegistrationGroup(group: RegistrationGroup): RepoIO[Unit] = {
+        val statement = quote {
+          query[RegistrationGroup]
+            .filter(gr => gr.competitionId == lift(group.competitionId) && gr.id == lift(group.id))
+            .update(liftCaseClass(group))
+        }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def removeRegistrationGroup(competitionId: String)(id: String): RepoIO[Unit] = ???
+      override def updateRegistrationGroups(groups: List[RegistrationGroup]): RepoIO[Unit] = {
 
-      override def addRegistrationPeriod(period: RegistrationPeriod): RepoIO[Unit] = ???
+        val statement = quote {
+          liftQuery(groups).foreach { group =>
+            query[RegistrationGroup].filter(gr => gr.competitionId == group.competitionId && gr.id == group.id)
+              .update(group)
+          }
+        }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
 
-      override def updateRegistrationPeriod(period: RegistrationPeriod): RepoIO[Unit] = ???
+      }
 
-      override def updateRegistrationPeriods(periods: Seq[RegistrationPeriod]): RepoIO[Unit] = ???
+      override def removeRegistrationGroup(competitionId: String)(id: String): RepoIO[Unit] = {
+        val statement = quote {
+          query[RegistrationGroup].filter(gr => gr.competitionId == lift(competitionId) && gr.id == lift(id)).delete
+        }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def removeRegistrationPeriod(competitionId: String)(id: String): RepoIO[Unit] = ???
+      override def addRegistrationPeriod(period: RegistrationPeriod): RepoIO[Unit] = {
+        val statement = quote { query[RegistrationPeriod].insert(liftCaseClass(period)) }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def addScheduleEntry(entry: ScheduleEntry): RepoIO[Unit] = ???
+      override def updateRegistrationPeriod(period: RegistrationPeriod): RepoIO[Unit] = {
+        val statement = quote {
+          query[RegistrationPeriod]
+            .filter(p => p.competitionId == lift(period.competitionId) && p.id == lift(period.id))
+            .update(liftCaseClass(period))
+        }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def addScheduleEntries(entries: Seq[ScheduleEntry]): RepoIO[Unit] = ???
+      override def updateRegistrationPeriods(periods: List[RegistrationPeriod]): RepoIO[Unit] = {
+        val statement = quote {
+          liftQuery(periods).foreach { period =>
+            query[RegistrationPeriod].filter(p => p.competitionId == period.competitionId && p.id == period.id)
+              .update(period)
+          }
 
-      override def removeScheduleEntry(competitionId: String)(id: String): RepoIO[Unit] = ???
+        }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
 
-      override def removeScheduleEntries(competitionId: String): RepoIO[Unit] = ???
+      }
 
-      override def addScheduleRequirement(entry: ScheduleRequirement): RepoIO[Unit] = ???
+      override def removeRegistrationPeriod(competitionId: String)(id: String): RepoIO[Unit] = {
+        val statement = quote {
+          query[RegistrationPeriod].filter(p => p.competitionId == lift(competitionId) && p.id == lift(id)).delete
+        }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def removeScheduleRequirement(competitionId: String)(id: String): RepoIO[Unit] = ???
+      override def addPeriod(entry: Period): RepoIO[Unit] = {
+        val statement = quote { query[Period].insert(liftCaseClass(entry)) }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def removeScheduleRequirements(competitionId: String): RepoIO[Unit] = ???
+      override def addPeriods(entries: List[Period]): RepoIO[Unit] = {
+        val statement = quote { liftQuery(entries).foreach { entry => query[Period].insert(entry) } }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
 
-      override def addPeriod(entry: Period): RepoIO[Unit] = ???
+      }
 
-      override def addPeriods(entries: Seq[Period]): RepoIO[Unit] = ???
+      override def updatePeriods(entries: List[Period]): RepoIO[Unit] = {
+        val statement = quote {
+          liftQuery(entries).foreach { entry =>
+            query[Period].filter(p => p.id == entry.id && p.competitionId == entry.competitionId)
+              .update(entry)
+          }
+        }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def updatePeriods(entries: Seq[Period]): RepoIO[Unit] = ???
+      override def removePeriod(competitionId: String)(id: String): RepoIO[Unit] = {
+        val statement =
+          quote { query[Period].filter(p => p.id == lift(id) && p.competitionId == lift(competitionId)).delete }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
 
-      override def removePeriod(competitionId: String)(id: String): RepoIO[Unit] = ???
-
-      override def removePeriods(competitionId: String): RepoIO[Unit] = ???
+      override def removePeriods(competitionId: String): RepoIO[Unit] = {
+        val statement = quote { query[Period].filter(p => p.competitionId == lift(competitionId)).delete }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement)
+        } yield ()
+      }
     }
 }

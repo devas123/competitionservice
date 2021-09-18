@@ -21,7 +21,7 @@ object ScheduleGeneratedProc {
       periodsDto <- OptionT.fromOption[F](Option(payload.getSchedule).map(_.getPeriods))
       mappedMats = matsDto.groupMap(_.getPeriodId)(DtoMapping.mapMat)
       mappedPeriods = periodsDto.map(dto => DtoMapping.mapPeriod(competitionId)(dto)(mappedMats.getOrElse(dto.getId, Array.empty).toSeq))
-      _ <- OptionT.liftF(CompetitionUpdateOperations[F].addPeriods(mappedPeriods.toIndexedSeq))
+      _ <- OptionT.liftF(CompetitionUpdateOperations[F].addPeriods(mappedPeriods.toList))
     } yield ()
   }.value.map(_ => ())
 }
