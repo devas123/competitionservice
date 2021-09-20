@@ -1,9 +1,10 @@
 package compman.compsrv.query.service
 
+import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.query.actors.behavior.CompetitionApiActor
 import compman.compsrv.query.actors.ActorSystem
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
-import compman.compsrv.query.service.kafka.EventStreamingService
+import compman.compsrv.query.actors.behavior.CompetitionApiActor.Test
 import org.http4s._
 import org.http4s.implicits._
 import zio._
@@ -23,7 +24,7 @@ object CompetitionHttpApiServiceTest extends DefaultRunnableSpec {
             "test",
             ActorConfig(),
             CompetitionApiActor.initialState,
-            CompetitionApiActor.behavior[Any]()
+            CompetitionApiActor.behavior[Any](Test)
           )
           response <- CompetitionHttpApiService.service(actor).run(Request[Task](Method.GET, uri"/"))
         } yield assert(response.status)(equalTo(Status.Ok))
@@ -43,5 +44,5 @@ object CompetitionHttpApiServiceTest extends DefaultRunnableSpec {
 //      } yield body
 //      assertM(io)(equalTo("hello!"))
 //    }
-    ) @@ sequential).provideLayer(Clock.live)
+    ) @@ sequential).provideLayer(Clock.live ++ CompetitionLogging.Live.loggingLayer)
 }

@@ -11,7 +11,9 @@ import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
 import compman.compsrv.query.service.repository._
+import io.getquill.CassandraZioSession
 import zio.{Fiber, RIO, Tag, ZIO}
+import zio.logging.Logging
 
 object CompetitionEventListener {
   sealed trait ApiCommand[+_]
@@ -19,18 +21,20 @@ object CompetitionEventListener {
 
   trait ActorContext {
     implicit val eventMapping: Mapping.EventMapping[LIO]
-    implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[RepoIO]
-    implicit val competitionQueryOperations: CompetitionQueryOperations[RepoIO]
-    implicit val competitionUpdateOperations: CompetitionUpdateOperations[RepoIO]
+    implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO]
+    implicit val competitionQueryOperations: CompetitionQueryOperations[LIO]
+    implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO]
 
   }
 
-  object Live extends ActorContext {
+  case class Live(cassandraZioSession: CassandraZioSession) extends ActorContext {
     implicit val eventMapping: Mapping.EventMapping[LIO] = model.Mapping.EventMapping.live
-    implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[RepoIO] = compman.compsrv.logic
-      .logging.CompetitionLogging.Live.live[QuillCassandraEnvironment]
-    implicit val competitionQueryOperations: CompetitionQueryOperations[RepoIO]   = CompetitionQueryOperations.live
-    implicit val competitionUpdateOperations: CompetitionUpdateOperations[RepoIO] = CompetitionUpdateOperations.live
+    implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO] = compman.compsrv.logic
+      .logging.CompetitionLogging.Live.live[Any]
+    implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
+      .live(cassandraZioSession)
+    implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations
+      .live(cassandraZioSession)
   }
 
   case class ActorState()
@@ -39,38 +43,37 @@ object CompetitionEventListener {
     eventStreaming: EventStreaming[R],
     topic: String,
     context: ActorContext
-  ): ActorBehavior[R with RepoEnvironment, ActorState, ApiCommand] =
-    new ActorBehavior[R with RepoEnvironment, ActorState, ApiCommand] {
-      import context._
-      import zio.interop.catz._
-      override def receive[A](
-        context: Context[ApiCommand],
-        actorConfig: ActorConfig,
-        state: ActorState,
-        command: ApiCommand[A],
-        timers: Timers[R with RepoEnvironment, ApiCommand]
-      ): RIO[R with RepoEnvironment, (ActorState, A)] = {
-        command match {
-          case EventReceived(event) => for {
-              mapped <- EventMapping.mapEventDto[LIO](event)
-              _      <- EventProcessors.applyEvent[RepoIO, Payload](mapped)
-            } yield (state, ().asInstanceOf[A])
-        }
+  ): ActorBehavior[R with Logging, ActorState, ApiCommand] = new ActorBehavior[R with Logging, ActorState, ApiCommand] {
+    import context._
+    import zio.interop.catz._
+    override def receive[A](
+      context: Context[ApiCommand],
+      actorConfig: ActorConfig,
+      state: ActorState,
+      command: ApiCommand[A],
+      timers: Timers[R with Logging, ApiCommand]
+    ): RIO[R with Logging, (ActorState, A)] = {
+      command match {
+        case EventReceived(event) => for {
+            mapped <- EventMapping.mapEventDto[LIO](event)
+            _      <- EventProcessors.applyEvent[LIO, Payload](mapped)
+          } yield (state, ().asInstanceOf[A])
       }
-
-      override def init(
-        actorConfig: ActorConfig,
-        context: Context[ApiCommand],
-        initState: ActorState,
-        timers: Timers[R with RepoEnvironment, ApiCommand]
-      ): RIO[R with RepoEnvironment, (Seq[Fiber[Throwable, Unit]], Seq[ApiCommand[Any]])] = for {
-        mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
-        k <- eventStreaming.getByteArrayStream(topic).mapM(record =>
-          for {
-            event <- ZIO.effect(mapper.readValue(record, classOf[EventDTO]))
-            _     <- context.self ! EventReceived(event)
-          } yield ()
-        ).runDrain.fork
-      } yield (Seq(k), Seq.empty[ApiCommand[Any]])
     }
+
+    override def init(
+      actorConfig: ActorConfig,
+      context: Context[ApiCommand],
+      initState: ActorState,
+      timers: Timers[R with Logging, ApiCommand]
+    ): RIO[R with Logging, (Seq[Fiber[Throwable, Unit]], Seq[ApiCommand[Any]])] = for {
+      mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
+      k <- eventStreaming.getByteArrayStream(topic).mapM(record =>
+        for {
+          event <- ZIO.effect(mapper.readValue(record, classOf[EventDTO]))
+          _     <- context.self ! EventReceived(event)
+        } yield ()
+      ).runDrain.fork
+    } yield (Seq(k), Seq.empty[ApiCommand[Any]])
+  }
 }

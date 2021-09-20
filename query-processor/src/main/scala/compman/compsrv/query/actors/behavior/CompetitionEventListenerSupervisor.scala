@@ -7,15 +7,18 @@ import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
 import compman.compsrv.query.service.repository.{ManagedCompetitionsOperations, RepoEnvironment}
+import io.getquill.CassandraZioSession
 import zio.{Fiber, RIO, Tag, Task, ZIO}
 import zio.clock.Clock
+import zio.logging.Logging
 
 object CompetitionEventListenerSupervisor {
-  type SupervisorEnvironment[R] = ManagedCompetitionsOperations.Service[R] with Clock with R with RepoEnvironment
+  type SupervisorEnvironment[R] = ManagedCompetitionsOperations.Service[R] with Clock with R with Logging
   sealed trait ActorMessages[+_]
   case class ReceivedNotification(notification: CommandProcessorNotification) extends ActorMessages[Unit]
   def behavior[R: Tag](
-    eventStreaming: EventStreaming[R]
+    eventStreaming: EventStreaming[R],
+    cassandraZioSession: CassandraZioSession
   ): ActorBehavior[SupervisorEnvironment[R], Unit, ActorMessages] =
     new ActorBehavior[SupervisorEnvironment[R], Unit, ActorMessages] {
       override def receive[A](
@@ -32,11 +35,11 @@ object CompetitionEventListenerSupervisor {
                   _ <- ManagedCompetitionsOperations.addManagedCompetition[R](
                     ManagedCompetition(id, topic, creatorId, createdAt, startsAt, endsAt, timeZone, status)
                   )
-                  res <- context.make[R with RepoEnvironment, CompetitionEventListener.ActorState, CompetitionEventListener.ApiCommand](
+                  res <- context.make[R with Logging, CompetitionEventListener.ActorState, CompetitionEventListener.ApiCommand](
                     id,
                     ActorConfig(),
                     CompetitionEventListener.initialState,
-                    CompetitionEventListener.behavior[R](eventStreaming, topic, CompetitionEventListener.Live)
+                    CompetitionEventListener.behavior[R](eventStreaming, topic, CompetitionEventListener.Live(cassandraZioSession))
                   ).map(_ => ((), ().asInstanceOf[A]))
                 } yield res // start new actor if not started
               case CompetitionProcessingStopped(id) => for {
