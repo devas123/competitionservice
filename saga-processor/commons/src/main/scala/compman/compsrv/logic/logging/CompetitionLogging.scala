@@ -55,35 +55,33 @@ object CompetitionLogging {
 
     def withContext[A](fa: LogContext => LogContext)(action: LIO[A]): LIO[A] = log.locally(fa)(action)
 
-    val live: Service[LIO] = new Service[LIO] {
+    def live[R]: Service[({type RLIO[+A] = RIO[R with Logging, A]})#RLIO] = new Service[({type RLIO[+A] = RIO[R with Logging, A]})#RLIO] {
       import zio.logging._
-      override def info(msg: => String): LIO[Unit]             = log.info(msg)
-      override def info(msg: => String, args: Any*): LIO[Unit] = log.info(msg.format(args))
-      override def info(error: Throwable, msg: => String, args: Any*): LIO[Unit] = for {
+      override def info(msg: => String): RIO[R with Logging, Unit]             = log.info(msg)
+      override def info(msg: => String, args: Any*): RIO[R with Logging, Unit] = log.info(msg.format(args))
+      override def info(error: Throwable, msg: => String, args: Any*): RIO[R with Logging, Unit] = for {
         _ <- info(msg, args)
         _ <- info(s"${error.getStackTraceStr}\n")
       } yield ()
-      override def error(msg: => String, args: Any*): LIO[Unit] = log.error(msg.format(args))
-      override def error(msg: => String): LIO[Unit]             = log.error(msg)
-      override def error(error: Throwable, msg: => String, args: Any*): LIO[Unit] = for {
+      override def error(msg: => String, args: Any*): RIO[R with Logging, Unit] = log.error(msg.format(args))
+      override def error(msg: => String): RIO[R with Logging, Unit]             = log.error(msg)
+      override def error(error: Throwable, msg: => String, args: Any*): RIO[R with Logging, Unit] = for {
         _ <- log.error(msg.format(args))
         _ <- log.error(s"${error.getStackTraceStr}\n")
       } yield ()
 
-      override def warn(msg: => String, args: Any*): LIO[Unit] = log.warn(msg.format(args))
-      override def warn(error: Throwable, msg: => String, args: Any*): LIO[Unit] = for {
+      override def warn(msg: => String, args: Any*): RIO[R with Logging, Unit] = log.warn(msg.format(args))
+      override def warn(error: Throwable, msg: => String, args: Any*): RIO[R with Logging, Unit] = for {
         _ <- log.warn(msg.format(args))
         _ <- log.warn(s"${error.getStackTraceStr}\n")
       } yield ()
-      override def warn(msg: => String): LIO[Unit]              = log.warn(msg)
-      override def debug(msg: => String, args: Any*): LIO[Unit] = log.debug(msg.format(args))
-      override def debug(error: Throwable, msg: => String, args: Any*): LIO[Unit] = for {
+      override def warn(msg: => String): RIO[R with Logging, Unit]              = log.warn(msg)
+      override def debug(msg: => String, args: Any*): RIO[R with Logging, Unit] = log.debug(msg.format(args))
+      override def debug(error: Throwable, msg: => String, args: Any*): RIO[R with Logging, Unit] = for {
         _ <- log.debug(msg.format(args))
         _ <- log.debug(s"${error.getStackTraceStr}\n")
       } yield ()
-      override def debug(msg: => String): LIO[Unit] = log.debug(msg)
+      override def debug(msg: => String): RIO[R with Logging, Unit] = log.debug(msg)
     }
-
   }
-
 }

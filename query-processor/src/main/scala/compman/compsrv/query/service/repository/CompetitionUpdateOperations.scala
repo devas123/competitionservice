@@ -1,7 +1,6 @@
 package compman.compsrv.query.service.repository
 
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
@@ -49,7 +48,7 @@ trait CompetitionUpdateOperations[F[+_]] {
 object CompetitionUpdateOperations {
   def apply[F[+_]](implicit F: CompetitionUpdateOperations[F]): CompetitionUpdateOperations[F] = F
 
-  def live(implicit log: CompetitionLogging.Service[LIO]): CompetitionUpdateOperations[RepoIO] =
+  def live(implicit log: CompetitionLogging.Service[RepoIO]): CompetitionUpdateOperations[RepoIO] =
     new CompetitionUpdateOperations[RepoIO] {
       private lazy val ctx =
         new CassandraZioContext(SnakeCase) with CustomDecoders with CustomEncoders with Encoders with Decoders

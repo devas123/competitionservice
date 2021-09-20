@@ -28,5 +28,6 @@ dependencies {
     }
     testImplementation("org.scalatest:scalatest_$scalaBinary:3.2.8")
     testImplementation("junit:junit:4.13")
+    scalaCompilerPlugins("org.typelevel:kind-projector_2.13.5:0.13.2")
 }
 description = "query processor"

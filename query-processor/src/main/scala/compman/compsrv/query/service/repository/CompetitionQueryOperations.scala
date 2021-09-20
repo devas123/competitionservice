@@ -1,7 +1,6 @@
 package compman.compsrv.query.service.repository
 
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import io.getquill.{CassandraZioContext, EntityQuery, SnakeCase}
@@ -68,7 +67,7 @@ trait CompetitionQueryOperations[F[+_]] {
 object CompetitionQueryOperations {
   def apply[F[+_]](implicit F: CompetitionQueryOperations[F]): CompetitionQueryOperations[F] = F
 
-  def live(implicit log: CompetitionLogging.Service[LIO]): CompetitionQueryOperations[RepoIO] =
+  def live(implicit log: CompetitionLogging.Service[RepoIO]): CompetitionQueryOperations[RepoIO] =
     new CompetitionQueryOperations[RepoIO] {
       private lazy val ctx =
         new CassandraZioContext(SnakeCase) with CustomDecoders with CustomEncoders with Encoders with Decoders
@@ -76,7 +75,7 @@ object CompetitionQueryOperations {
       import ctx._
 
       private def executeQueryAndFilterResults(
-        log: CompetitionLogging.Service[LIO],
+        log: CompetitionLogging.Service[RepoIO],
         searchString: Option[String],
         drop: Int,
         take: Int,
