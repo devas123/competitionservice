@@ -15,12 +15,16 @@ object Versions {
     const val rocksdb: String = "6.13.3"
     const val http4s: String = "0.23.3"
     const val quill: String = "3.10.0"
+    const val embeddedCassandra: String = "3.1.0"
 }
 
 data class Dep(val group: String, val artifactId: String, val version: String, val classifier: String)
 
 object Libraries {
 
+    val embeddedCassandra = listOf(
+        "com.github.nosan:embedded-cassandra:${Versions.embeddedCassandra}"
+    )
     val http4s = listOf(
         "org.http4s:http4s-dsl_${scalaBinary}:${Versions.http4s}",
         "org.http4s:http4s-blaze-server_${scalaBinary}:${Versions.http4s}",

@@ -1,13 +1,11 @@
 package compman.compsrv.query
-import com.typesafe.config.ConfigFactory
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.query.actors.ActorSystem
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.actors.behavior.CompetitionApiActor
 import compman.compsrv.query.config.AppConfig
 import compman.compsrv.query.service.CompetitionHttpApiService
-import compman.compsrv.query.service.kafka.EventStreamingService
-import io.getquill.{CassandraContextConfig, CassandraZioSession}
+import io.getquill.CassandraZioSession
 import org.http4s.blaze.server.BlazeServerBuilder
 import zio._
 import zio.clock.Clock

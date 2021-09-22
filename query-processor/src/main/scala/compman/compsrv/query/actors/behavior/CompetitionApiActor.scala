@@ -9,6 +9,7 @@ import compman.compsrv.model.dto.schedule.{PeriodDTO, ScheduleDTO}
 import compman.compsrv.query.actors.{ActorBehavior, Context, Timers}
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.model.CompetitionProperties._
+import compman.compsrv.query.model.{Category, CompetitionProperties, Competitor, Fight, FightResult, Mat, Period, RegistrationInfo, Restriction, StageDescriptor}
 import compman.compsrv.query.service.repository.CompetitionQueryOperations
 import io.getquill.CassandraZioSession
 import zio.{RIO, Tag}
@@ -33,33 +34,33 @@ object CompetitionApiActor {
   }
 
   sealed trait ApiCommand[+_]
-  final case object GetDefaultRestrictions              extends ApiCommand[List[CategoryRestrictionDTO]]
-  final case class GetAllCompetitions()                 extends ApiCommand[List[CompetitionPropertiesDTO]]
-  final case class GetCompetitionProperties(id: String) extends ApiCommand[Option[CompetitionPropertiesDTO]]
+  final case object GetDefaultRestrictions              extends ApiCommand[List[Restriction]]
+  final case class GetAllCompetitions()                 extends ApiCommand[List[CompetitionProperties]]
+  final case class GetCompetitionProperties(id: String) extends ApiCommand[Option[CompetitionProperties]]
   final case class GetCompetitionInfoTemplate(competitionId: String) extends ApiCommand[CompetitionInfoTemplate]
-  final case class GetSchedule(competitionId: String)                extends ApiCommand[Option[ScheduleDTO]]
-  final case class GetCompetitors(competitionId: String)             extends ApiCommand[List[CompetitorDTO]]
-  final case class GetCompetitor(competitionId: String, competitorId: String) extends ApiCommand[List[CompetitorDTO]]
-  final case class GetDashboard(competitionId: String)                        extends ApiCommand[List[PeriodDTO]]
-  final case class GetMats(competitionId: String)                     extends ApiCommand[List[MatDescriptionDTO]]
-  final case class GetMat(competitionId: String, matId: String)       extends ApiCommand[Option[MatDescriptionDTO]]
-  final case class GetMatFights(competitionId: String, matId: String) extends ApiCommand[List[FightDescriptionDTO]]
-  final case class GetRegistrationInfo(competitionId: String)         extends ApiCommand[Option[RegistrationInfoDTO]]
-  final case class GetCategories(competitionId: String)               extends ApiCommand[List[CategoryDescriptorDTO]]
+  final case class GetSchedule(competitionId: String)                extends ApiCommand[List[Period]]
+  final case class GetCompetitors(competitionId: String)             extends ApiCommand[List[Competitor]]
+  final case class GetCompetitor(competitionId: String, competitorId: String) extends ApiCommand[List[Competitor]]
+  final case class GetDashboard(competitionId: String)                        extends ApiCommand[List[Period]]
+  final case class GetMats(competitionId: String)                     extends ApiCommand[List[Mat]]
+  final case class GetMat(competitionId: String, matId: String)       extends ApiCommand[Option[Mat]]
+  final case class GetMatFights(competitionId: String, matId: String) extends ApiCommand[List[Fight]]
+  final case class GetRegistrationInfo(competitionId: String)         extends ApiCommand[Option[RegistrationInfo]]
+  final case class GetCategories(competitionId: String)               extends ApiCommand[List[Category]]
   final case class GetFightById(competitionId: String, categoryId: String, fightId: String)
-      extends ApiCommand[Option[FightDescriptionDTO]]
+      extends ApiCommand[Option[Fight]]
   final case class GetCategory(competitionId: String, categoryId: String)
-      extends ApiCommand[Option[CategoryDescriptorDTO]]
-  final case class GetFightsByMatsByCategory(competitionId: String, categoryId: String)
-      extends ApiCommand[List[FightDescriptionDTO]]
+      extends ApiCommand[Option[Category]]
+  final case class GetFightsByMats(competitionId: String, categoryId: String, limit: Int)
+      extends ApiCommand[Map[String, List[String]]]
   final case class GetFightResulOptions(competitionId: String, categoryId: String, fightId: String)
-      extends ApiCommand[List[FightResultDTO]]
+      extends ApiCommand[List[FightResult]]
   final case class GetStagesForCategory(competitionId: String, categoryId: String)
-      extends ApiCommand[List[StageDescriptorDTO]]
+      extends ApiCommand[List[StageDescriptor]]
   final case class GetStageById(competitionId: String, categoryId: String, stageId: String)
-      extends ApiCommand[List[StageDescriptorDTO]]
+      extends ApiCommand[List[StageDescriptor]]
   final case class GetStageFights(competitionId: String, categoryId: String, stageId: String)
-      extends ApiCommand[List[FightDescriptionDTO]]
+      extends ApiCommand[List[Fight]]
 
   case class ActorState()
   val initialState: ActorState = ActorState()
@@ -90,7 +91,7 @@ object CompetitionApiActor {
         case GetCategories(competitionId)                             => ???
         case GetFightById(competitionId, categoryId, fightId)         => ???
         case GetCategory(competitionId, categoryId)                   => ???
-        case GetFightsByMatsByCategory(competitionId, categoryId)     => ???
+        case GetFightsByMats(competitionId, categoryId, limit)     => ???
         case GetFightResulOptions(competitionId, categoryId, fightId) => ???
         case GetStagesForCategory(competitionId, categoryId)          => ???
         case GetStageById(competitionId, categoryId, stageId)         => ???

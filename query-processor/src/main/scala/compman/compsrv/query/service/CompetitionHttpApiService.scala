@@ -32,7 +32,7 @@ object CompetitionHttpApiService {
     case GET -> Root / "store" / "competition" / id / "category" / categoryId =>
       sendApiCommand(apiActor, GetCategory(id, categoryId))
     case GET -> Root / "store" / "competition" / id / "category" / categoryId / "fight" =>
-      sendApiCommand(apiActor, GetFightsByMatsByCategory(id, categoryId))
+      sendApiCommand(apiActor, GetFightsByMats(id, categoryId, 10))
     case GET -> Root / "store" / "competition" / id / "category" / categoryId / "fight" / fightId =>
       sendApiCommand(apiActor, GetFightById(id, categoryId, fightId))
     case GET -> Root / "store" / "competition" / id / "category" / categoryId / "fight" / fightId / "resultoptions" =>

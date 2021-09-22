@@ -2,6 +2,8 @@ package compman.compsrv.query.model
 
 import io.getquill.Udt
 
+case class RegistrationInfo(registrationGroups: List[RegistrationGroup], registrationPeriods: List[RegistrationPeriod])
+
 case class RegistrationGroup(
   competitionId: String,
   id: String,
