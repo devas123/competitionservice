@@ -11,6 +11,7 @@ import compman.compsrv.query.service.repository.TestEntities
 import org.http4s._
 import org.http4s.implicits._
 import zio._
+import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.test._
 import zio.test.Assertion._
@@ -49,5 +50,5 @@ object CompetitionHttpApiServiceTest extends DefaultRunnableSpec with TestEntiti
 //      } yield body
 //      assertM(io)(equalTo("hello!"))
 //    }
-    ) @@ sequential).provideLayer(Clock.live ++ CompetitionLogging.Live.loggingLayer )
+    ) @@ sequential).provideLayer(Clock.live ++ CompetitionLogging.Live.loggingLayer ++ Blocking.live)
 }

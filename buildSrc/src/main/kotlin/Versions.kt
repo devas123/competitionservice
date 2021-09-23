@@ -15,7 +15,7 @@ object Versions {
     const val rocksdb: String = "6.13.3"
     const val http4s: String = "0.23.3"
     const val quill: String = "3.10.0"
-    const val embeddedCassandra: String = "3.1.0"
+    const val embeddedCassandra: String = "4.0.6"
 }
 
 data class Dep(val group: String, val artifactId: String, val version: String, val classifier: String)
