@@ -5,6 +5,7 @@ import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.actors.behavior.CompetitionApiActor
 import compman.compsrv.query.config.AppConfig
 import compman.compsrv.query.service.CompetitionHttpApiService
+import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO
 import io.getquill.CassandraZioSession
 import org.http4s.blaze.server.BlazeServerBuilder
 import zio._
@@ -25,7 +26,7 @@ object QueryServiceMain extends zio.App {
       CompetitionApiActor.behavior[ZEnv](CompetitionApiActor.Live(cassandraZioSession))
     )
     srv <- ZIO.runtime[ZEnv].flatMap { implicit rts =>
-      BlazeServerBuilder[Task].bindHttp(8080, "0.0.0.0").withHttpApp(CompetitionHttpApiService.service(actor)).serve
+      BlazeServerBuilder[ServiceIO].bindHttp(8080, "0.0.0.0").withHttpApp(CompetitionHttpApiService.service(actor)).serve
         .compile.drain
     }
   } yield srv

@@ -5,19 +5,39 @@ import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model.ManagedCompetition
 import io.getquill.{CassandraZioContext, CassandraZioSession, SnakeCase}
 import io.getquill.context.cassandra.encoding.{Decoders, Encoders}
-import zio.Has
+import zio.{Has, Ref}
 
 object ManagedCompetitionsOperations {
+  def test(competitions: Ref[Map[String, ManagedCompetition]]): ManagedCompetitionService[LIO] = new ManagedCompetitionService[LIO] {
+    override def getManagedCompetitions: LIO[List[ManagedCompetition]] = {
+      for {
+        map <- competitions.get
+      } yield map.values.toList
+    }
+
+    override def addManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {
+      competitions.update(m => m + (competition.competitionId -> competition))
+    }
+
+    override def deleteManagedCompetition(id: String): LIO[Unit] = {
+      competitions.update(m => m - id)
+    }
+  }
+
   def live(cassandraZioSession: CassandraZioSession)(implicit
-    log: CompetitionLogging.Service[LIO]
+                                                     log: CompetitionLogging.Service[LIO]
   ): ManagedCompetitionService[LIO] = new ManagedCompetitionService[LIO] {
     private lazy val ctx =
       new CassandraZioContext(SnakeCase) with CustomDecoders with CustomEncoders with Encoders with Decoders
+
     import ctx._
+
     override def getManagedCompetitions: LIO[List[ManagedCompetition]] = {
-      val select = quote { query[ManagedCompetition] }
+      val select = quote {
+        query[ManagedCompetition]
+      }
       for {
-        _   <- log.info(select.toString)
+        _ <- log.info(select.toString)
         res <- run(select).provide(Has(cassandraZioSession))
       } yield res
     }

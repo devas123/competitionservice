@@ -10,6 +10,17 @@ import java.time.Instant
 trait TestEntities {
   private[repository] val competitionId = "managedCompetition"
   private[repository] val categoryId    = "test-category"
+  val managedCompetition: ManagedCompetition = ManagedCompetition(
+    "competitionId",
+    "ecompetition-id-topic",
+    "valera_protas",
+    Instant.now(),
+    Instant.now(),
+    Instant.now(),
+    "UTC",
+    CompetitionStatus.CREATED
+  )
+
   private[repository] val competitionProperties = CompetitionProperties(
     competitionId,
     "creatorId",

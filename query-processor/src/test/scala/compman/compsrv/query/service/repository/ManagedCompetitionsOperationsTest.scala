@@ -15,7 +15,7 @@ import zio.logging.Logging
 
 import java.time.Instant
 
-object ManagedCompetitionsOperationsTest extends DefaultRunnableSpec with EmbeddedCassandra {
+object ManagedCompetitionsOperationsTest extends DefaultRunnableSpec with EmbeddedCassandra with TestEntities {
   type Env = RepoEnvironment
   private val config: CassandraContextConfig = CassandraContextConfig(ConfigFactory.load().getConfig("ctx"))
   private val cassandraZioSession =
@@ -35,16 +35,6 @@ object ManagedCompetitionsOperationsTest extends DefaultRunnableSpec with Embedd
 
   override def spec
     : ZSpec[Any, Throwable] = suite("managed competitions operations suite")(testM("should save managed competition") {
-    val managedCompetition = ManagedCompetition(
-      "competitionId",
-      "ecompetition-id-topic",
-      "valera_protas",
-      Instant.now(),
-      Instant.now(),
-      Instant.now(),
-      "UTC",
-      CompetitionStatus.CREATED
-    )
     (for {
 
       _             <- ManagedCompetitionsOperations.addManagedCompetition[LIO](managedCompetition)

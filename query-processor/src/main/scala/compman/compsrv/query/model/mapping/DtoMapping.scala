@@ -93,21 +93,25 @@ object DtoMapping {
       dto.getId,
       competitionId,
       Option(dto.getRestrictions).map(_.toSet).map(_.map(d =>
-        Restriction(
-          d.getId,
-          d.getType,
-          d.getName,
-          d.getValue,
-          d.getAlias,
-          d.getMinValue,
-          d.getMaxValue,
-          d.getName,
-          d.getRestrictionOrder
-        )
+        mapRestriction(d)
       )).getOrElse(Set.empty),
       Option(dto.getName),
       dto.getRegistrationOpen
     ))
+  }
+
+  def mapRestriction(d: CategoryRestrictionDTO): Restriction = {
+    Restriction(
+      d.getId,
+      d.getType,
+      d.getName,
+      d.getValue,
+      d.getAlias,
+      d.getMinValue,
+      d.getMaxValue,
+      d.getName,
+      d.getRestrictionOrder
+    )
   }
 
   def mapStageResultDescriptor(dto: StageResultDescriptorDTO): StageResultDescriptor = {
