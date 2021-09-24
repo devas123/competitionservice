@@ -39,8 +39,8 @@ trait ActorBehavior[R, S, Msg[+_]] {
         state <- stateRef.get
         (command, promise) = msg
         receiver           = receive(context, actorConfig, state, command, ts)
-        effectfulCompleter = (s: S, a: A) => stateRef.set(s) *> promise.succeed(a)
-        _ <- receiver.fold(promise.fail, events => effectfulCompleter(events._1, events._2))
+        completer     = ((s: S, a: A) => stateRef.set(s) *> promise.succeed(a)).tupled
+        _ <- receiver.foldM(promise.fail, completer)
       } yield ()
     }
 
