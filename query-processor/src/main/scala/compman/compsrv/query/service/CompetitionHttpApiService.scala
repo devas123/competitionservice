@@ -31,7 +31,7 @@ object CompetitionHttpApiService {
     object LimitParamMatcher extends OptionalQueryParamDecoderMatcher[Int]("limit")
   }
 
-  val timeout: Duration = 10.seconds
+  val timeout: Duration     = 10.seconds
   val decoder: ObjectMapper = ObjectMapperFactory.createObjectMapper
 
   type ServiceIO[A] = RIO[Clock with Blocking with Logging, A]
@@ -97,7 +97,7 @@ object CompetitionHttpApiService {
       response <- apiActor ? apiCommand
       bytes = decoder.writeValueAsBytes(response)
       _ <- Logging.debug(s"Sending bytes: ${new String(bytes)}")
-      m        <- Ok(bytes)
+      m <- Ok(bytes)
     } yield m
   }
 }
