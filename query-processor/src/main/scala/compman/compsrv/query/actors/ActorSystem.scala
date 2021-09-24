@@ -4,8 +4,7 @@ import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import zio.{IO, Promise, Ref, RIO, Task, UIO, ZIO}
 import zio.clock.Clock
 
-private[actors] final class ActorSystem(
-  private[actors] val actorSystemName: String,
+final class ActorSystem(val actorSystemName: String,
   private val refActorMap: Ref[Map[String, Any]],
   private val parentActor: Option[String]
 ) {

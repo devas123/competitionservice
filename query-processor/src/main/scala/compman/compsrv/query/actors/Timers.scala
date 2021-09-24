@@ -4,7 +4,7 @@ import zio.{Fiber, Ref, RIO, URIO}
 import zio.clock.Clock
 import zio.duration.Duration
 
-private[actors] case class Timers[R, Msg[+_]](
+case class Timers[R, Msg[+_]](
                                                private val self: ActorRef[Msg],
                                                private val timers: Ref[Map[String, Fiber[Throwable, Unit]]]
 ) {
