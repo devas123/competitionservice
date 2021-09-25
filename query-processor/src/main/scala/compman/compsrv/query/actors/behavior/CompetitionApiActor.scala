@@ -84,16 +84,14 @@ object CompetitionApiActor {
 
   final case class GetCategories(competitionId: String) extends ApiCommand[List[Category]]
 
-  final case class GetFightById(competitionId: String, categoryId: String, fightId: String)
-      extends ApiCommand[Option[Fight]]
+  final case class GetFightById(competitionId: String, fightId: String) extends ApiCommand[Option[Fight]]
 
   final case class GetCategory(competitionId: String, categoryId: String) extends ApiCommand[Option[Category]]
 
-  final case class GetFightsByMats(competitionId: String, categoryId: String, limit: Int)
+  final case class GetFightsByMats(competitionId: String, periodId: String, limit: Int)
       extends ApiCommand[Map[String, List[String]]]
 
-  final case class GetFightResulOptions(competitionId: String, categoryId: String, fightId: String)
-      extends ApiCommand[List[FightResult]]
+  final case class GetFightResulOptions(competitionId: String, stageId: String) extends ApiCommand[List[FightResult]]
 
   final case class GetStagesForCategory(competitionId: String, categoryId: String)
       extends ApiCommand[List[StageDescriptor]]
@@ -132,33 +130,48 @@ object CompetitionApiActor {
                 .getCompetitorsByCompetitionId(competitionId)(pagination, searchString)
                 .map(res => (state, res.asInstanceOf[A]))
             case GetCompetitor(competitionId, competitorId) => CompetitionQueryOperations[LIO]
-                .getCompetitionInfoTemplate(competitionId).map(res => (state, res.asInstanceOf[A]))
-            case GetDashboard(competitionId) => CompetitionQueryOperations[LIO]
-                .getCompetitionInfoTemplate(competitionId).map(res => (state, res.asInstanceOf[A]))
-            case GetMats(competitionId) => CompetitionQueryOperations[LIO].getCompetitionInfoTemplate(competitionId)
+                .getCompetitorById(competitionId)(competitorId).map(res => (state, res.asInstanceOf[A]))
+            case GetDashboard(competitionId) => CompetitionQueryOperations[LIO].getPeriodsByCompetitionId(competitionId)
                 .map(res => (state, res.asInstanceOf[A]))
+            case GetMats(competitionId) => CompetitionQueryOperations[LIO].getPeriodsByCompetitionId(competitionId)
+                .map(_.flatMap(_.mats)).map(res => (state, res.asInstanceOf[A]))
             case GetMat(competitionId, matId) => CompetitionQueryOperations[LIO]
-                .getCompetitionInfoTemplate(competitionId).map(res => (state, res.asInstanceOf[A]))
+                .getPeriodsByCompetitionId(competitionId).map(_.flatMap(_.mats).find(_.matId == matId))
+                .map(res => (state, res.asInstanceOf[A]))
+
             case GetMatFights(competitionId, matId) => CompetitionQueryOperations[LIO]
-                .getCompetitionInfoTemplate(competitionId).map(res => (state, res.asInstanceOf[A]))
-            case GetRegistrationInfo(competitionId) => CompetitionQueryOperations[LIO]
-                .getCompetitionInfoTemplate(competitionId).map(res => (state, res.asInstanceOf[A]))
+                .getFightsByMat(competitionId)(matId, 20).map(res => (state, res.asInstanceOf[A]))
+            case GetRegistrationInfo(competitionId) => for {
+                groups  <- CompetitionQueryOperations[LIO].getRegistrationGroups(competitionId)
+                periods <- CompetitionQueryOperations[LIO].getRegistrationPeriods(competitionId)
+              } yield (state, RegistrationInfo(groups, periods).asInstanceOf[A])
             case GetCategories(competitionId) => CompetitionQueryOperations[LIO]
-                .getCompetitionInfoTemplate(competitionId).map(res => (state, res.asInstanceOf[A]))
-            case GetFightById(competitionId, categoryId, fightId) => CompetitionQueryOperations[LIO]
-                .getCompetitionInfoTemplate(competitionId).map(res => (state, res.asInstanceOf[A]))
+                .getCategoriesByCompetitionId(competitionId).map(res => (state, res.asInstanceOf[A]))
+            case GetFightById(competitionId, fightId) => CompetitionQueryOperations[LIO]
+                .getFightById(competitionId)(fightId).map(res => (state, res.asInstanceOf[A]))
             case GetCategory(competitionId, categoryId) => CompetitionQueryOperations[LIO]
-                .getCompetitionInfoTemplate(competitionId).map(res => (state, res.asInstanceOf[A]))
-            case GetFightsByMats(competitionId, categoryId, limit) => CompetitionQueryOperations[LIO]
-                .getCompetitionInfoTemplate(competitionId).map(res => (state, res.asInstanceOf[A]))
-            case GetFightResulOptions(competitionId, categoryId, fightId) => CompetitionQueryOperations[LIO]
-                .getCompetitionInfoTemplate(competitionId).map(res => (state, res.asInstanceOf[A]))
+                .getCategoryById(competitionId)(categoryId).map(res => (state, res.asInstanceOf[A]))
+            case GetFightsByMats(competitionId, periodId, limit) =>
+              import cats.implicits._
+              import zio.interop.catz._
+              for {
+                period <- CompetitionQueryOperations[LIO].getPeriodById(competitionId)(periodId)
+                mats = period.map(_.mats).getOrElse(List.empty).map(_.matId)
+                fights <- mats.traverse(mat =>
+                  CompetitionQueryOperations[LIO].getFightsByMat(competitionId)(mat, limit).map(mat -> _)
+                )
+              } yield (state, fights.asInstanceOf[A])
+            case GetFightResulOptions(competitionId, stageId) => for {
+                stage <- CompetitionQueryOperations[LIO].getStageById(competitionId)(stageId)
+                fightResultOptions = stage.flatMap(_.stageResultDescriptor).map(_.fightResultOptions)
+                  .getOrElse(List.empty)
+              } yield (state, fightResultOptions.asInstanceOf[A])
             case GetStagesForCategory(competitionId, categoryId) => CompetitionQueryOperations[LIO]
-                .getCompetitionInfoTemplate(competitionId).map(res => (state, res.asInstanceOf[A]))
-            case GetStageById(competitionId, categoryId, stageId) => CompetitionQueryOperations[LIO]
-                .getCompetitionInfoTemplate(competitionId).map(res => (state, res.asInstanceOf[A]))
-            case GetStageFights(competitionId, categoryId, stageId) => CompetitionQueryOperations[LIO]
-                .getCompetitionInfoTemplate(competitionId).map(res => (state, res.asInstanceOf[A]))
+                .getStagesByCategory(competitionId)(categoryId).map(res => (state, res.asInstanceOf[A]))
+            case GetStageById(competitionId, _, stageId) => CompetitionQueryOperations[LIO]
+                .getStageById(competitionId)(stageId).map(res => (state, res.asInstanceOf[A]))
+            case GetStageFights(competitionId, _, stageId) => CompetitionQueryOperations[LIO]
+                .getFightsByStage(competitionId)(stageId).map(res => (state, res.asInstanceOf[A]))
           }
           _ <- Logging.info(s"Response: $res")
         } yield res
