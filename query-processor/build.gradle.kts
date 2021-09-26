@@ -33,3 +33,23 @@ dependencies {
     scalaCompilerPlugins("org.typelevel:kind-projector_2.13.5:0.13.2")
 }
 description = "query processor"
+
+val javaMainClass = "compman.compsrv.query.QueryServiceMain"
+
+tasks.register("runMain", JavaExec::class) {
+    val runFile: File = file("kafkarun")
+    doFirst {
+        runFile.createNewFile()
+    }
+
+    args(runFile.absolutePath)
+    group = "queryService"
+    this.isIgnoreExitValue = true
+    classpath = sourceSets.main.get().runtimeClasspath + sourceSets.test.get().runtimeClasspath
+    main = javaMainClass
+    runFile.deleteOnExit()
+    doLast {
+        logger.lifecycle("Deleting file.")
+        runFile.delete()
+    }
+}

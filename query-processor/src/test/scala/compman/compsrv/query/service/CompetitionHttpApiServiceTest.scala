@@ -35,8 +35,8 @@ object CompetitionHttpApiServiceTest extends DefaultRunnableSpec with TestEntiti
             CompetitionApiActor.initialState,
             CompetitionApiActor.behavior[Any](Test(managedCompetitions))
           )
-          response <- CompetitionHttpApiService.service(actor)
-            .run(Request[ServiceIO](Method.GET, uri"/store/competition"))
+          response <- CompetitionHttpApiService.service(actor).orNotFound
+            .run(Request[ServiceIO](Method.GET, uri"/competition"))
           body    <- response.body.compile.toVector
           _ <- Logging.info(new String(body.toArray))
           comp = mapper.readValue(body.toArray, classOf[Array[ManagedCompetition]])

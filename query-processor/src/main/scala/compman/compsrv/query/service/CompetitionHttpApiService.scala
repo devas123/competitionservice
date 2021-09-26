@@ -1,12 +1,11 @@
 package compman.compsrv.query.service
 
-import cats.data.Kleisli
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.query.actors.ActorRef
 import compman.compsrv.query.actors.behavior.CompetitionApiActor._
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.repository.Pagination
-import org.http4s.{HttpRoutes, QueryParamDecoder, Request, Response}
+import org.http4s.{HttpRoutes, QueryParamDecoder, Response}
 import org.http4s.dsl.Http4sDsl
 import zio.blocking.Blocking
 import zio.clock.Clock
@@ -40,43 +39,43 @@ object CompetitionHttpApiService {
 
   import dsl._
 
-  def service(apiActor: ActorRef[ApiCommand]): Kleisli[ServiceIO, Request[ServiceIO], Response[ServiceIO]] = HttpRoutes
+  def service(apiActor: ActorRef[ApiCommand]): HttpRoutes[ServiceIO] = HttpRoutes
     .of[ServiceIO] {
-      case GET -> Root / "store" / "defaultrestrictions" =>
+      case GET -> Root / "defaultrestrictions" =>
         sendApiCommandAndReturnResponse(apiActor, GetDefaultRestrictions)
-      case GET -> Root / "store" / "competition" => sendApiCommandAndReturnResponse(apiActor, GetAllCompetitions())
-      case GET -> Root / "store" / "competition" / id =>
+      case GET -> Root / "competition" => sendApiCommandAndReturnResponse(apiActor, GetAllCompetitions())
+      case GET -> Root / "competition" / id =>
         sendApiCommandAndReturnResponse(apiActor, GetCompetitionProperties(id))
-      case GET -> Root / "store" / "competition" / id / "fight" / fightId =>
+      case GET -> Root / "competition" / id / "fight" / fightId =>
         sendApiCommandAndReturnResponse(apiActor, GetFightById(id, fightId))
-      case GET -> Root / "store" / "competition" / id / "infotemplate" =>
+      case GET -> Root / "competition" / id / "infotemplate" =>
         sendApiCommandAndReturnResponse(apiActor, GetCompetitionInfoTemplate(id))
-      case GET -> Root / "store" / "competition" / id / "schedule" =>
+      case GET -> Root / "competition" / id / "schedule" =>
         sendApiCommandAndReturnResponse(apiActor, GetSchedule(id))
-      case GET -> Root / "store" / "competition" / id / "dashboard" =>
+      case GET -> Root / "competition" / id / "dashboard" =>
         sendApiCommandAndReturnResponse(apiActor, GetDashboard(id))
-      case GET -> Root / "store" / "competition" / id / "registration" =>
+      case GET -> Root / "competition" / id / "registration" =>
         sendApiCommandAndReturnResponse(apiActor, GetRegistrationInfo(id))
-      case GET -> Root / "store" / "competition" / id / "category" =>
+      case GET -> Root / "competition" / id / "category" =>
         sendApiCommandAndReturnResponse(apiActor, GetCategories(id))
-      case GET -> Root / "store" / "competition" / id / "category" / categoryId =>
+      case GET -> Root / "competition" / id / "category" / categoryId =>
         sendApiCommandAndReturnResponse(apiActor, GetCategory(id, categoryId))
-      case GET -> Root / "store" / "competition" / id / "category" / categoryId / "stage" =>
+      case GET -> Root / "competition" / id / "category" / categoryId / "stage" =>
         sendApiCommandAndReturnResponse(apiActor, GetStagesForCategory(id, categoryId))
-      case GET -> Root / "store" / "competition" / id / "category" / categoryId / "stage" / stageId =>
+      case GET -> Root / "competition" / id / "category" / categoryId / "stage" / stageId =>
         sendApiCommandAndReturnResponse(apiActor, GetStageById(id, categoryId, stageId))
-      case GET -> Root / "store" / "competition" / id / "category" / categoryId / "stage" / stageId / "fight" =>
+      case GET -> Root / "competition" / id / "category" / categoryId / "stage" / stageId / "fight" =>
         sendApiCommandAndReturnResponse(apiActor, GetStageFights(id, categoryId, stageId))
-      case GET -> Root / "store" / "competition" / id / "stage" / stageId / "resultoptions" =>
+      case GET -> Root / "competition" / id / "stage" / stageId / "resultoptions" =>
         sendApiCommandAndReturnResponse(apiActor, GetFightResulOptions(id, stageId))
-      case GET -> Root / "store" / "competition" / id / "mat" => sendApiCommandAndReturnResponse(apiActor, GetMats(id))
-      case GET -> Root / "store" / "competition" / id / "mat" / matId =>
+      case GET -> Root / "competition" / id / "mat" => sendApiCommandAndReturnResponse(apiActor, GetMats(id))
+      case GET -> Root / "competition" / id / "mat" / matId =>
         sendApiCommandAndReturnResponse(apiActor, GetMat(id, matId))
-      case GET -> Root / "store" / "competition" / id / "mat" / matId / "fight" =>
+      case GET -> Root / "competition" / id / "mat" / matId / "fight" =>
         sendApiCommandAndReturnResponse(apiActor, GetMatFights(id, matId))
-      case GET -> Root / "store" / "competition" / id / "period" / periodId / "fight" =>
+      case GET -> Root / "competition" / id / "period" / periodId / "fight" =>
         sendApiCommandAndReturnResponse(apiActor, GetFightsByMats(id, periodId, 10))
-      case GET -> Root / "store" / "competition" / id / "competitor" :? QueryParameters.SearchStringParamMatcher(
+      case GET -> Root / "competition" / id / "competitor" :? QueryParameters.SearchStringParamMatcher(
             maybeSearchString
           ) +& QueryParameters.StartAtParamMatcher(maybeStartAt) +& QueryParameters.LimitParamMatcher(maybeLimit) =>
         val pagination = for {
@@ -85,9 +84,9 @@ object CompetitionHttpApiService {
         } yield Pagination(s, lim, 0)
         sendApiCommandAndReturnResponse(apiActor, GetCompetitors(id, maybeSearchString, pagination))
 
-      case GET -> Root / "store" / "competition" / id / "competitor" / competitorId =>
+      case GET -> Root / "competition" / id / "competitor" / competitorId =>
         sendApiCommandAndReturnResponse(apiActor, GetCompetitor(id, competitorId))
-    }.orNotFound
+    }
 
   private def sendApiCommandAndReturnResponse[T](
     apiActor: ActorRef[ApiCommand],

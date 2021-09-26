@@ -13,7 +13,7 @@ object Versions {
     const val jackson = "2.12.0"
     const val kafka = "2.4.1.1"
     const val rocksdb: String = "6.13.3"
-    const val http4s: String = "0.23.3"
+    const val http4s: String = "1.0.0-M27"
     const val quill: String = "3.10.0"
     const val embeddedCassandra: String = "4.0.6"
 }
