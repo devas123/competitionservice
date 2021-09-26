@@ -19,7 +19,7 @@ object AppConfig {
   def load(): Task[(AppConfig, CassandraContextConfig)] = for {
     rawConfig              <- ZIO.effect(ConfigFactory.load())
     cassandraContextConfig <- ZIO.effect(CassandraContextConfig(rawConfig.getConfig("ctx")))
-    configSource           <- ZIO.fromEither(TypesafeConfigSource.fromTypesafeConfig(rawConfig))
+    configSource           <- ZIO.fromEither(TypesafeConfigSource.fromTypesafeConfig(rawConfig.getConfig("processor")))
     config                 <- ZIO.fromEither(read(AppConfig.descriptor.from(configSource)))
   } yield (config, cassandraContextConfig)
 }
