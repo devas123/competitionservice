@@ -12,8 +12,11 @@ object WebsocketConnectionSupervisor {
   sealed trait ApiCommand[+_]
 
   final case class WebsocketConnectionRequest(clientId: String, competitionId: String, queue: Queue[EventDTO])
-      extends ApiCommand[Unit]
+    extends ApiCommand[Unit]
+
   final case class WebsocketConnectionClosed(clientId: String, competitionId: String) extends ApiCommand[Unit]
+
+  final case class EventReceived(event: EventDTO) extends ApiCommand[Unit]
 
   case class ActorState()
 
@@ -31,28 +34,39 @@ object WebsocketConnectionSupervisor {
         timers: Timers[R with Logging with Clock, ApiCommand]
       ): RIO[R with Logging with Clock, (ActorState, A)] = {
         for {
-          _ <- Logging.info(s"Received API command $command")
           res <- command match {
+            case EventReceived(event) =>
+              val competitionId = event.getCompetitionId
+              val handlerName = CONNECTION_HANDLER_PREFIX + competitionId
+              for {
+                childOption <- context.findChild[WebsocketConnection.ApiCommand](handlerName)
+                _ <- childOption match {
+                  case Some(value) => Logging.info(s"Forwarding event $event to ws") *> (value ! WebsocketConnection.ReceivedEvent(event))
+                  case None => Logging.info(s"Did not find any ws connection for competition ${event.getCompetitionId}")
+                }
+              } yield (state, ().asInstanceOf[A])
             case WebsocketConnectionRequest(clientId, competitionId, queue) =>
               val handlerName = CONNECTION_HANDLER_PREFIX + competitionId
               for {
+                _ <- Logging.info(s"New connection request for competition $competitionId, client id: $clientId")
                 childOption <- context.findChild[WebsocketConnection.ApiCommand](handlerName)
                 child <- childOption match {
                   case Some(value) => Task(value)
                   case None => for {
-                      c <- context.make(
-                        handlerName,
-                        ActorConfig(),
-                        WebsocketConnection.initialState,
-                        WebsocketConnection.behavior
-                      )
-                    } yield c
+                    c <- context.make(
+                      handlerName,
+                      ActorConfig(),
+                      WebsocketConnection.initialState,
+                      WebsocketConnection.behavior
+                    )
+                  } yield c
                 }
                 _ <- child ! WebsocketConnection.AddWebSocketConnection(clientId, queue)
               } yield (state, ().asInstanceOf[A])
             case WebsocketConnectionClosed(clientId, competitionId) =>
               val handlerName = CONNECTION_HANDLER_PREFIX + competitionId
               for {
+                _ <- Logging.info(s"Websocket connection closed for $competitionId, client id: $clientId")
                 childOption <- context.findChild[WebsocketConnection.ApiCommand](handlerName)
                 _ <- childOption match {
                   case Some(child) => child ! WebsocketConnection.WebSocketConnectionTerminated(clientId)

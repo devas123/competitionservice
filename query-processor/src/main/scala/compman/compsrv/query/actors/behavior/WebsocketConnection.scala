@@ -42,7 +42,7 @@ object WebsocketConnection {
               import cats.implicits._
               import zio.interop.catz._
               for {
-                _ <- Logging.info(s"Forwarding event $command")
+                _ <- Logging.info(s"Forwarding event to subscribers: $command")
                 _ <- state.queues.values.toList.traverse(q => q.offer(event))
               } yield (state, ().asInstanceOf[A])
             case WebSocketConnectionTerminated(clientId) => for {

@@ -5,7 +5,7 @@ import compman.compsrv.model
 import compman.compsrv.model.{Mapping, Payload}
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.Mapping.EventMapping
-import compman.compsrv.query.actors.{ActorBehavior, Context, Timers}
+import compman.compsrv.query.actors.{ActorBehavior, ActorRef, Context, Timers}
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.event.EventProcessors
@@ -40,10 +40,11 @@ object CompetitionEventListener {
   case class ActorState()
   val initialState: ActorState = ActorState()
   def behavior[R: Tag](
-    eventStreaming: EventStreaming[R],
-    topic: String,
-    context: ActorContext
-  ): ActorBehavior[R with Logging, ActorState, ApiCommand] = new ActorBehavior[R with Logging, ActorState, ApiCommand] {
+                        eventStreaming: EventStreaming[R],
+                        topic: String,
+                        context: ActorContext,
+                        websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
+                      ): ActorBehavior[R with Logging, ActorState, ApiCommand] = new ActorBehavior[R with Logging, ActorState, ApiCommand] {
     import context._
     import zio.interop.catz._
     override def receive[A](
@@ -55,8 +56,9 @@ object CompetitionEventListener {
     ): RIO[R with Logging, (ActorState, A)] = {
       command match {
         case EventReceived(event) => for {
-            mapped <- EventMapping.mapEventDto[LIO](event)
-            _      <- EventProcessors.applyEvent[LIO, Payload](mapped)
+          mapped <- EventMapping.mapEventDto[LIO](event)
+          _ <- EventProcessors.applyEvent[LIO, Payload](mapped)
+          _ <- websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)
           } yield (state, ().asInstanceOf[A])
       }
     }

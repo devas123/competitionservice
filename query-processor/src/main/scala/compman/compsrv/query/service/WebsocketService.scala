@@ -26,15 +26,16 @@ object WebsocketService {
   import dsl._
   import zio.interop.catz._
   import zio.stream.interop.fs2z._
-  def service(
-    websocketConnectionHandler: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
-  ): Kleisli[ServiceIO, Request[ServiceIO], Response[ServiceIO]] = HttpRoutes
+
+  def wsRoutes(
+                websocketConnectionHandler: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
+              ): Kleisli[ServiceIO, Request[ServiceIO], Response[ServiceIO]] = HttpRoutes
     .of[ServiceIO] { case GET -> Root / "events" / competitionId =>
       for {
         clientId <- ZIO.effect(UUID.randomUUID().toString)
-        queue    <- Queue.unbounded[EventDTO]
+        queue <- Queue.unbounded[EventDTO]
         stream = zio.stream.Stream.fromQueue(queue)
-        fs2S   = stream.toFs2Stream.asInstanceOf[fs2.Stream[ServiceIO, EventDTO]]
+        fs2S = stream.toFs2Stream.asInstanceOf[fs2.Stream[ServiceIO, EventDTO]]
         ws <- WebSocketBuilder[ServiceIO].build(
           fs2S.map(event => WebSocketFrame.Binary(ByteVector(decoder.writeValueAsBytes(event)))),
           s =>

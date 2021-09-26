@@ -42,21 +42,6 @@ object CompetitionHttpApiServiceTest extends DefaultRunnableSpec with TestEntiti
           comp = mapper.readValue(body.toArray, classOf[Array[ManagedCompetition]])
         } yield assert(response.status)(equalTo(Status.Ok)) && assert(comp.length)(equalTo(1))
       }
-//    testM("root request returns Ok, using assertM instead") {
-//      assertM(CompetitionHttpApiService.service.run(Request[Task](Method.GET, uri"/")).map(_.status))(
-//        equalTo(Status.Ok))
-//    },
-//    testM("Unknown url returns NotFound") {
-//      assertM(CompetitionHttpApiService.service.run(Request[Task](Method.GET, uri"/a")).map(_.status))(
-//        equalTo(Status.NotFound))
-//    },
-//    testM("root request body returns hello!") {
-//      val io = for {
-//        response <- CompetitionHttpApiService.service.run(Request[Task](Method.GET, uri"/"))
-//        body <- response.body.compile.toVector.map(x => x.map(_.toChar).mkString(""))
-//      } yield body
-//      assertM(io)(equalTo("hello!"))
-//    }
     ) @@ sequential)
       .provideLayer(Clock.live ++ CompetitionLogging.Live.loggingLayer ++ Blocking.live ++ zio.console.Console.live)
 }

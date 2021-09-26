@@ -2,7 +2,7 @@ package compman.compsrv.query.actors.behavior
 
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.{CommandProcessorNotification, CompetitionProcessingStarted, CompetitionProcessingStopped}
-import compman.compsrv.query.actors.{ActorBehavior, Context, Timers}
+import compman.compsrv.query.actors.{ActorBehavior, ActorRef, Context, Timers}
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.sede.ObjectMapperFactory
@@ -32,11 +32,12 @@ object CompetitionEventListenerSupervisor {
   }
 
   def behavior[R: Tag](
-    eventStreaming: EventStreaming[R],
-    eventTopic: String,
-    context: ActorContext,
-    eventListenerContext: CompetitionEventListener.ActorContext
-  ): ActorBehavior[SupervisorEnvironment[R], Unit, ActorMessages] =
+                        eventStreaming: EventStreaming[R],
+                        eventTopic: String,
+                        context: ActorContext,
+                        eventListenerContext: CompetitionEventListener.ActorContext,
+                        websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
+                      ): ActorBehavior[SupervisorEnvironment[R], Unit, ActorMessages] =
     new ActorBehavior[SupervisorEnvironment[R], Unit, ActorMessages] {
       import context._
       override def receive[A](
@@ -58,7 +59,7 @@ object CompetitionEventListenerSupervisor {
                       id,
                       ActorConfig(),
                       CompetitionEventListener.initialState,
-                      CompetitionEventListener.behavior[R](eventStreaming, topic, eventListenerContext)
+                      CompetitionEventListener.behavior[R](eventStreaming, topic, eventListenerContext, websocketConnectionSupervisor)
                     ).map(_ => ((), ().asInstanceOf[A]))
                 } yield res // start new actor if not started
               case CompetitionProcessingStopped(id) => for {
