@@ -34,7 +34,7 @@ case class Context[F[+_]](
     actorName: String,
     actorConfig: ActorConfig,
     init: S,
-    behavior: ActorBehavior[R, S, F1]
+    behavior: => ActorBehavior[R, S, F1]
   ): ZIO[R with Clock, Throwable, ActorRef[F1]] = for {
     actorRef <- actorSystem.make(actorName, actorConfig, init, behavior)
     ch       <- children.get

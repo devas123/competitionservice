@@ -1,7 +1,18 @@
 plugins {
     id("competitions-mgr.java-conventions")
+    id("com.palantir.docker") version "0.29.0"
+    id("com.github.johnrengelman.shadow") version "7.0.0"
     scala
+    application
 }
+
+val javaMainClass = "compman.compsrv.query.QueryServiceMain"
+
+
+application {
+    mainClass.set(javaMainClass)
+}
+
 
 dependencies {
     implementation("org.scala-lang:scala-library:2.13.5")
@@ -34,7 +45,6 @@ dependencies {
 }
 description = "query processor"
 
-val javaMainClass = "compman.compsrv.query.QueryServiceMain"
 
 tasks.register("runMain", JavaExec::class) {
     val runFile: File = file("kafkarun")
@@ -52,4 +62,22 @@ tasks.register("runMain", JavaExec::class) {
         logger.lifecycle("Deleting file.")
         runFile.delete()
     }
+}
+
+tasks.jar {
+    manifest {
+        attributes("MainClass" to javaMainClass)
+    }
+}
+
+tasks.shadowJar {
+    archiveBaseName.set("app")
+    archiveClassifier.set("")
+    archiveVersion.set("")
+}
+
+configure<com.palantir.gradle.docker.DockerExtension> {
+    this.setDockerfile(file("Dockerfile"))
+    name = project.name
+    files(tasks.shadowJar.get().outputs)
 }
