@@ -5,14 +5,19 @@ import zio.clock.Clock
 import zio.duration.Duration
 
 case class Timers[R, Msg[+_]](
-                                               private val self: ActorRef[Msg],
-                                               private val timers: Ref[Map[String, Fiber[Throwable, Unit]]]
+  private val self: ActorRef[Msg],
+  private val timers: Ref[Map[String, Fiber[Throwable, Unit]]]
 ) {
   def startSingleTimer[A](key: String, delay: Duration, msg: Msg[A]): RIO[R with Clock, Unit] = {
     def create = (RIO.sleep(delay) <* (self ! msg)).fork
     updateTimers(key, () => create)
   }
-  def startRepeatedTimer[A](key: String, initialDelay: Duration, interval: Duration, msg: Msg[A]): RIO[R with Clock, Unit] = {
+  def startRepeatedTimer[A](
+    key: String,
+    initialDelay: Duration,
+    interval: Duration,
+    msg: Msg[A]
+  ): RIO[R with Clock, Unit] = {
     def create = (RIO.sleep(initialDelay) <* (RIO.sleep(interval) <* (self ! msg)).forever.fork).fork
     updateTimers(key, () => create)
   }
@@ -23,9 +28,9 @@ case class Timers[R, Msg[+_]](
       maybeTimer = map.get(key)
       fiber <- maybeTimer match {
         case Some(value) => for {
-          _ <- value.interrupt
-          f <- create()
-        } yield f
+            _ <- value.interrupt
+            f <- create()
+          } yield f
         case None => create()
       }
       _ <- timers.update(map => map + (key -> fiber))

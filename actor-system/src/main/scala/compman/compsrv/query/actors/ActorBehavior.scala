@@ -1,8 +1,8 @@
 package compman.compsrv.query.actors
 
-import cats.implicits._
 import compman.compsrv.query.actors.ActorSystem.{ActorConfig, PendingMessage}
 import zio.{Fiber, Queue, Ref, RIO, Task}
+import cats.implicits._
 import zio.interop.catz._
 
 trait ActorBehavior[R, S, Msg[+_]] {
@@ -39,7 +39,7 @@ trait ActorBehavior[R, S, Msg[+_]] {
         state <- stateRef.get
         (command, promise) = msg
         receiver           = receive(context, actorConfig, state, command, ts)
-        completer     = ((s: S, a: A) => stateRef.set(s) *> promise.succeed(a)).tupled
+        completer          = ((s: S, a: A) => stateRef.set(s) *> promise.succeed(a)).tupled
         _ <- receiver.foldM(promise.fail, completer)
       } yield ()
     }
