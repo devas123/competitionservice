@@ -36,7 +36,7 @@ final class ActorSystem(val actorSystemName: String,
     actorName: String,
     actorConfig: ActorConfig,
     init: S,
-    behavior: => ActorBehavior[R, S, F]
+    behavior: => AbstractBehavior[R, S, F]
   ): RIO[R with Clock, ActorRef[F]] = for {
     map       <- refActorMap.get
     finalName <- buildFinalName(parentActor.getOrElse(""), actorName)

@@ -1,11 +1,11 @@
 package compman.compsrv.query.actors
 
+import cats.implicits._
 import compman.compsrv.query.actors.ActorSystem.{ActorConfig, PendingMessage}
 import zio.{Fiber, Queue, Ref, RIO, Task}
-import cats.implicits._
 import zio.interop.catz._
 
-trait ActorBehavior[R, S, Msg[+_]] {
+trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
   self =>
   def receive[A](
     context: Context[Msg],

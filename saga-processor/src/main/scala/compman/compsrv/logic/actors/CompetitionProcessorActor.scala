@@ -2,12 +2,14 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.Operations
 import compman.compsrv.logic.actors.CommandProcessorOperations.KafkaTopicConfig
-import compman.compsrv.logic.actors.CompetitionProcessorActor.Context
-import compman.compsrv.logic.actors.Messages._
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
-import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionState, Errors}
+import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionState}
+import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
-import zio.{Fiber, Promise, Queue, Ref, RIO, Task, ZIO}
+import compman.compsrv.query.actors.{ActorSystem, EventSourcedBehavior, Timers}
+import compman.compsrv.query.actors
+import compman.compsrv.query.actors.Messages._
+import zio.{Fiber, RIO, Task, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.consumer.Consumer
@@ -17,142 +19,110 @@ import zio.logging.{LogAnnotation, Logging}
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-final class CompetitionProcessorActor {
+object CompetitionProcessorActor {
   import compman.compsrv.Main.Live._
   import compman.compsrv.logic.logging._
   import zio.interop.catz._
-  type PendingMessage[A] = (Message, zio.Promise[Errors.Error, A])
-  private val DefaultTimerKey      = "stopTimer"
-  private val DefaultTimerDuration = zio.duration.Duration(5, TimeUnit.MINUTES)
-  private def receive[Env](
-    context: Context[Env],
-    actorConfig: ActorConfig,
-    state: CompetitionState,
-    command: Message,
-    timers: Timers[Env]
-  ): RIO[Env with Logging with Clock, Either[Errors.Error, Seq[EventDTO]]] = {
-    for {
-      self <- context.self
-      _    <- info(s"Received a command $command")
-      res <- command match {
-        case ProcessCommand(cmd) => timers.startDestroyTimer(
-            DefaultTimerKey,
-            actorConfig.actorIdleTimeoutMillis.map(zio.duration.Duration(_, TimeUnit.MILLISECONDS))
-              .getOrElse(DefaultTimerDuration)
-          ) *> {
-            for {
-              _ <-
-                if (cmd.getId == null) RIO.fail(new IllegalArgumentException(s"Command $cmd has no ID")) else RIO.unit
-              res <- Live.withContext(
-                _.annotate(LogAnnotation.CorrelationId, Option(cmd.getId).map(UUID.fromString))
-                  .annotate(Annotations.competitionId, Option(cmd.getCompetitionId))
-              ) { Operations.processCommand[LIO](state, cmd) }
-            } yield res
-          }
-        case Stop => info(s"Stopping actor for competition ${actorConfig.competitionId}") *>
-            self.stop.as(Right(Seq.empty))
-      }
-    } yield res
-  }
+  private val DefaultTimerKey = "stopTimer"
 
-  private def applyEvent(state: CompetitionState, eventDTO: EventDTO): LIO[CompetitionState] = Live.withContext(
-    _.annotate(LogAnnotation.CorrelationId, Option(UUID.fromString(eventDTO.getCorrelationId)))
-      .annotate(Annotations.competitionId, Option(eventDTO.getCompetitionId))
-  ) { Operations.applyEvent[LIO](state, eventDTO) }
+  def behavior[Env](
+    processorOperations: CommandProcessorOperations[Env],
+    competitionId: String,
+    eventTopic: String,
+    actorIdleTimeoutMillis: Long = 300000
+  ): EventSourcedBehavior[Env with Logging with Clock, CompetitionState, Message, EventDTO] =
+    new EventSourcedBehavior[Env with Logging with Clock, CompetitionState, Message, EventDTO](competitionId) {
 
-  private def makeActor[Env](
-    actorConfig: ActorConfig,
-    processorOperations: CommandProcessorOperations[Env with Logging with Clock with Blocking],
-    context: Context[Env],
-    mailboxSize: Int
-  )(
-    postStop: () => RIO[Env, Unit]
-  ): RIO[Env with Logging with Clock with Blocking with SnapshotService.Snapshot, CompetitionProcessorActorRef[Env]] = {
-    def process(
-      msg: PendingMessage[Seq[EventDTO]],
-      stateRef: Ref[CompetitionState],
-      ts: Timers[Env]
-    ): RIO[Env with Logging with Clock with Blocking with SnapshotService.Snapshot, Unit] = {
-      for {
-        state <- stateRef.get
-        (command, promise) = msg
-        receiver <- receive(context, actorConfig, state, command, ts)
-        effectfulCompleter = (s: CompetitionState, a: Seq[EventDTO]) =>
-          stateRef.set(s) *> {
-            if (s.revision % 10 == 0 || a.size >= 10) processorOperations.saveStateSnapshot(s) else ZIO.effect(())
-          } *> promise.succeed(a)
-        idempotentCompleter = (a: Seq[EventDTO]) => promise.succeed(a)
-        fullCompleter = (
-          (
-            ev: Command[EventDTO],
-            sa: CompetitionState => Seq[EventDTO]
-          ) =>
-            ev match {
-              case Command.Ignore => idempotentCompleter(sa(state))
-              case Command.Persist(ev) => for {
-                  _ <- processorOperations.persistEvents(ev)
-                  updatedState <- ev
-                    .foldLeft[LIO[CompetitionState]](RIO.apply(state))((a, b) => a.flatMap(applyEvent(_, b)))
-                  res <- effectfulCompleter(updatedState, sa(updatedState))
+      override def init(
+        actorConfig: ActorSystem.ActorConfig,
+        context: actors.Context[Message],
+        initState: CompetitionState,
+        timers: Timers[Env with Logging with Clock, Message]
+      ): RIO[Env with Logging with Clock, (Seq[Fiber[Throwable, Unit]], Seq[Message[Any]])] = for {
+        _ <-
+          if (initState.competitionProperties.isEmpty) Task
+            .fail(new RuntimeException(s"Competition properties are missing: $initState"))
+          else Task.unit
+        props = initState.competitionProperties.get
+        _ <- processorOperations.sendNotifications(
+          competitionId,
+          Seq(CompetitionProcessingStarted(
+            competitionId,
+            eventTopic,
+            props.getCreatorId,
+            props.getCreationTimestamp,
+            props.getStartDate,
+            props.getEndDate,
+            props.getTimeZone,
+            props.getStatus
+          ))
+        )
+      } yield (Seq.empty, Seq.empty)
+
+      override def receive[A](
+        context: actors.Context[Message],
+        actorConfig: ActorSystem.ActorConfig,
+        state: CompetitionState,
+        command: Message[A],
+        timers: Timers[Env with Logging with Clock, Message]
+      ): RIO[Env with Logging with Clock, (Command[EventDTO], CompetitionState => A)] = {
+        val unit: CompetitionState => A = _ => ().asInstanceOf[A]
+        for {
+          _ <- info(s"Received a command $command")
+          res <- command match {
+            case ProcessCommand(cmd) => timers.startSingleTimer(
+                DefaultTimerKey,
+                zio.duration.Duration(actorIdleTimeoutMillis, TimeUnit.MILLISECONDS),
+                Stop
+              ) *> {
+                for {
+                  _ <-
+                    if (cmd.getId == null) RIO.fail(new IllegalArgumentException(s"Command $cmd has no ID"))
+                    else RIO.unit
+                  processResult <- Live.withContext(
+                    _.annotate(LogAnnotation.CorrelationId, Option(cmd.getId).map(UUID.fromString))
+                      .annotate(Annotations.competitionId, Option(cmd.getCompetitionId))
+                  ) { Operations.processCommand[LIO](state, cmd) }
+                  res <- processResult match {
+                    case Left(value)  => info(s"Error: $value") *> ZIO.effect((Command.ignore, unit))
+                    case Right(value) => ZIO.effect((Command.persist(value), unit))
+                  }
                 } yield res
-            }
-        ).tupled
-        _ <- receiver.fold(promise.fail, events => fullCompleter(Command.Persist(events), _ => events))
-      } yield ()
+              }
+            case Stop => for {
+                _ <- info(s"Stopping actor for competition $competitionId")
+                _ <- context.stopSelf
+              } yield (Command.ignore, unit)
+          }
+        } yield res
+      }
+
+      override def sourceEvent(
+        state: CompetitionState,
+        event: EventDTO
+      ): RIO[Env with Logging with Clock, CompetitionState] = Live.withContext(
+        _.annotate(LogAnnotation.CorrelationId, Option(UUID.fromString(event.getCorrelationId)))
+          .annotate(Annotations.competitionId, Option(event.getCompetitionId))
+      ) { Operations.applyEvent[LIO](state, event) }
+
+      override def getEvents(
+        persistenceId: String,
+        state: CompetitionState
+      ): RIO[Env with Logging with Clock, Seq[EventDTO]] = for {
+        _      <- processorOperations.createTopicIfMissing(eventTopic, KafkaTopicConfig())
+        events <- processorOperations.retrieveEvents(eventTopic, state.revision)
+      } yield events
+
+      override def persistEvents(persistenceId: String, events: Seq[EventDTO]): RIO[Env with Logging with Clock, Unit] =
+        processorOperations.persistEvents(events)
     }
 
-    for {
-      statePromise <- Promise.make[Throwable, Ref[CompetitionState]]
-      _ <- (for {
-        _ <- processorOperations.createTopicIfMissing(actorConfig.eventTopic, KafkaTopicConfig())
-        latest <- processorOperations.getStateSnapshot(actorConfig.competitionId) >>=
-          (_.map(Task(_)).getOrElse(processorOperations.createInitialState(actorConfig)))
-        events  <- processorOperations.retrieveEvents(actorConfig.eventTopic, latest.revision)
-        updated <- events.foldLeft[LIO[CompetitionState]](RIO(latest))((a, b) => a.flatMap(applyEvent(_, b)))
-        s       <- Ref.make(updated)
-        _       <- statePromise.succeed(s)
-      } yield ()).fork
-      queue <- Queue.sliding[PendingMessage[Seq[EventDTO]]](mailboxSize)
-      actor = CompetitionProcessorActorRef[Env](queue)(postStop)
-      timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
-      ts = Timers[Env](actor, timersMap)
-      _ <- (for {
-        state <- statePromise.await
-        s <- state.get
-        _ <- if (s.competitionProperties.isEmpty) Task.fail(new RuntimeException(s"Competition properties are missing: $s")) else Task.unit
-        props = s.competitionProperties.get
-        _ <- processorOperations
-          .sendNotifications(actorConfig.competitionId, Seq(CompetitionProcessingStarted(actorConfig.competitionId, actorConfig.eventTopic,
-            props.getCreatorId, props.getCreationTimestamp, props.getStartDate, props.getEndDate, props.getTimeZone, props.getStatus
-          )))
-        loop <- (for {
-          t <- queue.take
-          _ <- process(t, state, ts)
-        } yield ()).forever.fork
-        _ <- loop.await
-      } yield ()).fork
-    } yield actor
-  }
-}
+  sealed trait Message[+_]
+  object Stop                                     extends Message[Unit]
+  final case class ProcessCommand(fa: CommandDTO) extends Message[Unit]
 
-object CompetitionProcessorActor {
-  type LiveEnv = Logging
-    with Clock with Blocking with Consumer with Producer[Any, String, Array[Byte]] with SnapshotService.Snapshot
+  type CompProcessorEnv = Logging with Clock with Blocking with SnapshotService.Snapshot
 
-  case class Context[Env](actorsMapRef: Ref[Map[String, CompetitionProcessorActorRef[Env]]], id: String) {
-    def self: Task[CompetitionProcessorActorRef[Env]] = for { map <- actorsMapRef.get } yield map(id)
-  }
-
-  private val DefaultActorMailboxSize: Int = 100
-
-  def apply[Env](
-    actorConfig: ActorConfig,
-    processorConfig: CommandProcessorOperations[Env with Logging with Clock with Blocking],
-    context: Context[Env],
-    mailboxSize: Int = DefaultActorMailboxSize
-  )(
-    postStop: () => RIO[Env, Unit]
-  ): RIO[Env with Logging with Clock with Blocking with SnapshotService.Snapshot, CompetitionProcessorActorRef[Env]] =
-    new CompetitionProcessorActor().makeActor(actorConfig, processorConfig, context, mailboxSize)(postStop)
+  type LiveEnv = CompProcessorEnv with Consumer with Producer[Any, String, Array[Byte]]
 
 }

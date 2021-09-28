@@ -32,12 +32,12 @@ trait CommandProcessorOperations[-E] {
 
   def saveStateSnapshot(state: CompetitionState): URIO[E with SnapshotService.Snapshot, Unit]
 
-  def createInitialState(config: ActorConfig): LIO[CompetitionState] = RIO {
+  def createInitialState(competitionId: String): LIO[CompetitionState] = RIO {
     CompetitionStateImpl(
-      id = config.competitionId,
+      id = competitionId,
       competitors = Option(Map.empty),
       competitionProperties = Option(
-        new CompetitionPropertiesDTO().setId(config.competitionId).setStatus(CompetitionStatus.CREATED)
+        new CompetitionPropertiesDTO().setId(competitionId).setStatus(CompetitionStatus.CREATED)
           .setCreationTimestamp(Instant.now()).setBracketsPublished(false).setSchedulePublished(false)
           .setStaffIds(Array.empty).setEmailNotificationsEnabled(false).setTimeZone("UTC")
       ),
@@ -45,10 +45,10 @@ trait CommandProcessorOperations[-E] {
       fights = Some(Map.empty),
       categories = Some(Map.empty),
       registrationInfo = Some(
-        new RegistrationInfoDTO().setId(config.competitionId).setRegistrationGroups(Array.empty)
+        new RegistrationInfoDTO().setId(competitionId).setRegistrationGroups(Array.empty)
           .setRegistrationPeriods(Array.empty).setRegistrationOpen(false)
       ),
-      schedule = Some(new ScheduleDTO().setId(config.competitionId).setMats(Array.empty).setPeriods(Array.empty)),
+      schedule = Some(new ScheduleDTO().setId(competitionId).setMats(Array.empty).setPeriods(Array.empty)),
       revision = 0L
     )
   }
@@ -107,8 +107,8 @@ object CommandProcessorOperations {
         _ <- eventReceiver.offerAll(events)
       } yield ()
 
-      override def createInitialState(config: ActorConfig): LIO[CompetitionState] = {
-        initialState.map(RIO.effectTotal(_)).getOrElse(super.createInitialState(config))
+      override def createInitialState(competitionId: String): LIO[CompetitionState] = {
+        initialState.map(RIO.effectTotal(_)).getOrElse(super.createInitialState(competitionId))
       }
 
       override def getStateSnapshot(id: String): URIO[Env with Clock with Blocking with Logging with SnapshotService.Snapshot, Option[CompetitionState]] =

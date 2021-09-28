@@ -3,13 +3,15 @@ package compman.compsrv
 import compman.compsrv.config.AppConfig
 import compman.compsrv.jackson.SerdeApi.{byteSerializer, commandDeserializer}
 import compman.compsrv.logic.Operations._
-import compman.compsrv.logic.actors.CompetitionProcessorActor.{Context, LiveEnv}
-import compman.compsrv.logic.actors.Messages.ProcessCommand
 import compman.compsrv.logic.actors._
+import compman.compsrv.logic.actors.CompetitionProcessorActor.{LiveEnv, Message, ProcessCommand}
 import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.logic.logging.CompetitionLogging.Live.loggingLayer
-import compman.compsrv.model.{CompetitionProcessingStopped, Mapping}
+import compman.compsrv.model.Mapping
+import compman.compsrv.query.actors.ActorSystem
+import compman.compsrv.query.actors.ActorSystem.ActorConfig
+import zio.{ExitCode, Task, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -17,7 +19,6 @@ import zio.kafka.admin.{AdminClient, AdminClientSettings}
 import zio.kafka.consumer.{Consumer, ConsumerSettings, Subscription}
 import zio.kafka.producer.{Producer, ProducerSettings}
 import zio.kafka.serde.Serde
-import zio.{ExitCode, Ref, Task, URIO, ZIO}
 
 object Main extends zio.App {
 
@@ -33,41 +34,37 @@ object Main extends zio.App {
 
   type PipelineEnvironment = LiveEnv
 
-  def createProgram(
-    appConfig: AppConfig,
-    refActorsMap: Ref[Map[String, CompetitionProcessorActorRef[PipelineEnvironment]]]
-  ): ZIO[Any with Clock with Blocking, Any, Any] = {
+  def createProgram(appConfig: AppConfig): ZIO[Any with Clock with Blocking, Any, Any] = {
     val consumerSettings = ConsumerSettings(appConfig.consumer.brokers).withGroupId(appConfig.consumer.groupId)
       .withClientId("client").withCloseTimeout(30.seconds).withPollTimeout(10.millis)
       .withProperty("enable.auto.commit", "false").withProperty("auto.offset.reset", "earliest")
 
     val producerSettings = ProducerSettings(appConfig.producer.brokers)
-    val adminSettings = AdminClientSettings(appConfig.producer.brokers)
-    val admin = AdminClient.make(adminSettings)
-    val consumerLayer = Consumer.make(consumerSettings).toLayer
+    val adminSettings    = AdminClientSettings(appConfig.producer.brokers)
+    val admin            = AdminClient.make(adminSettings)
+    val consumerLayer    = Consumer.make(consumerSettings).toLayer
     val producerLayer = Producer.make[Any, String, Array[Byte]](producerSettings, Serde.string, byteSerializer).toLayer
     val snapshotLayer = SnapshotService.live(appConfig.snapshotConfig.databasePath).toLayer
-    val layers = consumerLayer ++ producerLayer ++ snapshotLayer
+    val layers        = consumerLayer ++ producerLayer ++ snapshotLayer
     val program: ZIO[PipelineEnvironment, Any, Any] = Consumer
-      .subscribeAnd(Subscription.topics(appConfig.consumer.commandsTopic)).plainStream(Serde.string, commandDeserializer)
-      .mapM(record => {
-        val actorConfig: ActorConfig = ActorConfig(record.key, s"${appConfig.commandProcessor.eventsTopicPrefix}_${record.key}", appConfig.commandProcessor.actorIdleTimeoutMillis)
-        val context = Context(refActorsMap, record.key)
+      .subscribeAnd(Subscription.topics(appConfig.consumer.commandsTopic))
+      .plainStream(Serde.string, commandDeserializer).mapM(record => {
         (for {
-          map <- refActorsMap.get
-          actor <-
-            if (map.contains(record.key)) Task.effectTotal(map(record.key))
-            else {
-              admin.use { adm =>
-                for {
-                  commandProcessorOperations <- createCommandProcessorConfig[PipelineEnvironment](adm)
-                  act <- CompetitionProcessorActor(actorConfig, commandProcessorOperations, context)(() =>
-                    refActorsMap.update(m => m - record.key) *> commandProcessorOperations.sendNotifications(record.key, Seq(CompetitionProcessingStopped(record.key)))
-                  )
-                } yield act
-              }
-            }
-          _ <- refActorsMap.set(map + (record.key -> actor))
+          actorSystem <- ActorSystem("saga-processor")
+          actor <- admin.use { adm =>
+            for {
+              commandProcessorOperations <- createCommandProcessorConfig[PipelineEnvironment](adm)
+              initialState <- commandProcessorOperations.getStateSnapshot(record.key) >>=
+                (_.map(Task(_)).getOrElse(commandProcessorOperations.createInitialState(record.key)))
+
+              act <- actorSystem.select[Message](s"CompetitionProcessor-${record.key}").foldM(_ => actorSystem.make(
+                s"CompetitionProcessor-${record.key}",
+                ActorConfig(),
+                initialState,
+                CompetitionProcessorActor.behavior(commandProcessorOperations, record.key, s"${record.key}-events")
+              ), actor => ZIO.effect(actor))
+            } yield act
+          }
           _ <- actor ! ProcessCommand(record.value)
         } yield ()).as(record)
       }).map(_.offset).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
@@ -78,9 +75,6 @@ object Main extends zio.App {
   private def createCommandProcessorConfig[E](adm: AdminClient) = CommandProcessorOperations[E](adm)
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
-    (for {
-      competitionProcessorsMap <- Ref.make(Map.empty[String, CompetitionProcessorActorRef[PipelineEnvironment]])
-      program <- AppConfig.load().flatMap(config => createProgram(config, competitionProcessorsMap))
-    } yield program).exitCode
+    (for { program <- AppConfig.load().flatMap(config => createProgram(config)) } yield program).exitCode
   }
 }

@@ -1,15 +1,17 @@
 package compman.compsrv.service
 
 import compman.compsrv.logic.actors._
-import compman.compsrv.logic.actors.Messages.ProcessCommand
+import compman.compsrv.logic.actors.CompetitionProcessorActor.{Message, ProcessCommand}
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.{CommandProcessorNotification, CompetitionProcessingStopped, CompetitionState}
+import compman.compsrv.model.{CommandProcessorNotification, CompetitionState}
 import compman.compsrv.model.commands.{CommandDTO, CommandType}
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.events.payload.CompetitionCreatedPayload
-import zio.{Layer, Queue, Ref}
+import compman.compsrv.query.actors.ActorSystem
+import compman.compsrv.query.actors.ActorSystem.ActorConfig
+import zio.{Layer, Queue, Ref, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -43,16 +45,16 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
   def spec: Spec[TestEnvironment, TestFailure[Throwable], TestSuccess] =
     suite("The Competition Processor should")(testM("Accept commands") {
       for {
-        actorsRef    <- Ref.make(Map.empty[String, CompetitionProcessorActorRef[Any]])
         eventsQueue    <- Queue.unbounded[EventDTO]
         notificationQueue    <- Queue.unbounded[CommandProcessorNotification]
         snapshotsRef <- Ref.make(Map.empty[String, CompetitionState])
-        processor <- CompetitionProcessorActor[Any](
-          ActorConfig(competitionId, "test-events", Some(3000L)),
-          CommandProcessorOperations.test(eventsQueue, notificationQueue, snapshotsRef),
-          CompetitionProcessorActor.Context(actorsRef, competitionId)
-        )(() => actorsRef.update(m => m - competitionId) *> notificationQueue.offer(CompetitionProcessingStopped(competitionId)).ignore)
-        _ <- actorsRef.update(m => m + (competitionId -> processor))
+        actorSystem <- ActorSystem("Test")
+        processorOperations <- ZIO.effect(CommandProcessorOperations.test(eventsQueue, notificationQueue, snapshotsRef))
+        initialState <- processorOperations.getStateSnapshot(competitionId).flatMap(_.fold(processorOperations.createInitialState(competitionId))(ZIO.effect(_)))
+        processor <- actorSystem.make( s"CompetitionProcessor-$competitionId",
+          ActorConfig(),
+          initialState,
+          CompetitionProcessorActor.behavior[Clock with Blocking with Logging](CommandProcessorOperations.test(eventsQueue, notificationQueue, snapshotsRef), competitionId, "test-events"))
         command = {
           val cmd = new CommandDTO()
           cmd.setId(UUID.randomUUID().toString)
@@ -74,10 +76,10 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
         _ <- processor ! ProcessCommand(command)
         f <- eventsQueue.takeN(1).fork
         f1 <- notificationQueue.takeN(2).fork
-        eventsO <- f.join.timeout(10.seconds)
-        notificationsO <- f1.join.timeout(30.seconds)
-        events = eventsO.get
-        notifications = notificationsO.get
+        eventsO <- f.join.timeout(3.seconds)
+        notificationsO <- f1.join.timeout(3.seconds)
+        events = eventsO.getOrElse(List.empty)
+        notifications = notificationsO.getOrElse(List.empty)
       } yield assert(events)(isNonEmpty) && assert(notifications)(isNonEmpty) &&
         assert(events.head.getType)(equalTo(EventType.COMPETITION_CREATED)) &&
         assert(events.head.getPayload)(not(isNull)) &&

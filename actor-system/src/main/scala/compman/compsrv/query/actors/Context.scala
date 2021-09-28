@@ -11,6 +11,8 @@ case class Context[F[+_]](
   actorSystem: ActorSystem
 ) {
 
+  def stopSelf: Task[List[_]] = self.stop
+
   def findChild[F1[+_]](name: String): Task[Option[ActorRef[F1]]] = {
     for { m <- children.get } yield m.get(name).map(_.asInstanceOf[ActorRef[F1]])
   }
