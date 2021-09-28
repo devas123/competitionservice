@@ -3,10 +3,10 @@ package compman.compsrv.logic.actors
 import compman.compsrv.logic.Operations
 import compman.compsrv.logic.actors.CommandProcessorOperations.KafkaTopicConfig
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
-import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionState}
+import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionProcessingStopped, CompetitionState}
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.query.actors.{ActorSystem, EventSourcedBehavior, Timers}
+import compman.compsrv.query.actors.{ActorSystem, Context, EventSourcedBehavior, Timers}
 import compman.compsrv.query.actors
 import compman.compsrv.query.actors.Messages._
 import zio.{Fiber, RIO, Task, ZIO}
@@ -32,6 +32,14 @@ object CompetitionProcessorActor {
     actorIdleTimeoutMillis: Long = 300000
   ): EventSourcedBehavior[Env with Logging with Clock, CompetitionState, Message, EventDTO] =
     new EventSourcedBehavior[Env with Logging with Clock, CompetitionState, Message, EventDTO](competitionId) {
+
+      override def postStop(actorConfig: ActorSystem.ActorConfig, context: Context[Message], state: CompetitionState, timers: Timers[Env with Logging with Clock, Message]): RIO[Env with Logging with Clock, Unit] =
+        for {
+          _ <- processorOperations.sendNotifications(
+            competitionId,
+            Seq(CompetitionProcessingStopped(competitionId))
+          )
+        } yield (Seq.empty, Seq.empty)
 
       override def init(
         actorConfig: ActorSystem.ActorConfig,

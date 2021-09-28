@@ -1,14 +1,17 @@
 package compman.compsrv.query.actors
 
+import cats.implicits._
 import compman.compsrv.query.actors.ActorSystem.{ActorConfig, PendingMessage}
 import compman.compsrv.query.actors.Messages.Command
-import zio.{Fiber, Queue, Ref, RIO, Task}
+import zio.{Fiber, Queue, Ref, RIO, Task, ZIO}
 import zio.clock.Clock
-import cats.implicits._
 import zio.interop.catz._
 
 abstract class EventSourcedBehavior[R, S, Msg[+_], Ev](persistenceId: String) extends AbstractBehavior[R, S, Msg] {
   self =>
+
+  def postStop(actorConfig: ActorConfig, context: Context[Msg], state: S, timers: Timers[R, Msg]): RIO[R, Unit] = RIO(())
+
   def receive[A](
     context: Context[Msg],
     actorConfig: ActorConfig,
@@ -20,7 +23,8 @@ abstract class EventSourcedBehavior[R, S, Msg[+_], Ev](persistenceId: String) ex
   def sourceEvent(state: S, event: Ev): RIO[R, S]
   def getEvents(persistenceId: String, state: S): RIO[R, Seq[Ev]]
   def persistEvents(persistenceId: String, events: Seq[Ev]): RIO[R, Unit]
-  override def init(
+
+  def init(
     actorConfig: ActorConfig,
     context: Context[Msg],
     initState: S,
@@ -33,7 +37,7 @@ abstract class EventSourcedBehavior[R, S, Msg[+_], Ev](persistenceId: String) ex
     initialState: S,
     actorSystem: ActorSystem,
     children: Ref[Map[String, ActorRef[Any]]]
-  )(postStop: () => Task[Unit]): RIO[R with Clock, ActorRef[Msg]] = {
+  )(optPostStop: () => Task[Unit]): RIO[R with Clock, ActorRef[Msg]] = {
 
     def applyEvents(events: Seq[Ev], state: S): RIO[R, S] = events.foldLeftM(state)(sourceEvent)
 
@@ -70,7 +74,7 @@ abstract class EventSourcedBehavior[R, S, Msg[+_], Ev](persistenceId: String) ex
       sourcedState <- applyEvents(events, initialState)
       state <- Ref.make(sourcedState)
       queue <- Queue.bounded[PendingMessage[Msg, _]](actorConfig.mailboxSize)
-      actor = ActorRef[Msg](queue)(postStop)
+      actor = ActorRef[Msg](queue)(optPostStop)
       timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
       ts      = Timers[R, Msg](actor, timersMap)
       context = Context(children, actor, id, actorSystem)
@@ -79,7 +83,10 @@ abstract class EventSourcedBehavior[R, S, Msg[+_], Ev](persistenceId: String) ex
       _ <- (for {
         t <- queue.take
         _ <- process(t, state, context, ts)
-      } yield ()).forever.fork
+      } yield ()).forever.fork.onTermination(_ => for {
+        st <- state.get
+        _ <- self.postStop(actorConfig, context, st, ts).attempt.ignore
+      } yield ())
     } yield actor
   }
 }

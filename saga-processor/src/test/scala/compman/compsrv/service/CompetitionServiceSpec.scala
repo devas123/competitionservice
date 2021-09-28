@@ -72,7 +72,6 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
           )
           cmd
         }
-
         _ <- processor ! ProcessCommand(command)
         f <- eventsQueue.takeN(1).fork
         f1 <- notificationQueue.takeN(2).fork

@@ -22,13 +22,15 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
     timers: Timers[R, Msg]
   ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg[Any]])] = RIO((Seq.empty, Seq.empty))
 
+  def postStop(actorConfig: ActorConfig, context: Context[Msg], state: S, timers: Timers[R, Msg]): RIO[R, Unit] = RIO(())
+
   def makeActor(
     id: String,
     actorConfig: ActorConfig,
     initialState: S,
     actorSystem: ActorSystem,
     children: Ref[Map[String, ActorRef[Any]]]
-  )(postStop: () => Task[Unit]): RIO[R, ActorRef[Msg]] = {
+  )(optPostStop: () => Task[Unit]): RIO[R, ActorRef[Msg]] = {
     def process[A](
       context: Context[Msg],
       msg: PendingMessage[Msg, A],
@@ -46,7 +48,7 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
 
     for {
       queue <- Queue.sliding[PendingMessage[Msg, _]](actorConfig.mailboxSize)
-      actor = ActorRef[Msg](queue)(postStop)
+      actor = ActorRef[Msg](queue)(optPostStop)
       stateRef  <- Ref.make(initialState)
       timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
       ts      = Timers[R, Msg](actor, timersMap)
@@ -56,7 +58,12 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
       _ <- (for {
         t <- queue.take
         _ <- process(context, t, stateRef, ts)
-      } yield ()).forever.fork
+      } yield ()).forever.fork.onTermination(_ =>
+        for {
+          st <- stateRef.get
+          _  <- self.postStop(actorConfig, context, st, ts).attempt.ignore
+        } yield ()
+      )
     } yield actor
   }
 
