@@ -56,18 +56,19 @@ trait CommandProcessorOperations[-E] {
 }
 
 object CommandProcessorOperations {
-  case class KafkaTopicConfig(numPartitions: Int = 1, replicationFactor: Short = 1, additionalProperties: Map[String, String] = Map.empty)
+  case class KafkaTopicConfig(
+    numPartitions: Int = 1,
+    replicationFactor: Short = 1,
+    additionalProperties: Map[String, String] = Map.empty
+  )
 
   def apply[E](adminClient: AdminClient): RIO[E with LiveEnv, CommandProcessorOperations[E with LiveEnv]] = {
     for {
       mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
       operations = new CommandProcessorOperations[E with LiveEnv] {
         override def retrieveEvents(id: String, offset: Long): RIO[E with LiveEnv, List[EventDTO]] = Consumer
-          .subscribeAnd(Subscription.topics(id))
-          .plainStream(Serde.string, SerdeApi.eventDeserializer)
-          .filter(_.offset.offset >= offset)
-          .runCollect
-          .map(_.map(_.value).toList)
+          .subscribeAnd(Subscription.topics(id)).plainStream(Serde.string, SerdeApi.eventDeserializer)
+          .filter(_.offset.offset >= offset).runCollect.map(_.map(_.value).toList)
 
         override def persistEvents(events: Seq[EventDTO]): RIO[E with LiveEnv, Unit] = {
           zio.kafka.producer.Producer.produceChunk[Any, String, Array[Byte]](Chunk.fromIterable(events).map(e =>
@@ -75,34 +76,45 @@ object CommandProcessorOperations {
           )).ignore
         }
 
-        override def getStateSnapshot(id: String): URIO[E with LiveEnv, Option[CompetitionState]] = SnapshotService.load(id)
+        override def getStateSnapshot(id: String): URIO[E with LiveEnv, Option[CompetitionState]] = SnapshotService
+          .load(id)
 
-        override def saveStateSnapshot(state: CompetitionState): URIO[E with LiveEnv, Unit] = SnapshotService.save(state)
+        override def saveStateSnapshot(state: CompetitionState): URIO[E with LiveEnv, Unit] = SnapshotService
+          .save(state)
 
-        override def sendNotifications(competitionId: String, notifications: Seq[CommandProcessorNotification]): RIO[E with LiveEnv, Unit] = {
+        override def sendNotifications(
+          competitionId: String,
+          notifications: Seq[CommandProcessorNotification]
+        ): RIO[E with LiveEnv, Unit] = {
           zio.kafka.producer.Producer.produceChunk[Any, String, Array[Byte]](Chunk.fromIterable(notifications).map(e =>
             new ProducerRecord[String, Array[Byte]](competitionId, mapper.writeValueAsBytes(e))
           )).ignore
         }
 
-        override def createTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig): RIO[E with LiveEnv, Unit] = for {
-          topics <- adminClient.listTopics()
-          _ <- if (topics.contains(topic)) RIO(()) else adminClient.createTopic(AdminClient.NewTopic(topic,
-            topicConfig.numPartitions, topicConfig.replicationFactor))
-        } yield ()
+        override def createTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig): RIO[E with LiveEnv, Unit] =
+          for {
+            topics <- adminClient.listTopics()
+            _ <-
+              if (topics.contains(topic)) RIO(())
+              else adminClient
+                .createTopic(AdminClient.NewTopic(topic, topicConfig.numPartitions, topicConfig.replicationFactor))
+          } yield ()
       }
     } yield operations
   }
 
   def test[Env](
-                 eventReceiver: Queue[EventDTO],
-                 notificationReceiver: Queue[CommandProcessorNotification],
-                 stateSnapshots: Ref[Map[String, CompetitionState]],
-                 initialState: Option[CompetitionState] = None
+    eventReceiver: Queue[EventDTO],
+    notificationReceiver: Queue[CommandProcessorNotification],
+    stateSnapshots: Ref[Map[String, CompetitionState]],
+    initialState: Option[CompetitionState] = None
   ): CommandProcessorOperations[Env with Clock with Blocking with Logging] = {
     new CommandProcessorOperations[Env with Clock with Blocking with Logging] {
       self =>
-      override def retrieveEvents(id: String, offset: Long): RIO[Env with Clock with Blocking with Logging, List[EventDTO]] = RIO.effectTotal(List.empty)
+      override def retrieveEvents(
+        id: String,
+        offset: Long
+      ): RIO[Env with Clock with Blocking with Logging, List[EventDTO]] = RIO.effectTotal(List.empty)
       override def persistEvents(events: Seq[EventDTO]): RIO[Env with Clock with Blocking with Logging, Unit] = for {
         _ <- eventReceiver.offerAll(events)
       } yield ()
@@ -111,16 +123,29 @@ object CommandProcessorOperations {
         initialState.map(RIO.effectTotal(_)).getOrElse(super.createInitialState(competitionId))
       }
 
-      override def getStateSnapshot(id: String): URIO[Env with Clock with Blocking with Logging with SnapshotService.Snapshot, Option[CompetitionState]] =
-        for {map <- stateSnapshots.get} yield map.get(id)
+      override def getStateSnapshot(
+        id: String
+      ): URIO[Env with Clock with Blocking with Logging with SnapshotService.Snapshot, Option[CompetitionState]] = for {
+        map <- stateSnapshots.get
+      } yield map.get(id)
 
-      override def saveStateSnapshot(state: CompetitionState): URIO[Env with Clock with Blocking with Logging with SnapshotService.Snapshot, Unit] = for {
+      override def saveStateSnapshot(
+        state: CompetitionState
+      ): URIO[Env with Clock with Blocking with Logging with SnapshotService.Snapshot, Unit] = for {
         _ <- stateSnapshots.update(_ + (state.id -> state))
       } yield ()
 
-      override def sendNotifications(competitionId: String, notifications: Seq[CommandProcessorNotification]): RIO[Env with Clock with Blocking with Logging, Unit] = notificationReceiver.offerAll(notifications).ignore
+      override def sendNotifications(
+        competitionId: String,
+        notifications: Seq[CommandProcessorNotification]
+      ): RIO[Env with Clock with Blocking with Logging, Unit] = for {
+        _ <- notificationReceiver.offerAll(notifications)
+      } yield ()
 
-      override def createTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig): RIO[Env with Clock with Blocking with Logging, Unit] = RIO(())
+      override def createTopicIfMissing(
+        topic: String,
+        topicConfig: KafkaTopicConfig
+      ): RIO[Env with Clock with Blocking with Logging, Unit] = RIO(())
     }
   }
 

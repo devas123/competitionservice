@@ -22,7 +22,8 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
     timers: Timers[R, Msg]
   ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg[Any]])] = RIO((Seq.empty, Seq.empty))
 
-  def postStop(actorConfig: ActorConfig, context: Context[Msg], state: S, timers: Timers[R, Msg]): RIO[R, Unit] = RIO(())
+  def postStop(actorConfig: ActorConfig, context: Context[Msg], state: S, timers: Timers[R, Msg]): RIO[R, Unit] =
+    RIO(())
 
   def makeActor(
     id: String,
@@ -46,6 +47,18 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
       } yield ()
     }
 
+    def innerLoop(queue: Queue[PendingMessage[Msg, _]], stateRef: Ref[S], ts: Timers[R, Msg], context: Context[Msg]) = {
+      for {
+        t <- (for {
+          msg <- queue.take
+          _ <- process(context, msg, stateRef, ts)
+        } yield ()).repeatUntilM(_ => queue.isShutdown).fork
+        _ <- t.join.attempt
+        st <- stateRef.get
+        _ <- self.postStop(actorConfig, context, st, ts).attempt
+      } yield ()
+    }
+
     for {
       queue <- Queue.sliding[PendingMessage[Msg, _]](actorConfig.mailboxSize)
       actor = ActorRef[Msg](queue)(optPostStop)
@@ -55,15 +68,7 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
       context = Context(children, actor, id, actorSystem)
       (_, msgs) <- init(actorConfig, context, initialState, ts)
       _         <- msgs.traverse(m => actor ! m)
-      _ <- (for {
-        t <- queue.take
-        _ <- process(context, t, stateRef, ts)
-      } yield ()).forever.fork.onTermination(_ =>
-        for {
-          st <- stateRef.get
-          _  <- self.postStop(actorConfig, context, st, ts).attempt.ignore
-        } yield ()
-      )
+      _ <- innerLoop(queue, stateRef, ts, context).fork
     } yield actor
   }
 

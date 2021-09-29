@@ -3,14 +3,15 @@ package compman.compsrv.query.actors
 import cats.implicits._
 import compman.compsrv.query.actors.ActorSystem.{ActorConfig, PendingMessage}
 import compman.compsrv.query.actors.Messages.Command
-import zio.{Fiber, Queue, Ref, RIO, Task, ZIO}
+import zio.{Fiber, Queue, Ref, RIO, Task}
 import zio.clock.Clock
 import zio.interop.catz._
 
 abstract class EventSourcedBehavior[R, S, Msg[+_], Ev](persistenceId: String) extends AbstractBehavior[R, S, Msg] {
   self =>
 
-  def postStop(actorConfig: ActorConfig, context: Context[Msg], state: S, timers: Timers[R, Msg]): RIO[R, Unit] = RIO(())
+  def postStop(actorConfig: ActorConfig, context: Context[Msg], state: S, timers: Timers[R, Msg]): RIO[R, Unit] =
+    RIO(())
 
   def receive[A](
     context: Context[Msg],
@@ -58,35 +59,42 @@ abstract class EventSourcedBehavior[R, S, Msg[+_], Ev](persistenceId: String) ex
           sa: S => A
         ) =>
           ev match {
-            case Command.Ignore => idempotentCompleter(sa(s))
+            case Command.Ignore =>
+              idempotentCompleter(sa(s))
             case Command.Persist(ev) => for {
-                _ <- persistEvents(persistenceId, ev)
+                _            <- persistEvents(persistenceId, ev)
                 updatedState <- applyEvents(ev, s)
-                res <- effectfulCompleter(updatedState, sa(updatedState))
+                res          <- effectfulCompleter(updatedState, sa(updatedState))
               } yield res
           }
       ).tupled
       _ <- receiver.foldM(e => promise.fail(e), fullCompleter)
     } yield ()
 
+    def innerLoop(state: Ref[S], queue: Queue[PendingMessage[Msg, _]], ts: Timers[R, Msg], context: Context[Msg]) = {
+      for {
+        t <- (for {
+          t <- queue.take
+          _ <- process(t, state, context, ts)
+        } yield ()).repeatUntilM(_ => queue.isShutdown).fork
+        _ <- t.join.attempt
+        st <- state.get
+        _ <- self.postStop(actorConfig, context, st, ts).attempt
+      } yield ()
+    }
+
     for {
-      events <- getEvents(persistenceId, initialState)
+      events       <- getEvents(persistenceId, initialState)
       sourcedState <- applyEvents(events, initialState)
-      state <- Ref.make(sourcedState)
-      queue <- Queue.bounded[PendingMessage[Msg, _]](actorConfig.mailboxSize)
+      state        <- Ref.make(sourcedState)
+      queue        <- Queue.bounded[PendingMessage[Msg, _]](actorConfig.mailboxSize)
       actor = ActorRef[Msg](queue)(optPostStop)
       timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
       ts      = Timers[R, Msg](actor, timersMap)
       context = Context(children, actor, id, actorSystem)
       (_, msgs) <- init(actorConfig, context, sourcedState, ts)
       _         <- msgs.traverse(m => actor ! m)
-      _ <- (for {
-        t <- queue.take
-        _ <- process(t, state, context, ts)
-      } yield ()).forever.fork.onTermination(_ => for {
-        st <- state.get
-        _ <- self.postStop(actorConfig, context, st, ts).attempt.ignore
-      } yield ())
+      _ <- innerLoop(state, queue, ts, context).fork
     } yield actor
   }
 }

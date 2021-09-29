@@ -1,7 +1,7 @@
 package compman.compsrv.service
 
 import compman.compsrv.logic.actors._
-import compman.compsrv.logic.actors.CompetitionProcessorActor.{Message, ProcessCommand}
+import compman.compsrv.logic.actors.CompetitionProcessorActor.{Message, ProcessCommand, Stop}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.{CommandProcessorNotification, CompetitionState}
 import compman.compsrv.model.commands.{CommandDTO, CommandType}
@@ -74,9 +74,10 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
         }
         _ <- processor ! ProcessCommand(command)
         f <- eventsQueue.takeN(1).fork
+        _ <- processor ! Stop
         f1 <- notificationQueue.takeN(2).fork
-        eventsO <- f.join.timeout(3.seconds)
-        notificationsO <- f1.join.timeout(3.seconds)
+        eventsO <- f.join.timeout(10.seconds)
+        notificationsO <- f1.join.timeout(10.seconds)
         events = eventsO.getOrElse(List.empty)
         notifications = notificationsO.getOrElse(List.empty)
       } yield assert(events)(isNonEmpty) && assert(notifications)(isNonEmpty) &&
