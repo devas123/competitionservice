@@ -33,7 +33,7 @@ object CompetitionEventListenerSupervisor {
 
   def behavior[R: Tag](
                         eventStreaming: EventStreaming[R],
-                        eventTopic: String,
+                        notificationStopic: String,
                         context: ActorContext,
                         eventListenerContext: CompetitionEventListener.ActorContext,
                         websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
@@ -82,7 +82,7 @@ object CompetitionEventListenerSupervisor {
       ): RIO[SupervisorEnvironment[R], (Seq[Fiber.Runtime[Throwable, Unit]], Seq[ActorMessages[Any]])] = {
         for {
           mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
-          k <- eventStreaming.getByteArrayStream(eventTopic).mapM(record =>
+          k <- eventStreaming.getByteArrayStream(notificationStopic).mapM(record =>
             for {
               notif <- ZIO.effect(mapper.readValue(record, classOf[CommandProcessorNotification]))
               _     <- context.self ! ReceivedNotification(notif)

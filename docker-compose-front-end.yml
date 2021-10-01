@@ -7,6 +7,9 @@ services:
     environment:
       TEST: true
 
+    networks:
+      compsrv_backend:
+
 networks:
-  compsr_backend:
+  compsrv_backend:
     external: true

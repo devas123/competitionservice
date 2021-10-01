@@ -8,7 +8,14 @@ services:
       - CASSANDRA_HOST=cassandra
       - CASSANDRA_PORT=1234
     networks:
-      compsr_backend:
+      compsrv_backend:
+
+  gateway_service:
+    image: gateway-service:latest
+    environment:
+      - KAFKA_BROKERS=broker:29092
+    networks:
+      compsrv_backend:
 
   saga_processor:
     image: saga-processor:latest
@@ -18,13 +25,15 @@ services:
     volumes:
       - saga_processor_db:/app/app-db/saga-processor
     networks:
-      compsr_backend:
+      compsrv_backend:
 
 
   cassandra:
     image: cassandra:latest
+    volumes:
+      - query_processor_db:/
     networks:
-      compsr_backend:
+      compsrv_backend:
 
   broker:
     image: confluentinc/cp-kafka:6.2.1
@@ -54,75 +63,11 @@ services:
       - ./update_run.sh:/tmp/update_run.sh
     command: "bash -c 'if [ ! -f /tmp/update_run.sh ]; then echo \"ERROR: Did you forget the update_run.sh file that came with this docker-compose-backend.yml file?\" && exit 1 ; else /tmp/update_run.sh && /etc/confluent/docker/run ; fi'"
     networks:
-      compsr_backend:
-
-
-  schema-registry:
-    image: confluentinc/cp-schema-registry:6.2.1
-    hostname: schema-registry
-    container_name: schema-registry
-    depends_on:
-      - broker
-    ports:
-      - "8081:8081"
-    environment:
-      SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker:29092'
-      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
-    networks:
-      compsr_backend:
-
-
-  connect:
-    image: cnfldemos/kafka-connect-datagen:0.5.0-6.2.0
-    hostname: connect
-    container_name: connect
-    depends_on:
-      - broker
-      - schema-registry
-    ports:
-      - "8083:8083"
-    environment:
-      CONNECT_BOOTSTRAP_SERVERS: 'broker:29092'
-      CONNECT_REST_ADVERTISED_HOST_NAME: connect
-      CONNECT_REST_PORT: 8083
-      CONNECT_GROUP_ID: compose-connect-group
-      CONNECT_CONFIG_STORAGE_TOPIC: docker-connect-configs
-      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
-      CONNECT_OFFSET_STORAGE_TOPIC: docker-connect-offsets
-      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_STATUS_STORAGE_TOPIC: docker-connect-status
-      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
-      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
-      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
-      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
-      CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
-    networks:
-      compsr_backend:
-
-
-  rest-proxy:
-    image: confluentinc/cp-kafka-rest:6.2.1
-    depends_on:
-      - broker
-      - schema-registry
-    ports:
-      - 8082:8082
-    hostname: rest-proxy
-    container_name: rest-proxy
-    environment:
-      KAFKA_REST_HOST_NAME: rest-proxy
-      KAFKA_REST_BOOTSTRAP_SERVERS: 'broker:29092'
-      KAFKA_REST_LISTENERS: "http://0.0.0.0:8082"
-      KAFKA_REST_SCHEMA_REGISTRY_URL: 'http://schema-registry:8081'
-    networks:
-      compsr_backend:
-
+      compsrv_backend:
 
 volumes:
   saga_processor_db:
+  query_processor_db:
 
 networks:
-  compsr_backend:
+  compsrv_backend:
