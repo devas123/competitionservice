@@ -10,6 +10,7 @@ kafkarun
 .vscode/
 
 app-db
+app-data
 
 compservice.db
 
