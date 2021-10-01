@@ -31,7 +31,7 @@ services:
   cassandra:
     image: cassandra:latest
     volumes:
-      - query_processor_db:/
+      - query_processor_db:/var/lib/cassandra
     networks:
       compsrv_backend:
 
