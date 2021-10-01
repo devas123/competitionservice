@@ -6,7 +6,7 @@ plugins {
     application
 }
 
-val javaMainClass = "compman.compsrv.query.QueryServiceMain"
+val javaMainClass = "compman.compsrv.gateway.GatewayServiceMain"
 
 
 application {

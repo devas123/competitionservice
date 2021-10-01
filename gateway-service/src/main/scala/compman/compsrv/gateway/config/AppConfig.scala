@@ -6,9 +6,9 @@ import zio.config.magnolia.DeriveConfigDescriptor
 import zio.config.read
 import zio.config.typesafe.TypesafeConfigSource
 
-final case class AppConfig(competitionEventListener: CompetitionEventListenerConfig, consumer: ConsumerConfig)
+final case class AppConfig(producer: ProducerConfig)
 
-final case class ConsumerConfig(bootstrapServers: String, groupId: String) {
+final case class ProducerConfig(bootstrapServers: String) {
   def brokers: List[String] = bootstrapServers.split(",").toList
 }
 
@@ -17,9 +17,7 @@ object AppConfig {
 
   def load(): Task[AppConfig] = for {
     rawConfig              <- ZIO.effect(ConfigFactory.load())
-    configSource           <- ZIO.fromEither(TypesafeConfigSource.fromTypesafeConfig(rawConfig.getConfig("processor")))
+    configSource           <- ZIO.fromEither(TypesafeConfigSource.fromTypesafeConfig(rawConfig.getConfig("gateway")))
     config                 <- ZIO.fromEither(read(AppConfig.descriptor.from(configSource)))
   } yield config
 }
-
-case class CompetitionEventListenerConfig(competitionNotificationsTopic: String)

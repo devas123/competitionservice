@@ -1,7 +1,7 @@
 package compman.compsrv.query
 import cats.effect
-import cats.implicits._
 import compman.compsrv.logic.logging.CompetitionLogging
+import compman.compsrv.logic.logging.CompetitionLogging.logError
 import compman.compsrv.query.actors.ActorSystem
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.actors.behavior.{CompetitionApiActor, WebsocketConnectionSupervisor}
@@ -18,9 +18,7 @@ import zio.duration.durationInt
 import zio.interop.catz._
 import zio.logging.Logging
 
-import java.io.{PrintWriter, StringWriter}
 import java.nio.file.{Files, Path}
-import scala.util.Using
 
 object QueryServiceMain extends zio.App {
 
@@ -64,18 +62,5 @@ object QueryServiceMain extends zio.App {
   } yield srv
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = server(args)
-    .tapError(t => {
-    for {
-      errorStr <- ZIO.effect {
-        Using.Manager { use =>
-          val writer      = use(new StringWriter())
-          val printWriter = use(new PrintWriter(writer))
-          t.printStackTrace(printWriter)
-          writer.toString
-        }.getOrElse(t.toString)
-      }
-      _ <- Logging.error(errorStr)
-    } yield ()
-
-  }).fold(_ => ExitCode.failure, _ => ExitCode.success).provideLayer(CompetitionLogging.Live.loggingLayer ++ ZEnv.live)
+    .tapError(logError).fold(_ => ExitCode.failure, _ => ExitCode.success).provideLayer(CompetitionLogging.Live.loggingLayer ++ ZEnv.live)
 }

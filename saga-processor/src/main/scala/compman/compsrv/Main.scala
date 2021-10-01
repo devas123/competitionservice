@@ -39,10 +39,10 @@ object Main extends zio.App {
       .withClientId("client").withCloseTimeout(30.seconds).withPollTimeout(10.millis)
       .withProperty("enable.auto.commit", "false").withProperty("auto.offset.reset", "earliest")
 
-    val producerSettings = ProducerSettings(appConfig.producer.brokers)
     val adminSettings    = AdminClientSettings(appConfig.producer.brokers)
     val admin            = AdminClient.make(adminSettings)
     val consumerLayer    = Consumer.make(consumerSettings).toLayer
+    val producerSettings = ProducerSettings(appConfig.producer.brokers)
     val producerLayer = Producer.make[Any, String, Array[Byte]](producerSettings, Serde.string, byteSerializer).toLayer
     val snapshotLayer = SnapshotService.live(appConfig.snapshotConfig.databasePath).toLayer
     val layers        = consumerLayer ++ producerLayer ++ snapshotLayer

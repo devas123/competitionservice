@@ -1,12 +1,28 @@
 package compman.compsrv.logic.logging
 
-import zio.{RIO, ZLayer}
+import zio.{RIO, ZIO, ZLayer}
 import zio.logging.{log, LogAnnotation, LogContext, Logging}
 import zio.logging.slf4j.Slf4jLogger
 
 import java.io.{PrintWriter, StringWriter}
+import scala.util.Using
 
 object CompetitionLogging {
+
+  def logError(t: Throwable): ZIO[Logging, Throwable, Unit] = {
+    for {
+      errorStr <- ZIO.effect {
+        Using.Manager { use =>
+          val writer = use(new StringWriter())
+          val printWriter = use(new PrintWriter(writer))
+          t.printStackTrace(printWriter)
+          writer.toString
+        }.getOrElse(t.toString)
+      }
+      _ <- Logging.error(errorStr)
+    } yield ()
+  }
+
 
   trait Service[F[+_]] {
     def info(msg: => String): F[Unit]
