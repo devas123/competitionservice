@@ -6,9 +6,10 @@ import compman.compsrv.logic.Operations._
 import compman.compsrv.logic.actors._
 import compman.compsrv.logic.actors.CompetitionProcessorActor.{LiveEnv, Message, ProcessCommand}
 import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.logic.logging.CompetitionLogging.Live.loggingLayer
 import compman.compsrv.model.Mapping
+import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.query.actors.ActorSystem
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import zio.{ExitCode, Task, URIO, ZIO}
@@ -16,9 +17,12 @@ import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
 import zio.kafka.admin.{AdminClient, AdminClientSettings}
-import zio.kafka.consumer.{Consumer, ConsumerSettings, Subscription}
+import zio.kafka.consumer.{Consumer, ConsumerSettings, Offset, Subscription}
 import zio.kafka.producer.{Producer, ProducerSettings}
 import zio.kafka.serde.Serde
+import zio.logging.Logging
+
+import scala.util.{Failure, Success, Try}
 
 object Main extends zio.App {
 
@@ -48,26 +52,40 @@ object Main extends zio.App {
     val layers        = consumerLayer ++ producerLayer ++ snapshotLayer
     val program: ZIO[PipelineEnvironment, Any, Any] = Consumer
       .subscribeAnd(Subscription.topics(appConfig.consumer.commandsTopic))
-      .plainStream(Serde.string, commandDeserializer).mapM(record => {
-        (for {
-          actorSystem <- ActorSystem("saga-processor")
-          actor <- admin.use { adm =>
-            for {
-              commandProcessorOperations <- createCommandProcessorConfig[PipelineEnvironment](adm)
-              initialState <- commandProcessorOperations.getStateSnapshot(record.key) >>=
-                (_.map(Task(_)).getOrElse(commandProcessorOperations.createInitialState(record.key)))
+      .plainStream(Serde.string, commandDeserializer.asTry).mapM(record => {
+        val tryValue: Try[CommandDTO] = record.record.value()
+        val offset: Offset            = record.offset
 
-              act <- actorSystem.select[Message](s"CompetitionProcessor-${record.key}").foldM(_ => actorSystem.make(
-                s"CompetitionProcessor-${record.key}",
-                ActorConfig(),
-                initialState,
-                CompetitionProcessorActor.behavior(commandProcessorOperations, record.key, s"${record.key}-events")
-              ), actor => ZIO.effect(actor))
-            } yield act
-          }
-          _ <- actor ! ProcessCommand(record.value)
-        } yield ()).as(record)
-      }).map(_.offset).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
+        tryValue match {
+          case Failure(exception) => for {
+              _ <- Logging.error("Error during deserialization")
+              _ <- logError(exception)
+            } yield offset
+          case Success(value) => (for {
+              actorSystem <- ActorSystem("saga-processor")
+              actor <- admin.use { adm =>
+                for {
+                  commandProcessorOperations <- createCommandProcessorConfig[PipelineEnvironment](adm)
+                  initialState <- commandProcessorOperations.getStateSnapshot(record.key) >>=
+                    (_.map(Task(_)).getOrElse(commandProcessorOperations.createInitialState(record.key)))
+
+                  act <- actorSystem.select[Message](s"CompetitionProcessor-${record.key}").foldM(
+                    _ =>
+                      actorSystem.make(
+                        s"CompetitionProcessor-${record.key}",
+                        ActorConfig(),
+                        initialState,
+                        CompetitionProcessorActor
+                          .behavior(commandProcessorOperations, record.key, s"${record.key}-events")
+                      ),
+                    actor => ZIO.effect(actor)
+                  )
+                } yield act
+              }
+              _ <- actor ! ProcessCommand(value)
+            } yield ()).as(offset)
+        }
+      }).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
 
     program.provideSomeLayer(Clock.live ++ Blocking.live ++ layers ++ loggingLayer)
   }

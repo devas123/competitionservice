@@ -5,7 +5,7 @@ import compman.compsrv.query.actors.ActorRef
 import compman.compsrv.query.actors.behavior.CompetitionApiActor._
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.repository.Pagination
-import org.http4s.{HttpRoutes, QueryParamDecoder, Response}
+import org.http4s.{HttpRoutes, Response}
 import org.http4s.dsl.Http4sDsl
 import zio.blocking.Blocking
 import zio.clock.Clock
@@ -19,9 +19,6 @@ object CompetitionHttpApiService {
   object QueryParameters {
 
     import org.http4s.dsl.impl.OptionalQueryParamDecoderMatcher
-
-    implicit val stringQueryParamDecoder: QueryParamDecoder[String] = QueryParamDecoder[String]
-    implicit val intQueryParamDecoder: QueryParamDecoder[Int]       = QueryParamDecoder[Int]
 
     object SearchStringParamMatcher extends OptionalQueryParamDecoderMatcher[String]("searchString")
 

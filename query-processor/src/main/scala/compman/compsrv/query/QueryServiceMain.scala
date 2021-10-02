@@ -67,9 +67,10 @@ object QueryServiceMain extends zio.App {
     } yield ()).forever.fork
     _        <- Logging.debug("Starting server...")
     exitCode <- effect.Ref.of[ServiceIO, effect.ExitCode](effect.ExitCode.Success)
+    serviceVersion = "v1"
     httpApp = Router[ServiceIO](
-      "/store" -> CompetitionHttpApiService.service(competitionApiActor),
-      "/ws"    -> WebsocketService.wsRoutes(webSocketSupervisor)
+      s"/query/$serviceVersion" -> CompetitionHttpApiService.service(competitionApiActor),
+      s"/query/$serviceVersion/ws"    -> WebsocketService.wsRoutes(webSocketSupervisor)
     ).orNotFound
     srv <- ZIO.runtime[ZEnv].flatMap { implicit rts =>
       BlazeServerBuilder[ServiceIO].bindHttp(8080, "0.0.0.0").withWebSockets(true).withSocketKeepAlive(true)

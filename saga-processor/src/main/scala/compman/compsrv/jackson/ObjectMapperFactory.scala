@@ -26,10 +26,10 @@ object ObjectMapperFactory {
     mapper.registerModule(new Jdk8Module())
     mapper.registerModule(new JavaTimeModule())
     val simpleModule = new SimpleModule()
-    mapper.registerModule(simpleModule)
     simpleModule.addDeserializer(classOf[CommandDTO], new PolymorphicCommandDeserializer())
     simpleModule.addDeserializer(classOf[EventDTO], new PolymorphicEventDeserializer())
     simpleModule.addSerializer(classOf[AtomicLong], new StdJdkSerializers.AtomicLongSerializer())
+    mapper.registerModule(simpleModule)
     mapper
   }
 
