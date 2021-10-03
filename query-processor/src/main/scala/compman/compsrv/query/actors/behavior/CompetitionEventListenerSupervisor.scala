@@ -2,8 +2,10 @@ package compman.compsrv.query.actors.behavior
 
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.{CommandProcessorNotification, CompetitionProcessingStarted, CompetitionProcessingStopped}
+import compman.compsrv.model.events.EventDTO
 import compman.compsrv.query.actors.{ActorBehavior, ActorRef, Context, Timers}
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
+import compman.compsrv.query.actors.behavior.CompetitionEventListener.EventReceived
 import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
@@ -51,6 +53,7 @@ object CompetitionEventListenerSupervisor {
           case ReceivedNotification(notification) => notification match {
               case CompetitionProcessingStarted(id, topic, creatorId, createdAt, startsAt, endsAt, timeZone, status) =>
                 for {
+                  _ <- Logging.info(s"Processing competition processing started notification $id")
                   _ <- ManagedCompetitionsOperations.addManagedCompetition[LIO](
                     ManagedCompetition(id, topic, creatorId, createdAt, startsAt, endsAt, timeZone, status)
                   )
@@ -81,13 +84,19 @@ object CompetitionEventListenerSupervisor {
         timers: Timers[SupervisorEnvironment[R], ActorMessages]
       ): RIO[SupervisorEnvironment[R], (Seq[Fiber.Runtime[Throwable, Unit]], Seq[ActorMessages[Any]])] = {
         for {
+          _ <- Logging.info(s"Starting stream for listening to global notifications: : $notificationStopic")
           mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
-          k <- eventStreaming.getByteArrayStream(notificationStopic).mapM(record =>
-            for {
-              notif <- ZIO.effect(mapper.readValue(record, classOf[CommandProcessorNotification]))
-              _     <- context.self ! ReceivedNotification(notif)
-            } yield ()
-          ).runDrain.fork
+          k <- (for {
+            _ <- Logging.info(s"Starting stream for listening to global notifications: : $notificationStopic")
+            _ <- eventStreaming.getByteArrayStream(notificationStopic).mapM(record =>
+              for {
+                notif <- ZIO.effect(mapper.readValue(record, classOf[CommandProcessorNotification]))
+                _ <- Logging.info(s"Received event $notif")
+                _     <- context.self ! ReceivedNotification(notif)
+              } yield ()
+            ).runDrain
+            _ <- Logging.info(s"Finished stream for listening to global notifications: : $notificationStopic")
+          } yield ()).fork
         } yield (Seq(k), Seq.empty[ActorMessages[Any]])
       }
     }

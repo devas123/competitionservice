@@ -22,6 +22,7 @@ import zio.kafka.producer.{Producer, ProducerSettings}
 import zio.kafka.serde.Serde
 import zio.logging.Logging
 
+import java.util.UUID
 import scala.util.{Failure, Success, Try}
 
 object Main extends zio.App {
@@ -50,47 +51,59 @@ object Main extends zio.App {
     val producerLayer = Producer.make[Any, String, Array[Byte]](producerSettings, Serde.string, byteSerializer).toLayer
     val snapshotLayer = SnapshotService.live(appConfig.snapshotConfig.databasePath).toLayer
     val layers        = consumerLayer ++ producerLayer ++ snapshotLayer
-    val program: ZIO[PipelineEnvironment, Any, Any] = Consumer
-      .subscribeAnd(Subscription.topics(appConfig.consumer.commandsTopic))
-      .plainStream(Serde.string, commandDeserializer.asTry).mapM(record => {
-        val tryValue: Try[CommandDTO] = record.record.value()
-        val offset: Offset            = record.offset
+    val program: ZIO[PipelineEnvironment, Any, Any] = for {
+      actorSystem <- ActorSystem("saga-processor")
+      res <- Consumer.subscribeAnd(Subscription.topics(appConfig.consumer.commandsTopic))
+        .plainStream(Serde.string, commandDeserializer.asTry).mapM(record => {
+          val tryValue: Try[CommandDTO] = record.record.value()
+          val offset: Offset            = record.offset
 
-        tryValue match {
-          case Failure(exception) => for {
-              _ <- Logging.error("Error during deserialization")
-              _ <- logError(exception)
-            } yield offset
-          case Success(value) => (for {
-              actorSystem <- ActorSystem("saga-processor")
-              actor <- admin.use { adm =>
-                for {
-                  commandProcessorOperations <- createCommandProcessorConfig[PipelineEnvironment](adm)
-                  initialState <- commandProcessorOperations.getStateSnapshot(record.key) >>=
-                    (_.map(Task(_)).getOrElse(commandProcessorOperations.createInitialState(record.key)))
-
-                  act <- actorSystem.select[Message](s"CompetitionProcessor-${record.key}").foldM(
-                    _ =>
-                      actorSystem.make(
-                        s"CompetitionProcessor-${record.key}",
-                        ActorConfig(),
-                        initialState,
-                        CompetitionProcessorActor
-                          .behavior(commandProcessorOperations, record.key, s"${record.key}-events")
-                      ),
-                    actor => ZIO.effect(actor)
-                  )
-                } yield act
-              }
-              _ <- actor ! ProcessCommand(value)
-            } yield ()).as(offset)
-        }
-      }).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
-
+          tryValue match {
+            case Failure(exception) => for {
+                _ <- Logging.error("Error during deserialization")
+                _ <- logError(exception)
+              } yield offset
+            case Success(value) => (for {
+                _ <- Logging.info(s"Received command: $value")
+                actor <- admin.use { adm =>
+                  for {
+                    act <- actorSystem.select[Message](s"CompetitionProcessor-${record.key}").foldM(
+                      _ =>
+                        for {
+                          _ <- Logging.info(s"Creating new actor for competition: ${record.key}")
+                          commandProcessorOperations <- createCommandProcessorConfig[PipelineEnvironment](
+                            adm,
+                            consumerSettings
+                              .withClientId(UUID.randomUUID().toString)
+                              .withGroupId(UUID.randomUUID().toString)
+                          )
+                          initialState <- commandProcessorOperations.getStateSnapshot(record.key) >>=
+                            (_.map(Task(_)).getOrElse(commandProcessorOperations.createInitialState(record.key)))
+                          a <- actorSystem.make(
+                            s"CompetitionProcessor-${record.key}",
+                            ActorConfig(),
+                            initialState,
+                            CompetitionProcessorActor
+                              .behavior(commandProcessorOperations, record.key, s"${record.key}-events")
+                          )
+                        } yield a,
+                      actor => Logging.info(s"Found existing actor for ${record.key}") *> ZIO.effect(actor)
+                    )
+                  } yield act
+                }
+                _ <- for {
+                  _ <- Logging.info(s"Sending command $value to existing actor")
+                  _ <- actor ! ProcessCommand(value)
+                } yield ()
+              } yield ()).as(offset)
+          }
+        }).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
+    } yield res
     program.provideSomeLayer(Clock.live ++ Blocking.live ++ layers ++ loggingLayer)
   }
 
-  private def createCommandProcessorConfig[E](adm: AdminClient) = CommandProcessorOperations[E](adm)
+  private def createCommandProcessorConfig[E](adm: AdminClient, consumerSettings: ConsumerSettings) =
+    CommandProcessorOperations[E](adm, consumerSettings)
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
     (for { program <- AppConfig.load().flatMap(config => createProgram(config)) } yield program).exitCode

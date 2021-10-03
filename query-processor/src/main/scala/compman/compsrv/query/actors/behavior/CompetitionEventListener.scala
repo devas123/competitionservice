@@ -40,11 +40,11 @@ object CompetitionEventListener {
   case class ActorState()
   val initialState: ActorState = ActorState()
   def behavior[R: Tag](
-                        eventStreaming: EventStreaming[R],
-                        topic: String,
-                        context: ActorContext,
-                        websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
-                      ): ActorBehavior[R with Logging, ActorState, ApiCommand] = new ActorBehavior[R with Logging, ActorState, ApiCommand] {
+    eventStreaming: EventStreaming[R],
+    topic: String,
+    context: ActorContext,
+    websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
+  ): ActorBehavior[R with Logging, ActorState, ApiCommand] = new ActorBehavior[R with Logging, ActorState, ApiCommand] {
     import context._
     import zio.interop.catz._
     override def receive[A](
@@ -56,9 +56,9 @@ object CompetitionEventListener {
     ): RIO[R with Logging, (ActorState, A)] = {
       command match {
         case EventReceived(event) => for {
-          mapped <- EventMapping.mapEventDto[LIO](event)
-          _ <- EventProcessors.applyEvent[LIO, Payload](mapped)
-          _ <- websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)
+            mapped <- EventMapping.mapEventDto[LIO](event)
+            _      <- EventProcessors.applyEvent[LIO, Payload](mapped)
+            _      <- websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)
           } yield (state, ().asInstanceOf[A])
       }
     }
@@ -70,12 +70,16 @@ object CompetitionEventListener {
       timers: Timers[R with Logging, ApiCommand]
     ): RIO[R with Logging, (Seq[Fiber[Throwable, Unit]], Seq[ApiCommand[Any]])] = for {
       mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
-      k <- eventStreaming.getByteArrayStream(topic).mapM(record =>
-        for {
-          event <- ZIO.effect(mapper.readValue(record, classOf[EventDTO]))
-          _     <- context.self ! EventReceived(event)
-        } yield ()
-      ).runDrain.fork
+      k <- (for {
+        _ <- Logging.info(s"Starting stream for listening to competition events for topic: $topic")
+        _ <- eventStreaming.getByteArrayStream(topic).mapM(record =>
+          for {
+            event <- ZIO.effect(mapper.readValue(record, classOf[EventDTO]))
+            _     <- context.self ! EventReceived(event)
+          } yield ()
+        ).runDrain
+        _ <- Logging.info(s"Finished stream for listening to competition events for topic: $topic")
+      } yield ()).fork
     } yield (Seq(k), Seq.empty[ApiCommand[Any]])
   }
 }

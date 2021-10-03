@@ -33,13 +33,14 @@ object CompetitionProcessorActor {
   ): EventSourcedBehavior[Env with Logging with Clock, CompetitionState, Message, EventDTO] =
     new EventSourcedBehavior[Env with Logging with Clock, CompetitionState, Message, EventDTO](competitionId) {
 
-      override def postStop(actorConfig: ActorSystem.ActorConfig, context: Context[Message], state: CompetitionState, timers: Timers[Env with Logging with Clock, Message]): RIO[Env with Logging with Clock, Unit] =
-        for {
-          _ <- processorOperations.sendNotifications(
-            competitionId,
-            Seq(CompetitionProcessingStopped(competitionId))
-          )
-        } yield (Seq.empty, Seq.empty)
+      override def postStop(
+        actorConfig: ActorSystem.ActorConfig,
+        context: Context[Message],
+        state: CompetitionState,
+        timers: Timers[Env with Logging with Clock, Message]
+      ): RIO[Env with Logging with Clock, Unit] = for {
+        _ <- processorOperations.sendNotifications(competitionId, Seq(CompetitionProcessingStopped(competitionId)))
+      } yield (Seq.empty, Seq.empty)
 
       override def init(
         actorConfig: ActorSystem.ActorConfig,
@@ -52,19 +53,18 @@ object CompetitionProcessorActor {
             .fail(new RuntimeException(s"Competition properties are missing: $initState"))
           else Task.unit
         props = initState.competitionProperties.get
-        _ <- processorOperations.sendNotifications(
+        started = CompetitionProcessingStarted(
           competitionId,
-          Seq(CompetitionProcessingStarted(
-            competitionId,
-            eventTopic,
-            props.getCreatorId,
-            props.getCreationTimestamp,
-            props.getStartDate,
-            props.getEndDate,
-            props.getTimeZone,
-            props.getStatus
-          ))
+          eventTopic,
+          props.getCreatorId,
+          props.getCreationTimestamp,
+          props.getStartDate,
+          props.getEndDate,
+          props.getTimeZone,
+          props.getStatus
         )
+        _ <- Logging.info(s"Sending notification: $started")
+        _ <- processorOperations.sendNotifications(competitionId, Seq(started))
       } yield (Seq.empty, Seq.empty)
 
       override def receive[A](

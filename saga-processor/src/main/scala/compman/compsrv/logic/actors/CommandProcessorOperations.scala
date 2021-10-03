@@ -9,11 +9,12 @@ import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, Competit
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
 import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.common
 import zio.{Chunk, Queue, Ref, RIO, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.admin.AdminClient
-import zio.kafka.consumer.{Consumer, Subscription}
+import zio.kafka.consumer.{Consumer, ConsumerSettings, Subscription}
 import zio.kafka.serde.Serde
 import zio.logging.Logging
 
@@ -62,13 +63,21 @@ object CommandProcessorOperations {
     additionalProperties: Map[String, String] = Map.empty
   )
 
-  def apply[E](adminClient: AdminClient): RIO[E with LiveEnv, CommandProcessorOperations[E with LiveEnv]] = {
+  def apply[E](
+    adminClient: AdminClient,
+    consumerSettings: ConsumerSettings
+  ): RIO[E with LiveEnv, CommandProcessorOperations[E with LiveEnv]] = {
     for {
       mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
       operations = new CommandProcessorOperations[E with LiveEnv] {
-        override def retrieveEvents(id: String, offset: Long): RIO[E with LiveEnv, List[EventDTO]] = Consumer
-          .subscribeAnd(Subscription.topics(id)).plainStream(Serde.string, SerdeApi.eventDeserializer)
-          .filter(_.offset.offset >= offset).runCollect.map(_.map(_.value).toList)
+        override def retrieveEvents(id: String, offset: Long): RIO[E with LiveEnv, List[EventDTO]] = for {
+          partitions <- Consumer.partitionsFor(id)
+          endOffsets <- Consumer
+            .endOffsets(partitions.map(pi => new common.TopicPartition(pi.topic(), pi.partition())).toSet)
+          res <- Consumer.subscribeAnd(Subscription.topics(id)).plainStream(Serde.string, SerdeApi.eventDeserializer)
+            .dropUntil(_.offset.offset >= offset).takeUntil(r => r.offset.offset < endOffsets(r.offset.topicPartition))
+            .runCollect.map(_.map(_.value).toList).provideSomeLayer[LiveEnv](Consumer.make(consumerSettings).toLayer)
+        } yield res
 
         override def persistEvents(events: Seq[EventDTO]): RIO[E with LiveEnv, Unit] = {
           zio.kafka.producer.Producer.produceChunk[Any, String, Array[Byte]](Chunk.fromIterable(events).map(e =>
