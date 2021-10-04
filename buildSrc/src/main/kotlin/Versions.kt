@@ -12,7 +12,7 @@ object Versions {
     const val log4j = "2.13.3"
     const val disruptor = "3.4.2"
     const val jackson = "2.12.0"
-    const val kafka = "2.4.1.1"
+    const val kafka = "2.8.1"
     const val rocksdb: String = "6.13.3"
     const val http4s: String = "1.0.0-M27"
     const val quill: String = "3.10.0"
