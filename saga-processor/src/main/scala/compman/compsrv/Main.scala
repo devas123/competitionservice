@@ -15,7 +15,7 @@ import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
-import zio.kafka.admin.AdminClientSettings
+import zio.kafka.admin.{AdminClient, AdminClientSettings}
 import zio.kafka.consumer.{Consumer, ConsumerSettings, Offset, Subscription}
 import zio.kafka.producer.{Producer, ProducerSettings}
 import zio.kafka.serde.Serde
@@ -43,29 +43,36 @@ object Main extends zio.App {
       .withClientId("client").withCloseTimeout(30.seconds).withPollTimeout(10.millis)
       .withProperty("enable.auto.commit", "false").withProperty("auto.offset.reset", "earliest")
 
-    val adminSettings    = AdminClientSettings(appConfig.producer.brokers)
-    val consumerLayer    = Consumer.make(consumerSettings).toLayer
+    val adminSettings = AdminClientSettings(appConfig.producer.brokers)
+    val consumerLayer = Consumer.make(consumerSettings).toLayer
     val producerSettings = ProducerSettings(appConfig.producer.brokers)
     val producerLayer = Producer.make[Any, String, Array[Byte]](producerSettings, Serde.string, byteSerializer).toLayer
     val snapshotLayer = SnapshotService.live(appConfig.snapshotConfig.databasePath).toLayer
-    val layers        = consumerLayer ++ producerLayer ++ snapshotLayer
-    val program: ZIO[PipelineEnvironment, Any, Any] = for {
-      actorSystem <- ActorSystem("saga-processor")
-      suervisor <- actorSystem.make("saga-processor-supervisor", ActorConfig(), (), CompetitionProcessorSupervisorActor.behavior(consumerSettings, adminSettings))
-      res <- Consumer.subscribeAnd(Subscription.topics(appConfig.consumer.commandsTopic))
-        .plainStream(Serde.string, commandDeserializer.asTry).mapM(record => {
-        val tryValue: Try[CommandDTO] = record.record.value()
-        val offset: Offset = record.offset
+    val layers = consumerLayer ++ producerLayer ++ snapshotLayer
+    val adminManaged = AdminClient.make(adminSettings)
 
-        tryValue match {
-          case Failure(exception) => for {
-            _ <- Logging.error("Error during deserialization")
-            _ <- logError(exception)
-          } yield offset
-          case Success(value) => (suervisor ! CompetitionProcessorSupervisorActor.CommandReceived(record.key, value)).as(offset)
-        }
-      }).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
-    } yield res
+    val program: ZIO[PipelineEnvironment, Any, Any] = {
+      adminManaged.use { admin =>
+        for {
+          actorSystem <- ActorSystem("saga-processor")
+          commandProcessorOperationsFactory = CommandProcessorOperationsFactory.live(admin, consumerSettings)
+          suervisor <- actorSystem.make("saga-processor-supervisor", ActorConfig(), (), CompetitionProcessorSupervisorActor.behavior(commandProcessorOperationsFactory))
+          res <- Consumer.subscribeAnd(Subscription.topics(appConfig.consumer.commandsTopic))
+            .plainStream(Serde.string, commandDeserializer.asTry).mapM(record => {
+            val tryValue: Try[CommandDTO] = record.record.value()
+            val offset: Offset = record.offset
+
+            tryValue match {
+              case Failure(exception) => for {
+                _ <- Logging.error("Error during deserialization")
+                _ <- logError(exception)
+              } yield offset
+              case Success(value) => (suervisor ! CompetitionProcessorSupervisorActor.CommandReceived(record.key, value)).as(offset)
+            }
+          }).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
+        } yield res
+      }
+    }
     program.provideSomeLayer(Clock.live ++ Blocking.live ++ layers ++ loggingLayer)
   }
 

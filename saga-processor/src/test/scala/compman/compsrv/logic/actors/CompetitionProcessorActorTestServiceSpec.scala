@@ -1,6 +1,6 @@
 package compman.compsrv.logic.actors
 
-import compman.compsrv.logic.actors.CompetitionProcessorActor.{ProcessCommand, Stop}
+import compman.compsrv.logic.actors.CompetitionProcessorSupervisorActor.CommandReceived
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.commands.{CommandDTO, CommandType}
@@ -51,10 +51,10 @@ object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
           actorSystem <- ActorSystem("Test")
           processorOperations <- ZIO.effect(CommandProcessorOperations.test(eventsQueue, notificationQueue, snapshotsRef))
           initialState <- processorOperations.getStateSnapshot(competitionId).flatMap(_.fold(processorOperations.createInitialState(competitionId))(ZIO.effect(_)))
-          processor <- actorSystem.make(s"CompetitionProcessor-$competitionId",
+          processor <- actorSystem.make(s"CompetitionProcessorSupervisor",
             ActorConfig(),
             initialState,
-            CompetitionProcessorActor.behavior[Clock with Blocking with Logging](CommandProcessorOperations.test(eventsQueue, notificationQueue, snapshotsRef), competitionId, "test-events"))
+            CompetitionProcessorSupervisorActor.behavior(CommandProcessorOperationsFactory.test(eventsQueue, notificationQueue, snapshotsRef)))
           command = {
             val cmd = new CommandDTO()
             cmd.setId(UUID.randomUUID().toString)
@@ -72,19 +72,10 @@ object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
             )
             cmd
           }
-          _ <- processor ! ProcessCommand(command)
+          _ <- processor ! CommandReceived(competitionId, command)
           f <- eventsQueue.takeN(1).fork
-          _ <- processor ! Stop
-          f1 <- notificationQueue.takeN(2).fork
           eventsO <- f.join.timeout(10.seconds)
-          notificationsO <- f1.join.timeout(10.seconds)
           events = eventsO.getOrElse(List.empty)
-          notifications = notificationsO.getOrElse(List.empty)
-        } yield assert(events)(isNonEmpty) && assert(notifications)(isNonEmpty) &&
-          assert(events.head.getType)(equalTo(EventType.COMPETITION_CREATED)) &&
-          assert(events.head.getPayload)(not(isNull)) &&
-          assert(events.head.getPayload)(isSubtype[CompetitionCreatedPayload](anything)) &&
-          assert(events.head.getCorrelationId)(equalTo(command.getId)) &&
-          assert(events.head.getLocalEventNumber.toLong)(equalTo(0L))
+        } yield assert(events)(isNonEmpty)
       }).provideLayer(loggingLayer ++ snapshotLayer ++ Clock.live ++ Blocking.live)
 }

@@ -2,21 +2,21 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.jackson.{ObjectMapperFactory, SerdeApi}
 import compman.compsrv.logic.actors.CommandProcessorOperations.KafkaTopicConfig
-import compman.compsrv.logic.actors.CompetitionProcessorActor.LiveEnv
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compman.compsrv.model.{CommandProcessorNotification, CompetitionState, CompetitionStateImpl}
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
+import compman.compsrv.model.{CommandProcessorNotification, CompetitionState, CompetitionStateImpl}
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common
-import zio.{Chunk, Queue, Ref, RIO, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.admin.AdminClient
 import zio.kafka.consumer.{Consumer, ConsumerSettings, Subscription}
+import zio.kafka.producer.Producer
 import zio.kafka.serde.Serde
 import zio.logging.Logging
+import zio.{Chunk, Queue, RIO, Ref, URIO, ZIO}
 
 import java.time.Instant
 
@@ -63,44 +63,47 @@ object CommandProcessorOperations {
     additionalProperties: Map[String, String] = Map.empty
   )
 
+  private type CommandProcLive = Logging with Clock with Blocking with SnapshotService.Snapshot with Producer[Any, String, Array[Byte]]
+
   def apply[E](
-    adminClient: AdminClient,
-    consumerSettings: ConsumerSettings
-  ): RIO[E with LiveEnv, CommandProcessorOperations[E with LiveEnv]] = {
+                adminClient: AdminClient,
+                consumerSettings: ConsumerSettings
+              ): RIO[E with CommandProcLive, CommandProcessorOperations[E with CommandProcLive]] = {
     for {
       mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
-      operations = new CommandProcessorOperations[E with LiveEnv] {
-        override def retrieveEvents(id: String, offset: Long): RIO[E with LiveEnv, List[EventDTO]] = for {
+      operations = new CommandProcessorOperations[E with CommandProcLive] {
+        override def retrieveEvents(id: String, offset: Long): RIO[E with CommandProcLive, List[EventDTO]] = (for {
           partitions <- Consumer.partitionsFor(id)
           endOffsets <- Consumer
             .endOffsets(partitions.map(pi => new common.TopicPartition(pi.topic(), pi.partition())).toSet)
           res <- Consumer.subscribeAnd(Subscription.topics(id)).plainStream(Serde.string, SerdeApi.eventDeserializer)
             .dropUntil(_.offset.offset >= offset).takeUntil(r => r.offset.offset < endOffsets(r.offset.topicPartition))
-            .runCollect.map(_.map(_.value).toList).provideSomeLayer[LiveEnv](Consumer.make(consumerSettings).toLayer)
+            .runCollect.map(_.map(_.value).toList)
         } yield res
+          ).provideSomeLayer[Clock with Blocking](Consumer.make(consumerSettings).toLayer)
 
-        override def persistEvents(events: Seq[EventDTO]): RIO[E with LiveEnv, Unit] = {
+        override def persistEvents(events: Seq[EventDTO]): RIO[E with CommandProcLive, Unit] = {
           zio.kafka.producer.Producer.produceChunk[Any, String, Array[Byte]](Chunk.fromIterable(events).map(e =>
             new ProducerRecord[String, Array[Byte]](e.getCompetitionId, mapper.writeValueAsBytes(e))
           )).ignore
         }
 
-        override def getStateSnapshot(id: String): URIO[E with LiveEnv, Option[CompetitionState]] = SnapshotService
+        override def getStateSnapshot(id: String): URIO[E with CommandProcLive, Option[CompetitionState]] = SnapshotService
           .load(id)
 
-        override def saveStateSnapshot(state: CompetitionState): URIO[E with LiveEnv, Unit] = SnapshotService
+        override def saveStateSnapshot(state: CompetitionState): URIO[E with CommandProcLive, Unit] = SnapshotService
           .save(state)
 
         override def sendNotifications(
           competitionId: String,
           notifications: Seq[CommandProcessorNotification]
-        ): RIO[E with LiveEnv, Unit] = {
+        ): RIO[E with CommandProcLive, Unit] = {
           zio.kafka.producer.Producer.produceChunk[Any, String, Array[Byte]](Chunk.fromIterable(notifications).map(e =>
             new ProducerRecord[String, Array[Byte]](competitionId, mapper.writeValueAsBytes(e))
           )).ignore
         }
 
-        override def createTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig): RIO[E with LiveEnv, Unit] =
+        override def createTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig): RIO[E with CommandProcLive, Unit] =
           for {
             topics <- adminClient.listTopics()
             _ <-
