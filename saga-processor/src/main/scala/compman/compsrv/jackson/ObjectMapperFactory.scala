@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.module.SimpleModule
 import com.fasterxml.jackson.databind.ser.std.StdJdkSerializers
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 
@@ -23,6 +24,7 @@ object ObjectMapperFactory {
     mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY)
     mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL)
     mapper.findAndRegisterModules()
+    mapper.registerModule(DefaultScalaModule)
     mapper.registerModule(new Jdk8Module())
     mapper.registerModule(new JavaTimeModule())
     val simpleModule = new SimpleModule()

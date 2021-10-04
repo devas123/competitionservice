@@ -105,7 +105,9 @@ object Operations {
   ): F[Either[Errors.Error, Seq[EventDTO]]] = {
     import cats.implicits._
     val either: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
+      _ <- EitherT.liftF(info(s"Received command: $command"))
       mapped        <- EitherT.liftF(Mapping.mapCommandDto(command))
+      _ <- EitherT.liftF(info(s"Mapped command: $mapped"))
       eventsToApply <- EitherT(CommandProcessors.process(mapped, latestState))
       _ <- EitherT.liftF(info(s"Received events: $eventsToApply"))
       n = latestState.revision
@@ -113,6 +115,7 @@ object Operations {
         ev.setLocalEventNumber(n + ind).setCorrelationId(command.getId)
         ev
       })
+      _ <- EitherT.liftF(info(s"Returning events: $enrichedEvents"))
     } yield enrichedEvents
     either.value
   }

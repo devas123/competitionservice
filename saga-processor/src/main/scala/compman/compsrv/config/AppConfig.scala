@@ -34,4 +34,4 @@ object AppConfig {
     } yield config
 }
 
-case class CommandProcessorConfig(actorIdleTimeoutMillis: Option[Long], eventsTopicPrefix: String)
+case class CommandProcessorConfig(actorIdleTimeoutMillis: Option[Long], eventsTopicPrefix: String, competitionNotificationsTopic: String)

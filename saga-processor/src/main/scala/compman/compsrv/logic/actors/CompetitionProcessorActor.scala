@@ -85,12 +85,14 @@ object CompetitionProcessorActor {
               ) *> {
                 for {
                   _ <-
-                    if (cmd.getId == null) RIO.fail(new IllegalArgumentException(s"Command $cmd has no ID"))
+                    if (cmd.getId == null) info(s"Command $cmd has no ID") *> RIO.fail(new IllegalArgumentException(s"Command $cmd has no ID"))
                     else RIO.unit
+                  _ <- info(s"Processing command $command")
                   processResult <- Live.withContext(
                     _.annotate(LogAnnotation.CorrelationId, Option(cmd.getId).map(UUID.fromString))
                       .annotate(Annotations.competitionId, Option(cmd.getCompetitionId))
                   ) { Operations.processCommand[LIO](state, cmd) }
+                  _ <- info(s"Processing done. ")
                   res <- processResult match {
                     case Left(value)  => info(s"Error: $value") *> ZIO.effect((Command.ignore, unit))
                     case Right(value) => ZIO.effect((Command.persist(value), unit))
