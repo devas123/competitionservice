@@ -7,7 +7,7 @@ import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import io.getquill.{CassandraZioContext, CassandraZioSession, EntityQuery, SnakeCase}
 import io.getquill.context.cassandra.encoding.{Decoders, Encoders}
-import zio.{Has, Task}
+import zio.{Has, Ref, Task}
 import zio.interop.catz._
 
 trait CompetitionQueryOperations[F[+_]] {
@@ -72,21 +72,29 @@ object CompetitionQueryOperations {
   def apply[F[+_]](implicit F: CompetitionQueryOperations[F]): CompetitionQueryOperations[F] = F
 
   def test(
-    competitionProperties: Option[Map[String, CompetitionProperties]] = None,
-    categories: Option[Map[String, Category]] = None,
-    competitors: Option[Map[String, Competitor]] = None,
-    fights: Option[Map[String, Fight]] = None,
-    periods: Option[Map[String, Period]] = None,
-    registrationPeriods: Option[Map[String, RegistrationPeriod]] = None,
-    registrationGroups: Option[Map[String, RegistrationGroup]] = None,
-    stages: Option[Map[String, StageDescriptor]] = None
-  ): CompetitionQueryOperations[LIO] = new CompetitionQueryOperations[LIO] {
-    private def getById[T](map: Option[Map[String, T]])(id: String): Task[Option[T]] = Task(map.flatMap(_.get(id)))
+            competitionProperties: Option[Ref[Map[String, CompetitionProperties]]] = None,
+            categories: Option[Ref[Map[String, Category]]] = None,
+            competitors: Option[Ref[Map[String, Competitor]]] = None,
+            fights: Option[Ref[Map[String, Fight]]] = None,
+            periods: Option[Ref[Map[String, Period]]] = None,
+            registrationPeriods: Option[Ref[Map[String, RegistrationPeriod]]] = None,
+            registrationGroups: Option[Ref[Map[String, RegistrationGroup]]] = None,
+            stages: Option[Ref[Map[String, StageDescriptor]]] = None
+          ): CompetitionQueryOperations[LIO] = new CompetitionQueryOperations[LIO] {
+    private def getById[T](map: Option[Ref[Map[String, T]]])(id: String): Task[Option[T]] = map match {
+      case Some(value) => value.get.map(_.get(id))
+      case None => Task(None)
+    }
+
     override def getCompetitionProperties(id: String): LIO[Option[CompetitionProperties]] =
       getById(competitionProperties)(id)
 
-    override def getCategoriesByCompetitionId(competitionId: String): LIO[List[Category]] =
-      Task(categories.map(_.values.filter(_.competitionId == competitionId).toList).getOrElse(List.empty))
+    override def getCategoriesByCompetitionId(competitionId: String): LIO[List[Category]] = {
+      categories match {
+        case Some(value) => value.get.map(_.values.filter(_.competitionId == competitionId).toList)
+        case None => Task(List.empty)
+      }
+    }
 
     override def getCompetitionInfoTemplate(competitionId: String): LIO[Option[CompetitionInfoTemplate]] =
       getCompetitionProperties(competitionId).map(_.map(_.infoTemplate))
@@ -94,19 +102,20 @@ object CompetitionQueryOperations {
     override def getCategoryById(competitionId: String)(id: String): LIO[Option[Category]] = getById(categories)(id)
 
     override def searchCategory(
-      competitionId: String
-    )(searchString: String, pagination: Option[Pagination]): LIO[(List[Category], Pagination)] =
+                                 competitionId: String
+                               )(searchString: String, pagination: Option[Pagination]): LIO[(List[Category], Pagination)] =
       getCategoriesByCompetitionId(competitionId).map(cats => (cats, Pagination(0, cats.size, cats.size)))
 
-    override def getFightsByMat(competitionId: String)(matId: String, limit: Int): LIO[List[Fight]] = Task(
-      fights.map(_.values.filter(f => f.competitionId == competitionId && f.scheduleInfo.matId.contains(matId)).toList)
-        .getOrElse(List.empty)
-    )
+    override def getFightsByMat(competitionId: String)(matId: String, limit: Int): LIO[List[Fight]] = fights match {
+      case Some(value) => value.get.map(_.values.filter(f => f.competitionId == competitionId && f.scheduleInfo.matId.contains(matId)).toList)
+      case None => Task(List.empty)
+    }
 
-    override def getFightsByStage(competitionId: String)(stageId: String): LIO[List[Fight]] = Task(
-      fights.map(_.values.filter(f => f.competitionId == competitionId && f.stageId == stageId).toList)
-        .getOrElse(List.empty)
-    )
+    override def getFightsByStage(competitionId: String)(stageId: String): LIO[List[Fight]] =
+      fights match {
+        case Some(value) => value.get.map(_.values.filter(f => f.competitionId == competitionId && f.stageId == stageId).toList)
+        case None => Task(List.empty)
+      }
 
     override def getFightById(competitionId: String)(id: String): LIO[Option[Fight]] = getById(fights)(id)
 
@@ -120,33 +129,46 @@ object CompetitionQueryOperations {
       categoryId: String,
       pagination: Option[Pagination],
       searchString: Option[String]
-    ): LIO[(List[Competitor], Pagination)] = Task {
-      competitors.map(_.values.toList.filter(_.categories.contains(categoryId))).getOrElse(List.empty)
-    }.map(list => (list, Pagination(0, list.size, list.size)))
+    ): LIO[(List[Competitor], Pagination)] = competitors match {
+      case Some(value) =>
+        value.get.map(_.values.toList.filter(_.categories.contains(categoryId))).map(list => (list, Pagination(0, list.size, list.size)))
+      case None => Task((List.empty, Pagination(0, 0, 0)))
+    }
 
     override def getCompetitorsByCompetitionId(
       competitionId: String
     )(pagination: Option[Pagination], searchString: Option[String]): LIO[(List[Competitor], Pagination)] = {
-      Task { competitors.map(_.values.toList.filter(_.competitionId.equals(competitionId))).getOrElse(List.empty) }
-        .map(list => (list, Pagination(0, list.size, list.size)))
+      competitors match {
+        case Some(value) =>
+          value.get.map(_.values.toList.filter(_.competitionId.equals(competitionId))).map(list => (list, Pagination(0, list.size, list.size)))
+        case None => Task((List.empty, Pagination(0, 0, 0)))
+      }
     }
 
     override def getCompetitorsByAcademyId(competitionId: String)(
       academyId: String,
       pagination: Option[Pagination],
       searchString: Option[String]
-    ): LIO[(List[Competitor], Pagination)] = Task {
-      competitors.map(_.values.toList.filter(_.academy.exists(_.id == academyId))).getOrElse(List.empty)
-    }.map(list => (list, Pagination(0, list.size, list.size)))
+    ): LIO[(List[Competitor], Pagination)] =
+      competitors match {
+        case Some(value) =>
+          value.get.map(_.values.toList.filter(_.academy.exists(_.id == academyId))).map(list => (list, Pagination(0, list.size, list.size)))
+        case None => Task((List.empty, Pagination(0, 0, 0)))
+      }
 
-    override def getRegistrationGroups(competitionId: String): LIO[List[RegistrationGroup]] =
-      Task { registrationGroups.map(_.values.toList.filter(_.competitionId.eq(competitionId))).getOrElse(List.empty) }
+    override def getRegistrationGroups(competitionId: String): LIO[List[RegistrationGroup]] = registrationGroups match {
+      case Some(value) => value.get.map(_.values.toList.filter(_.competitionId.eq(competitionId)))
+      case None => Task(List.empty)
+    }
 
     override def getRegistrationGroupById(competitionId: String)(id: String): LIO[Option[RegistrationGroup]] =
       getById(registrationGroups)(id)
 
     override def getRegistrationPeriods(competitionId: String): LIO[List[RegistrationPeriod]] =
-      Task { registrationPeriods.map(_.values.toList.filter(_.competitionId.eq(competitionId))).getOrElse(List.empty) }
+      registrationPeriods match {
+        case Some(value) => value.get.map(_.values.toList.filter(_.competitionId.eq(competitionId)))
+        case None => Task(List.empty)
+      }
 
     override def getRegistrationPeriodById(competitionId: String)(id: String): LIO[Option[RegistrationPeriod]] =
       getById(registrationPeriods)(id)
@@ -155,17 +177,23 @@ object CompetitionQueryOperations {
       getPeriodById(competitionId)(periodId).map(_.map(_.scheduleEntries).getOrElse(List.empty))
 
     override def getScheduleRequirementsByPeriodId(
-      competitionId: String
-    )(periodId: String): LIO[List[ScheduleRequirement]] = getPeriodById(competitionId)(periodId)
+                                                    competitionId: String
+                                                  )(periodId: String): LIO[List[ScheduleRequirement]] = getPeriodById(competitionId)(periodId)
       .map(_.map(_.scheduleRequirements).getOrElse(List.empty))
 
     override def getPeriodsByCompetitionId(competitionId: String): LIO[List[Period]] =
-      Task(periods.map(_.values.toList.filter(_.competitionId == competitionId)).getOrElse(List.empty))
+      periods match {
+        case Some(value) => value.get.map(_.values.toList.filter(_.competitionId.eq(competitionId)))
+        case None => Task(List.empty)
+      }
 
     override def getPeriodById(competitionId: String)(id: String): LIO[Option[Period]] = getById(periods)(id)
 
     override def getStagesByCategory(competitionId: String)(categoryId: String): LIO[List[StageDescriptor]] =
-      Task { stages.map(_.values.toList.filter(_.categoryId == categoryId)).getOrElse(List.empty) }
+      stages match {
+        case Some(value) => value.get.map(_.values.toList.filter(_.categoryId == categoryId))
+        case None => Task(List.empty)
+      }
 
     override def getStageById(competitionId: String)(id: String): LIO[Option[StageDescriptor]] = getById(stages)(id)
   }

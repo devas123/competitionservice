@@ -25,14 +25,14 @@ object CompetitionApiActor {
 
   case class Test(
     competitions: Ref[Map[String, ManagedCompetition]],
-    competitionProperties: Option[Map[String, CompetitionProperties]] = None,
-    categories: Option[Map[String, Category]] = None,
-    competitors: Option[Map[String, Competitor]] = None,
-    fights: Option[Map[String, Fight]] = None,
-    periods: Option[Map[String, Period]] = None,
-    registrationPeriods: Option[Map[String, RegistrationPeriod]] = None,
-    registrationGroups: Option[Map[String, RegistrationGroup]] = None,
-    stages: Option[Map[String, StageDescriptor]] = None
+    competitionProperties: Option[Ref[Map[String, CompetitionProperties]]] = None,
+    categories: Option[Ref[Map[String, Category]]] = None,
+    competitors: Option[Ref[Map[String, Competitor]]] = None,
+    fights: Option[Ref[Map[String, Fight]]] = None,
+    periods: Option[Ref[Map[String, Period]]] = None,
+    registrationPeriods: Option[Ref[Map[String, RegistrationPeriod]]] = None,
+    registrationGroups: Option[Ref[Map[String, RegistrationGroup]]] = None,
+    stages: Option[Ref[Map[String, StageDescriptor]]] = None
   ) extends ActorContext {
     implicit val loggingLive: CompetitionLogging.Service[LIO] = CompetitionLogging.Live.live[Any]
     implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations.test(

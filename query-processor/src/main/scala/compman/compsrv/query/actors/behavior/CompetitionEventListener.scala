@@ -1,19 +1,21 @@
 package compman.compsrv.query.actors.behavior
 
+import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model
-import compman.compsrv.model.{Mapping, Payload}
-import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.Mapping.EventMapping
-import compman.compsrv.query.actors.{ActorBehavior, ActorRef, Context, Timers}
+import compman.compsrv.model.events.EventDTO
+import compman.compsrv.model.{Mapping, Payload}
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
+import compman.compsrv.query.actors.{ActorBehavior, ActorRef, Context, Timers}
+import compman.compsrv.query.model._
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
 import compman.compsrv.query.service.repository._
 import io.getquill.CassandraZioSession
-import zio.{Fiber, RIO, Tag, ZIO}
 import zio.logging.Logging
+import zio.{Fiber, RIO, Ref, Tag, ZIO}
 
 object CompetitionEventListener {
   sealed trait ApiCommand[+_]
@@ -29,7 +31,7 @@ object CompetitionEventListener {
 
   case class Live(cassandraZioSession: CassandraZioSession) extends ActorContext {
     implicit val eventMapping: Mapping.EventMapping[LIO] = model.Mapping.EventMapping.live
-    implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO] = compman.compsrv.logic
+    implicit val loggingLive: CompetitionLogging.Service[LIO] = compman.compsrv.logic
       .logging.CompetitionLogging.Live.live[Any]
     implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
       .live(cassandraZioSession)
@@ -37,14 +39,36 @@ object CompetitionEventListener {
       .live(cassandraZioSession)
   }
 
+  case class Test(
+                   competitionProperties: Option[Ref[Map[String, CompetitionProperties]]] = None,
+                   categories: Option[Ref[Map[String, Category]]] = None,
+                   competitors: Option[Ref[Map[String, Competitor]]] = None,
+                   fights: Option[Ref[Map[String, Fight]]] = None,
+                   periods: Option[Ref[Map[String, Period]]] = None,
+                   registrationPeriods: Option[Ref[Map[String, RegistrationPeriod]]] = None,
+                   registrationGroups: Option[Ref[Map[String, RegistrationGroup]]] = None,
+                   stages: Option[Ref[Map[String, StageDescriptor]]] = None
+                 ) extends ActorContext {
+    implicit val eventMapping: Mapping.EventMapping[LIO] = model.Mapping.EventMapping.live
+    implicit val loggingLive: CompetitionLogging.Service[LIO] = compman.compsrv.logic
+      .logging.CompetitionLogging.Live.live[Any]
+    implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
+      .test(competitionProperties, categories, competitors, fights, periods, registrationPeriods, registrationGroups, stages)
+    implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations
+      .test(competitionProperties, categories, competitors, fights, periods, registrationPeriods, registrationGroups, stages)
+  }
+
   case class ActorState()
+
   val initialState: ActorState = ActorState()
+
   def behavior[R: Tag](
-    eventStreaming: EventStreaming[R],
-    topic: String,
-    context: ActorContext,
-    websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
-  ): ActorBehavior[R with Logging, ActorState, ApiCommand] = new ActorBehavior[R with Logging, ActorState, ApiCommand] {
+                        eventStreaming: EventStreaming[R],
+                        topic: String,
+                        context: ActorContext,
+                        websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
+                      ): ActorBehavior[R with Logging, ActorState, ApiCommand] = new ActorBehavior[R with Logging, ActorState, ApiCommand] {
+
     import context._
     import zio.interop.catz._
     override def receive[A](

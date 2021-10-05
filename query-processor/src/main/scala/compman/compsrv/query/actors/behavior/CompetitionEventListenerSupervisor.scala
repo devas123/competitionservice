@@ -12,7 +12,7 @@ import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
 import io.getquill.CassandraZioSession
-import zio.{Fiber, RIO, Tag, Task, ZIO}
+import zio.{Fiber, RIO, Ref, Tag, Task, ZIO}
 import zio.clock.Clock
 import zio.logging.Logging
 
@@ -31,6 +31,12 @@ object CompetitionEventListenerSupervisor {
       .logic.logging.CompetitionLogging.Live.live[Any]
     override implicit val managedCompetitionsOperations: ManagedCompetitionService[LIO] = ManagedCompetitionsOperations
       .live(cassandraZioSession)
+  }
+
+  case class Test(competitions: Ref[Map[String, ManagedCompetition]]) extends ActorContext {
+    override implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO] = compman.compsrv
+      .logic.logging.CompetitionLogging.Live.live[Any]
+    override implicit val managedCompetitionsOperations: ManagedCompetitionService[LIO] = ManagedCompetitionsOperations.test(competitions)
   }
 
   def behavior[R: Tag](
