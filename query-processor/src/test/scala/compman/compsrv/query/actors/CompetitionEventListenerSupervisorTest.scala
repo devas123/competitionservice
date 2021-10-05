@@ -9,8 +9,8 @@ import compman.compsrv.query.service.kafka.EventStreamingService
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.test.Assertion._
-import zio.test.environment.TestEnvironment
 import zio.test._
+import zio.test.environment.TestEnvironment
 import zio.{Ref, URIO, ZIO}
 
 
@@ -20,10 +20,10 @@ object CompetitionEventListenerSupervisorTest extends DefaultRunnableSpec {
   private val loggingLayer = CompetitionLogging.Live.loggingLayer
 
   override def spec: ZSpec[TestEnvironment, Any] = suite("Competition event listener") {
-    val kafkaBroker = EmbeddedKafkaBroker.embeddedKafkaServer.toManaged(kafka => URIO(kafka.stop(true)))
+    val kafkaBroker = EmbeddedKafkaBroker.embeddedKafkaServer.toManaged(kafka => URIO(kafka.stop(true))).toLayer
     import EmbeddedKafkaBroker._
     testM("Should subscribe to topics") {
-      kafkaBroker.use { broker =>
+      {
         for {
           _ <- ZIO.effect {
             EmbeddedKafkaBroker.createCustomTopic(notificationTopic, replicationFactor = 1, partitions = 1)
@@ -44,7 +44,7 @@ object CompetitionEventListenerSupervisorTest extends DefaultRunnableSpec {
           eventListenerContext = CompetitionEventListener.Test(Some(competitionProperties), Some(categories), Some(competitors), Some(fights), Some(periods), Some(registrationPeriods), Some(registrationGroups), Some(stages))
           competitionListenerActor <- actorSystem.make("competitionSupervisor", ActorConfig(), (), CompetitionEventListenerSupervisor.behavior(eventStreaming, notificationTopic, supervisorContext, eventListenerContext, websocketSupervisor.ref))
         } yield assert(true)(isTrue)
-      }.provideLayer(Clock.live ++ loggingLayer ++ Blocking.live ++ zio.console.Console.live)
+      }.provideLayer(Clock.live ++ loggingLayer ++ Blocking.live ++ zio.console.Console.live ++ kafkaBroker)
     }
 
   }
