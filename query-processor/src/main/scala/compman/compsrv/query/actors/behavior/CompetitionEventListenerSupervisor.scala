@@ -2,17 +2,15 @@ package compman.compsrv.query.actors.behavior
 
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.{CommandProcessorNotification, CompetitionProcessingStarted, CompetitionProcessingStopped}
-import compman.compsrv.model.events.EventDTO
 import compman.compsrv.query.actors.{ActorBehavior, ActorRef, Context, Timers}
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
-import compman.compsrv.query.actors.behavior.CompetitionEventListener.EventReceived
 import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
 import io.getquill.CassandraZioSession
-import zio.{Fiber, RIO, Ref, Tag, Task, ZIO}
+import zio.{Fiber, Ref, RIO, Tag, Task, ZIO}
 import zio.clock.Clock
 import zio.logging.Logging
 
@@ -36,16 +34,17 @@ object CompetitionEventListenerSupervisor {
   case class Test(competitions: Ref[Map[String, ManagedCompetition]]) extends ActorContext {
     override implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO] = compman.compsrv
       .logic.logging.CompetitionLogging.Live.live[Any]
-    override implicit val managedCompetitionsOperations: ManagedCompetitionService[LIO] = ManagedCompetitionsOperations.test(competitions)
+    override implicit val managedCompetitionsOperations: ManagedCompetitionService[LIO] = ManagedCompetitionsOperations
+      .test(competitions)
   }
 
   def behavior[R: Tag](
-                        eventStreaming: EventStreaming[R],
-                        notificationStopic: String,
-                        context: ActorContext,
-                        eventListenerContext: CompetitionEventListener.ActorContext,
-                        websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
-                      ): ActorBehavior[SupervisorEnvironment[R], Unit, ActorMessages] =
+    eventStreaming: EventStreaming[R],
+    notificationStopic: String,
+    context: ActorContext,
+    eventListenerContext: CompetitionEventListener.ActorContext,
+    websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
+  ): ActorBehavior[SupervisorEnvironment[R], Unit, ActorMessages] =
     new ActorBehavior[SupervisorEnvironment[R], Unit, ActorMessages] {
       import context._
       override def receive[A](
@@ -68,7 +67,8 @@ object CompetitionEventListenerSupervisor {
                       id,
                       ActorConfig(),
                       CompetitionEventListener.initialState,
-                      CompetitionEventListener.behavior[R](eventStreaming, topic, eventListenerContext, websocketConnectionSupervisor)
+                      CompetitionEventListener
+                        .behavior[R](eventStreaming, topic, eventListenerContext, websocketConnectionSupervisor)
                     ).map(_ => ((), ().asInstanceOf[A]))
                 } yield res // start new actor if not started
               case CompetitionProcessingStopped(id) => for {
@@ -90,18 +90,18 @@ object CompetitionEventListenerSupervisor {
         timers: Timers[SupervisorEnvironment[R], ActorMessages]
       ): RIO[SupervisorEnvironment[R], (Seq[Fiber.Runtime[Throwable, Unit]], Seq[ActorMessages[Any]])] = {
         for {
-          _ <- Logging.info(s"Starting stream for listening to global notifications: : $notificationStopic")
           mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
           k <- (for {
-            _ <- Logging.info(s"Starting stream for listening to global notifications: : $notificationStopic")
+            _ <- Logging.info(s"Starting stream for listening to global notifications: $notificationStopic")
             _ <- eventStreaming.getByteArrayStream(notificationStopic).mapM(record =>
               for {
                 notif <- ZIO.effect(mapper.readValue(record, classOf[CommandProcessorNotification]))
-                _ <- Logging.info(s"Received event $notif")
-                _     <- context.self ! ReceivedNotification(notif)
+                  .onError(err => Logging.error(s"Error while deserialize: $err", err))
+                _ <- Logging.info(s"Received notification $notif")
+                _ <- context.self ! ReceivedNotification(notif)
               } yield ()
             ).runDrain
-            _ <- Logging.info(s"Finished stream for listening to global notifications: : $notificationStopic")
+            _ <- Logging.info(s"Finished stream for listening to global notifications: $notificationStopic")
           } yield ()).fork
         } yield (Seq(k), Seq.empty[ActorMessages[Any]])
       }

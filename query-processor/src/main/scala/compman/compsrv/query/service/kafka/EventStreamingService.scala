@@ -7,6 +7,8 @@ import zio.kafka.consumer.{Consumer, ConsumerSettings, Subscription}
 import zio.kafka.serde.Serde
 import zio.stream.ZStream
 
+import java.util.UUID
+
 object EventStreamingService {
 
   trait EventStreaming[R] {
@@ -14,13 +16,12 @@ object EventStreamingService {
   }
 
   def live(bootstrapServers: List[String]): EventStreaming[Clock with Blocking] =
-    new EventStreaming[Clock with Blocking] {
-      val settings: ConsumerSettings                                           = ConsumerSettings(bootstrapServers)
+    (topic: String) => {
+      val settings: ConsumerSettings = ConsumerSettings(bootstrapServers).withGroupId(UUID.randomUUID().toString)
+        .withClientId(UUID.randomUUID().toString)
       val layer: ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]] = Consumer.make(settings).toLayer
-      override def getByteArrayStream(topic: String): ZStream[Clock with Blocking, Throwable, Array[Byte]] = {
-        Consumer.subscribeAnd(Subscription.topics(topic)).plainStream(Serde.string, Serde.byteArray).map(_.value)
-          .provideSomeLayer(layer)
-      }
+      Consumer.subscribeAnd(Subscription.topics(topic)).plainStream(Serde.string, Serde.byteArray).map(_.value)
+        .provideSomeLayer(layer)
     }
 
   def test(stream: Map[String, List[Array[Byte]]]): EventStreaming[Any] =

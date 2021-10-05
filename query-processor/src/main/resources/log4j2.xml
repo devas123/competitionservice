@@ -8,7 +8,10 @@
     </Appenders>
     <Loggers>
         <logger name="compman.compsrv.query.QueryServiceMain" level="info" />
-        <AsyncRoot level="debug" additivity="false">
+        <logger name="AbstractCoordinator" level="info" />
+        <logger name="NetworkClient" level="info" />
+        <logger name="KafkaConsumer" level="info" />
+        <AsyncRoot level="info" additivity="false">
             <AppenderRef ref="console" />
         </AsyncRoot>
     </Loggers>
