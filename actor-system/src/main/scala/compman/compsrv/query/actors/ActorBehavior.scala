@@ -51,7 +51,7 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
       for {
         t <- (for {
           msg <- queue.take
-          _ <- process(context, msg, stateRef, ts)
+          _ <- process(context, msg, stateRef, ts).attempt
         } yield ()).repeatUntilM(_ => queue.isShutdown).fork
         _ <- t.join.attempt
         st <- stateRef.get
