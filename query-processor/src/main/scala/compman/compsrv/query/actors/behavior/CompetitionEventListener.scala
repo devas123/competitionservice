@@ -80,9 +80,10 @@ object CompetitionEventListener {
     ): RIO[R with Logging, (ActorState, A)] = {
       command match {
         case EventReceived(event) => for {
-            mapped <- EventMapping.mapEventDto[LIO](event)
-            _      <- EventProcessors.applyEvent[LIO, Payload](mapped)
-            _      <- websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)
+          mapped <- EventMapping.mapEventDto[LIO](event)
+          _ <- EventProcessors.applyEvent[LIO, Payload](mapped)
+          _ <- (websocketConnectionSupervisor ? WebsocketConnectionSupervisor.EventReceived(event))
+            .onError(cause => Logging.error(s"Error while processing event $event", cause)).fork
           } yield (state, ().asInstanceOf[A])
       }
     }
