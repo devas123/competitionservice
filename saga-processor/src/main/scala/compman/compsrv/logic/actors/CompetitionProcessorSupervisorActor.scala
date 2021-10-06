@@ -5,7 +5,7 @@ import compman.compsrv.logic.actors.CompetitionProcessorActor.ProcessCommand
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.query.actors.{ActorBehavior, ActorSystem, Context, Timers}
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
-import zio.{RIO, Tag, Task, ZIO}
+import zio.{RIO, Tag, ZIO}
 import zio.clock.Clock
 import zio.logging.Logging
 
@@ -34,8 +34,13 @@ object CompetitionProcessorSupervisorActor {
                     ).getOrElse(for {
                       _                          <- Logging.info(s"Creating new actor for competition: $competitionId")
                       commandProcessorOperations <- commandProcessorOperationsFactory.getCommandProcessorOperations[Env]
-                      initialState <- commandProcessorOperations.getStateSnapshot(competitionId) >>=
-                        (_.map(Task(_)).getOrElse(commandProcessorOperations.createInitialState(competitionId)))
+                      initialState <- commandProcessorOperations.getStateSnapshot(competitionId) >>= {
+                        case None => Logging
+                            .info(s"State snapshot not found, creating initial state with payload ${fa.getPayload}") *>
+                          ZIO.effect(commandProcessorOperations.createInitialState(competitionId, Option(fa.getPayload)))
+                        case Some(value) => ZIO.effect(value)
+                      }
+                      _ <- Logging.info(s"Resolved initial state of the competition is $initialState")
                       a <- context.make(
                         s"CompetitionProcessor-$competitionId",
                         ActorConfig(),

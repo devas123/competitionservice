@@ -10,7 +10,7 @@ case class ManagedCompetition(
   creatorId: String,
   createdAt: Instant,
   startsAt: Instant,
-  endsAt: Instant,
+  endsAt: Option[Instant],
   timeZone: String,
   status: CompetitionStatus
 )

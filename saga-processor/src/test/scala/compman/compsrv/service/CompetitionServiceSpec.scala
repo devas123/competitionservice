@@ -1,7 +1,7 @@
 package compman.compsrv.service
 
 import compman.compsrv.logic.actors._
-import compman.compsrv.logic.actors.CompetitionProcessorActor.{Message, ProcessCommand, Stop}
+import compman.compsrv.logic.actors.CompetitionProcessorActor.{ProcessCommand, Stop}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.{CommandProcessorNotification, CompetitionState}
 import compman.compsrv.model.commands.{CommandDTO, CommandType}
@@ -50,7 +50,7 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
         snapshotsRef <- Ref.make(Map.empty[String, CompetitionState])
         actorSystem <- ActorSystem("Test")
         processorOperations <- ZIO.effect(CommandProcessorOperations.test(eventsQueue, notificationQueue, snapshotsRef))
-        initialState <- processorOperations.getStateSnapshot(competitionId).flatMap(_.fold(processorOperations.createInitialState(competitionId))(ZIO.effect(_)))
+        initialState <- processorOperations.getStateSnapshot(competitionId).flatMap(p => ZIO.effect(p.fold(processorOperations.createInitialState(competitionId, None))(identity)))
         processor <- actorSystem.make( s"CompetitionProcessor-$competitionId",
           ActorConfig(),
           initialState,

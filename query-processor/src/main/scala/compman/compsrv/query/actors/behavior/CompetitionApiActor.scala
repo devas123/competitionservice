@@ -9,14 +9,16 @@ import compman.compsrv.query.model.CompetitionProperties._
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.{CompetitionQueryOperations, ManagedCompetitionsOperations, Pagination}
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
-import io.getquill.CassandraZioSession
+import io.getquill.{CassandraContextConfig, CassandraZioSession}
 import zio.{Ref, RIO, Tag, ZIO}
 import zio.logging.Logging
 
 object CompetitionApiActor {
 
-  case class Live(cassandraZioSession: CassandraZioSession) extends ActorContext {
+  case class Live(cassandraConfig: CassandraContextConfig) extends ActorContext {
     implicit val loggingLive: CompetitionLogging.Service[LIO] = CompetitionLogging.Live.live[Any]
+    private val cassandraZioSession =
+      CassandraZioSession(cassandraConfig.cluster, cassandraConfig.keyspace, cassandraConfig.preparedStatementCacheSize)
     implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
       .live(cassandraZioSession)
     implicit val managedCompetitionService: ManagedCompetitionService[LIO] = ManagedCompetitionsOperations
@@ -59,7 +61,7 @@ object CompetitionApiActor {
 
   final case object GetDefaultRestrictions extends ApiCommand[List[Restriction]]
 
-  final case class GetAllCompetitions() extends ApiCommand[List[CompetitionProperties]]
+  final case object GetAllCompetitions extends ApiCommand[List[CompetitionProperties]]
 
   final case class GetCompetitionProperties(id: String) extends ApiCommand[Option[CompetitionProperties]]
 
@@ -118,7 +120,7 @@ object CompetitionApiActor {
           res <- command match {
             case GetDefaultRestrictions => ZIO.effect(DefaultRestrictions.restrictions.map(DtoMapping.mapRestriction))
                 .map(r => (state, r.asInstanceOf[A]))
-            case GetAllCompetitions() => ManagedCompetitionsOperations.getManagedCompetitions[LIO]
+            case GetAllCompetitions => ManagedCompetitionsOperations.getManagedCompetitions[LIO]
                 .map(res => (state, res.asInstanceOf[A]))
             case GetCompetitionProperties(id) => CompetitionQueryOperations[LIO].getCompetitionProperties(id)
                 .map(res => (state, res.asInstanceOf[A]))

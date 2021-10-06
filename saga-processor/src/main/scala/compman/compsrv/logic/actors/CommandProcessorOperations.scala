@@ -3,8 +3,8 @@ package compman.compsrv.logic.actors
 import compman.compsrv.config.CommandProcessorConfig
 import compman.compsrv.jackson.{ObjectMapperFactory, SerdeApi}
 import compman.compsrv.logic.actors.CommandProcessorOperations.KafkaTopicConfig
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compman.compsrv.model.{CommandProcessorNotification, CompetitionState, CompetitionStateImpl}
+import compman.compsrv.model.{CommandProcessorNotification, CompetitionState, CompetitionStateImpl, Payload}
+import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.model.events.EventDTO
@@ -34,27 +34,38 @@ trait CommandProcessorOperations[-E] {
 
   def saveStateSnapshot(state: CompetitionState): URIO[E with SnapshotService.Snapshot, Unit]
 
-  def createInitialState(competitionId: String): LIO[CompetitionState] = RIO {
+  def createInitialState(competitionId: String, payload: Option[Payload]): CompetitionState = {
+    val defaultProperties = Option(
+      new CompetitionPropertiesDTO().setId(competitionId).setStatus(CompetitionStatus.CREATED)
+        .setCreationTimestamp(Instant.now()).setBracketsPublished(false).setSchedulePublished(false)
+        .setStaffIds(Array.empty).setEmailNotificationsEnabled(false).setTimeZone("UTC")
+    )
+    val defaultRegInfo = Some(
+      new RegistrationInfoDTO().setId(competitionId).setRegistrationGroups(Array.empty)
+        .setRegistrationPeriods(Array.empty).setRegistrationOpen(false)
+    )
+
     CompetitionStateImpl(
       id = competitionId,
       competitors = Option(Map.empty),
-      competitionProperties = Option(
-        new CompetitionPropertiesDTO().setId(competitionId).setStatus(CompetitionStatus.CREATED)
-          .setCreationTimestamp(Instant.now()).setBracketsPublished(false).setSchedulePublished(false)
-          .setStaffIds(Array.empty).setEmailNotificationsEnabled(false).setTimeZone("UTC")
-      ),
+      competitionProperties = payload.flatMap {
+        case ccp: CreateCompetitionPayload => Option(ccp.getProperties)
+        case _                             => defaultProperties
+      }.orElse(defaultProperties).map(_.setId(competitionId).setTimeZone("UTC"))
+        .map(_.setStatus(CompetitionStatus.CREATED))
+        .map(pr => if (pr.getStartDate == null) pr.setStartDate(Instant.now()) else pr)
+        .map(pr => if (pr.getCreationTimestamp == null) pr.setCreationTimestamp(Instant.now()) else pr),
       stages = Some(Map.empty),
       fights = Some(Map.empty),
       categories = Some(Map.empty),
-      registrationInfo = Some(
-        new RegistrationInfoDTO().setId(competitionId).setRegistrationGroups(Array.empty)
-          .setRegistrationPeriods(Array.empty).setRegistrationOpen(false)
-      ),
+      registrationInfo = payload.flatMap {
+        case p: CreateCompetitionPayload => Option(p.getReginfo)
+        case _                           => defaultRegInfo
+      }.orElse(defaultRegInfo).map(_.setId(competitionId)),
       schedule = Some(new ScheduleDTO().setId(competitionId).setMats(Array.empty).setPeriods(Array.empty)),
       revision = 0L
     )
   }
-
 }
 
 object CommandProcessorOperations {
@@ -155,8 +166,8 @@ object CommandProcessorOperations {
         _ <- eventReceiver.offerAll(events)
       } yield ()
 
-      override def createInitialState(competitionId: String): LIO[CompetitionState] = {
-        initialState.map(RIO.effectTotal(_)).getOrElse(super.createInitialState(competitionId))
+      override def createInitialState(competitionId: String, payload: Option[Payload]): CompetitionState = {
+        initialState.getOrElse(super.createInitialState(competitionId, payload))
       }
 
       override def getStateSnapshot(

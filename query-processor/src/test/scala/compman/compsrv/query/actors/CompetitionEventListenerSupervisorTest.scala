@@ -4,11 +4,7 @@ import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.CompetitionProcessingStarted
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
-import compman.compsrv.query.actors.behavior.{
-  CompetitionEventListener,
-  CompetitionEventListenerSupervisor,
-  WebsocketConnectionSupervisor
-}
+import compman.compsrv.query.actors.behavior.{CompetitionEventListener, CompetitionEventListenerSupervisor, WebsocketConnectionSupervisor}
 import compman.compsrv.query.kafka.EmbeddedKafkaBroker
 import compman.compsrv.query.model._
 import compman.compsrv.query.sede.{ObjectMapperFactory, SerdeApi}
@@ -17,10 +13,9 @@ import zio.{Ref, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
-import zio.kafka.consumer.{Consumer, ConsumerSettings, Subscription}
+import zio.kafka.consumer.{Consumer, ConsumerSettings}
 import zio.kafka.producer.{Producer, ProducerSettings}
 import zio.kafka.serde.Serde
-import zio.logging.Logging
 import zio.test._
 import zio.test.Assertion._
 import zio.test.environment.TestEnvironment

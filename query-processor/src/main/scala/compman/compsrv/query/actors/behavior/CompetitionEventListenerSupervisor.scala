@@ -14,6 +14,8 @@ import zio.{Fiber, Ref, RIO, Tag, Task, ZIO}
 import zio.clock.Clock
 import zio.logging.Logging
 
+import java.io.{PrintWriter, StringWriter}
+
 object CompetitionEventListenerSupervisor {
   type SupervisorEnvironment[R] = Clock with R with Logging
   sealed trait ActorMessages[+_]
@@ -60,8 +62,13 @@ object CompetitionEventListenerSupervisor {
                 for {
                   _ <- Logging.info(s"Processing competition processing started notification $id")
                   _ <- ManagedCompetitionsOperations.addManagedCompetition[LIO](
-                    ManagedCompetition(id, topic, creatorId, createdAt, startsAt, endsAt, timeZone, status)
-                  )
+                    ManagedCompetition(id, topic, creatorId, createdAt, startsAt, Option(endsAt), timeZone, status)
+                  ).onError(err => Logging.error(s"Error while saving. ${err.failures.map(t => {
+                    val writer = new StringWriter()
+                    t.printStackTrace(new PrintWriter(writer))
+                    writer.toString
+                  }).mkString("\n")}"))
+                  _ <- Logging.info(s"Added competition $id to db.")
                   res <- context
                     .make[R with Logging, CompetitionEventListener.ActorState, CompetitionEventListener.ApiCommand](
                       id,
@@ -70,6 +77,7 @@ object CompetitionEventListenerSupervisor {
                       CompetitionEventListener
                         .behavior[R](eventStreaming, topic, eventListenerContext, websocketConnectionSupervisor)
                     ).map(_ => ((), ().asInstanceOf[A]))
+                  _ <- Logging.info(s"Created actor to process the competition $id")
                 } yield res // start new actor if not started
               case CompetitionProcessingStopped(id) => for {
                   _     <- ManagedCompetitionsOperations.deleteManagedCompetition[LIO](id)

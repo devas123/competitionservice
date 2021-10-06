@@ -44,7 +44,7 @@ services:
 
 
   cassandra:
-    image: cassandra:latest
+    image: compsrv-cassandra:latest
     container_name: compsrv-cassandra
     ports:
       - "9042:9042"

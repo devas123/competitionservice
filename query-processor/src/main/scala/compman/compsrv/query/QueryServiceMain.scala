@@ -58,7 +58,7 @@ object QueryServiceMain extends zio.App {
       "queryApiActor",
       ActorConfig(),
       CompetitionApiActor.initialState,
-      CompetitionApiActor.behavior[ZEnv](CompetitionApiActor.Test(competitions))
+      CompetitionApiActor.behavior[ZEnv](CompetitionApiActor.Live(cassandraConfig))
     )
     signal <- SignallingRef[ServiceIO, Boolean](false)
     _ <- (for {
@@ -69,8 +69,8 @@ object QueryServiceMain extends zio.App {
     exitCode <- effect.Ref.of[ServiceIO, effect.ExitCode](effect.ExitCode.Success)
     serviceVersion = "v1"
     httpApp = Router[ServiceIO](
-      s"/query/$serviceVersion" -> CompetitionHttpApiService.service(competitionApiActor),
-      s"/query/$serviceVersion/ws"    -> WebsocketService.wsRoutes(webSocketSupervisor)
+      s"/query/$serviceVersion"    -> CompetitionHttpApiService.service(competitionApiActor),
+      s"/query/$serviceVersion/ws" -> WebsocketService.wsRoutes(webSocketSupervisor)
     ).orNotFound
     srv <- ZIO.runtime[ZEnv].flatMap { implicit rts =>
       BlazeServerBuilder[ServiceIO].bindHttp(8080, "0.0.0.0").withWebSockets(true).withSocketKeepAlive(true)

@@ -16,7 +16,7 @@ trait TestEntities {
     "valera_protas",
     Instant.now(),
     Instant.now(),
-    Instant.now(),
+    Some(Instant.now()),
     "UTC",
     CompetitionStatus.CREATED
   )
