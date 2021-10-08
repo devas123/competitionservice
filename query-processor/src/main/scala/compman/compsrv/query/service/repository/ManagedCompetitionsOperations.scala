@@ -16,7 +16,7 @@ object ManagedCompetitionsOperations {
     }
 
     override def addManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {
-      competitions.update(m => m + (competition.competitionId -> competition))
+      competitions.update(m => m + (competition.id -> competition))
     }
 
     override def deleteManagedCompetition(id: String): LIO[Unit] = {
@@ -50,7 +50,7 @@ object ManagedCompetitionsOperations {
     }
 
     override def deleteManagedCompetition(id: String): LIO[Unit] = {
-      val delete = quote { query[ManagedCompetition].filter(_.competitionId == lift(id)).delete }
+      val delete = quote { query[ManagedCompetition].filter(_.id == lift(id)).delete }
       for {
         _ <- log.info(delete.toString)
         _ <- run(delete).provide(Has(cassandraZioSession))

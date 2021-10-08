@@ -28,7 +28,7 @@ object CompetitionHttpApiServiceTest extends DefaultRunnableSpec with TestEntiti
         for {
           actorSystem         <- ActorSystem("test")
           managedCompetitions <- Ref.make(Map.empty[String, ManagedCompetition])
-          _ <- managedCompetitions.update(m => m + (managedCompetition.competitionId -> managedCompetition))
+          _ <- managedCompetitions.update(m => m + (managedCompetition.id -> managedCompetition))
           actor <- actorSystem.make(
             "test",
             ActorConfig(),

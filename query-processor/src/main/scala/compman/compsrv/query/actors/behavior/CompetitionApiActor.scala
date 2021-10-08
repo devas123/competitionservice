@@ -1,7 +1,10 @@
 package compman.compsrv.query.actors.behavior
 
+import compman.compsrv.logic.category.CategoryGenerateService
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import compman.compsrv.model.commands.payload.AdjacencyList
+import compman.compsrv.model.dto.competition.CategoryRestrictionDTO
 import compman.compsrv.query.actors.{ActorBehavior, Context, Timers}
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.model._
@@ -63,6 +66,11 @@ object CompetitionApiActor {
 
   final case object GetAllCompetitions extends ApiCommand[List[CompetitionProperties]]
 
+  final case class GenerateCategoriesFromRestrictions(
+    restrictions: List[CategoryRestrictionDTO],
+    idTrees: List[AdjacencyList],
+    restrictionNames: List[String]
+  )                                                     extends ApiCommand[List[Category]]
   final case class GetCompetitionProperties(id: String) extends ApiCommand[Option[CompetitionProperties]]
 
   final case class GetCompetitionInfoTemplate(competitionId: String) extends ApiCommand[CompetitionInfoTemplate]
@@ -115,9 +123,16 @@ object CompetitionApiActor {
         command: ApiCommand[A],
         timers: Timers[R with Logging, ApiCommand]
       ): RIO[R with Logging, (ActorState, A)] = {
+        import cats.implicits._
+        import zio.interop.catz._
         for {
           _ <- Logging.info(s"Received API command $command")
           res <- command match {
+            case GenerateCategoriesFromRestrictions(restrictions, idTrees, restrictionNames) =>
+              for {
+                restrictionNamesOrder <- ZIO.effect(restrictionNames.zipWithIndex.toMap)
+                res <- idTrees.traverse(tree => ZIO.effect(CategoryGenerateService.generateCategoriesFromRestrictions(restrictions.toArray, tree, restrictionNamesOrder)))
+              } yield (state, res.flatten.asInstanceOf[A])
             case GetDefaultRestrictions => ZIO.effect(DefaultRestrictions.restrictions.map(DtoMapping.mapRestriction))
                 .map(r => (state, r.asInstanceOf[A]))
             case GetAllCompetitions => ManagedCompetitionsOperations.getManagedCompetitions[LIO]

@@ -37,6 +37,12 @@ object CompetitionHttpApiService {
   import dsl._
 
   def service(apiActor: ActorRef[ApiCommand]): HttpRoutes[ServiceIO] = HttpRoutes.of[ServiceIO] {
+    case req @ POST -> Root / "generatecategories" / _ =>
+      for {
+        body <- req.body.covary[ServiceIO].chunkAll.compile.toList
+        bytes = body.flatMap(_.toList).toArray
+        res <- sendApiCommandAndReturnResponse(apiActor, decoder.readValue(bytes, classOf[GenerateCategoriesFromRestrictions]))
+      } yield res
     case GET -> Root / "defaultrestrictions" => sendApiCommandAndReturnResponse(apiActor, GetDefaultRestrictions)
     case GET -> Root / "competition"         => sendApiCommandAndReturnResponse(apiActor, GetAllCompetitions)
     case GET -> Root / "competition" / id    => sendApiCommandAndReturnResponse(apiActor, GetCompetitionProperties(id))

@@ -6,7 +6,7 @@ import io.getquill.Udt
 case class Category(
   id: String,
   competitionId: String,
-  restrictions: Set[Restriction],
+  restrictions: Option[Set[Restriction]],
   name: Option[String],
   registrationOpen: Boolean
 )
@@ -14,12 +14,12 @@ case class Category(
 case class Restriction(
   id: String,
   `type`: CategoryRestrictionType,
-  name: String,
-  value: String,
-  alias: String,
-  minValue: String,
-  maxValue: String,
-  unit: String,
+  name: Option[String],
+  value: Option[String],
+  alias: Option[String],
+  minValue: Option[String],
+  maxValue: Option[String],
+  unit: Option[String],
   restrictionOrder: Int
 ) extends Udt
 

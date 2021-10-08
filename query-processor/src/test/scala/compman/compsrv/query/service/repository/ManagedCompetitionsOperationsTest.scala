@@ -24,7 +24,7 @@ object ManagedCompetitionsOperationsTest extends DefaultRunnableSpec with Embedd
         for {
           _ <- ManagedCompetitionsOperations.addManagedCompetition[LIO](managedCompetition)
           competitions <- ManagedCompetitionsOperations.getManagedCompetitions[LIO]
-          _ <- ManagedCompetitionsOperations.deleteManagedCompetition[LIO](managedCompetition.competitionId)
+          _ <- ManagedCompetitionsOperations.deleteManagedCompetition[LIO](managedCompetition.id)
           shouldBeEmpty <- ManagedCompetitionsOperations.getManagedCompetitions[LIO]
         } yield assert(competitions)(isNonEmpty) && assert(shouldBeEmpty)(isEmpty)
       }.provideLayer(layers)

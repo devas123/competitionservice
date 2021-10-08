@@ -5,8 +5,8 @@ import java.time.Instant
 case class RegistrationPeriod(
   competitionId: String,
   id: String,
-  name: String,
-  start: Instant,
-  end: Instant,
+  name: Option[String],
+  start: Option[Instant],
+  end: Option[Instant],
   registrationGroupIds: Set[String]
 )

@@ -1,6 +1,5 @@
 version: '3.8'
 services:
-
   query_service:
     image: query-processor:latest
     environment:
@@ -87,6 +86,20 @@ services:
     volumes:
       - ./update_run.sh:/tmp/update_run.sh
     command: "bash -c 'if [ ! -f /tmp/update_run.sh ]; then echo \"ERROR: Did you forget the update_run.sh file that came with this docker-compose-backend.yml file?\" && exit 1 ; else /tmp/update_run.sh && /etc/confluent/docker/run ; fi'"
+    networks:
+      compsrv_backend:
+
+  control-center:
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      - broker
+    hostname: control-center
+    container_name: control-center
+    ports:
+      - "9021:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: $BOOTSTRAP_SERVERS
     networks:
       compsrv_backend:
 

@@ -24,17 +24,16 @@ case class ScheduleInfo(
                          invalid: Option[Boolean],
                          scheduleEntryId: Option[String]
 )                                                                                                           extends Udt
-case class BracketsInfo(numberInRound: Int, winFight: String, loseFight: String, roundType: StageRoundType) extends Udt
+case class BracketsInfo(numberInRound: Option[Int], winFight: Option[String], loseFight: Option[String], roundType: StageRoundType) extends Udt
 case class CompScore(
-  placeholderId: String,
-  competitorId: String,
+  placeholderId: Option[String],
+  competitorId: Option[String],
   score: Score,
-  order: Int,
-  parentReferenceType: FightReferenceType,
-  parentFightId: String
+  parentReferenceType: Option[FightReferenceType],
+  parentFightId: Option[String]
 ) extends Udt
 
 case class Score(points: Int, advantages: Int, penalties: Int, pointGroups: Set[PointGroup]) extends Udt
-case class PointGroup(id: String, name: String, priority: Int, value: Int)                   extends Udt
+case class PointGroup(id: String, name: Option[String], priority: Option[Int], value: Option[Int])                   extends Udt
 
-case class FightResult(winnerId: String, resultTypeId: String, reason: String) extends Udt
+case class FightResult(winnerId: Option[String], resultTypeId: Option[String], reason: Option[String]) extends Udt

@@ -10,14 +10,14 @@ case class ScheduleRequirement(
   competitionId: String,
   categoryIds: Set[String],
   fightIds: Set[String],
-  matId: String,
-  periodId: String,
-  name: String,
-  color: String,
+  matId: Option[String],
+  periodId: Option[String],
+  name: Option[String],
+  color: Option[String],
   entryType: ScheduleRequirementType,
   force: Boolean,
-  startTime: Instant,
-  endTime: Instant,
-  durationSeconds: Int,
-  entryOrder: Int
+  startTime: Option[Instant],
+  endTime: Option[Instant],
+  durationSeconds: Option[Int],
+  entryOrder: Option[Int]
 ) extends Udt

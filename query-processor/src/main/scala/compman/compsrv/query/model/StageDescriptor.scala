@@ -5,7 +5,7 @@ import io.getquill.Udt
 
 case class StageDescriptor(
   id: String,
-  name: String,
+  name: Option[String],
   categoryId: String,
   competitionId: String,
   bracketType: BracketType,
@@ -16,9 +16,9 @@ case class StageDescriptor(
   stageOrder: Int,
   waitForPrevious: Boolean,
   hasThirdPlaceFight: Boolean,
-  groupDescriptors: List[GroupDescriptor],
-  numberOfFights: Int,
-  fightDuration: Long
+  groupDescriptors: Option[List[GroupDescriptor]],
+  numberOfFights: Option[Int],
+  fightDuration: Option[Long]
 )
 
 case class StageResultDescriptor(

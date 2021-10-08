@@ -8,7 +8,7 @@ case class RegistrationGroup(
   competitionId: String,
   id: String,
   isDefaultGroup: Boolean,
-  registrationFee: RegistrationFee,
+  registrationFee: Option[RegistrationFee],
   categories: Set[String]
 )
 

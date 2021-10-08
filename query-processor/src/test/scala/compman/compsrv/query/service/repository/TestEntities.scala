@@ -21,16 +21,16 @@ trait TestEntities {
     CompetitionStatus.CREATED
   )
 
-  private[repository] val competitionProperties = CompetitionProperties(
+  val competitionProperties = CompetitionProperties(
     competitionId,
     "creatorId",
-    Set("a", "b", "c"),
+    Some(Set("a", "b", "c")),
     "Some competition",
     CompetitionInfoTemplate("superlongdescriptionblob".getBytes),
     Instant.now(),
     schedulePublished = false,
     bracketsPublished = false,
-    Instant.now(),
+    Some(Instant.now()),
     "UTC",
     registrationOpen = true,
     Instant.now(),
@@ -72,7 +72,7 @@ trait TestEntities {
 
   val stageDescriptor: StageDescriptor = StageDescriptor(
     s"$competitionId-stage",
-    "test-stage-descriptor",
+    Some("test-stage-descriptor"),
     categoryId,
     competitionId,
     BracketType.SINGLE_ELIMINATION,
@@ -83,12 +83,12 @@ trait TestEntities {
     0,
     waitForPrevious = false,
     hasThirdPlaceFight = true,
-    List(
+    Some(    List(
       GroupDescriptor(
         "gr1", Some("gr1-name"), 100
       )
-    ),
-    100,
-    10
+    )),
+    Some(100),
+    Some(10)
   )
 }

@@ -5,7 +5,7 @@ import compman.compsrv.model.dto.competition.CompetitionStatus
 import java.time.Instant
 
 case class ManagedCompetition(
-  competitionId: String,
+  id: String,
   eventsTopic: String,
   creatorId: String,
   createdAt: Instant,

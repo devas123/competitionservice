@@ -15,7 +15,7 @@ package object extensions {
         bracketsPublished <- pr.get("bracketsPublished").map(_.toBoolean)
           .orElse(Option(c.bracketsPublished).map(_.booleanValue()))
         startDate       <- parseDate(pr("startDate"), Option(c.startDate))
-        endDate         <- parseDate(pr("endDate"), Option(c.endDate))
+        endDate         <- parseDate(pr("endDate"), c.endDate)
         competitionName <- pr.get("competitionName").orElse(Option(c.competitionName))
         schedulePublished <- pr.get("schedulePublished").map(_.toBoolean)
           .orElse(Option(c.schedulePublished).map(_.booleanValue()))
@@ -26,7 +26,7 @@ package object extensions {
         competitionName = competitionName,
         bracketsPublished = bracketsPublished,
         startDate = startDate,
-        endDate = endDate
+        endDate = Option(endDate)
       )
     }.getOrElse(c)
 

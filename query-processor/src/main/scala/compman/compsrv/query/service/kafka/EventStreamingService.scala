@@ -18,7 +18,7 @@ object EventStreamingService {
   def live(bootstrapServers: List[String]): EventStreaming[Clock with Blocking] =
     (topic: String) => {
       val settings: ConsumerSettings = ConsumerSettings(bootstrapServers).withGroupId(UUID.randomUUID().toString)
-        .withClientId(UUID.randomUUID().toString)
+        .withClientId(UUID.randomUUID().toString).withOffsetRetrieval(Consumer.OffsetRetrieval.Auto(Consumer.AutoOffsetStrategy.Earliest))
       val layer: ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]] = Consumer.make(settings).toLayer
       Consumer.subscribeAnd(Subscription.topics(topic)).plainStream(Serde.string, Serde.byteArray).map(_.value)
         .provideSomeLayer(layer)

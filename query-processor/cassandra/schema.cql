@@ -102,7 +102,6 @@ create type if not exists query_service.comp_score (
     placeholder_id varchar,
     competitor_id varchar,
     score frozen<score>,
-    comp_score_order Int,
     parent_reference_type varchar,
     parent_fight_id varchar
     );
@@ -132,7 +131,7 @@ create table if not exists query_service.fight
 
 CREATE TABLE if not exists query_service.managed_competition
 (
-    competition_id varchar,
+    id varchar,
     events_topic   varchar,
     creator_id     varchar,
     created_at     timestamp,
@@ -140,7 +139,7 @@ CREATE TABLE if not exists query_service.managed_competition
     ends_at        timestamp,
     time_zone      varchar,
     status         varchar,
-    primary key ( competition_id, created_at, creator_id, starts_at, status )
+    primary key ( id, created_at, creator_id, starts_at, status )
 );
 
 create type if not exists query_service.schedule_entry(

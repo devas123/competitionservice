@@ -1,7 +1,7 @@
 package compman.compsrv.query.actors.behavior
 
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model
 import compman.compsrv.model.Mapping.EventMapping
 import compman.compsrv.model.events.EventDTO
@@ -15,7 +15,7 @@ import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
 import compman.compsrv.query.service.repository._
 import io.getquill.CassandraZioSession
 import zio.logging.Logging
-import zio.{Fiber, RIO, Ref, Tag, ZIO}
+import zio.{Fiber, Ref, RIO, Tag, ZIO}
 
 object CompetitionEventListener {
   sealed trait ApiCommand[+_]
@@ -79,12 +79,13 @@ object CompetitionEventListener {
       timers: Timers[R with Logging, ApiCommand]
     ): RIO[R with Logging, (ActorState, A)] = {
       command match {
-        case EventReceived(event) => for {
-          mapped <- EventMapping.mapEventDto[LIO](event)
-          _ <- EventProcessors.applyEvent[LIO, Payload](mapped)
-          _ <- (websocketConnectionSupervisor ? WebsocketConnectionSupervisor.EventReceived(event))
-            .onError(cause => Logging.error(s"Error while processing event $event", cause)).fork
+        case EventReceived(event) => {
+          for {
+            mapped <- EventMapping.mapEventDto[LIO](event)
+            _ <- EventProcessors.applyEvent[LIO, Payload](mapped)
+            _ <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork
           } yield (state, ().asInstanceOf[A])
+        }.onError(cause => logError(cause.squash))
       }
     }
 

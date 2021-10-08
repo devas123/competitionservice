@@ -17,18 +17,18 @@ object DtoMapping {
       id = dto.getId,
       competitionId = competitionId,
       categoryIds = Option(dto.getCategoryIds).map(_.toSet).getOrElse(Set.empty),
-      fightIds = Option(dto.getFightIds).map(_.toList).getOrElse(List.empty)
-        .map(d => MatIdAndSomeId(d.getMatId, d.getSomeId, Option(d.getStartTime))),
+      fightIds = Option(dto.getFightIds).map(_.toList).orElse(Option(List.empty))
+        .map(_.map(d => MatIdAndSomeId(d.getMatId, d.getSomeId, Option(d.getStartTime)))).get,
       periodId = dto.getPeriodId,
-      description = dto.getDescription,
-      name = dto.getName,
-      color = dto.getColor,
+      description = Option(dto.getDescription),
+      name = Option(dto.getName),
+      color = Option(dto.getColor),
       entryType = dto.getEntryType,
       requirementIds = Option(dto.getRequirementIds).map(_.toSet).getOrElse(Set.empty),
-      startTime = dto.getStartTime,
-      endTime = dto.getEndTime,
-      numberOfFights = dto.getNumberOfFights,
-      duration = dto.getDuration,
+      startTime = Option(dto.getStartTime),
+      endTime = Option(dto.getEndTime),
+      numberOfFights = Option(dto.getNumberOfFights),
+      duration = Option(dto.getDuration),
       order = dto.getOrder
     )
   }
@@ -39,48 +39,47 @@ object DtoMapping {
       competitionId,
       Option(dto.getCategoryIds).map(_.toSet).getOrElse(Set.empty),
       Option(dto.getFightIds).map(_.toSet).getOrElse(Set.empty),
-      dto.getMatId,
-      dto.getPeriodId,
-      dto.getName,
-      dto.getColor,
+      Option(dto.getMatId),
+      Option(dto.getPeriodId),
+      Option(dto.getName),
+      Option(dto.getColor),
       dto.getEntryType,
       dto.isForce,
-      dto.getStartTime,
-      dto.getEndTime,
-      dto.getDurationSeconds,
-      dto.getEntryOrder
+      Option(dto.getStartTime),
+      Option(dto.getEndTime),
+      Option(dto.getDurationSeconds),
+      Option(dto.getEntryOrder)
     )
   }
 
   def mapCompScore(o: CompScoreDTO): CompScore = {
     CompScore(
-      o.getPlaceholderId,
-      o.getCompetitorId,
+      Option(o.getPlaceholderId),
+      Option(o.getCompetitorId),
       Option(o.getScore).orElse(Some(createEmptyScore)).map(s =>
         Score(
           s.getPoints,
           s.getAdvantages,
           s.getPenalties,
-          Option(s.getPointGroups).map(_.toSet)
-            .map(_.map(pg => PointGroup(pg.getId, pg.getName, pg.getPriority.intValue(), pg.getValue.intValue())))
-            .getOrElse(Set.empty)
+          Option(s.getPointGroups).map(_.toSet).map(_.map(pg =>
+            PointGroup(pg.getId, Option(pg.getName), Option(pg.getPriority.intValue()), Option(pg.getValue.intValue()))
+          )).getOrElse(Set.empty)
         )
       ).get,
-      o.getOrder,
-      o.getParentReferenceType,
-      o.getParentFightId
+      Option(o.getParentReferenceType),
+      Option(o.getParentFightId)
     )
   }
 
   def mapCompetitor[F[+_]: Monad](dto: CompetitorDTO): F[Competitor] = Monad[F].pure {
     Competitor(
       dto.getCompetitionId,
-      dto.getUserId,
+      Option(dto.getUserId),
       dto.getEmail,
       dto.getId,
       dto.getFirstName,
       dto.getLastName,
-      dto.getBirthDate,
+      Option(dto.getBirthDate),
       Option(dto.getAcademy).map(a => Academy(a.getId, a.getName)),
       Option(dto.getCategories).map(_.toSet).getOrElse(Set.empty),
       dto.isPlaceholder,
@@ -92,9 +91,7 @@ object DtoMapping {
     Monad[F].pure(Category(
       dto.getId,
       competitionId,
-      Option(dto.getRestrictions).map(_.toSet).map(_.map(d =>
-        mapRestriction(d)
-      )).getOrElse(Set.empty),
+      Option(dto.getRestrictions).map(_.toSet).map(_.map(d => mapRestriction(d))).orElse(Option(Set.empty)),
       Option(dto.getName),
       dto.getRegistrationOpen
     ))
@@ -104,12 +101,12 @@ object DtoMapping {
     Restriction(
       d.getId,
       d.getType,
-      d.getName,
-      d.getValue,
-      d.getAlias,
-      d.getMinValue,
-      d.getMaxValue,
-      d.getName,
+      Option(d.getName),
+      Option(d.getValue),
+      Option(d.getAlias),
+      Option(d.getMinValue),
+      Option(d.getMaxValue),
+      Option(d.getName),
       d.getRestrictionOrder
     )
   }
@@ -142,13 +139,17 @@ object DtoMapping {
         Option(dto.getInvalid),
         Option(dto.getScheduleEntryId)
       ),
-      Some(BracketsInfo(dto.getNumberInRound, dto.getWinFight, dto.getLoseFight, dto.getRoundType)),
+      Some(
+        BracketsInfo(Option(dto.getNumberInRound), Option(dto.getWinFight), Option(dto.getLoseFight), dto.getRoundType)
+      ),
       Option(dto.getFightResult).map(mapFightResult),
       Option(dto.getScores).map(_.toSet).map(_.map(mapCompScore)).getOrElse(Set.empty)
     )
   }
 
-  private def mapFightResult(d: FightResultDTO) = { FightResult(d.getWinnerId, d.getResultTypeId, d.getReason) }
+  private def mapFightResult(d: FightResultDTO) = {
+    FightResult(Option(d.getWinnerId), Option(d.getResultTypeId), Option(d.getReason))
+  }
 
   def mapFightResultOption(dto: FightResultOptionDTO): FightResultOption = FightResultOption(
     dto.getId,
@@ -195,7 +196,7 @@ object DtoMapping {
   def mapStageDescriptor[F[+_]: Monad](s: StageDescriptorDTO): F[StageDescriptor] = Monad[F].pure {
     StageDescriptor(
       s.getId,
-      s.getName,
+      Option(s.getName),
       s.getCategoryId,
       s.getCompetitionId,
       s.getBracketType,
@@ -207,9 +208,9 @@ object DtoMapping {
       s.getWaitForPrevious,
       s.getHasThirdPlaceFight,
       Option(s.getGroupDescriptors).map(_.toList)
-        .map(_.map(dto => GroupDescriptor(dto.getId, Option(dto.getName), dto.getSize))).getOrElse(List.empty),
-      s.getNumberOfFights,
-      Option(s.getFightDuration).map(_.longValue()).getOrElse(0L)
+        .map(_.map(dto => GroupDescriptor(dto.getId, Option(dto.getName), dto.getSize))).orElse(Option(List.empty)),
+      Option(s.getNumberOfFights),
+      Option(s.getFightDuration).map(_.longValue()).orElse(Option(0L))
     )
   }
 
@@ -219,13 +220,15 @@ object DtoMapping {
       Option(dto.getName),
       dto.getId,
       mats.toList,
-      dto.getStartTime,
-      dto.getEndTime,
+      Option(dto.getStartTime),
+      Option(dto.getEndTime),
       dto.getIsActive,
       dto.getTimeBetweenFights,
       dto.getRiskPercent.intValue(),
-      Option(dto.getScheduleEntries).map(_.map(mapScheduleEntry(competitionId))).getOrElse(Array.empty).toList,
-      Option(dto.getScheduleRequirements).map(_.map(mapScheduleRequirement(competitionId))).getOrElse(Array.empty).toList
+      Option(dto.getScheduleEntries).map(_.map(mapScheduleEntry(competitionId))).map(_.toList)
+        .orElse(Option(List.empty)).get,
+      Option(dto.getScheduleRequirements).map(_.map(mapScheduleRequirement(competitionId))).map(_.toList)
+        .orElse(Option(List.empty)).get
     )
   }
 
@@ -234,9 +237,9 @@ object DtoMapping {
       RegistrationPeriod(
         competitionId,
         r.getId,
-        r.getName,
-        r.getStart,
-        r.getEnd,
+        Option(r.getName),
+        Option(r.getStart),
+        Option(r.getEnd),
         Option(r.getRegistrationGroupIds).map(_.toSet).getOrElse(Set.empty)
       )
     }
@@ -246,11 +249,11 @@ object DtoMapping {
         competitionId,
         r.getId,
         r.getDefaultGroup,
-        RegistrationFee(
+        Some(RegistrationFee(
           currency = "Rub",
           r.getRegistrationFee.intValue(),
           Option(r.getRegistrationFee.remainder(BigDecimal(10)).intValue)
-        ),
+        )),
         categories = Option(r.getCategories).map(_.toSet).getOrElse(Set.empty)
       )
     }
@@ -261,13 +264,13 @@ object DtoMapping {
     CompetitionProperties(
       r.getId,
       r.getCreatorId,
-      Option(r.getStaffIds).map(_.toSet).getOrElse(Set.empty),
+      Option(r.getStaffIds).map(_.toSet).orElse(Option(Set.empty)),
       r.getCompetitionName,
       CompetitionInfoTemplate(Option(r.getEmailTemplate).map(_.getBytes).getOrElse(Array.empty)),
       r.getStartDate,
       r.getSchedulePublished,
       r.getBracketsPublished,
-      r.getEndDate,
+      Option(r.getEndDate),
       r.getTimeZone,
       registrationOpen,
       r.getCreationTimestamp,
