@@ -35,6 +35,12 @@ object CompetitionOperationsTest extends DefaultRunnableSpec with TestEntities {
         _ <- CompetitionUpdateOperations[LIO].addCompetitionProperties(competitionProperties)
         props <- CompetitionQueryOperations.getCompetitionProperties(competitionId)
       } yield assert(props)(isSome)).provideLayer(layers)
+    },
+    testM("should save category") {
+      (for {
+        _ <- CompetitionUpdateOperations[LIO].addCategory(category)
+        category <- CompetitionQueryOperations.getCategoryById(competitionId)(categoryId)
+      } yield assert(category)(isSome)).provideLayer(layers)
     }
   ) @@ sequential
 }

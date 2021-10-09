@@ -12,12 +12,12 @@ import java.util.UUID
 object EventStreamingService {
 
   trait EventStreaming[R] {
-    def getByteArrayStream(topic: String): ZStream[R, Throwable, Array[Byte]]
+    def getByteArrayStream(topic: String, groupId: String): ZStream[R, Throwable, Array[Byte]]
   }
 
   def live(bootstrapServers: List[String]): EventStreaming[Clock with Blocking] =
-    (topic: String) => {
-      val settings: ConsumerSettings = ConsumerSettings(bootstrapServers).withGroupId(UUID.randomUUID().toString)
+    (topic: String, groupId: String) => {
+      val settings: ConsumerSettings = ConsumerSettings(bootstrapServers).withGroupId(groupId)
         .withClientId(UUID.randomUUID().toString).withOffsetRetrieval(Consumer.OffsetRetrieval.Auto(Consumer.AutoOffsetStrategy.Earliest))
       val layer: ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]] = Consumer.make(settings).toLayer
       Consumer.subscribeAnd(Subscription.topics(topic)).plainStream(Serde.string, Serde.byteArray).map(_.value)
@@ -25,6 +25,6 @@ object EventStreamingService {
     }
 
   def test(stream: Map[String, List[Array[Byte]]]): EventStreaming[Any] =
-    (topic: String) => { ZStream.fromIterable(stream.getOrElse(topic, List.empty)) }
+    (topic: String, _: String) => { ZStream.fromIterable(stream.getOrElse(topic, List.empty)) }
 
 }

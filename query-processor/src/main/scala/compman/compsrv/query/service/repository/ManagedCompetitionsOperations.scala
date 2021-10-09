@@ -2,30 +2,30 @@ package compman.compsrv.query.service.repository
 
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.query.model.ManagedCompetition
 import io.getquill.{CassandraZioContext, CassandraZioSession, SnakeCase}
 import io.getquill.context.cassandra.encoding.{Decoders, Encoders}
 import zio.{Has, Ref}
 
 object ManagedCompetitionsOperations {
-  def test(competitions: Ref[Map[String, ManagedCompetition]]): ManagedCompetitionService[LIO] = new ManagedCompetitionService[LIO] {
-    override def getManagedCompetitions: LIO[List[ManagedCompetition]] = {
-      for {
-        map <- competitions.get
-      } yield map.values.toList
-    }
+  def test(competitions: Ref[Map[String, ManagedCompetition]]): ManagedCompetitionService[LIO] =
+    new ManagedCompetitionService[LIO] {
+      override def getManagedCompetitions: LIO[List[ManagedCompetition]] = {
+        for { map <- competitions.get } yield map.values.toList
+      }
 
-    override def addManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {
-      competitions.update(m => m + (competition.id -> competition))
-    }
+      override def getActiveCompetitions: LIO[List[ManagedCompetition]] = getManagedCompetitions
 
-    override def deleteManagedCompetition(id: String): LIO[Unit] = {
-      competitions.update(m => m - id)
+      override def addManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {
+        competitions.update(m => m + (competition.id -> competition))
+      }
+
+      override def deleteManagedCompetition(id: String): LIO[Unit] = { competitions.update(m => m - id) }
     }
-  }
 
   def live(cassandraZioSession: CassandraZioSession)(implicit
-                                                     log: CompetitionLogging.Service[LIO]
+    log: CompetitionLogging.Service[LIO]
   ): ManagedCompetitionService[LIO] = new ManagedCompetitionService[LIO] {
     private lazy val ctx =
       new CassandraZioContext(SnakeCase) with CustomDecoders with CustomEncoders with Encoders with Decoders
@@ -33,11 +33,28 @@ object ManagedCompetitionsOperations {
     import ctx._
 
     override def getManagedCompetitions: LIO[List[ManagedCompetition]] = {
+      val select = quote { query[ManagedCompetition] }
+      for {
+        _   <- log.info(select.toString)
+        res <- run(select).provide(Has(cassandraZioSession))
+      } yield res
+    }
+
+    override def getActiveCompetitions: LIO[List[ManagedCompetition]] = {
       val select = quote {
-        query[ManagedCompetition]
+        query[ManagedCompetition].filter(c =>
+          liftQuery(List(
+            CompetitionStatus.CREATED,
+            CompetitionStatus.STARTED,
+            CompetitionStatus.STOPPED,
+            CompetitionStatus.PAUSED,
+            CompetitionStatus.PUBLISHED,
+            CompetitionStatus.UNPUBLISHED
+          )).contains(c.status)
+        )
       }
       for {
-        _ <- log.info(select.toString)
+        _   <- log.info(select.toString)
         res <- run(select).provide(Has(cassandraZioSession))
       } yield res
     }
@@ -50,7 +67,8 @@ object ManagedCompetitionsOperations {
     }
 
     override def deleteManagedCompetition(id: String): LIO[Unit] = {
-      val delete = quote { query[ManagedCompetition].filter(_.id == lift(id)).delete }
+      val delete =
+        quote { query[ManagedCompetition].filter(_.id == lift(id)).update(_.status -> lift(CompetitionStatus.DELETED)) }
       for {
         _ <- log.info(delete.toString)
         _ <- run(delete).provide(Has(cassandraZioSession))
@@ -60,6 +78,7 @@ object ManagedCompetitionsOperations {
 
   trait ManagedCompetitionService[F[+_]] {
     def getManagedCompetitions: F[List[ManagedCompetition]]
+    def getActiveCompetitions: F[List[ManagedCompetition]]
     def addManagedCompetition(competition: ManagedCompetition): F[Unit]
     def deleteManagedCompetition(id: String): F[Unit]
   }
@@ -70,6 +89,8 @@ object ManagedCompetitionsOperations {
 
   def getManagedCompetitions[F[+_]: CompetitionLogging.Service: ManagedCompetitionService]
     : F[List[ManagedCompetition]] = ManagedCompetitionService[F].getManagedCompetitions
+  def getActiveCompetitions[F[+_]: CompetitionLogging.Service: ManagedCompetitionService]: F[List[ManagedCompetition]] =
+    ManagedCompetitionService[F].getActiveCompetitions
   def addManagedCompetition[F[+_]: CompetitionLogging.Service: ManagedCompetitionService](
     competition: ManagedCompetition
   ): F[Unit] = ManagedCompetitionService[F].addManagedCompetition(competition)

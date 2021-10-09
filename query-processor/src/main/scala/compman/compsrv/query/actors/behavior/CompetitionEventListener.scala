@@ -3,19 +3,19 @@ package compman.compsrv.query.actors.behavior
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model
+import compman.compsrv.model.{Mapping, Payload}
 import compman.compsrv.model.Mapping.EventMapping
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.model.{Mapping, Payload}
-import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.actors.{ActorBehavior, ActorRef, Context, Timers}
+import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
 import compman.compsrv.query.service.repository._
 import io.getquill.CassandraZioSession
-import zio.logging.Logging
 import zio.{Fiber, Ref, RIO, Tag, ZIO}
+import zio.logging.Logging
 
 object CompetitionEventListener {
   sealed trait ApiCommand[+_]
@@ -31,8 +31,8 @@ object CompetitionEventListener {
 
   case class Live(cassandraZioSession: CassandraZioSession) extends ActorContext {
     implicit val eventMapping: Mapping.EventMapping[LIO] = model.Mapping.EventMapping.live
-    implicit val loggingLive: CompetitionLogging.Service[LIO] = compman.compsrv.logic
-      .logging.CompetitionLogging.Live.live[Any]
+    implicit val loggingLive: CompetitionLogging.Service[LIO] = compman.compsrv.logic.logging.CompetitionLogging.Live
+      .live[Any]
     implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
       .live(cassandraZioSession)
     implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations
@@ -40,22 +40,38 @@ object CompetitionEventListener {
   }
 
   case class Test(
-                   competitionProperties: Option[Ref[Map[String, CompetitionProperties]]] = None,
-                   categories: Option[Ref[Map[String, Category]]] = None,
-                   competitors: Option[Ref[Map[String, Competitor]]] = None,
-                   fights: Option[Ref[Map[String, Fight]]] = None,
-                   periods: Option[Ref[Map[String, Period]]] = None,
-                   registrationPeriods: Option[Ref[Map[String, RegistrationPeriod]]] = None,
-                   registrationGroups: Option[Ref[Map[String, RegistrationGroup]]] = None,
-                   stages: Option[Ref[Map[String, StageDescriptor]]] = None
-                 ) extends ActorContext {
+    competitionProperties: Option[Ref[Map[String, CompetitionProperties]]] = None,
+    categories: Option[Ref[Map[String, Category]]] = None,
+    competitors: Option[Ref[Map[String, Competitor]]] = None,
+    fights: Option[Ref[Map[String, Fight]]] = None,
+    periods: Option[Ref[Map[String, Period]]] = None,
+    registrationPeriods: Option[Ref[Map[String, RegistrationPeriod]]] = None,
+    registrationGroups: Option[Ref[Map[String, RegistrationGroup]]] = None,
+    stages: Option[Ref[Map[String, StageDescriptor]]] = None
+  ) extends ActorContext {
     implicit val eventMapping: Mapping.EventMapping[LIO] = model.Mapping.EventMapping.live
-    implicit val loggingLive: CompetitionLogging.Service[LIO] = compman.compsrv.logic
-      .logging.CompetitionLogging.Live.live[Any]
-    implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
-      .test(competitionProperties, categories, competitors, fights, periods, registrationPeriods, registrationGroups, stages)
-    implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations
-      .test(competitionProperties, categories, competitors, fights, periods, registrationPeriods, registrationGroups, stages)
+    implicit val loggingLive: CompetitionLogging.Service[LIO] = compman.compsrv.logic.logging.CompetitionLogging.Live
+      .live[Any]
+    implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations.test(
+      competitionProperties,
+      categories,
+      competitors,
+      fights,
+      periods,
+      registrationPeriods,
+      registrationGroups,
+      stages
+    )
+    implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations.test(
+      competitionProperties,
+      categories,
+      competitors,
+      fights,
+      periods,
+      registrationPeriods,
+      registrationGroups,
+      stages
+    )
   }
 
   case class ActorState()
@@ -63,11 +79,12 @@ object CompetitionEventListener {
   val initialState: ActorState = ActorState()
 
   def behavior[R: Tag](
-                        eventStreaming: EventStreaming[R],
-                        topic: String,
-                        context: ActorContext,
-                        websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
-                      ): ActorBehavior[R with Logging, ActorState, ApiCommand] = new ActorBehavior[R with Logging, ActorState, ApiCommand] {
+    competitionId: String,
+    eventStreaming: EventStreaming[R],
+    topic: String,
+    context: ActorContext,
+    websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
+  ): ActorBehavior[R with Logging, ActorState, ApiCommand] = new ActorBehavior[R with Logging, ActorState, ApiCommand] {
 
     import context._
     import zio.interop.catz._
@@ -80,12 +97,12 @@ object CompetitionEventListener {
     ): RIO[R with Logging, (ActorState, A)] = {
       command match {
         case EventReceived(event) => {
-          for {
-            mapped <- EventMapping.mapEventDto[LIO](event)
-            _ <- EventProcessors.applyEvent[LIO, Payload](mapped)
-            _ <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork
-          } yield (state, ().asInstanceOf[A])
-        }.onError(cause => logError(cause.squash))
+            for {
+              mapped <- EventMapping.mapEventDto[LIO](event)
+              _      <- EventProcessors.applyEvent[LIO, Payload](mapped)
+              _      <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork
+            } yield (state, ().asInstanceOf[A])
+          }.onError(cause => logError(cause.squash))
       }
     }
 
@@ -98,7 +115,7 @@ object CompetitionEventListener {
       mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
       k <- (for {
         _ <- Logging.info(s"Starting stream for listening to competition events for topic: $topic")
-        _ <- eventStreaming.getByteArrayStream(topic).mapM(record =>
+        _ <- eventStreaming.getByteArrayStream(topic, s"query-service-$competitionId").mapM(record =>
           for {
             event <- ZIO.effect(mapper.readValue(record, classOf[EventDTO]))
             _     <- context.self ! EventReceived(event)

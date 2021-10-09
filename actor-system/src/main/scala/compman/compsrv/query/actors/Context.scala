@@ -38,8 +38,9 @@ case class Context[F[+_]](
     init: S,
     behavior: => AbstractBehavior[R, S, F1]
   ): ZIO[R with Clock, Throwable, ActorRef[F1]] = for {
-    actorRef <- actorSystem.make(actorName, actorConfig, init, behavior)
     ch       <- children.get
+    _ <- if (ch.contains(actorName)) ZIO.fail(new Exception(s"Actor already exists: $actorName")) else ZIO.unit
+    actorRef <- actorSystem.make(actorName, actorConfig, init, behavior)
     _        <- children.set(ch + (actorName -> actorRef.asInstanceOf[ActorRef[Any]]))
   } yield actorRef
   def select[F1[+_]](path: String): Task[ActorRef[F1]] = actorSystem.select(path)

@@ -91,7 +91,7 @@ object DtoMapping {
     Monad[F].pure(Category(
       dto.getId,
       competitionId,
-      Option(dto.getRestrictions).map(_.toSet).map(_.map(d => mapRestriction(d))).orElse(Option(Set.empty)),
+      Option(dto.getRestrictions).map(_.toList).map(_.map(d => mapRestriction(d))).getOrElse(List.empty),
       Option(dto.getName),
       dto.getRegistrationOpen
     ))
@@ -99,7 +99,7 @@ object DtoMapping {
 
   def mapRestriction(d: CategoryRestrictionDTO): Restriction = {
     Restriction(
-      d.getId,
+      d.getRestrictionId,
       d.getType,
       Option(d.getName),
       Option(d.getValue),
@@ -124,6 +124,18 @@ object DtoMapping {
   }
 
   def mapMat(dto: MatDescriptionDTO): Mat = { Mat(dto.getId, dto.getName, dto.getMatOrder) }
+
+  def toDtoCategory(cat: Category): CategoryDescriptorDTO = {
+    new CategoryDescriptorDTO().setName(cat.name.getOrElse("")).setId(cat.id).setRegistrationOpen(cat.registrationOpen)
+      .setRestrictions(Option(cat.restrictions).getOrElse(List.empty).map(toDtoRestriction).toArray)
+  }
+
+  def toDtoRestriction(restr: Restriction): CategoryRestrictionDTO = {
+    new CategoryRestrictionDTO().setName(restr.name.getOrElse("")).setRestrictionId(restr.restrictionId)
+      .setType(restr.restrictionType).setUnit(restr.unit.getOrElse("")).setRestrictionOrder(restr.restrictionOrder)
+      .setAlias(restr.alias.getOrElse("")).setMaxValue(restr.maxValue.getOrElse(""))
+      .setMinValue(restr.minValue.getOrElse("")).setValue(restr.value.getOrElse(""))
+  }
 
   def mapFight(dto: FightDescriptionDTO): Fight = {
     Fight(

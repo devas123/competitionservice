@@ -1,7 +1,7 @@
 package compman.compsrv.query.service.repository
 
 import compman.compsrv.model.dto.brackets._
-import compman.compsrv.model.dto.competition.CompetitionStatus
+import compman.compsrv.model.dto.competition.{CategoryRestrictionType, CompetitionStatus}
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 
@@ -21,7 +21,7 @@ trait TestEntities {
     CompetitionStatus.CREATED
   )
 
-  val competitionProperties = CompetitionProperties(
+  val competitionProperties: CompetitionProperties = CompetitionProperties(
     competitionId,
     "creatorId",
     Some(Set("a", "b", "c")),
@@ -69,6 +69,20 @@ trait TestEntities {
     )),
     DistributionType.AUTOMATIC
   )
+  val restriction: Restriction = Restriction(
+    "restrictionId",
+    CategoryRestrictionType.Range,
+    Some("name"),
+    Some("a"),
+    Some("b"),
+    Some("c"),
+    Some("d"),
+    Some("e"),
+    0
+  )
+
+  val category: Category =
+    Category(categoryId, competitionId, List(restriction), Some("categoryName"), registrationOpen = true)
 
   val stageDescriptor: StageDescriptor = StageDescriptor(
     s"$competitionId-stage",
@@ -83,11 +97,7 @@ trait TestEntities {
     0,
     waitForPrevious = false,
     hasThirdPlaceFight = true,
-    Some(    List(
-      GroupDescriptor(
-        "gr1", Some("gr1-name"), 100
-      )
-    )),
+    Some(List(GroupDescriptor("gr1", Some("gr1-name"), 100))),
     Some(100),
     Some(10)
   )

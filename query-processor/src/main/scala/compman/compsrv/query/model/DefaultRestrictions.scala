@@ -5,10 +5,10 @@ import compman.compsrv.model.dto.competition._
 import java.util.UUID
 
 object DefaultRestrictions {
-  private val bjj: CategoryRestrictionDTO = new CategoryRestrictionDTO().setId(UUID.randomUUID().toString).setType(CategoryRestrictionType.Value).setName("Sport").setValue("BJJ")
+  private val bjj: CategoryRestrictionDTO = new CategoryRestrictionDTO().setRestrictionId(UUID.randomUUID().toString).setType(CategoryRestrictionType.Value).setName("Sport").setValue("BJJ")
 
   private def weightRestriction(alias: String = "", maxValue: String, minValue: String = "0"): CategoryRestrictionDTO = new CategoryRestrictionDTO()
-    .setId(UUID.randomUUID().toString)
+    .setRestrictionId(UUID.randomUUID().toString)
     .setType(CategoryRestrictionType.Range)
     .setName("Weight")
     .setMaxValue(maxValue)
@@ -17,7 +17,7 @@ object DefaultRestrictions {
     .setUnit("kg")
 
   private def ageRestriction(alias: String = "", minValue: String, maxValue: Option[String] = None): CategoryRestrictionDTO = new CategoryRestrictionDTO()
-    .setId(UUID.randomUUID().toString)
+    .setRestrictionId(UUID.randomUUID().toString)
     .setType(CategoryRestrictionType.Range)
     .setName("Age")
     .setMaxValue(maxValue.getOrElse(minValue))
@@ -25,12 +25,12 @@ object DefaultRestrictions {
     .setAlias(alias)
     .setUnit("y.o.")
 
-  private def beltRestriction(value: String): CategoryRestrictionDTO = new CategoryRestrictionDTO().setId(UUID.randomUUID().toString).setType(CategoryRestrictionType.Value)
+  private def beltRestriction(value: String): CategoryRestrictionDTO = new CategoryRestrictionDTO().setRestrictionId(UUID.randomUUID().toString).setType(CategoryRestrictionType.Value)
     .setValue(value)
     .setName("Belt")
 
 
-  private def genderRestriction(value: String): CategoryRestrictionDTO = new CategoryRestrictionDTO().setId(UUID.randomUUID().toString).setType(CategoryRestrictionType.Value)
+  private def genderRestriction(value: String): CategoryRestrictionDTO = new CategoryRestrictionDTO().setRestrictionId(UUID.randomUUID().toString).setType(CategoryRestrictionType.Value)
     .setValue(value)
     .setName("Gender")
 

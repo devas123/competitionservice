@@ -4,7 +4,7 @@ import compman.compsrv.logic.category.CategoryGenerateService
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.commands.payload.AdjacencyList
-import compman.compsrv.model.dto.competition.CategoryRestrictionDTO
+import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CategoryRestrictionDTO}
 import compman.compsrv.query.actors.{ActorBehavior, Context, Timers}
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.model._
@@ -70,7 +70,7 @@ object CompetitionApiActor {
     restrictions: List[CategoryRestrictionDTO],
     idTrees: List[AdjacencyList],
     restrictionNames: List[String]
-  )                                                     extends ApiCommand[List[Category]]
+  )                                                     extends ApiCommand[List[CategoryDescriptorDTO]]
   final case class GetCompetitionProperties(id: String) extends ApiCommand[Option[CompetitionProperties]]
 
   final case class GetCompetitionInfoTemplate(competitionId: String) extends ApiCommand[CompetitionInfoTemplate]
@@ -92,11 +92,11 @@ object CompetitionApiActor {
 
   final case class GetRegistrationInfo(competitionId: String) extends ApiCommand[Option[RegistrationInfo]]
 
-  final case class GetCategories(competitionId: String) extends ApiCommand[List[Category]]
+  final case class GetCategories(competitionId: String) extends ApiCommand[List[CategoryDescriptorDTO]]
 
   final case class GetFightById(competitionId: String, fightId: String) extends ApiCommand[Option[Fight]]
 
-  final case class GetCategory(competitionId: String, categoryId: String) extends ApiCommand[Option[Category]]
+  final case class GetCategory(competitionId: String, categoryId: String) extends ApiCommand[Option[CategoryDescriptorDTO]]
 
   final case class GetFightsByMats(competitionId: String, periodId: String, limit: Int)
       extends ApiCommand[Map[String, List[String]]]
@@ -163,11 +163,11 @@ object CompetitionApiActor {
                 periods <- CompetitionQueryOperations[LIO].getRegistrationPeriods(competitionId)
               } yield (state, RegistrationInfo(groups, periods).asInstanceOf[A])
             case GetCategories(competitionId) => CompetitionQueryOperations[LIO]
-                .getCategoriesByCompetitionId(competitionId).map(res => (state, res.asInstanceOf[A]))
+                .getCategoriesByCompetitionId(competitionId).map(_.map(DtoMapping.toDtoCategory)).map(res => (state, res.asInstanceOf[A]))
             case GetFightById(competitionId, fightId) => CompetitionQueryOperations[LIO]
                 .getFightById(competitionId)(fightId).map(res => (state, res.asInstanceOf[A]))
             case GetCategory(competitionId, categoryId) => CompetitionQueryOperations[LIO]
-                .getCategoryById(competitionId)(categoryId).map(res => (state, res.asInstanceOf[A]))
+                .getCategoryById(competitionId)(categoryId).map(_.map(DtoMapping.toDtoCategory)).map(res => (state, res.asInstanceOf[A]))
             case GetFightsByMats(competitionId, periodId, limit) =>
               import cats.implicits._
               import zio.interop.catz._

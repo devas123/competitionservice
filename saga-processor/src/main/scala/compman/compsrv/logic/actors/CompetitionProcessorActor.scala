@@ -120,7 +120,9 @@ object CompetitionProcessorActor {
         state: CompetitionState
       ): RIO[Env with Logging with Clock, Seq[EventDTO]] = for {
         _      <- processorOperations.createTopicIfMissing(eventTopic, KafkaTopicConfig())
+        _ <- Logging.info(s"Getting events from topic: $eventTopic, starting from ${state.revision}")
         events <- processorOperations.retrieveEvents(eventTopic, state.revision)
+        _ <- Logging.info(s"Done getting events!")
       } yield events
 
       override def persistEvents(persistenceId: String, events: Seq[EventDTO]): RIO[Env with Logging with Clock, Unit] =

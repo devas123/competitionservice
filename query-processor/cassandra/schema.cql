@@ -21,7 +21,7 @@ CREATE TABLE if not exists query_service.competition_properties
 );
 
 CREATE TYPE if not exists query_service.restriction (
-    restriction_id uuid,
+    restriction_id varchar,
     restriction_type varchar,
     name varchar,
     value varchar,
@@ -131,15 +131,15 @@ create table if not exists query_service.fight
 
 CREATE TABLE if not exists query_service.managed_competition
 (
-    id varchar,
-    events_topic   varchar,
-    creator_id     varchar,
-    created_at     timestamp,
-    starts_at      timestamp,
-    ends_at        timestamp,
-    time_zone      varchar,
-    status         varchar,
-    primary key ( id, created_at, creator_id, starts_at, status )
+    id           varchar,
+    events_topic varchar,
+    creator_id   varchar,
+    created_at   timestamp,
+    starts_at    timestamp,
+    ends_at      timestamp,
+    time_zone    varchar,
+    status       varchar,
+    primary key ( id, status )
 );
 
 create type if not exists query_service.schedule_entry(

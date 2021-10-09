@@ -83,6 +83,8 @@ object CommandProcessorOperations {
     consumerSettings: ConsumerSettings,
     commandProcessorConfig: CommandProcessorConfig
   ): RIO[E with CommandProcLive, CommandProcessorOperations[E with CommandProcLive]] = {
+    import cats.implicits._
+    import zio.interop.catz._
     for {
       mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
       operations = new CommandProcessorOperations[E with CommandProcLive] {
@@ -91,15 +93,18 @@ object CommandProcessorOperations {
           endOffsets <- Consumer
             .endOffsets(partitions.map(pi => new common.TopicPartition(pi.topic(), pi.partition())).toSet)
           filteredOffsets = endOffsets.filter(_._2 > 0)
-          _ <- Logging.info(s"Getting events from topic $id, partitions: $partitions, endoffsets: $endOffsets")
+          _ <- Logging.info(s"Getting events from topic $id, partitions: $partitions, endoffsets: $endOffsets, start from $offset")
           res <-
             if (filteredOffsets.nonEmpty) {
-              val off = filteredOffsets.keySet.map(tp => (tp.topic(), tp.partition()))
-              Consumer.subscribeAnd(Subscription.manual(off.toArray.toIndexedSeq: _*))
-                .plainStream(Serde.string, SerdeApi.eventDeserializer).dropUntil(_.offset.offset >= offset)
-                .takeUntilM(r =>
-                  for { _ <- Logging.info(s"Event: $r") } yield r.offset.offset < endOffsets(r.offset.topicPartition)
-                ).runCollect.map(_.map(_.value).toList)
+              for {
+                _ <- Logging.info(s"Filtered offsets: $filteredOffsets")
+                off = filteredOffsets.keySet.map(tp => (tp.topic(), tp.partition()))
+                _ <- Logging.info(s"Off: $off")
+                res1 <- off.toList.traverse(o =>
+                  Consumer.subscribeAnd(Subscription.manual(o)).plainStream(Serde.string, SerdeApi.eventDeserializer)
+                    .take(endOffsets(new common.TopicPartition(o._1, o._2)) - offset).runCollect.map(_.map(_.value).toList)
+                )
+              } yield res1.flatten
             } else { ZIO.effectTotal(List.empty) }
           _ <- Logging.info("Done collecting events.")
         } yield res).provideSomeLayer[Clock with Blocking with Logging](Consumer.make(consumerSettings).toLayer)
@@ -140,11 +145,14 @@ object CommandProcessorOperations {
           topic: String,
           topicConfig: KafkaTopicConfig
         ): RIO[E with CommandProcLive, Unit] = for {
+          _      <- Logging.info(s"Creating topic $topic, if missing")
           topics <- adminClient.listTopics()
           _ <-
-            if (topics.contains(topic)) RIO(())
-            else adminClient
-              .createTopic(AdminClient.NewTopic(topic, topicConfig.numPartitions, topicConfig.replicationFactor))
+            if (topics.contains(topic)) Logging.info(s"Topic $topic already exists") *> RIO(())
+            else Logging.info(s"Creating new topic.") *>
+              adminClient
+                .createTopic(AdminClient.NewTopic(topic, topicConfig.numPartitions, topicConfig.replicationFactor))
+          _ <- Logging.info(s"Cone creating topic $topic.")
         } yield ()
       }
     } yield operations
