@@ -83,7 +83,8 @@ object DtoMapping {
       Option(dto.getAcademy).map(a => Academy(a.getId, a.getName)),
       Option(dto.getCategories).map(_.toSet).getOrElse(Set.empty),
       dto.isPlaceholder,
-      Option(dto.getPromo)
+      Option(dto.getPromo),
+      Option(dto.getRegistrationStatus)
     )
   }
 
@@ -125,6 +126,16 @@ object DtoMapping {
 
   def mapMat(dto: MatDescriptionDTO): Mat = { Mat(dto.getId, dto.getName, dto.getMatOrder) }
 
+  def toDtoAcademy(a: Academy): AcademyDTO = new AcademyDTO().setName(a.name).setId(a.id)
+
+  def toDtoCompetitor(competitor: Competitor): CompetitorDTO = {
+    new CompetitorDTO().setId(competitor.id).setEmail(competitor.email).setUserId(competitor.userId.getOrElse(""))
+      .setFirstName(competitor.firstName).setLastName(competitor.lastName).setBirthDate(competitor.birthDate.orNull)
+      .setAcademy(competitor.academy.map(toDtoAcademy).orNull).setCategories(competitor.categories.toArray)
+      .setCompetitionId(competitor.competitionId).setRegistrationStatus(competitor.registrationStatus.orNull)
+      .setPlaceholder(competitor.isPlaceholder).setPromo(competitor.promo.getOrElse(""))
+  }
+
   def toDtoCategory(cat: Category): CategoryDescriptorDTO = {
     new CategoryDescriptorDTO().setName(cat.name.getOrElse("")).setId(cat.id).setRegistrationOpen(cat.registrationOpen)
       .setRestrictions(Option(cat.restrictions).getOrElse(List.empty).map(toDtoRestriction).toArray)
@@ -135,6 +146,17 @@ object DtoMapping {
       .setType(restr.restrictionType).setUnit(restr.unit.getOrElse("")).setRestrictionOrder(restr.restrictionOrder)
       .setAlias(restr.alias.getOrElse("")).setMaxValue(restr.maxValue.getOrElse(""))
       .setMinValue(restr.minValue.getOrElse("")).setValue(restr.value.getOrElse(""))
+  }
+
+  def toDtoCompetitionProperties(competitionProperties: CompetitionProperties): CompetitionPropertiesDTO = {
+    new CompetitionPropertiesDTO().setId(competitionProperties.id).setCreatorId(competitionProperties.creatorId)
+      .setStaffIds(competitionProperties.staffIds.getOrElse(Set.empty).toArray).setEmailNotificationsEnabled(false)
+      .setCompetitionName(competitionProperties.competitionName)
+      .setEmailTemplate(new String(competitionProperties.infoTemplate.template)).setPromoCodes(Array.empty)
+      .setStartDate(competitionProperties.startDate).setSchedulePublished(competitionProperties.schedulePublished)
+      .setBracketsPublished(competitionProperties.bracketsPublished).setEndDate(competitionProperties.endDate.orNull)
+      .setTimeZone(competitionProperties.timeZone).setCreationTimestamp(competitionProperties.creationTimestamp)
+      .setStatus(competitionProperties.status)
   }
 
   def mapFight(dto: FightDescriptionDTO): Fight = {

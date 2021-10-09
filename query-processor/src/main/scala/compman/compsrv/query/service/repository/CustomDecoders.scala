@@ -1,7 +1,7 @@
 package compman.compsrv.query.service.repository
 
 import compman.compsrv.model.dto.brackets._
-import compman.compsrv.model.dto.competition.{CategoryRestrictionType, CompetitionStatus}
+import compman.compsrv.model.dto.competition.{CategoryRestrictionType, CompetitionStatus, CompetitorRegistrationStatus}
 import compman.compsrv.model.dto.schedule.{ScheduleEntryType, ScheduleRequirementType}
 import io.getquill.MappedEncoding
 
@@ -37,4 +37,6 @@ trait CustomDecoders {
     MappedEncoding[String, ScheduleEntryType](ScheduleEntryType.valueOf)
   implicit val scheduleRequirementTypeDecoder: MappedEncoding[String, ScheduleRequirementType] =
     MappedEncoding[String, ScheduleRequirementType](ScheduleRequirementType.valueOf)
+  implicit val competitorRegistrationStatusDecoder: MappedEncoding[String, CompetitorRegistrationStatus] =
+    MappedEncoding[String, CompetitorRegistrationStatus](CompetitorRegistrationStatus.valueOf)
 }

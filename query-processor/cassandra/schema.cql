@@ -49,17 +49,18 @@ create type if not exists query_service.academy(
 
 create table if not exists query_service.competitor
 (
-    competition_id varchar,
-    user_id        varchar,
-    email          varchar,
-    id             varchar,
-    first_name     varchar,
-    last_name      varchar,
-    birth_date     timestamp,
-    academy        query_service.academy,
-    categories     set<varchar>,
-    is_placeholder boolean,
-    promo          varchar,
+    competition_id      varchar,
+    user_id             varchar,
+    email               varchar,
+    id                  varchar,
+    first_name          varchar,
+    last_name           varchar,
+    birth_date          timestamp,
+    academy             query_service.academy,
+    categories          set<varchar>,
+    is_placeholder      boolean,
+    promo               varchar,
+    registration_status varchar,
     primary key ( competition_id, id )
 );
 
@@ -126,7 +127,7 @@ create table if not exists query_service.fight
     brackets_info  query_service.brackets_info,
     fight_result   query_service.fight_result,
     scores         list<frozen<query_service.comp_score>>,
-    primary key ( competition_id, id, stage_id )
+    primary key ( competition_id, category_id, stage_id, id )
 );
 
 CREATE TABLE if not exists query_service.managed_competition

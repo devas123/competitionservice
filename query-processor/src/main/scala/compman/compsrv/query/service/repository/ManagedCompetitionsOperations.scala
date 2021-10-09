@@ -51,7 +51,7 @@ object ManagedCompetitionsOperations {
             CompetitionStatus.PUBLISHED,
             CompetitionStatus.UNPUBLISHED
           )).contains(c.status)
-        )
+        ).allowFiltering
       }
       for {
         _   <- log.info(select.toString)

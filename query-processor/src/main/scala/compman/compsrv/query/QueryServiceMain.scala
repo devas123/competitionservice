@@ -73,7 +73,7 @@ object QueryServiceMain extends zio.App {
       s"/query/$serviceVersion/ws" -> WebsocketService.wsRoutes(webSocketSupervisor)
     ).orNotFound
     srv <- ZIO.runtime[ZEnv].flatMap { implicit rts =>
-      BlazeServerBuilder[ServiceIO].bindHttp(8080, "0.0.0.0").withWebSockets(true).withSocketKeepAlive(true)
+      BlazeServerBuilder[ServiceIO].bindHttp(9000, "0.0.0.0").withWebSockets(true).withSocketKeepAlive(true)
         .withHttpApp(httpApp).serveWhile(signal, exitCode).compile.drain
     }
   } yield srv

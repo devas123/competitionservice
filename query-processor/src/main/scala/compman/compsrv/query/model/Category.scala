@@ -8,7 +8,7 @@ case class Category(
   competitionId: String,
   restrictions: List[Restriction],
   name: Option[String],
-  registrationOpen: Boolean
+  registrationOpen: Boolean,
 )
 
 case class Restriction(
