@@ -21,6 +21,7 @@ object CompetitionHttpApiService {
     import org.http4s.dsl.impl.OptionalQueryParamDecoderMatcher
 
     object SearchStringParamMatcher extends OptionalQueryParamDecoderMatcher[String]("searchString")
+    object CategoryIdParameter      extends OptionalQueryParamDecoderMatcher[String]("categoryId")
 
     object StartAtParamMatcher extends OptionalQueryParamDecoderMatcher[Int]("startAt")
 
@@ -37,12 +38,15 @@ object CompetitionHttpApiService {
   import dsl._
 
   def service(apiActor: ActorRef[ApiCommand]): HttpRoutes[ServiceIO] = HttpRoutes.of[ServiceIO] {
-    case req @ POST -> Root / "generatecategories" / _ =>
-      for {
+    case req @ POST -> Root / "generatecategories" / _ => for {
         body <- req.body.covary[ServiceIO].chunkAll.compile.toList
         bytes = body.flatMap(_.toList).toArray
-        res <- sendApiCommandAndReturnResponse(apiActor, decoder.readValue(bytes, classOf[GenerateCategoriesFromRestrictions]))
+        res <- sendApiCommandAndReturnResponse(
+          apiActor,
+          decoder.readValue(bytes, classOf[GenerateCategoriesFromRestrictions])
+        )
       } yield res
+    case GET -> Root / "defaultfightresults" => sendApiCommandAndReturnResponse(apiActor, GetDefaultFightResults)
     case GET -> Root / "defaultrestrictions" => sendApiCommandAndReturnResponse(apiActor, GetDefaultRestrictions)
     case GET -> Root / "competition"         => sendApiCommandAndReturnResponse(apiActor, GetAllCompetitions)
     case GET -> Root / "competition" / id    => sendApiCommandAndReturnResponse(apiActor, GetCompetitionProperties(id))
@@ -72,14 +76,15 @@ object CompetitionHttpApiService {
       sendApiCommandAndReturnResponse(apiActor, GetMatFights(id, matId))
     case GET -> Root / "competition" / id / "period" / periodId / "fight" =>
       sendApiCommandAndReturnResponse(apiActor, GetFightsByMats(id, periodId, 10))
-    case GET -> Root / "competition" / id / "competitor" :? QueryParameters.SearchStringParamMatcher(
-          maybeSearchString
-        ) +& QueryParameters.StartAtParamMatcher(maybeStartAt) +& QueryParameters.LimitParamMatcher(maybeLimit) =>
+    case GET -> Root / "competition" / id / "competitor" :?
+        QueryParameters.SearchStringParamMatcher(maybeSearchString) +& QueryParameters.StartAtParamMatcher(
+          maybeStartAt
+        ) +& QueryParameters.LimitParamMatcher(maybeLimit) +& QueryParameters.CategoryIdParameter(maybeCategoryId) =>
       val pagination = for {
         s   <- maybeStartAt
         lim <- maybeLimit
       } yield Pagination(s, lim, 0)
-      sendApiCommandAndReturnResponse(apiActor, GetCompetitors(id, maybeSearchString, pagination))
+      sendApiCommandAndReturnResponse(apiActor, GetCompetitors(id, maybeCategoryId, maybeSearchString, pagination))
 
     case GET -> Root / "competition" / id / "competitor" / competitorId =>
       sendApiCommandAndReturnResponse(apiActor, GetCompetitor(id, competitorId))

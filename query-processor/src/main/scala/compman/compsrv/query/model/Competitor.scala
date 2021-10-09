@@ -20,4 +20,4 @@ case class Competitor(
   registrationStatus: Option[CompetitorRegistrationStatus]
 )
 
-case class Academy(id: String, name: String) extends Udt
+case class Academy(academyId: String, academyName: String) extends Udt

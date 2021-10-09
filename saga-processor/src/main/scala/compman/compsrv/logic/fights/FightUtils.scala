@@ -111,7 +111,7 @@ object FightUtils {
     fights: Map[String, FightDescriptionDTO]
   ): F[Map[String, FightDescriptionDTO]] = {
     def update(it: FightDescriptionDTO) = {
-      it.getScores.find(_.getCompetitorId != null).map(cs =>
+      Option(it.getScores).flatMap(_.find(_.getCompetitorId != null)).map(cs =>
         it.setStatus(FightStatus.UNCOMPLETABLE)
           .setFightResult(new FightResultDTO(cs.getCompetitorId, FightResultOptionDTO.WALKOVER.getId, "BYE"))
       ).getOrElse(it.setStatus(FightStatus.UNCOMPLETABLE))
@@ -129,7 +129,8 @@ object FightUtils {
     markedFights: Map[String, FightDescriptionDTO]
   ): F[Map[String, FightDescriptionDTO]] = {
     def getUncompletableFightScores(uncompletableFights: Map[String, FightDescriptionDTO]) = {
-      uncompletableFights.values.flatMap(f => f.getScores.map(s => (s.getCompetitorId, f.getId))).filter(_._1 != null)
+      uncompletableFights.values.flatMap(f => Option(f.getScores).map(_.map(s => (s.getCompetitorId, f.getId))).getOrElse(Array.empty))
+        .filter(_._1 != null)
         .toList
     }
     for {
@@ -149,7 +150,7 @@ object FightUtils {
     fightId: String,
     fights: Map[String, FightDescriptionDTO]
   ): F[Boolean] = {
-    def getFightScores(fightId: String) = fights.get(fightId).map(_.getScores)
+    def getFightScores(fightId: String) = fights.get(fightId).flatMap(f => Option(f.getScores))
 
     def checkIfFightCanProduceReference(fightId: String, referenceType: FightReferenceType): Boolean = {
       val fightScores = getFightScores(fightId)

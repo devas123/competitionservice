@@ -2,6 +2,7 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.config.CommandProcessorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorActor.ProcessCommand
+import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.query.actors.{ActorBehavior, ActorSystem, Context, Timers}
 import compman.compsrv.query.actors.ActorSystem.ActorConfig
@@ -58,7 +59,7 @@ object CompetitionProcessorSupervisorActor {
                 _ <- Logging.info(s"Sending command $fa to actor")
                 _ <- actor ! ProcessCommand(fa)
               } yield ()
-            } yield ((), ().asInstanceOf[A])).onError(Logging.error(s"Error while processing message $fa", _))
+            } yield ((), ().asInstanceOf[A])).onError(err => CompetitionLogging.logError(err.squashTrace))
         }
       }
     }

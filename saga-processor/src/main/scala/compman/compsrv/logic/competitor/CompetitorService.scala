@@ -1,6 +1,6 @@
 package compman.compsrv.logic.competitor
 
-import compman.compsrv.model.dto.competition.{AcademyDTO, CompetitorDTO}
+import compman.compsrv.model.dto.competition.{AcademyDTO, CompetitorDTO, CompetitorRegistrationStatus}
 
 import java.time.Instant
 import java.util.UUID
@@ -72,7 +72,7 @@ object CompetitorService {
       result.addOne(
         new CompetitorDTO().setId(UUID.randomUUID().toString).setEmail(email)
           .setFirstName(names(random.nextInt(names.length))).setLastName(surnames(random.nextInt(surnames.length)))
-          .setBirthDate(Instant.now()).setRegistrationStatus("SUCCESS_CONFIRMED")
+          .setBirthDate(Instant.now()).setRegistrationStatus(CompetitorRegistrationStatus.SUCCESS_CONFIRMED)
           .setAcademy(new AcademyDTO(UUID.randomUUID().toString, s"Academy${random.nextInt(academies)}"))
           .setCategories(Array(categoryId)).setCompetitionId(competitionId)
       )

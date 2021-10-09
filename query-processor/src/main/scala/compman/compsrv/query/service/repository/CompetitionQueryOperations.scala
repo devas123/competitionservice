@@ -153,7 +153,7 @@ object CompetitionQueryOperations {
       pagination: Option[Pagination],
       searchString: Option[String]
     ): LIO[(List[Competitor], Pagination)] = competitors match {
-      case Some(value) => value.get.map(_.values.toList.filter(_.academy.exists(_.id == academyId)))
+      case Some(value) => value.get.map(_.values.toList.filter(_.academy.exists(_.academyId == academyId)))
           .map(list => (list, Pagination(0, list.size, list.size)))
       case None => Task((List.empty, Pagination(0, 0, 0)))
     }
@@ -225,6 +225,7 @@ object CompetitionQueryOperations {
       select: Quoted[EntityQuery[Competitor]]
     ) = {
       for {
+        _   <- log.info(s"Drop: $drop, take: $take")
         _   <- log.info(select.toString)
         res <- run(select).provide(Has(cassandraZioSession))
         filtered = res.filter(c =>
@@ -356,7 +357,7 @@ object CompetitionQueryOperations {
       val take = pagination.map(_.maxResults).getOrElse(30)
       val select = quote {
         query[Competitor]
-          .filter(f => f.competitionId == lift(competitionId) && f.academy.exists(_.id == lift(academyId)))
+          .filter(f => f.competitionId == lift(competitionId) && f.academy.exists(_.academyId == lift(academyId)))
       }
       executeQueryAndFilterResults(log, searchString, drop, take, select)
     }

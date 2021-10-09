@@ -18,6 +18,7 @@ object CommandProcessors {
     Seq(
       AddCategoryProc(state),
       AddCompetitorProc(state),
+      CreateFakeCompetitorsProc(),
       AddRegistrationGroupProc(state),
       AssignRegistrationGroupCategoriesProc(state),
       CategoryRegistrationStatusChangeProc(state),

@@ -1,5 +1,5 @@
 package compman.compsrv.model.dto.competition;
 
 public enum CompetitorRegistrationStatus {
-    REGISTRATION_COMPLETE, PAYMENT_PENDING, REGISTRATION_CANCELLED
+    SUCCESS_CONFIRMED, PAYMENT_PENDING, REGISTRATION_CANCELLED
 }

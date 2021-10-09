@@ -126,7 +126,7 @@ object DtoMapping {
 
   def mapMat(dto: MatDescriptionDTO): Mat = { Mat(dto.getId, dto.getName, dto.getMatOrder) }
 
-  def toDtoAcademy(a: Academy): AcademyDTO = new AcademyDTO().setName(a.name).setId(a.id)
+  def toDtoAcademy(a: Academy): AcademyDTO = new AcademyDTO().setName(a.academyName).setId(a.academyId)
 
   def toDtoCompetitor(competitor: Competitor): CompetitorDTO = {
     new CompetitorDTO().setId(competitor.id).setEmail(competitor.email).setUserId(competitor.userId.getOrElse(""))
