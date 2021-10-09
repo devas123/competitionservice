@@ -22,8 +22,10 @@ object FightStartTimeUpdatedProc {
       payload   <- event.payload
       newFights <- Option(payload.getNewFights)
       fights    <- state.fights
+      schedule  <- state.schedule
+      mats      <- Option(schedule.mats)
       updates = newFights.toList.mapFilter(fstp =>
-        for { fight <- fights.get(fstp.getFightId) } yield fight.setInvalid(fstp.getInvalid).setMatId(fstp.getMatId)
+        for { fight <- fights.get(fstp.getFightId) } yield fight.setInvalid(fstp.getInvalid).setMat(mats(fstp.getMatId))
           .setPeriod(fstp.getPeriodId).setStartTime(fstp.getStartTime).setNumberOnMat(fstp.getNumberOnMat)
           .setScheduleEntryId(fstp.getScheduleEntryId)
       )

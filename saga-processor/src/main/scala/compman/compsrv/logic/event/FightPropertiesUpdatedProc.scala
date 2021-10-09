@@ -16,12 +16,15 @@ object FightPropertiesUpdatedProc {
     event: FightPropertiesUpdatedEvent,
     state: CompetitionState
   ): F[Option[CompetitionState]] = {
+    import compman.compsrv.model.extensions._
     val eventT = for {
       payload <- event.payload
       update  <- Option(payload.getUpdate)
       fights  <- state.fights
+      schedule <- state.schedule
+      mats <- Option(schedule.mats)
       fight   <- fights.get(update.getFightId)
-      updatedFight = fight.setMatId(Option(update.getMatId).getOrElse(fight.getMatId))
+      updatedFight = fight.setMat(Option(update.getMatId).flatMap(mats.get).getOrElse(fight.getMat))
         .setNumberOnMat(Option(update.getNumberOnMat).getOrElse(fight.getNumberOnMat))
         .setStartTime(Option(update.getStartTime).getOrElse(fight.getStartTime))
       newState = state.createCopy(fights = Some(fights + (updatedFight.getId -> updatedFight)))

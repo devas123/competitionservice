@@ -19,12 +19,14 @@ object FightPropertiesUpdatedProc {
       competitionId <- OptionT.fromOption[F](event.competitionId)
       dto           <- OptionT.fromOption[F](Option(payload.getUpdate))
       existing      <- OptionT(CompetitionQueryOperations[F].getFightById(competitionId)(dto.getFightId))
-      scheduleInfo = existing.scheduleInfo
-      mat          = Option(dto.getMatId)
+      scheduleInfo <- OptionT.fromOption[F](existing.scheduleInfo)
+      periodId      <- OptionT.fromOption[F](scheduleInfo.periodId)
+      periods       <- OptionT(CompetitionQueryOperations[F].getPeriodById(competitionId)(periodId))
+      mats         = periods.mats.groupMapReduce(_.matId)(identity)((a, _) => a)
+      mat <- OptionT.fromOption[F](Option(dto.getMatId))
       updatedSchedule = scheduleInfo
-        .copy(matId = mat, numberOnMat = Option(dto.getNumberOnMat), startTime = Option(dto.getStartTime))
-      _ <- OptionT
-        .liftF(CompetitionUpdateOperations[F].updateFight(existing.copy(scheduleInfo = updatedSchedule)))
+        .copy(mat = mats(mat), numberOnMat = Option(dto.getNumberOnMat), startTime = Option(dto.getStartTime))
+      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateFight(existing.copy(scheduleInfo = Option(updatedSchedule))))
     } yield ()
   }.value.map(_ => ())
 }

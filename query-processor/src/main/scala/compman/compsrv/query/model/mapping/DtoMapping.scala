@@ -61,9 +61,9 @@ object DtoMapping {
           s.getPoints,
           s.getAdvantages,
           s.getPenalties,
-          Option(s.getPointGroups).map(_.toSet).map(_.map(pg =>
+          Option(s.getPointGroups).map(_.toList).map(_.map(pg =>
             PointGroup(pg.getId, Option(pg.getName), Option(pg.getPriority.intValue()), Option(pg.getValue.intValue()))
-          )).getOrElse(Set.empty)
+          )).getOrElse(List.empty)
         )
       ).get,
       Option(o.getParentReferenceType),
@@ -124,8 +124,6 @@ object DtoMapping {
     )
   }
 
-  def mapMat(dto: MatDescriptionDTO): Mat = { Mat(dto.getId, dto.getName, dto.getMatOrder) }
-
   def toDtoAcademy(a: Academy): AcademyDTO = new AcademyDTO().setName(a.academyName).setId(a.academyId)
 
   def toDtoCompetitor(competitor: Competitor): CompetitorDTO = {
@@ -159,25 +157,30 @@ object DtoMapping {
       .setStatus(competitionProperties.status)
   }
 
+  def mapMat(dto: MatDescriptionDTO): Mat = { Mat(dto.getId, dto.getName, dto.getMatOrder) }
+
   def mapFight(dto: FightDescriptionDTO): Fight = {
     Fight(
       dto.getId,
       dto.getCompetitionId,
       dto.getStageId,
       dto.getCategoryId,
-      ScheduleInfo(
-        Option(dto.getMatId),
-        Option(dto.getNumberOnMat).map(_.toInt),
-        Option(dto.getPeriod),
-        Option(dto.getStartTime),
-        Option(dto.getInvalid),
-        Option(dto.getScheduleEntryId)
+      Option(dto.getMat).flatMap(m => Option(m.getId)),
+      Option(dto.getMat).map(mapMat).map(m =>
+        ScheduleInfo(
+          m,
+          Option(dto.getNumberOnMat).map(_.toInt),
+          Option(dto.getPeriod),
+          Option(dto.getStartTime),
+          Option(dto.getInvalid),
+          Option(dto.getScheduleEntryId)
+        )
       ),
       Some(
         BracketsInfo(Option(dto.getNumberInRound), Option(dto.getWinFight), Option(dto.getLoseFight), dto.getRoundType)
       ),
       Option(dto.getFightResult).map(mapFightResult),
-      Option(dto.getScores).map(_.toSet).map(_.map(mapCompScore)).getOrElse(Set.empty)
+      Option(dto.getScores).map(_.toList).map(_.map(mapCompScore)).getOrElse(List.empty)
     )
   }
 

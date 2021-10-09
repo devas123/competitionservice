@@ -2,7 +2,8 @@ package compman.compsrv.model
 
 import compman.compsrv.model.dto.brackets.{StageDescriptorDTO, StageRoundType}
 import compman.compsrv.model.dto.competition._
-import compman.compsrv.model.dto.schedule.{MatIdAndSomeId, ScheduleEntryDTO, ScheduleRequirementDTO}
+import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
+import compman.compsrv.model.dto.schedule.{MatIdAndSomeId, ScheduleDTO, ScheduleEntryDTO, ScheduleRequirementDTO}
 
 import java.time.Instant
 
@@ -65,6 +66,10 @@ package object extensions {
     def competitorId: Option[String] = if (c.isPlaceholder) None else Option(c.getId)
 
     def placeholderId: Option[String] = if (c.isPlaceholder) Option(c.getId) else Option(s"placeholder-${c.getId}")
+  }
+
+  implicit class ScheduleOps(c: ScheduleDTO) {
+    def mats: Map[String, MatDescriptionDTO] = Option(c.getMats).map(_.groupMapReduce(_.getId)(identity)((a, _) => a)).getOrElse(Map.empty)
   }
 
   implicit class CompScoreOps(c: CompScoreDTO) {

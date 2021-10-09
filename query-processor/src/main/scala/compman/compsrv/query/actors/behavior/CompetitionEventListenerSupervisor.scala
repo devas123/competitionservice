@@ -12,6 +12,7 @@ import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.Ma
 import io.getquill.CassandraZioSession
 import zio.{Fiber, Ref, RIO, Tag, Task, ZIO}
 import zio.clock.Clock
+import zio.kafka.consumer.Consumer
 import zio.logging.Logging
 
 import java.io.{PrintWriter, StringWriter}
@@ -61,7 +62,7 @@ object CompetitionEventListenerSupervisor {
           case ActiveCompetition(competition) => for {
               _ <- Logging.info(s"Creating listener actor for competition $competition")
               res <- context
-                .make[R with Logging, CompetitionEventListener.ActorState, CompetitionEventListener.ApiCommand](
+                .make[R with Logging with Clock, CompetitionEventListener.ActorState, CompetitionEventListener.ApiCommand](
                   competition.id,
                   ActorConfig(),
                   CompetitionEventListener.initialState,
@@ -90,7 +91,7 @@ object CompetitionEventListenerSupervisor {
                   )
                   _ <- Logging.info(s"Added competition $id to db.")
                   res <- context
-                    .make[R with Logging, CompetitionEventListener.ActorState, CompetitionEventListener.ApiCommand](
+                    .make[R with Logging with Clock, CompetitionEventListener.ActorState, CompetitionEventListener.ApiCommand](
                       id,
                       ActorConfig(),
                       CompetitionEventListener.initialState,
@@ -128,13 +129,13 @@ object CompetitionEventListenerSupervisor {
             _ <- ZIO.effect { activeCompetitions.foreach(context.self ! ActiveCompetition(_)) }
             _ <- eventStreaming.getByteArrayStream(notificationStopic, s"query-service-global-events-listener")
               .mapM(record =>
-                for {
-                  notif <- ZIO.effect(mapper.readValue(record, classOf[CommandProcessorNotification]))
+                (for {
+                  notif <- ZIO.effect(mapper.readValue(record.value, classOf[CommandProcessorNotification]))
                     .onError(err => Logging.error(s"Error while deserialize: $err", err))
                   _ <- Logging.info(s"Received notification $notif")
                   _ <- context.self ! ReceivedNotification(notif)
-                } yield ()
-              ).runDrain
+                } yield ()).as(record.offset)
+              ).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
             _ <- Logging.info(s"Finished stream for listening to global notifications: $notificationStopic")
           } yield ()).fork
         } yield (Seq(k), Seq.empty[ActorMessages[Any]])

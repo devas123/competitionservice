@@ -23,15 +23,16 @@ object CompetitorsPropagatedToStageProc {
     for {
       payload       <- OptionT.fromOption[F](event.payload)
       competitionId <- OptionT.fromOption[F](event.competitionId)
+      categoryId <- OptionT.fromOption[F](event.categoryId)
       stageId       <- OptionT.fromOption[F](Option(payload.getStageId))
       propagations  <- OptionT.fromOption[F](Option(payload.getPropagations).map(_.asScala))
-      fights        <- OptionT.liftF(CompetitionQueryOperations.getFightsByStage(competitionId)(stageId))
+      fights        <- OptionT.liftF(CompetitionQueryOperations.getFightsByStage(competitionId)(categoryId, stageId))
       fightsMap = fights.groupMapReduce(_.id)(identity)((a, _) => a)
       updatedFights = propagations.groupBy(_.getToFightId).toList.mapFilter { case (fightId, assignments) =>
         val scores = assignments.toList.mapWithIndex((ass, index) =>
           new CompScoreDTO().setCompetitorId(ass.getCompetitorId).setScore(createEmptyScore).setOrder(index)
             .setParentFightId(ass.getFromFightId).setParentReferenceType(FightReferenceType.PROPAGATED)
-        ).map(DtoMapping.mapCompScore).toSet
+        ).map(DtoMapping.mapCompScore)
         for { fight <- fightsMap.get(fightId) } yield fight.copy(scores = scores)
       }
       _ <- OptionT.liftF(updatedFights.traverse(f => CompetitionUpdateOperations[F].addFight(f)))

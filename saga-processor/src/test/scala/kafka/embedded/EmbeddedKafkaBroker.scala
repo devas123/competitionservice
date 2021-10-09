@@ -1,6 +1,6 @@
 package kafka.embedded
 
-import net.manub.embeddedkafka.{EmbeddedK, EmbeddedKafka, EmbeddedKafkaConfig}
+import io.github.embeddedkafka.{EmbeddedK, EmbeddedKafka, EmbeddedKafkaConfig}
 import org.slf4j.LoggerFactory
 
 object EmbeddedKafkaBroker extends App with EmbeddedKafka {
@@ -12,9 +12,7 @@ object EmbeddedKafkaBroker extends App with EmbeddedKafka {
 
   val embeddedKafkaServer: EmbeddedK = EmbeddedKafka.start()
 
-  createCustomTopic(topic = "transactions.raw", partitions = 3)
-  createCustomTopic(topic = "transactions.enriched", partitions = 3)
-  log.info(s"Kafka running: localhost: $port")
+   log.info(s"Kafka running: localhost: $port")
 
   embeddedKafkaServer.broker.awaitShutdown()
 }

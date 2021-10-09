@@ -31,7 +31,7 @@ object CompetitionCreatedProc {
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].addCompetitionProperties(competitionProperties))
       _ <- OptionT.liftF(regGroups.traverse(CompetitionUpdateOperations[F].addRegistrationGroup))
       _ <- OptionT.liftF(regPeriods.traverse(CompetitionUpdateOperations[F].addRegistrationPeriod))
-      _ <- OptionT.liftF(CompetitionLogging.Service[F].info(s"Done processing command!"))
+      _ <- OptionT.liftF(CompetitionLogging.Service[F].info(s"Done processing event!"))
     } yield ()
   }.value.map(_ => ())
 }

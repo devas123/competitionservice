@@ -15,6 +15,8 @@ import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
 import compman.compsrv.query.service.repository._
 import io.getquill.CassandraZioSession
 import zio.{Fiber, Ref, RIO, Tag, ZIO}
+import zio.clock.Clock
+import zio.kafka.consumer.Consumer
 import zio.logging.Logging
 
 object CompetitionEventListener {
@@ -84,7 +86,7 @@ object CompetitionEventListener {
     topic: String,
     context: ActorContext,
     websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
-  ): ActorBehavior[R with Logging, ActorState, ApiCommand] = new ActorBehavior[R with Logging, ActorState, ApiCommand] {
+  ): ActorBehavior[R with Logging with Clock, ActorState, ApiCommand] = new ActorBehavior[R with Logging with Clock, ActorState, ApiCommand] {
 
     import context._
     import zio.interop.catz._
@@ -93,8 +95,8 @@ object CompetitionEventListener {
       actorConfig: ActorConfig,
       state: ActorState,
       command: ApiCommand[A],
-      timers: Timers[R with Logging, ApiCommand]
-    ): RIO[R with Logging, (ActorState, A)] = {
+      timers: Timers[R with Logging with Clock, ApiCommand]
+    ): RIO[R with Logging with Clock, (ActorState, A)] = {
       command match {
         case EventReceived(event) => {
             for {
@@ -110,17 +112,17 @@ object CompetitionEventListener {
       actorConfig: ActorConfig,
       context: Context[ApiCommand],
       initState: ActorState,
-      timers: Timers[R with Logging, ApiCommand]
-    ): RIO[R with Logging, (Seq[Fiber[Throwable, Unit]], Seq[ApiCommand[Any]])] = for {
+      timers: Timers[R with Logging with Clock, ApiCommand]
+    ): RIO[R with Logging with Clock, (Seq[Fiber[Throwable, Unit]], Seq[ApiCommand[Any]])] = for {
       mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
       k <- (for {
         _ <- Logging.info(s"Starting stream for listening to competition events for topic: $topic")
         _ <- eventStreaming.getByteArrayStream(topic, s"query-service-$competitionId").mapM(record =>
-          for {
-            event <- ZIO.effect(mapper.readValue(record, classOf[EventDTO]))
+          (for {
+            event <- ZIO.effect(mapper.readValue(record.value, classOf[EventDTO]))
             _     <- context.self ! EventReceived(event)
-          } yield ()
-        ).runDrain
+          } yield ()).as(record.offset)
+        ).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
         _ <- Logging.info(s"Finished stream for listening to competition events for topic: $topic")
       } yield ()).fork
     } yield (Seq(k), Seq.empty[ApiCommand[Any]])

@@ -123,6 +123,7 @@ create table if not exists query_service.fight
     competition_id varchar,
     category_id    varchar,
     stage_id       varchar,
+    mat_id         varchar,
     schedule_info  query_service.schedule_info,
     brackets_info  query_service.brackets_info,
     fight_result   query_service.fight_result,

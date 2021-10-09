@@ -9,6 +9,7 @@ import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.Errors.NoPayloadError
 import compman.compsrv.model.commands.payload.ChangeFightOrderPayload
 import compman.compsrv.model.dto.competition.{FightDescriptionDTO, FightStatus}
+import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.events.payload.{FightOrderUpdate, FightPropertiesUpdatedPayload}
 
 import java.time.Instant
@@ -75,28 +76,35 @@ object ChangeFightOrderProc {
     val newOrderOnMat                 = Math.max(payload.getNewOrderOnMat, 0)
     var startTime: Option[Instant]    = None
     var maxStartTime: Option[Instant] = None
-    val currentMatId                  = fight.getMatId
+    val currentMat                  = fight.getMat
     val currentNumberOnMat            = fight.getNumberOnMat
     val duration                      = fight.getDuration.longValue()
     val updates                       = ListBuffer.empty[(String, FightOrderUpdate)]
 
+    def matsEqual(m1: MatDescriptionDTO, m2: MatDescriptionDTO): Boolean = {
+      for {
+        f <- Option(m1)
+        s <- Option(m2)
+      } yield f.getId == s.getId
+    }.getOrElse(m1 == null && m2 == null)
+
     def sameMatAsTargetFight(f: FightDescriptionDTO) = {
-      f.getId != payload.getFightId && f.getMatId == currentMatId && f.getNumberOnMat != null &&
+      f.getId != payload.getFightId && matsEqual(f.getMat, currentMat) && f.getNumberOnMat != null &&
       f.getNumberOnMat >= currentNumberOnMat
     }
 
     def isOnNewMat(f: FightDescriptionDTO) = {
-      f.getId != payload.getFightId && f.getMatId == payload.getNewMatId &&
+      f.getId != payload.getFightId && fightMatIdMatchesNewMatId(f, payload) &&
       f.getNumberOnMat != null && f.getNumberOnMat >= payload.getNewOrderOnMat
     }
 
     def shouldUpdatePosition(f: FightDescriptionDTO) = {
-      f.getId != payload.getFightId && f.getMatId == currentMatId && f.getNumberOnMat != null &&
+      f.getId != payload.getFightId && matsEqual(f.getMat, currentMat) && f.getNumberOnMat != null &&
       f.getNumberOnMat >= Math.min(currentNumberOnMat, payload.getNewOrderOnMat) &&
       f.getNumberOnMat <= Math.max(currentNumberOnMat, payload.getNewOrderOnMat)
     }
 
-    if (payload.getNewMatId != fight.getMatId) {
+    if (!fightMatIdMatchesNewMatId(fight, payload)) {
       //if mats are different
       for (f <- fights.values) {
         val (ms, sm) = updateStartTimes(f, payload, startTime, maxStartTime, newOrderOnMat)
@@ -142,22 +150,22 @@ object ChangeFightOrderProc {
   private def moveEarlier(duration: Long, f: FightDescriptionDTO) = {
     (
       f.getCategoryId,
-      new FightOrderUpdate()
-        .setFightId(f.getId)
-        .setMatId(f.getMatId)
-        .setNumberOnMat(f.getNumberOnMat - 1)
-        .setStartTime(f.getStartTime.minus(duration, ChronoUnit.MINUTES))
+      createUpdate(f, f.getNumberOnMat - 1, f.getStartTime.minus(duration, ChronoUnit.MINUTES))
     )
+  }
+
+  private def createUpdate(f: FightDescriptionDTO, newNumberOnMat: Int, newStarTime: Instant) = {
+    new FightOrderUpdate()
+      .setFightId(f.getId)
+      .setMatId(Option(f.getMat).flatMap(m => Option(m.getId)).orNull)
+      .setNumberOnMat(newNumberOnMat)
+      .setStartTime(newStarTime)
   }
 
   private def moveLater(duration: Long, f: FightDescriptionDTO) = {
     (
       f.getCategoryId,
-      new FightOrderUpdate()
-        .setFightId(f.getId)
-        .setMatId(f.getMatId)
-        .setNumberOnMat(f.getNumberOnMat + 1)
-        .setStartTime(f.getStartTime.plus(duration, ChronoUnit.MINUTES))
+      createUpdate(f, f.getNumberOnMat + 1, f.getStartTime.plus(duration, ChronoUnit.MINUTES))
     )
   }
 
@@ -171,13 +179,13 @@ object ChangeFightOrderProc {
     var startTime1    = startTime
     var maxStartTime1 = maxStartTime
     if (
-      f.getId != payload.getFightId && f.getMatId == payload.getNewMatId &&
+      f.getId != payload.getFightId && fightMatIdMatchesNewMatId(f, payload) &&
       f.getNumberOnMat == newOrderOnMat
     ) {
       startTime1 = Option(f.getStartTime)
     }
     if (
-      f.getId != payload.getFightId && f.getMatId == payload.getNewMatId &&
+      f.getId != payload.getFightId && fightMatIdMatchesNewMatId(f, payload) &&
       !maxStartTime1.exists(_.isAfter(f.getStartTime))
     ) {
       maxStartTime1 = Option(f.getStartTime)
@@ -185,4 +193,7 @@ object ChangeFightOrderProc {
     (maxStartTime1, startTime1)
   }
 
+  private def fightMatIdMatchesNewMatId(f: FightDescriptionDTO, payload: ChangeFightOrderPayload) = {
+    Option(f.getMat).flatMap(m => Option(m.getId)).contains(payload.getNewMatId)
+  }
 }

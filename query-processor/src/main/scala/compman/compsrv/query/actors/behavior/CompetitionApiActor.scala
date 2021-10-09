@@ -229,8 +229,8 @@ object CompetitionApiActor {
                 .getStagesByCategory(competitionId)(categoryId).map(res => (state, res.asInstanceOf[A]))
             case GetStageById(competitionId, _, stageId) => CompetitionQueryOperations[LIO]
                 .getStageById(competitionId)(stageId).map(res => (state, res.asInstanceOf[A]))
-            case GetStageFights(competitionId, _, stageId) => CompetitionQueryOperations[LIO]
-                .getFightsByStage(competitionId)(stageId).map(res => (state, res.asInstanceOf[A]))
+            case GetStageFights(competitionId, categoryId, stageId) => CompetitionQueryOperations[LIO]
+                .getFightsByStage(competitionId)(categoryId, stageId).map(res => (state, res.asInstanceOf[A]))
           }
           _ <- Logging.info(s"Response: $res")
         } yield res

@@ -33,7 +33,7 @@ object FightCompetitorsAssignedProc {
           score  <- scores.find(_.parentFightId.contains(fromFight.id))
           parentReferenceType <- score.parentReferenceType.orElse(Option(ass.getReferenceType))
           newScore  = score.copy(competitorId = Option(ass.getCompetitorId), parentReferenceType = Option(parentReferenceType))
-          newScores = scores.filter(_.competitorId != newScore.competitorId) + newScore
+          newScores = scores.filter(_.competitorId != newScore.competitorId) :+ newScore
         } yield toFight.copy(scores = newScores)
       }
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateFights(updates))

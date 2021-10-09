@@ -10,14 +10,15 @@ case class Fight(
   competitionId: String,
   stageId: String,
   categoryId: String,
-  scheduleInfo: ScheduleInfo,
+  matId: Option[String],
+  scheduleInfo: Option[ScheduleInfo],
   bracketsInfo: Option[BracketsInfo],
   fightResult: Option[FightResult],
-  scores: Set[CompScore]
+  scores: List[CompScore]
 )
 
 case class ScheduleInfo(
-                         matId: Option[String],
+                         mat: Mat,
                          numberOnMat: Option[Int],
                          periodId: Option[String],
                          startTime: Option[Instant],
@@ -33,7 +34,7 @@ case class CompScore(
   parentFightId: Option[String]
 ) extends Udt
 
-case class Score(points: Int, advantages: Int, penalties: Int, pointGroups: Set[PointGroup]) extends Udt
+case class Score(points: Int, advantages: Int, penalties: Int, pointGroups: List[PointGroup]) extends Udt
 case class PointGroup(id: String, name: Option[String], priority: Option[Int], value: Option[Int])                   extends Udt
 
 case class FightResult(winnerId: Option[String], resultTypeId: Option[String], reason: Option[String]) extends Udt
