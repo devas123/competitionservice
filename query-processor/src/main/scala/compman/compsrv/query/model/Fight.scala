@@ -1,6 +1,7 @@
 package compman.compsrv.query.model
 
 import compman.compsrv.model.dto.brackets.{FightReferenceType, StageRoundType}
+import compman.compsrv.model.dto.competition.FightStatus
 import io.getquill.Udt
 
 import java.time.Instant
@@ -11,6 +12,8 @@ case class Fight(
   stageId: String,
   categoryId: String,
   matId: Option[String],
+  durationSeconds: Int,
+  status: Option[FightStatus],
   scheduleInfo: Option[ScheduleInfo],
   bracketsInfo: Option[BracketsInfo],
   fightResult: Option[FightResult],
@@ -18,14 +21,22 @@ case class Fight(
 )
 
 case class ScheduleInfo(
-                         mat: Mat,
-                         numberOnMat: Option[Int],
-                         periodId: Option[String],
-                         startTime: Option[Instant],
-                         invalid: Option[Boolean],
-                         scheduleEntryId: Option[String]
-)                                                                                                           extends Udt
-case class BracketsInfo(numberInRound: Option[Int], winFight: Option[String], loseFight: Option[String], roundType: StageRoundType) extends Udt
+  mat: Mat,
+  numberOnMat: Option[Int],
+  periodId: Option[String],
+  startTime: Option[Instant],
+  invalid: Option[Boolean],
+  scheduleEntryId: Option[String],
+  priority: Option[Int]
+) extends Udt
+case class BracketsInfo(
+  round: Option[Int],
+  numberInRound: Option[Int],
+  groupId: Option[String],
+  winFight: Option[String],
+  loseFight: Option[String],
+  roundType: StageRoundType
+) extends Udt
 case class CompScore(
   placeholderId: Option[String],
   competitorId: Option[String],
@@ -34,7 +45,7 @@ case class CompScore(
   parentFightId: Option[String]
 ) extends Udt
 
-case class Score(points: Int, advantages: Int, penalties: Int, pointGroups: List[PointGroup]) extends Udt
-case class PointGroup(id: String, name: Option[String], priority: Option[Int], value: Option[Int])                   extends Udt
+case class Score(points: Int, advantages: Int, penalties: Int, pointGroups: List[PointGroup])      extends Udt
+case class PointGroup(id: String, name: Option[String], priority: Option[Int], value: Option[Int]) extends Udt
 
 case class FightResult(winnerId: Option[String], resultTypeId: Option[String], reason: Option[String]) extends Udt

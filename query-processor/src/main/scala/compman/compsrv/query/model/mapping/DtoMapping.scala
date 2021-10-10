@@ -8,6 +8,8 @@ import compman.compsrv.model.dto.schedule.{PeriodDTO, ScheduleEntryDTO, Schedule
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 
+import java.math.BigDecimal
+
 object DtoMapping {
   def createEmptyScore: ScoreDTO = new ScoreDTO().setAdvantages(0).setPenalties(0).setPoints(0)
     .setPointGroups(Array.empty)
@@ -159,6 +161,53 @@ object DtoMapping {
 
   def mapMat(dto: MatDescriptionDTO): Mat = { Mat(dto.getId, dto.getName, dto.getMatOrder) }
 
+  def toDtoCompScore(cs: CompScore, order: Int): CompScoreDTO = {
+    new CompScoreDTO()
+      .setOrder(order).setCompetitorId(cs.competitorId.orNull).setPlaceholderId(cs.placeholderId.orNull)
+      .setParentFightId(cs.parentFightId.orNull).setParentReferenceType(cs.parentReferenceType.orNull).setScore(
+        new ScoreDTO()
+          .setAdvantages(cs.score.advantages).setPoints(cs.score.points).setPenalties(cs.score.penalties)
+          .setPointGroups(cs.score.pointGroups.map(pg =>
+            new PointGroupDTO().setId(pg.id).setName(pg.name.orNull)
+              .setPriority(pg.priority.map(v => new BigDecimal(v)).orNull)
+              .setValue(pg.value.map(v => new BigDecimal(v)).orNull)
+          ).toArray)
+      )
+  }
+
+  def toDtoFightResult(fr: FightResult): FightResultDTO = {
+    new FightResultDTO()
+      .setReason(fr.reason.orNull)
+      .setWinnerId(fr.winnerId.orNull)
+      .setResultTypeId(fr.resultTypeId.orNull)
+  }
+
+  def toDtoFight(f: Fight): FightDescriptionDTO = {
+    import cats.implicits._
+    new FightDescriptionDTO().setId(f.id).setCategoryId(f.categoryId).setFightName(f.id)
+      .setWinFight(f.bracketsInfo.flatMap(_.winFight).orNull).setLoseFight(f.bracketsInfo.flatMap(_.loseFight).orNull)
+      .setScores(f.scores.mapWithIndex((c, i) => toDtoCompScore(c, i)).toArray)
+      .setDuration(new BigDecimal(f.durationSeconds))
+      .setRound(f.bracketsInfo.flatMap(_.round).map(Integer.valueOf).orNull)
+      .setInvalid(f.scheduleInfo.flatMap(_.invalid).map(java.lang.Boolean.valueOf).getOrElse(false))
+      .setRoundType(f.bracketsInfo.map(_.roundType).orNull)
+      .setStatus(f.status.orNull).setFightResult(f.fightResult.map(toDtoFightResult).orNull)
+      .setMat(f.scheduleInfo.map(_.mat).map(m => new MatDescriptionDTO()
+        .setId(m.matId)
+        .setName(m.name)
+        .setPeriodId(f.scheduleInfo.flatMap(_.periodId).orNull)
+        .setMatOrder(m.matOrder)).orNull)
+      .setNumberOnMat(f.scheduleInfo.flatMap(_.numberOnMat).map(Integer.valueOf).orNull)
+      .setPriority(f.scheduleInfo.flatMap(_.priority).map(Integer.valueOf).orNull)
+      .setCompetitionId(f.competitionId)
+      .setPeriod(f.scheduleInfo.flatMap(_.periodId).orNull)
+      .setStartTime(f.scheduleInfo.flatMap(_.startTime).orNull)
+      .setStageId(f.stageId)
+      .setGroupId(f.bracketsInfo.flatMap(_.groupId).orNull)
+      .setScheduleEntryId(f.scheduleInfo.flatMap(_.scheduleEntryId).orNull)
+      .setNumberInRound(f.bracketsInfo.flatMap(_.numberInRound).map(Integer.valueOf).orNull)
+  }
+
   def mapFight(dto: FightDescriptionDTO): Fight = {
     Fight(
       dto.getId,
@@ -166,6 +215,8 @@ object DtoMapping {
       dto.getStageId,
       dto.getCategoryId,
       Option(dto.getMat).flatMap(m => Option(m.getId)),
+      Option(dto.getDuration).map(_.intValue()).getOrElse(0),
+      Option(dto.getStatus),
       Option(dto.getMat).map(mapMat).map(m =>
         ScheduleInfo(
           m,
@@ -173,11 +224,13 @@ object DtoMapping {
           Option(dto.getPeriod),
           Option(dto.getStartTime),
           Option(dto.getInvalid),
-          Option(dto.getScheduleEntryId)
+          Option(dto.getScheduleEntryId),
+          Option(dto.getPriority)
         )
       ),
       Some(
-        BracketsInfo(Option(dto.getNumberInRound), Option(dto.getWinFight), Option(dto.getLoseFight), dto.getRoundType)
+        BracketsInfo(Option(dto.getRound)
+          ,Option(dto.getNumberInRound), Option(dto.getGroupId), Option(dto.getWinFight), Option(dto.getLoseFight), dto.getRoundType)
       ),
       Option(dto.getFightResult).map(mapFightResult),
       Option(dto.getScores).map(_.toList).map(_.map(mapCompScore)).getOrElse(List.empty)
@@ -289,7 +342,7 @@ object DtoMapping {
         Some(RegistrationFee(
           currency = "Rub",
           r.getRegistrationFee.intValue(),
-          Option(r.getRegistrationFee.remainder(BigDecimal(10)).intValue)
+          Option(r.getRegistrationFee.remainder(new BigDecimal(10)).intValue)
         )),
         categories = Option(r.getCategories).map(_.toSet).getOrElse(Set.empty)
       )

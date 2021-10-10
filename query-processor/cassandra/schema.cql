@@ -76,14 +76,17 @@ create type if not exists query_service.schedule_info (
     period_id varchar,
     start_time timestamp,
     invalid boolean,
-    schedule_entry_id varchar
+    schedule_entry_id varchar,
+    priority int
     );
 
 create type if not exists query_service.brackets_info (
     number_in_round int,
     win_fight varchar,
     lose_fight varchar,
-    round_type varchar
+    round_type varchar,
+    group_id varchar,
+    round int
     );
 create type if not exists query_service.point_group (
     point_group_id varchar,
@@ -119,15 +122,17 @@ create type if not exists query_service.mat_id_and_some_id (
 create table if not exists query_service.fight
 (
 
-    id             varchar,
-    competition_id varchar,
-    category_id    varchar,
-    stage_id       varchar,
-    mat_id         varchar,
-    schedule_info  query_service.schedule_info,
-    brackets_info  query_service.brackets_info,
-    fight_result   query_service.fight_result,
-    scores         list<frozen<query_service.comp_score>>,
+    id               varchar,
+    competition_id   varchar,
+    category_id      varchar,
+    stage_id         varchar,
+    mat_id           varchar,
+    duration_seconds int,
+    status           varchar,
+    schedule_info    query_service.schedule_info,
+    brackets_info    query_service.brackets_info,
+    fight_result     query_service.fight_result,
+    scores           list<frozen<query_service.comp_score>>,
     primary key ( competition_id, category_id, stage_id, id )
 );
 

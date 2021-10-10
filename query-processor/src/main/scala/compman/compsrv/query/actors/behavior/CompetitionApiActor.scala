@@ -97,13 +97,13 @@ object CompetitionApiActor {
 
   final case class GetMat(competitionId: String, matId: String) extends ApiCommand[Option[Mat]]
 
-  final case class GetMatFights(competitionId: String, matId: String) extends ApiCommand[List[Fight]]
+  final case class GetMatFights(competitionId: String, matId: String) extends ApiCommand[List[FightDescriptionDTO]]
 
   final case class GetRegistrationInfo(competitionId: String) extends ApiCommand[Option[RegistrationInfo]]
 
   final case class GetCategories(competitionId: String) extends ApiCommand[List[CategoryStateDTO]]
 
-  final case class GetFightById(competitionId: String, fightId: String) extends ApiCommand[Option[Fight]]
+  final case class GetFightById(competitionId: String, fightId: String) extends ApiCommand[Option[FightDescriptionDTO]]
 
   final case class GetCategory(competitionId: String, categoryId: String) extends ApiCommand[Option[CategoryStateDTO]]
 
@@ -117,7 +117,7 @@ object CompetitionApiActor {
   final case class GetStageById(competitionId: String, categoryId: String, stageId: String)
       extends ApiCommand[List[StageDescriptor]]
   final case class GetStageFights(competitionId: String, categoryId: String, stageId: String)
-      extends ApiCommand[List[Fight]]
+      extends ApiCommand[List[FightDescriptionDTO]]
 
   case class ActorState()
   val initialState: ActorState = ActorState()
@@ -178,7 +178,8 @@ object CompetitionApiActor {
                 .map(res => (state, res.asInstanceOf[A]))
 
             case GetMatFights(competitionId, matId) => CompetitionQueryOperations[LIO]
-                .getFightsByMat(competitionId)(matId, 20).map(res => (state, res.asInstanceOf[A]))
+                .getFightsByMat(competitionId)(matId, 20).map(_.map(DtoMapping.toDtoFight))
+                .map(res => (state, res.asInstanceOf[A]))
             case GetRegistrationInfo(competitionId) => for {
                 groups  <- CompetitionQueryOperations[LIO].getRegistrationGroups(competitionId)
                 periods <- CompetitionQueryOperations[LIO].getRegistrationPeriods(competitionId)
@@ -195,7 +196,8 @@ object CompetitionApiActor {
                 }
               } yield (state, categoryStates.asInstanceOf[A])
             case GetFightById(competitionId, fightId) => CompetitionQueryOperations[LIO]
-                .getFightById(competitionId)(fightId).map(res => (state, res.asInstanceOf[A]))
+                .getFightById(competitionId)(fightId).map(_.map(DtoMapping.toDtoFight))
+                .map(res => (state, res.asInstanceOf[A]))
             case GetCategory(competitionId, categoryId) => for {
                 res <- (for {
                   category <- OptionT(CompetitionQueryOperations[LIO].getCategoryById(competitionId)(categoryId))
@@ -230,7 +232,8 @@ object CompetitionApiActor {
             case GetStageById(competitionId, _, stageId) => CompetitionQueryOperations[LIO]
                 .getStageById(competitionId)(stageId).map(res => (state, res.asInstanceOf[A]))
             case GetStageFights(competitionId, categoryId, stageId) => CompetitionQueryOperations[LIO]
-                .getFightsByStage(competitionId)(categoryId, stageId).map(res => (state, res.asInstanceOf[A]))
+                .getFightsByStage(competitionId)(categoryId, stageId).map(_.map(DtoMapping.toDtoFight))
+                .map(res => (state, res.asInstanceOf[A]))
           }
           _ <- Logging.info(s"Response: $res")
         } yield res
