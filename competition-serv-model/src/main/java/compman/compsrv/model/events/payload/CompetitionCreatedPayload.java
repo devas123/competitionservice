@@ -8,6 +8,7 @@ import compman.compsrv.model.events.EventType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.experimental.Accessors;
 
 import java.io.Serializable;
 
@@ -15,6 +16,7 @@ import java.io.Serializable;
 @AllArgsConstructor
 @NoArgsConstructor
 @EventPayload(type = EventType.COMPETITION_CREATED)
+@Accessors(chain = true)
 public class CompetitionCreatedPayload implements Serializable, Payload {
     private CompetitionPropertiesDTO properties;
     private RegistrationInfoDTO reginfo;

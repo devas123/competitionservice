@@ -13,5 +13,4 @@ public class CompetitionStateDTO {
     private CategoryStateDTO[] categories;
     private CompetitionPropertiesDTO properties;
     private ScheduleDTO schedule;
-    private CompetitionDashboardStateDTO dashboardState;
 }

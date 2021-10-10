@@ -13,7 +13,6 @@ import java.io.Serializable;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@EventPayload(type = {EventType.COMPETITION_STARTED, EventType.COMPETITION_PUBLISHED, EventType.COMPETITION_UNPUBLISHED, EventType.COMPETITION_STOPPED})
 public class CompetitionStatusUpdatedPayload implements Serializable, Payload {
     private CompetitionStatus status;
 }

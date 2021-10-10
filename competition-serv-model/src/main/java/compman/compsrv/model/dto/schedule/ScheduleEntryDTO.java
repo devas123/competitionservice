@@ -28,6 +28,6 @@ public class ScheduleEntryDTO {
     private Instant startTime;
     private Instant endTime;
     private Integer numberOfFights;
-    private BigDecimal duration;
+    private int duration;
     private Integer order;
 }

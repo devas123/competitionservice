@@ -13,6 +13,6 @@ import java.io.Serializable;
 @CommandPayload(type = CommandType.FIGHTS_EDITOR_APPLY_CHANGE)
 public class FightEditorApplyChangesPayload implements Serializable, Payload {
     private String stageId;
-    private FightEditorChange[] bracketsChanges;
-    private CompetitorGroupChange[] competitorGroupChanges;
+    private FightsCompetitorUpdated[] bracketsChanges;
+    private CompetitorMovedToGroup[] competitorMovedToGroups;
 }

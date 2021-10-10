@@ -24,6 +24,6 @@ public class ScheduleRequirementDTO {
     private boolean force;
     private Instant startTime;
     private Instant endTime;
-    private BigDecimal durationMinutes;
+    private int durationSeconds;
     private Integer entryOrder;
 }

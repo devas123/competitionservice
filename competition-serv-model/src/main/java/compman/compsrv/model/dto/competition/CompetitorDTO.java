@@ -19,7 +19,7 @@ public class CompetitorDTO {
     private AcademyDTO academy;
     private String[] categories;
     private String competitionId;
-    private String registrationStatus;
+    private CompetitorRegistrationStatus registrationStatus;
     private boolean placeholder;
     private String promo;
 }

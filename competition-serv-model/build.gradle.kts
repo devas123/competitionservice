@@ -2,11 +2,14 @@ plugins {
     id("competitions-mgr.java-conventions")
 }
 
+java.sourceCompatibility = JavaVersion.VERSION_11
+
 dependencies {
     compileOnly("org.projectlombok:lombok:1.18.20")
     annotationProcessor("org.projectlombok:lombok:1.18.20")
     testCompileOnly("org.projectlombok:lombok:1.18.20")
     testAnnotationProcessor("org.projectlombok:lombok:1.18.20")
+    testAnnotationProcessor(project(":compservice-annotation-processor"))
     annotationProcessor(project(":compservice-annotation-processor"))
     implementation(project(":compservice-annotations"))
     implementation("com.kjetland:mbknor-jackson-jsonschema_2.12:1.0.39")

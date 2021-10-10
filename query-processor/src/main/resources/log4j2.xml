@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO">
+    <Appenders>
+        <Console name="console" target="SYSTEM_OUT">
+            <PatternLayout
+                    pattern="[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n" />
+        </Console>
+    </Appenders>
+    <Loggers>
+        <logger name="compman.compsrv.query.QueryServiceMain" level="info" />
+        <logger name="AbstractCoordinator" level="info" />
+        <logger name="NetworkClient" level="info" />
+        <logger name="KafkaConsumer" level="info" />
+        <AsyncRoot level="info" additivity="false">
+            <AppenderRef ref="console" />
+        </AsyncRoot>
+    </Loggers>
+</Configuration>

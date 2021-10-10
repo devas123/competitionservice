@@ -10,7 +10,7 @@ import lombok.experimental.Accessors;
 @NoArgsConstructor
 @Accessors(chain = true)
 public class CategoryRestrictionDTO {
-    private String id;
+    private String restrictionId;
     private CategoryRestrictionType type;
     private String name;
     private String value;

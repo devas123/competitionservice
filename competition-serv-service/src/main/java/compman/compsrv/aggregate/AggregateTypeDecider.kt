@@ -6,17 +6,13 @@ import compman.compsrv.model.events.EventType
 object AggregateTypeDecider {
     fun getCommandAggregateType(commandType: CommandType): AggregateType {
         return when (commandType) {
-            CommandType.CHECK_CATEGORY_OBSOLETE -> AggregateType.CATEGORY
             CommandType.CHANGE_COMPETITOR_CATEGORY_COMMAND -> AggregateType.SAGA
-            CommandType.SAVE_SCHEDULE_COMMAND -> AggregateType.COMPETITION
             CommandType.SAVE_ABSOLUTE_CATEGORY_COMMAND -> AggregateType.CATEGORY
             CommandType.GENERATE_SCHEDULE_COMMAND -> AggregateType.SAGA
             CommandType.GENERATE_BRACKETS_COMMAND -> AggregateType.CATEGORY
-            CommandType.UPDATE_CATEGORY_FIGHTS_COMMAND -> AggregateType.CATEGORY
             CommandType.DROP_SCHEDULE_COMMAND -> AggregateType.SAGA
             CommandType.DROP_ALL_BRACKETS_COMMAND -> AggregateType.COMPETITION
             CommandType.DROP_CATEGORY_BRACKETS_COMMAND -> AggregateType.CATEGORY
-            CommandType.SAVE_BRACKETS_COMMAND -> AggregateType.CATEGORY
             CommandType.START_COMPETITION_COMMAND -> AggregateType.COMPETITION
             CommandType.STOP_COMPETITION_COMMAND -> AggregateType.COMPETITION
             CommandType.UPDATE_COMPETITION_PROPERTIES_COMMAND -> AggregateType.COMPETITION
@@ -37,18 +33,9 @@ object AggregateTypeDecider {
             CommandType.UPDATE_REGISTRATION_INFO_COMMAND -> AggregateType.COMPETITION
             CommandType.UPDATE_STAGE_STATUS_COMMAND -> AggregateType.CATEGORY
             CommandType.CHANGE_CATEGORY_REGISTRATION_STATUS_COMMAND -> AggregateType.CATEGORY
-            CommandType.DUMMY_COMMAND -> AggregateType.COMPETITION
             CommandType.INTERNAL_SEND_PROCESSING_INFO_COMMAND -> AggregateType.COMPETITION
-            CommandType.INIT_MAT_STATE_COMMAND -> AggregateType.COMPETITION
-            CommandType.DELETE_MAT_STATE_COMMAND -> AggregateType.COMPETITION
-            CommandType.INIT_PERIOD_COMMAND -> AggregateType.COMPETITION
-            CommandType.DELETE_PERIOD_COMMAND -> AggregateType.COMPETITION
             CommandType.DASHBOARD_FIGHT_ORDER_CHANGE_COMMAND -> AggregateType.SAGA
             CommandType.DASHBOARD_SET_FIGHT_RESULT_COMMAND -> AggregateType.CATEGORY
-            CommandType.ADD_UNDISPATCHED_MAT_COMMAND -> AggregateType.COMPETITION
-            CommandType.CHECK_DASHBOARD_OBSOLETE -> AggregateType.COMPETITION
-            CommandType.CHECK_MAT_OBSOLETE -> AggregateType.COMPETITION
-            CommandType.SET_CATEGORY_BRACKETS_COMMAND -> AggregateType.CATEGORY
             CommandType.ADD_COMPETITOR_COMMAND -> AggregateType.SAGA
             CommandType.CREATE_FAKE_COMPETITORS_COMMAND -> AggregateType.SAGA
             CommandType.UPDATE_COMPETITOR_COMMAND -> AggregateType.COMPETITOR
@@ -88,13 +75,11 @@ object AggregateTypeDecider {
             EventType.REGISTRATION_INFO_UPDATED -> AggregateType.COMPETITION
             EventType.REGISTRATION_PERIOD_DELETED -> AggregateType.COMPETITION
             EventType.REGISTRATION_GROUP_ADDED -> AggregateType.COMPETITION
-            EventType.REGISTRATION_GROUP_ADDED_TO_REGISTRATION_PERIOD -> AggregateType.COMPETITION
             EventType.REGISTRATION_GROUP_DELETED -> AggregateType.COMPETITION
             EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED -> AggregateType.COMPETITION
             EventType.DASHBOARD_FIGHT_RESULT_SET -> AggregateType.CATEGORY
             EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED -> AggregateType.CATEGORY
             EventType.DASHBOARD_STAGE_RESULT_SET -> AggregateType.CATEGORY
-            EventType.DUMMY -> AggregateType.SAGA
             EventType.INTERNAL_COMPETITION_INFO -> AggregateType.SAGA
             EventType.CATEGORY_NUMBER_OF_COMPETITORS_INCREASED -> AggregateType.CATEGORY
             EventType.CATEGORY_NUMBER_OF_COMPETITORS_DECREASED -> AggregateType.CATEGORY
