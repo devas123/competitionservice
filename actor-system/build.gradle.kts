@@ -9,6 +9,6 @@ dependencies {
     Libraries.zioLogging.forEach { implementation(it) }
     implementation("org.scala-lang:scala-library:2.13.5")
     scalaCompilerPlugins("org.typelevel:kind-projector_2.13.5:0.13.2")
-    implementation(project(":saga-processor:commons"))
+    implementation(project(":command-processor:commons"))
 }
 description = "actor system"

@@ -29,13 +29,13 @@ services:
       - "8080:8080"
 
 
-  saga_processor:
-    image: saga-processor:latest
+  command_processor:
+    image: command-processor:latest
     environment:
-      - DATABASE_PATH=/app/app-db/saga-processor
+      - DATABASE_PATH=/app/app-db/command-processor
       - KAFKA_BROKERS=broker:29092
     volumes:
-      - saga_processor_db:/app/app-db/saga-processor
+      - command_processor_db:/app/app-db/command-processor
     networks:
       compsrv_backend:
     deploy:
@@ -126,7 +126,7 @@ services:
       compsrv_backend:
 
 volumes:
-  saga_processor_db:
+  command_processor_db:
   query_processor_db:
   zookeeper_data:
   kafka_data:

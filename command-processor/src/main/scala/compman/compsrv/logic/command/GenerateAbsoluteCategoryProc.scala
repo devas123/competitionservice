@@ -10,7 +10,7 @@ object GenerateAbsoluteCategoryProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
       state: CompetitionState
   ): PartialFunction[Command[P], F[Either[Errors.Error, Seq[EventDTO]]]] = {
-    case x @ GenerateAbsoluteCategoryCommand(_, _, _) =>
+    case x: GenerateAbsoluteCategoryCommand =>
       ???
   }
 }

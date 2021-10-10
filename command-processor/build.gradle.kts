@@ -44,7 +44,7 @@ dependencies {
     Libraries.rocksdb.forEach { implementation(it) }
     implementation(project(":competition-serv-model"))
     implementation(project(":compservice-annotations"))
-    implementation(project(":saga-processor:commons"))
+    implementation(project(":command-processor:commons"))
     implementation(project(":actor-system"))
 
     Libraries.embeddedKafka.forEach { testImplementation(it) }
@@ -58,4 +58,4 @@ dependencies {
         )
     }
 }
-description = "saga processor"
+description = "command processor"

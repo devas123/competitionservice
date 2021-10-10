@@ -54,13 +54,13 @@ object Main extends zio.App {
     val program: ZIO[PipelineEnvironment, Any, Any] = {
       adminManaged.use { admin =>
         for {
-          actorSystem <- ActorSystem("saga-processor")
+          actorSystem <- ActorSystem("command-processor")
           _ <- admin.createTopic(AdminClient.NewTopic(appConfig.commandProcessor.competitionNotificationsTopic, 1, 1))
             .foldCause(err => Logging.error("Error while creating topic", err), _ => ZIO.unit)
           commandProcessorOperationsFactory = CommandProcessorOperationsFactory
             .live(admin, consumerSettings, appConfig.commandProcessor)
           suervisor <- actorSystem.make(
-            "saga-processor-supervisor",
+            "command-processor-supervisor",
             ActorConfig(),
             (),
             CompetitionProcessorSupervisorActor.behavior(commandProcessorOperationsFactory, appConfig.commandProcessor)
