@@ -43,7 +43,7 @@ object BracketsUtils {
     compssize: Int,
     duration: BigDecimal
   ): F[CanFail[List[FightDescriptionDTO]]] = {
-    val numberOfRounds = Integer.highestOneBit(nextPowerOfTwo(compssize))
+    val numberOfRounds = Integer.numberOfTrailingZeros(Integer.highestOneBit(nextPowerOfTwo(compssize))) + 1
 
     val iteration = (
       result: List[FightDescriptionDTO],

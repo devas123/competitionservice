@@ -62,7 +62,11 @@ object CompetitionEventListenerSupervisor {
           case ActiveCompetition(competition) => for {
               _ <- Logging.info(s"Creating listener actor for competition $competition")
               res <- context
-                .make[R with Logging with Clock, CompetitionEventListener.ActorState, CompetitionEventListener.ApiCommand](
+                .make[
+                  R with Logging with Clock,
+                  CompetitionEventListener.ActorState,
+                  CompetitionEventListener.ApiCommand
+                ](
                   competition.id,
                   ActorConfig(),
                   CompetitionEventListener.initialState,
@@ -91,7 +95,11 @@ object CompetitionEventListenerSupervisor {
                   )
                   _ <- Logging.info(s"Added competition $id to db.")
                   res <- context
-                    .make[R with Logging with Clock, CompetitionEventListener.ActorState, CompetitionEventListener.ApiCommand](
+                    .make[
+                      R with Logging with Clock,
+                      CompetitionEventListener.ActorState,
+                      CompetitionEventListener.ApiCommand
+                    ](
                       id,
                       ActorConfig(),
                       CompetitionEventListener.initialState,
@@ -122,11 +130,14 @@ object CompetitionEventListenerSupervisor {
       ): RIO[SupervisorEnvironment[R], (Seq[Fiber.Runtime[Throwable, Unit]], Seq[ActorMessages[Any]])] = {
         for {
           mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
+          activeCompetitions <- ManagedCompetitionsOperations.getActiveCompetitions[LIO].foldM(
+            err => logError(err) *> ZIO.effectTotal(List.empty),
+            competitions =>
+              Logging.info(s"Found following competitions: $competitions") *> ZIO.effectTotal(competitions)
+          )
+          events <- ZIO.effect { activeCompetitions.map(ActiveCompetition) }
           k <- (for {
             _ <- Logging.info(s"Starting stream for listening to global notifications: $notificationStopic")
-            activeCompetitions <- ManagedCompetitionsOperations.getActiveCompetitions[LIO]
-              .foldM(err => logError(err) *> ZIO.effectTotal(List.empty), ZIO.effectTotal(_))
-            _ <- ZIO.effect { activeCompetitions.foreach(context.self ! ActiveCompetition(_)) }
             _ <- eventStreaming.getByteArrayStream(notificationStopic, s"query-service-global-events-listener")
               .mapM(record =>
                 (for {
@@ -138,7 +149,7 @@ object CompetitionEventListenerSupervisor {
               ).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
             _ <- Logging.info(s"Finished stream for listening to global notifications: $notificationStopic")
           } yield ()).fork
-        } yield (Seq(k), Seq.empty[ActorMessages[Any]])
+        } yield (Seq(k), events)
       }
     }
 }
