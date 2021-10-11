@@ -5,7 +5,7 @@ import cats.data.EitherT
 import compman.compsrv.logic._
 import compman.compsrv.model.Errors
 import compman.compsrv.model.dto.brackets._
-import compman.compsrv.model.dto.competition.{CompetitorDTO, FightDescriptionDTO, FightStatus}
+import compman.compsrv.model.dto.competition.{CompetitorDTO, CompScoreDTO, FightDescriptionDTO, FightStatus}
 
 import scala.util.Random
 
@@ -43,7 +43,7 @@ object BracketsUtils {
     compssize: Int,
     duration: BigDecimal
   ): F[CanFail[List[FightDescriptionDTO]]] = {
-    val numberOfRounds = Integer.numberOfTrailingZeros(Integer.highestOneBit(nextPowerOfTwo(compssize))) + 1
+    val numberOfRounds = Integer.numberOfTrailingZeros(Integer.highestOneBit(nextPowerOfTwo(compssize)))
 
     val iteration = (
       result: List[FightDescriptionDTO],
@@ -120,25 +120,33 @@ object BracketsUtils {
     fights: Map[String, FightDescriptionDTO]
   ): CanFail[Map[String, FightDescriptionDTO]] = {
     for {
+      firstRoundFights <- Right {
+        fights.values.filter { it => it.roundOrZero == 0 && !it.roundType.contains(StageRoundType.LOSER_BRACKETS) }
+      }
       _ <- assertE(
-        fights.size * 2 >= competitors.size,
+        firstRoundFights.size * 2 >= competitors.size,
         Some(
-          s"Number of fights in the first round is ${fights.size}, which is less than required to fit ${competitors.size} competitors."
+          s"Number of fights in the first round is ${firstRoundFights.size}, which is less than required to fit ${competitors.size} competitors."
         )
       )
-      firstRoundFights = fights.values.filter { it =>
-        it.roundOrZero == 0 && !it.roundType.contains(StageRoundType.LOSER_BRACKETS)
-      }
-      coms            = Random.shuffle(competitors)
-      pairsWithFights = coms.drop(competitors.size).zip(coms.take(competitors.size)).zip(firstRoundFights)
-      updatedFirstRoundFights = pairsWithFights.mapFilter { tr =>
-        val ((c1, c2), f) = tr
+      firstRoundFightsEnriched = firstRoundFights.map(f => if (f.getScores == null || f.getScores.isEmpty) f.setScores(Array(0, 1).map(i =>
+        new CompScoreDTO()
+          .setCompetitorId(null)
+          .setPlaceholderId(null)
+          .setOrder(i)
+          .setScore(createEmptyScore)
+          .setParentFightId(null)
+          .setParentReferenceType(FightReferenceType.PROPAGATED))) else f)
+
+      coms            = Random.shuffle(competitors) ++ Random.shuffle(competitors)
+      pairsWithFights = coms.drop(competitors.size).zip(coms.take(competitors.size)).zip(firstRoundFightsEnriched)
+      updatedFirstRoundFights = pairsWithFights.mapFilter { case ((c1, c2), f)  =>
         for {
           f1 <- f.pushCompetitor(c1.getId)
           f2 <- f1.pushCompetitor(c2.getId)
         } yield f2
       }
-      _ <- assertE(updatedFirstRoundFights.size == pairsWithFights.size, Some("Not all competitors were distributed."))
+      _ <- assertE(updatedFirstRoundFights.size == pairsWithFights.size, Some(s"Not all competitors were distributed. Updated fights: ${updatedFirstRoundFights.size}, expected updates: ${pairsWithFights.size}"))
     } yield fights ++ updatedFirstRoundFights.groupMapReduce(_.getId)(identity)((a, _) => a)
   }
 

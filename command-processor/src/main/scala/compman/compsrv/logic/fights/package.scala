@@ -73,7 +73,8 @@ package object fights {
       .setStatus(FightStatus.PENDING)
       .setPriority(0)
       .setGroupId(groupId)
-      .setFightName("Round ${round + 1} fight ${numberInRound + 1}")
+      .setFightName(s"Round ${round + 1} fight ${numberInRound + 1}")
+      .setScores(Array.empty)
   }
 
 
