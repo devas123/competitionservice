@@ -119,6 +119,15 @@ object BracketsUtils {
     competitors: List[CompetitorDTO],
     fights: Map[String, FightDescriptionDTO]
   ): CanFail[Map[String, FightDescriptionDTO]] = {
+    def checkAllFightsWereUpdated(secondLoopPairsWithFightsSize: Int, secondLoopUpdatedFightsSize: Int) = {
+      assertE(
+        secondLoopPairsWithFightsSize == secondLoopUpdatedFightsSize,
+        Some(
+          s"Not all competitors were distributed. Updated fights: $secondLoopUpdatedFightsSize, expected updates: $secondLoopPairsWithFightsSize"
+        )
+      )
+    }
+
     for {
       firstRoundFights <- Right {
         fights.values.filter { it => it.roundOrZero == 0 && !it.roundType.contains(StageRoundType.LOSER_BRACKETS) }
@@ -129,25 +138,24 @@ object BracketsUtils {
           s"Number of fights in the first round is ${firstRoundFights.size}, which is less than required to fit ${competitors.size} competitors."
         )
       )
-      firstRoundFightsEnriched = firstRoundFights.map(f => if (f.getScores == null || f.getScores.isEmpty) f.setScores(Array(0, 1).map(i =>
-        new CompScoreDTO()
-          .setCompetitorId(null)
-          .setPlaceholderId(null)
-          .setOrder(i)
-          .setScore(createEmptyScore)
-          .setParentFightId(null)
-          .setParentReferenceType(FightReferenceType.PROPAGATED))) else f)
+      firstRoundFightsEnriched = firstRoundFights.map(f =>
+        if (f.getScores == null || f.getScores.isEmpty) f.setScores(Array(0, 1).map(i =>
+          new CompScoreDTO().setCompetitorId(null).setPlaceholderId(null).setOrder(i).setScore(createEmptyScore)
+            .setParentFightId(null).setParentReferenceType(FightReferenceType.PROPAGATED)
+        ))
+        else f
+      )
 
-      coms            = Random.shuffle(competitors) ++ Random.shuffle(competitors)
-      pairsWithFights = coms.drop(competitors.size).zip(coms.take(competitors.size)).zip(firstRoundFightsEnriched)
-      updatedFirstRoundFights = pairsWithFights.mapFilter { case ((c1, c2), f)  =>
-        for {
-          f1 <- f.pushCompetitor(c1.getId)
-          f2 <- f1.pushCompetitor(c2.getId)
-        } yield f2
-      }
-      _ <- assertE(updatedFirstRoundFights.size == pairsWithFights.size, Some(s"Not all competitors were distributed. Updated fights: ${updatedFirstRoundFights.size}, expected updates: ${pairsWithFights.size}"))
-    } yield fights ++ updatedFirstRoundFights.groupMapReduce(_.getId)(identity)((a, _) => a)
+      coms                    = Random.shuffle(competitors)
+      pairsWithFights         = coms.take(firstRoundFightsEnriched.size).zip(firstRoundFightsEnriched)
+      updatedFirstRoundFights = pairsWithFights.mapFilter { case (c1, f) => f.pushCompetitor(c1.getId) }
+      _ <- checkAllFightsWereUpdated(pairsWithFights.size, updatedFirstRoundFights.size)
+      secondLoopPairsWithFights = updatedFirstRoundFights.take(coms.size - updatedFirstRoundFights.size)
+        .zip(coms.drop(updatedFirstRoundFights.size))
+      secondLoopUpdatedFights = secondLoopPairsWithFights.mapFilter { case (f, c1) => f.pushCompetitor(c1.getId) }
+      _ <- checkAllFightsWereUpdated(secondLoopPairsWithFights.size, secondLoopUpdatedFights.size)
+      result = secondLoopUpdatedFights ++ updatedFirstRoundFights.drop(secondLoopUpdatedFights.size)
+    } yield fights ++ result.groupMapReduce(_.getId)(identity)((a, _) => a)
   }
 
   def buildStageResults(

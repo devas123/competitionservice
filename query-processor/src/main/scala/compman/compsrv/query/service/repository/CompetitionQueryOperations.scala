@@ -109,16 +109,20 @@ object CompetitionQueryOperations {
       getCategoriesByCompetitionId(competitionId).map(cats => (cats, Pagination(0, cats.size, cats.size)))
 
     override def getFightsByMat(competitionId: String)(matId: String, limit: Int): LIO[List[Fight]] = fights match {
-      case Some(value) => value.get
-          .map(_.values.filter(f => f.competitionId == competitionId && f.scheduleInfo.exists(s => s.mat != null && s.mat.matId == matId)).toList)
+      case Some(value) => value.get.map(
+          _.values.filter(f =>
+            f.competitionId == competitionId && f.scheduleInfo.exists(s => s.mat != null && s.mat.matId == matId)
+          ).toList
+        )
       case None => Task(List.empty)
     }
 
-    override def getFightsByStage(competitionId: String)(categoryId: String, stageId: String): LIO[List[Fight]] = fights match {
-      case Some(value) => value.get
-          .map(_.values.filter(f => f.competitionId == competitionId && f.stageId == stageId).toList)
-      case None => Task(List.empty)
-    }
+    override def getFightsByStage(competitionId: String)(categoryId: String, stageId: String): LIO[List[Fight]] =
+      fights match {
+        case Some(value) => value.get
+            .map(_.values.filter(f => f.competitionId == competitionId && f.stageId == stageId).toList)
+        case None => Task(List.empty)
+      }
 
     override def getFightById(competitionId: String)(id: String): LIO[Option[Fight]] = getById(fights)(id)
 
@@ -231,7 +235,8 @@ object CompetitionQueryOperations {
         filtered = res.filter(c =>
           searchString.isEmpty || searchString.exists(s => c.firstName.contains(s) || c.lastName.contains(s))
         )
-      } yield (filtered.slice(drop, drop + take), Pagination(drop, take, filtered.size))
+        realTake = if (take <= 0) filtered.size - drop else take
+      } yield (filtered.slice(drop, drop + realTake), Pagination(drop, realTake, filtered.size))
     }
 
     override def getCompetitionProperties(id: String): LIO[Option[CompetitionProperties]] = {
@@ -283,9 +288,8 @@ object CompetitionQueryOperations {
     override def getFightsByMat(competitionId: String)(matId: String, limit: Int): LIO[List[Fight]] = {
       val select = quote {
 
-        (for {
-          f <- query[Fight] if f.competitionId == lift(competitionId) && f.matId.contains(lift(matId))
-        } yield f).take(lift(limit)).allowFiltering
+        (for { f <- query[Fight] if f.competitionId == lift(competitionId) && f.matId.contains(lift(matId)) } yield f)
+          .take(lift(limit)).allowFiltering
 
       }
       for {
@@ -295,8 +299,11 @@ object CompetitionQueryOperations {
     }
 
     override def getFightsByStage(competitionId: String)(categoryId: String, stageId: String): LIO[List[Fight]] = {
-      val select =
-        quote { query[Fight].filter(f => f.competitionId == lift(competitionId) && f.categoryId == lift(categoryId) && f.stageId == lift(stageId)) }
+      val select = quote {
+        query[Fight].filter(f =>
+          f.competitionId == lift(competitionId) && f.categoryId == lift(categoryId) && f.stageId == lift(stageId)
+        )
+      }
       for {
         _   <- log.info(select.toString)
         res <- run(select).provide(Has(cassandraZioSession))
@@ -328,17 +335,26 @@ object CompetitionQueryOperations {
       } yield res
     }
 
+    val competitorsByCompetitionId: ctx.Quoted[String => EntityQuery[Competitor]] = quote { (competitionId: String) =>
+      query[Competitor].filter(_.competitionId == competitionId)
+    }
+
+    val competitorsByCompetitionIdAndId: ctx.Quoted[(String, String) => EntityQuery[Competitor]] =
+      quote { (competitionId: String, id: String) => competitorsByCompetitionId(competitionId).filter(_.id == id) }
+
+    val competitorsByCompetitionIdAndCategoryId: ctx.Quoted[(String, String) => EntityQuery[Competitor]] =
+      quote { (competitionId: String, categoryId: String) =>
+        competitorsByCompetitionId(competitionId).filter(_.categories.contains(categoryId)).allowFiltering
+      }
+
     override def getCompetitorsByCategoryId(competitionId: String)(
       categoryId: String,
       pagination: Option[Pagination],
       searchString: Option[String]
     ): LIO[(List[Competitor], Pagination)] = {
-      val drop = pagination.map(_.offset).getOrElse(0)
-      val take = pagination.map(_.maxResults).getOrElse(30)
-      val select = quote {
-        query[Competitor].filter(f => f.competitionId == lift(competitionId) && f.categories.contains(lift(categoryId)))
-          .allowFiltering
-      }
+      val drop   = pagination.map(_.offset).getOrElse(0)
+      val take   = pagination.map(_.maxResults).getOrElse(0)
+      val select = quote(competitorsByCompetitionIdAndCategoryId(lift(competitionId), lift(categoryId)))
       executeQueryAndFilterResults(log, searchString, drop, take, select)
     }
 
@@ -501,8 +517,10 @@ object CompetitionQueryOperations {
   )(matId: String, limit: Int): F[List[Fight]] = CompetitionQueryOperations[F]
     .getFightsByMat(competitionId)(matId, limit)
 
-  def getFightsByStage[F[+_]: CompetitionQueryOperations](competitionId: String)(categoryId: String, stageId: String): F[List[Fight]] =
-    CompetitionQueryOperations[F].getFightsByStage(competitionId)(categoryId, stageId)
+  def getFightsByStage[F[+_]: CompetitionQueryOperations](
+    competitionId: String
+  )(categoryId: String, stageId: String): F[List[Fight]] = CompetitionQueryOperations[F]
+    .getFightsByStage(competitionId)(categoryId, stageId)
 
   def getFightById[F[+_]: CompetitionQueryOperations](competitionId: String)(id: String): F[Option[Fight]] =
     CompetitionQueryOperations[F].getFightById(competitionId)(id)
