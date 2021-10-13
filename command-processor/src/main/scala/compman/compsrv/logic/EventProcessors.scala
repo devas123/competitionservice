@@ -3,8 +3,8 @@ package compman.compsrv.logic
 import cats.Monad
 import compman.compsrv.logic.event._
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.event.Events
 import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.event.Events
 
 object EventProcessors {
   import Operations._
@@ -14,6 +14,7 @@ object EventProcessors {
     state: CompetitionState
   ): F[CompetitionState] = Monad[F].map(
     List(
+      BracketsDroppedProc(state),
       CategoryRegistrationStatusChangedProc(state),
       BracketsGeneratedProc(state),
       CategoryAddedProc(state),
