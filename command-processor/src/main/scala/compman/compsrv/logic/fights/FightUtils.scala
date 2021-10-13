@@ -104,13 +104,13 @@ object FightUtils {
     for {
       marked    <- markUncompletableFights[F](fights)
       processed <- advanceCompetitorsInUncompletableFights[F](marked)
-    } yield processed
+    } yield marked ++ processed
   }
 
   def markUncompletableFights[F[_]: Monad](
     fights: Map[String, FightDescriptionDTO]
   ): F[Map[String, FightDescriptionDTO]] = {
-    def update(it: FightDescriptionDTO) = {
+    def markAsUncompletable(it: FightDescriptionDTO) = {
       Option(it.getScores).flatMap(_.find(_.getCompetitorId != null)).map(cs =>
         it.setStatus(FightStatus.UNCOMPLETABLE)
           .setFightResult(new FightResultDTO(cs.getCompetitorId, FightResultOptionDTO.WALKOVER.getId, "BYE"))
@@ -120,7 +120,7 @@ object FightUtils {
     for {
       uncompletableFights <- fights.values.filter(_.getId != null).toList.traverse(it =>
         for { canBePacked <- checkIfFightIsPackedOrCanBePackedEventually[F](it.getId, fights) } yield
-          if (canBePacked) it else update(it)
+          if (canBePacked) it else markAsUncompletable(it)
       )
     } yield fights ++ uncompletableFights.groupMapReduce(_.getId)(identity)((a, _) => a)
   }

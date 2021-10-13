@@ -2,13 +2,15 @@ package compman.compsrv.service
 
 import compman.compsrv.logic.competitor.CompetitorService
 import compman.compsrv.logic.fights.{BracketsUtils, FightUtils}
+import compman.compsrv.model.dto.competition.FightStatus
 import zio.{Task, URIO, ZIO}
 import zio.interop.catz._
 import zio.test._
 import zio.test.Assertion._
+import zio.test.TestAspect.sequential
 
 object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
-  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] = suite("Brackets utils") {
+  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] = suite("Brackets utils") (
     testM("Should generate brackets for 8 fighters") {
       val compsSize = 8
       for {
@@ -35,7 +37,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
         assert(distribRes.values.filter(f => f.getScores != null && !f.getScores.exists(_.getCompetitorId == null)).forall(f =>
           f.getScores.map(_.getCompetitorId).toSet.size == 2
         ))(isTrue)
-    }
+    },
     testM("Should generate brackets for 10 fighters") {
       val compsSize = 10
       for {
@@ -60,7 +62,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
         assert(distribRes.values.filter(f => f.getScores != null && !f.getScores.exists(_.getCompetitorId == null)).forall(f =>
           f.getScores.map(_.getCompetitorId).toSet.size == 2
         ))(isTrue)
-    }
+    },
     testM("should process uncompletable fights") {
       val compsSize = 10
       for {
@@ -81,7 +83,12 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
         distribRes <- ZIO.effectTotal(distributed).flatMap(_.fold(err => ZIO.fail(err), ZIO.effectTotal(_)))
           .onError(err => URIO(println(err.toString)))
         marked <- FightUtils.markAndProcessUncompletableFights[Task](distribRes)
-      } yield assert(marked.size)(equalTo(15))
+      } yield assert(marked.size)(equalTo(15)) &&
+        assert(marked.count(_._2.getRound == 0))(equalTo(8)) &&
+        assert(marked.count(e => e._2.getRound == 0 && e._2.getStatus == FightStatus.UNCOMPLETABLE))(equalTo(6)) &&
+        assert(marked.count(_._2.getRound == 1))(equalTo(4)) &&
+        assert(marked.count(_._2.getRound == 2))(equalTo(2)) &&
+        assert(marked.count(_._2.getRound == 3))(equalTo(1))
     }
-  }
+  ) @@ sequential
 }
