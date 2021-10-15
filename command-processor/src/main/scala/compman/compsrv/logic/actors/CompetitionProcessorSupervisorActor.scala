@@ -25,13 +25,15 @@ object CompetitionProcessorSupervisorActor {
         timers: Timers[Env with Logging with Clock with SnapshotService.Snapshot, Message]
       ): RIO[Env with Logging with Clock with SnapshotService.Snapshot, (Unit, A)] = {
         command match {
-          case CommandReceived(competitionId, fa) => (for {
+          case CommandReceived(competitionId, fa) =>
+            val actorName = s"CompetitionProcessor-$competitionId"
+            (for {
               _ <- Logging.info(s"Received command: $fa")
               actor <- for {
-                act <- context.findChild[CompetitionProcessorActor.Message](s"CompetitionProcessor-$competitionId")
+                act <- context.findChild[CompetitionProcessorActor.Message](actorName)
                   .flatMap(optActor =>
-                    optActor.map(exists =>
-                      Logging.info(s"Found existing actor for competition $competitionId") *> ZIO.effect(exists)
+                    optActor.map(existingActor =>
+                      Logging.info(s"Found existing actor for competition $competitionId") *> ZIO.effect(existingActor)
                     ).getOrElse(for {
                       _                          <- Logging.info(s"Creating new actor for competition: $competitionId")
                       commandProcessorOperations <- commandProcessorOperationsFactory.getCommandProcessorOperations[Env]
@@ -43,13 +45,14 @@ object CompetitionProcessorSupervisorActor {
                       }
                       _ <- Logging.info(s"Resolved initial state of the competition is $initialState")
                       a <- context.make(
-                        s"CompetitionProcessor-$competitionId",
+                        actorName,
                         ActorConfig(),
                         initialState,
                         CompetitionProcessorActor.behavior[Env](
                           commandProcessorOperations,
                           competitionId,
-                          s"$competitionId-${commandProcessorConfig.eventsTopicPrefix}"
+                          s"$competitionId-${commandProcessorConfig.eventsTopicPrefix}",
+                          commandProcessorConfig.actorIdleTimeoutMillis.getOrElse(300000)
                         )
                       )
                     } yield a)

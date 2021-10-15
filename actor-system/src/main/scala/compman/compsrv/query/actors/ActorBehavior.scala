@@ -30,7 +30,7 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
     actorConfig: ActorConfig,
     initialState: S,
     actorSystem: ActorSystem,
-    children: Ref[Map[String, ActorRef[Any]]]
+    children: Ref[Set[ActorRef[Any]]]
   )(optPostStop: () => Task[Unit]): RIO[R, ActorRef[Msg]] = {
     def process[A](
       context: Context[Msg],

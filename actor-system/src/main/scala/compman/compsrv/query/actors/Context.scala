@@ -5,7 +5,7 @@ import zio.{Ref, Task, ZIO}
 import zio.clock.Clock
 
 case class Context[F[+_]](
-  children: Ref[Map[String, ActorRef[Any]]],
+  children: Ref[Set[ActorRef[Any]]],
   self: ActorRef[F],
   id: String,
   actorSystem: ActorSystem
@@ -14,7 +14,7 @@ case class Context[F[+_]](
   def stopSelf: Task[List[_]] = self.stop
 
   def findChild[F1[+_]](name: String): Task[Option[ActorRef[F1]]] = {
-    for { m <- children.get } yield m.get(name).map(_.asInstanceOf[ActorRef[F1]])
+    actorSystem.select[F1](name).fold(_ => None, Some(_))
   }
 
   /** Creates actor and registers it to dependent actor system
@@ -39,9 +39,8 @@ case class Context[F[+_]](
     behavior: => AbstractBehavior[R, S, F1]
   ): ZIO[R with Clock, Throwable, ActorRef[F1]] = for {
     ch       <- children.get
-    _ <- if (ch.contains(actorName)) ZIO.fail(new Exception(s"Actor already exists: $actorName")) else ZIO.unit
     actorRef <- actorSystem.make(actorName, actorConfig, init, behavior)
-    _        <- children.set(ch + (actorName -> actorRef.asInstanceOf[ActorRef[Any]]))
+    _        <- children.set(ch + actorRef.asInstanceOf[ActorRef[Any]])
   } yield actorRef
   def select[F1[+_]](path: String): Task[ActorRef[F1]] = actorSystem.select(path)
 

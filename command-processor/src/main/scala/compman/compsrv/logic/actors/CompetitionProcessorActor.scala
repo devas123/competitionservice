@@ -64,6 +64,11 @@ object CompetitionProcessorActor {
           props.getStatus
         )
         _ <- Logging.info(s"Sending notification: $started")
+        _ <- timers.startSingleTimer(
+          DefaultTimerKey,
+          zio.duration.Duration(actorIdleTimeoutMillis, TimeUnit.MILLISECONDS),
+          Stop
+        )
         _ <- processorOperations.sendNotifications(competitionId, Seq(started))
       } yield (Seq.empty, Seq.empty)
 

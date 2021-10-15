@@ -12,6 +12,6 @@ private[actors] trait AbstractBehavior[R, S, Msg[+_]] {
     actorConfig: ActorConfig,
     initialState: S,
     actorSystem: ActorSystem,
-    children: Ref[Map[String, ActorRef[Any]]]
+    children: Ref[Set[ActorRef[Any]]]
   )(postStop: () => Task[Unit]): RIO[R with Clock, ActorRef[Msg]]
 }

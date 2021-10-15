@@ -4,7 +4,8 @@ import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import zio.{IO, Promise, Ref, RIO, Task, UIO, ZIO}
 import zio.clock.Clock
 
-final class ActorSystem(val actorSystemName: String,
+final class ActorSystem(
+  val actorSystemName: String,
   private val refActorMap: Ref[Map[String, Any]],
   private val parentActor: Option[String]
 ) {
@@ -42,23 +43,25 @@ final class ActorSystem(val actorSystemName: String,
     finalName <- buildFinalName(parentActor.getOrElse(""), actorName)
     _         <- if (map.contains(finalName)) IO.fail(new Exception(s"Actor $finalName already exists")) else IO.unit
     derivedSystem = new ActorSystem(actorSystemName, refActorMap, Some(finalName))
-    childrenSet <- Ref.make(Map.empty[String, ActorRef[Any]])
+    childrenSet <- Ref.make(Set.empty[ActorRef[Any]])
     actor <- behavior.makeActor(finalName, actorConfig, init, derivedSystem, childrenSet)(() =>
       dropFromActorMap(finalName, childrenSet)
     )
     _ <- refActorMap.set(map + (finalName -> actor))
   } yield actor
 
-  private[actors] def dropFromActorMap(path: String, childrenRef: Ref[Map[String, ActorRef[Any]]]): Task[Unit] = for {
+  private[actors] def dropFromActorMap(path: String, childrenRef: Ref[Set[ActorRef[Any]]]): Task[Unit] = for {
     _        <- refActorMap.update(_ - path)
     children <- childrenRef.get
-    _        <- ZIO.foreach_(children)(_._2.stop)
-    _        <- childrenRef.set(Map.empty)
+    _        <- ZIO.foreach_(children)(_.stop)
+    _        <- childrenRef.set(Set.empty)
   } yield ()
+
   def select[F[+_]](path: String): Task[ActorRef[F]] = {
     for {
-      actorMap <- refActorMap.get
-      actorRef <- actorMap.get(path) match {
+      actorMap  <- refActorMap.get
+      finalName <- if (path.startsWith("/")) IO.effectTotal(path) else buildFinalName(parentActor.getOrElse(""), path)
+      actorRef <- actorMap.get(finalName) match {
         case Some(value) => for { actor <- IO.effectTotal(value.asInstanceOf[ActorRef[F]]) } yield actor
         case None        => IO.fail(new Exception(s"No such actor $path in local ActorSystem."))
       }
