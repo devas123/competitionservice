@@ -1,9 +1,9 @@
-package compman.compsrv.query.actors
+package compman.compsrv.logic.actors
 
+import compman.compsrv.logic.actors.behavior.WebsocketConnection
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.query.actors.behavior.WebsocketConnection
-import compman.compsrv.query.actors.ActorSystem.ActorConfig
+import ActorSystem.ActorConfig
 import compman.compsrv.query.service.repository.TestEntities
 import zio._
 import zio.blocking.Blocking

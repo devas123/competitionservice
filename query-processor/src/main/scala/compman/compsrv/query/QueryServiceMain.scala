@@ -1,15 +1,10 @@
 package compman.compsrv.query
 import cats.effect
+import compman.compsrv.logic.actors.ActorSystem
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.logError
-import compman.compsrv.query.actors.ActorSystem
-import compman.compsrv.query.actors.ActorSystem.ActorConfig
-import compman.compsrv.query.actors.behavior.{
-  CompetitionApiActor,
-  CompetitionEventListener,
-  CompetitionEventListenerSupervisor,
-  WebsocketConnectionSupervisor
-}
+import ActorSystem.ActorConfig
+import compman.compsrv.logic.actors.behavior.{CompetitionApiActor, CompetitionEventListener, CompetitionEventListenerSupervisor, WebsocketConnectionSupervisor}
 import compman.compsrv.query.config.AppConfig
 import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.service.{CompetitionHttpApiService, WebsocketService}

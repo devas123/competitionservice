@@ -1,6 +1,8 @@
-package compman.compsrv.query.actors.behavior
+package compman.compsrv.logic.actors.behavior
 
 import cats.data.OptionT
+import compman.compsrv.logic.actors.{ActorBehavior, Context, Timers}
+import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.category.CategoryGenerateService
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
@@ -8,8 +10,6 @@ import compman.compsrv.model.commands.payload.AdjacencyList
 import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.PageResponse
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
-import compman.compsrv.query.actors.{ActorBehavior, Context, Timers}
-import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.{CompetitionQueryOperations, ManagedCompetitionsOperations, Pagination}

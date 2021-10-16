@@ -1,10 +1,10 @@
 package compman.compsrv.query.service
 
+import compman.compsrv.logic.actors.behavior.CompetitionApiActor
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.query.actors.behavior.CompetitionApiActor
-import compman.compsrv.query.actors.ActorSystem
-import compman.compsrv.query.actors.ActorSystem.ActorConfig
-import compman.compsrv.query.actors.behavior.CompetitionApiActor.Test
+import compman.compsrv.logic.actors.ActorSystem.ActorConfig
+import CompetitionApiActor.Test
+import compman.compsrv.logic.actors.ActorSystem
 import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO

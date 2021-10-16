@@ -1,4 +1,4 @@
-package compman.compsrv.query.actors
+package compman.compsrv.logic.actors
 
 object Messages {
   sealed trait Command[+Ev] extends Product

@@ -4,8 +4,7 @@ import compman.compsrv.config.CommandProcessorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorActor.ProcessCommand
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.query.actors.{ActorBehavior, ActorSystem, Context, Timers}
-import compman.compsrv.query.actors.ActorSystem.ActorConfig
+import ActorSystem.ActorConfig
 import zio.{RIO, Tag, ZIO}
 import zio.clock.Clock
 import zio.logging.Logging

@@ -1,8 +1,10 @@
-package compman.compsrv.query.actors
+package compman.compsrv.logic.actors
 
 import cats.implicits._
-import compman.compsrv.query.actors.ActorSystem.{ActorConfig, PendingMessage}
-import compman.compsrv.query.actors.Messages.Command
+import compman.compsrv.logic.actors.ActorSystem.ActorConfig
+import compman.compsrv.logic.actors.Messages.Command
+import ActorSystem.{ActorConfig, PendingMessage}
+import Messages.Command
 import zio.{Fiber, Queue, Ref, RIO, Task}
 import zio.clock.Clock
 import zio.interop.catz._

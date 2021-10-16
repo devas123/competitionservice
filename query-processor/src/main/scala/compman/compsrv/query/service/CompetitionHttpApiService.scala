@@ -1,8 +1,8 @@
 package compman.compsrv.query.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.query.actors.ActorRef
-import compman.compsrv.query.actors.behavior.CompetitionApiActor._
+import compman.compsrv.logic.actors.behavior.CompetitionApiActor._
+import compman.compsrv.logic.actors.ActorRef
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.repository.Pagination
 import org.http4s.{HttpRoutes, Response}

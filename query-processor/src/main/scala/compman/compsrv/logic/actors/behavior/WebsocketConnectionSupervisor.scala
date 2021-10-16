@@ -1,8 +1,8 @@
-package compman.compsrv.query.actors.behavior
+package compman.compsrv.logic.actors.behavior
 
+import compman.compsrv.logic.actors.{ActorBehavior, Context, Timers}
+import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.query.actors.{ActorBehavior, Context, Timers}
-import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import zio.{Queue, RIO, Tag, Task}
 import zio.clock.Clock
 import zio.logging.Logging

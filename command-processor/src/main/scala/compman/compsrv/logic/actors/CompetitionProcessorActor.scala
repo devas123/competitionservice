@@ -6,9 +6,7 @@ import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
 import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionProcessingStopped, CompetitionState}
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.query.actors.{ActorSystem, Context, EventSourcedBehavior, Timers}
-import compman.compsrv.query.actors
-import compman.compsrv.query.actors.Messages._
+import Messages._
 import zio.{Fiber, RIO, Task, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
@@ -44,7 +42,7 @@ object CompetitionProcessorActor {
 
       override def init(
         actorConfig: ActorSystem.ActorConfig,
-        context: actors.Context[Message],
+        context: Context[Message],
         initState: CompetitionState,
         timers: Timers[Env with Logging with Clock, Message]
       ): RIO[Env with Logging with Clock, (Seq[Fiber[Throwable, Unit]], Seq[Message[Any]])] = for {
@@ -73,7 +71,7 @@ object CompetitionProcessorActor {
       } yield (Seq.empty, Seq.empty)
 
       override def receive[A](
-        context: actors.Context[Message],
+        context: Context[Message],
         actorConfig: ActorSystem.ActorConfig,
         state: CompetitionState,
         command: Message[A],

@@ -1,6 +1,6 @@
-package compman.compsrv.query.actors
+package compman.compsrv.logic.actors
 
-import compman.compsrv.query.actors.ActorSystem.ActorConfig
+import ActorSystem.ActorConfig
 import zio.{Queue, RIO, ZIO}
 import zio.clock.Clock
 import zio.duration.{durationInt, Duration}

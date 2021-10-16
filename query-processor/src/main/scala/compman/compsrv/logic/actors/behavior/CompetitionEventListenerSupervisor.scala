@@ -1,9 +1,9 @@
-package compman.compsrv.query.actors.behavior
+package compman.compsrv.logic.actors.behavior
 
+import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Context, Timers}
+import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model.{CommandProcessorNotification, CompetitionProcessingStarted, CompetitionProcessingStopped}
-import compman.compsrv.query.actors.{ActorBehavior, ActorRef, Context, Timers}
-import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming

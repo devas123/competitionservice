@@ -8,8 +8,7 @@ import compman.compsrv.model.commands.{CommandDTO, CommandType}
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.query.actors.ActorSystem
-import compman.compsrv.query.actors.ActorSystem.ActorConfig
+import ActorSystem.ActorConfig
 import zio.{Layer, Queue, Ref}
 import zio.blocking.Blocking
 import zio.clock.Clock

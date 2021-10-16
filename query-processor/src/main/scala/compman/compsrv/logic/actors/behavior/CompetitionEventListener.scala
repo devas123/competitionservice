@@ -1,13 +1,13 @@
-package compman.compsrv.query.actors.behavior
+package compman.compsrv.logic.actors.behavior
 
+import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Context, Timers}
+import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model
 import compman.compsrv.model.{Mapping, Payload}
 import compman.compsrv.model.Mapping.EventMapping
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.query.actors.{ActorBehavior, ActorRef, Context, Timers}
-import compman.compsrv.query.actors.ActorSystem.ActorConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.event.EventProcessors

@@ -2,7 +2,6 @@ package compman.compsrv.logic
 
 import cats.Semigroupal
 import cats.implicits._
-import compman.compsrv.logic.assertE
 import compman.compsrv.model.Errors
 import compman.compsrv.model.dto.brackets.{CompetitorStageResultDTO, FightReferenceType, StageRoundType}
 import compman.compsrv.model.dto.competition._
@@ -28,7 +27,7 @@ package object fights {
   val zero: java.math.BigDecimal = BigDecimal(0).bigDecimal
 
   def generatePlaceholderCompetitorsForGroup(size: Int): List[CompetitorDTO] = {
-    (0 until size).map { _ => new CompetitorDTO().setId("placeholder-$it").setPlaceholder(true) }.toList
+    (0 until size).map { it => new CompetitorDTO().setId(s"placeholder-$it").setPlaceholder(true) }.toList
   }
 
   def createEmptyScore: ScoreDTO = new ScoreDTO()

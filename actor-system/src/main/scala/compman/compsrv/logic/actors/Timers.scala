@@ -1,4 +1,4 @@
-package compman.compsrv.query.actors
+package compman.compsrv.logic.actors
 
 import zio.{Fiber, Ref, RIO, URIO}
 import zio.clock.Clock

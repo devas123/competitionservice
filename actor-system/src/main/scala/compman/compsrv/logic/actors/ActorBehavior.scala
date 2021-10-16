@@ -1,7 +1,9 @@
-package compman.compsrv.query.actors
+package compman.compsrv.logic.actors
 
 import cats.implicits._
-import compman.compsrv.query.actors.ActorSystem.{ActorConfig, PendingMessage}
+import compman.compsrv.logic.actors.ActorSystem.ActorConfig
+import ActorSystem.{ActorConfig, PendingMessage}
+import compman.compsrv.logic.actors
 import zio.{Fiber, Queue, Ref, RIO, Task}
 import zio.interop.catz._
 
@@ -61,7 +63,7 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
 
     for {
       queue <- Queue.sliding[PendingMessage[Msg, _]](actorConfig.mailboxSize)
-      actor = ActorRef[Msg](queue)(optPostStop)
+      actor = actors.ActorRef[Msg](queue)(optPostStop)
       stateRef  <- Ref.make(initialState)
       timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
       ts      = Timers[R, Msg](actor, timersMap)

@@ -3,15 +3,14 @@ package compman.compsrv
 import compman.compsrv.config.AppConfig
 import compman.compsrv.jackson.SerdeApi.{byteSerializer, commandDeserializer}
 import compman.compsrv.logic.Operations._
-import compman.compsrv.logic.actors._
+import compman.compsrv.logic.actors.{ActorSystem, _}
 import compman.compsrv.logic.actors.CompetitionProcessorActor.LiveEnv
 import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.logic.logging.CompetitionLogging.Live.loggingLayer
 import compman.compsrv.model.Mapping
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.query.actors.ActorSystem
-import compman.compsrv.query.actors.ActorSystem.ActorConfig
+import ActorSystem.ActorConfig
 import zio.{ExitCode, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock

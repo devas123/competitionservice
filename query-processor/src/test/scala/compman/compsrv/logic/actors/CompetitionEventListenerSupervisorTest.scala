@@ -1,10 +1,10 @@
-package compman.compsrv.query.actors
+package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.CompetitionProcessingStarted
 import compman.compsrv.model.dto.competition.CompetitionStatus
-import compman.compsrv.query.actors.ActorSystem.ActorConfig
-import compman.compsrv.query.actors.behavior.{CompetitionEventListener, CompetitionEventListenerSupervisor, WebsocketConnectionSupervisor}
+import ActorSystem.ActorConfig
+import compman.compsrv.logic.actors.behavior.{CompetitionEventListener, CompetitionEventListenerSupervisor, WebsocketConnectionSupervisor}
 import compman.compsrv.query.kafka.EmbeddedKafkaBroker
 import compman.compsrv.query.model._
 import compman.compsrv.query.sede.{ObjectMapperFactory, SerdeApi}
