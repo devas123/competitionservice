@@ -25,7 +25,7 @@ object FightEditorChangesAppliedProc {
       updates       <- OptionT.fromOption[F](Option(payload.getUpdates))
       removedFights <- OptionT.fromOption[F](Option(payload.getRemovedFighids))
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].addFights(newFights.map(f => mapFight(f)).toList))
-      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateFights(updates.map(f => mapFight(f)).toList))
+      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateFightScores(updates.map(f => mapFight(f)).toList))
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].removeFights(competitionId)(removedFights.toList))
     } yield ()
   }.value.map(_ => ())

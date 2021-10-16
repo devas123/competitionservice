@@ -3,14 +3,14 @@ package compman.compsrv
 import compman.compsrv.config.AppConfig
 import compman.compsrv.jackson.SerdeApi.{byteSerializer, commandDeserializer}
 import compman.compsrv.logic.Operations._
-import compman.compsrv.logic.actors.{ActorSystem, _}
+import compman.compsrv.logic.actors._
+import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorActor.LiveEnv
 import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.logic.logging.CompetitionLogging.Live.loggingLayer
 import compman.compsrv.model.Mapping
 import compman.compsrv.model.commands.CommandDTO
-import ActorSystem.ActorConfig
 import zio.{ExitCode, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
@@ -21,6 +21,7 @@ import zio.kafka.producer.{Producer, ProducerSettings}
 import zio.kafka.serde.Serde
 import zio.logging.Logging
 
+import java.util.UUID
 import scala.util.{Failure, Success, Try}
 
 object Main extends zio.App {
@@ -38,9 +39,14 @@ object Main extends zio.App {
   type PipelineEnvironment = LiveEnv
 
   def createProgram(appConfig: AppConfig): ZIO[Any with Clock with Blocking, Any, Any] = {
-    val consumerSettings = ConsumerSettings(appConfig.consumer.brokers).withGroupId(appConfig.consumer.groupId)
-      .withClientId("client").withCloseTimeout(30.seconds).withPollTimeout(10.millis)
-      .withProperty("enable.auto.commit", "false").withProperty("auto.offset.reset", "earliest")
+    val consumerSettings = ConsumerSettings(appConfig.consumer.brokers)
+      .withGroupId(appConfig.consumer.groupId)
+      .withClientId("client")
+      .withCloseTimeout(30.seconds)
+      .withPollTimeout(10.millis)
+      .withProperty("member.id", UUID.randomUUID().toString)
+      .withProperty("enable.auto.commit", "false")
+      .withProperty("auto.offset.reset", "earliest")
 
     val adminSettings    = AdminClientSettings(appConfig.producer.brokers)
     val consumerLayer    = Consumer.make(consumerSettings).toLayer
@@ -64,19 +70,22 @@ object Main extends zio.App {
             (),
             CompetitionProcessorSupervisorActor.behavior(commandProcessorOperationsFactory, appConfig.commandProcessor)
           )
-          res <- Consumer.subscribeAnd(Subscription.topics(appConfig.consumer.commandsTopic))
-            .plainStream(Serde.string, commandDeserializer.asTry).mapM(record => {
+          res <- Consumer
+            .subscribeAnd(Subscription.topics(appConfig.consumer.commandsTopic))
+            .plainStream(Serde.string, commandDeserializer.asTry)
+            .mapM(record => {
               val tryValue: Try[CommandDTO] = record.record.value()
               val offset: Offset            = record.offset
 
-              tryValue match {
-                case Failure(exception) => for {
-                    _ <- Logging.error("Error during deserialization")
-                    _ <- logError(exception)
-                  } yield offset
-                case Success(value) =>
-                  (suervisor ! CompetitionProcessorSupervisorActor.CommandReceived(record.key, value)).as(offset)
-              }
+              Logging.info(s"Received command: $tryValue") *>
+                (tryValue match {
+                  case Failure(exception) => for {
+                      _ <- Logging.error("Error during deserialization")
+                      _ <- logError(exception)
+                    } yield offset
+                  case Success(value) =>
+                    (suervisor ! CompetitionProcessorSupervisorActor.CommandReceived(record.key, value)).as(offset)
+                })
             }).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
         } yield res
       }

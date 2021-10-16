@@ -89,17 +89,16 @@ object FightsService {
                 )
               } yield res
             }
-          res <- postProcessFights(generated)
+          res <- if (stage.getStageOrder == 0) postProcessFights(generated) else EitherT.pure[F, Errors.Error](generated)
         } yield res).value
       case BracketType.DOUBLE_ELIMINATION => (for {
           generated <-
             EitherT(generateDoubleEliminationBracket[F](competitionId, categoryId, stage.getId, compssize, duration))
-          res <- postProcessFights(generated)
+          res <- if (stage.getStageOrder == 0) postProcessFights(generated) else EitherT.pure[F, Errors.Error](generated)
         } yield res).value
       case BracketType.GROUP => (for {
-          generated   <- EitherT(generateStageFights(competitionId, categoryId, stage, duration, competitors))
-          distributed <- EitherT.fromEither[F](GroupsUtils.distributeCompetitors(competitors, generated))
-        } yield distributed).value
+          generated <- EitherT(generateStageFights(competitionId, categoryId, stage, duration, competitors))
+        } yield generated).value
     }
   }
 }

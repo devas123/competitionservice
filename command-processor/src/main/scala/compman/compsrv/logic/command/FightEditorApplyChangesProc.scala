@@ -10,7 +10,7 @@ import compman.compsrv.model.command.Commands.{Command, FightEditorApplyChangesC
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.Errors.NoPayloadError
 import compman.compsrv.model.commands.payload.{CompetitorMovedToGroup, FightEditorApplyChangesPayload, FightsCompetitorUpdated, GroupChangeType}
-import compman.compsrv.model.dto.brackets.{BracketType, GroupDescriptorDTO, StageDescriptorDTO, StageRoundType}
+import compman.compsrv.model.dto.brackets.{BracketType, FightReferenceType, GroupDescriptorDTO, StageDescriptorDTO, StageRoundType}
 import compman.compsrv.model.dto.competition.{CompScoreDTO, FightDescriptionDTO, FightStatus}
 import compman.compsrv.model.events.payload.FightEditorChangesAppliedPayload
 import compman.compsrv.model.extensions._
@@ -73,16 +73,18 @@ object FightEditorApplyChangesProc {
 
   private def createPayload[F[+_] : Monad](payload: FightEditorApplyChangesPayload, state: CompetitionState) = {
     (for {
-      updates <- OptionT.fromOption[F](createUpdates(payload, state))
+      rawUpdates <- OptionT.fromOption[F](createUpdates(payload, state))
       allFights <- OptionT.fromOption[F](state.fights)
       bracketChanges <- OptionT.fromOption[F](Option(payload.getBracketsChanges))
-      cleanedUpdates = updates.map(f => f._1 -> (if (f._2.getStatus == FightStatus.UNCOMPLETABLE) f._2.setStatus(FightStatus.PENDING) else f._2))
+      cleanedUpdates = rawUpdates.map(f => f._1 -> (if (f._2.getStatus == FightStatus.UNCOMPLETABLE) f._2.setStatus(FightStatus.PENDING) else f._2))
       cleanedAffected = clearAffectedFights(cleanedUpdates, bracketChanges.map(_.getFightId).toSet)
       markedFights <- OptionT.liftF(FightUtils.markAndProcessUncompletableFights[F](cleanedAffected))
       updates = markedFights.filter(f => allFights.contains(f._1))
       additions = markedFights.filter(f => !allFights.contains(f._1))
       removals = allFights.filter(f => f._2.getStageId == payload.getStageId && !markedFights.contains(f._1))
-    } yield new FightEditorChangesAppliedPayload().setNewFights(additions.values.toArray).setUpdates(updates.values.toArray).setRemovedFighids(removals.keys.toArray)
+    } yield new FightEditorChangesAppliedPayload()
+      .setNewFights(additions.values.toArray)
+      .setUpdates(updates.values.toArray).setRemovedFighids(removals.keys.toArray)
       ).value
   }
 
@@ -116,11 +118,13 @@ object FightEditorApplyChangesProc {
       stages <- state.stages
       stage <- stages.get(payload.getStageId)
       bracketsType = stage.getBracketType
-      a = applyChanges(payload, allStageFights, stage, bracketsType)
-    } yield a
+    } yield applyChanges(payload, allStageFights, stage, bracketsType)
   }
 
-  private def applyChanges(payload: FightEditorApplyChangesPayload, allStageFights: Map[String, FightDescriptionDTO], stage: StageDescriptorDTO, bracketsType: BracketType) = {
+  private def applyChanges(payload: FightEditorApplyChangesPayload,
+                           allStageFights: Map[String, FightDescriptionDTO],
+                           stage: StageDescriptorDTO,
+                           bracketsType: BracketType) = {
     bracketsType match {
       case BracketType.GROUP =>
         val groups = stage.getGroupDescriptors
@@ -201,6 +205,7 @@ object FightEditorApplyChangesProc {
                   .setCompetitorId(cmpId)
                   .setScore(createEmptyScore)
                   .setOrder(getMinUnusedOrder(scores, index))
+                  .setParentReferenceType(FightReferenceType.PROPAGATED)
               )
           })
       )

@@ -129,9 +129,9 @@ object FightUtils {
     markedFights: Map[String, FightDescriptionDTO]
   ): F[Map[String, FightDescriptionDTO]] = {
     def getUncompletableFightScores(uncompletableFights: Map[String, FightDescriptionDTO]) = {
-      uncompletableFights.values.flatMap(f => Option(f.getScores).map(_.map(s => (s.getCompetitorId, f.getId))).getOrElse(Array.empty))
-        .filter(_._1 != null)
-        .toList
+      uncompletableFights.values
+        .flatMap(f => Option(f.getScores).map(_.map(s => (s.getCompetitorId, f.getId))).getOrElse(Array.empty))
+        .filter(_._1 != null).toList
     }
     for {
       uncompletableFights <- Monad[F].pure(markedFights.filter(e => e._2.getStatus == FightStatus.UNCOMPLETABLE))

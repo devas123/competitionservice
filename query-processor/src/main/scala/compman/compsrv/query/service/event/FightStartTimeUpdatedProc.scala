@@ -34,7 +34,7 @@ object FightStartTimeUpdatedProc {
         ))
         f.copy(scheduleInfo = schedule)
       }
-      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateFights(existingUpdated))
+      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateFightScores(existingUpdated))
     } yield ()
   }.value.map(_ => ())
 }

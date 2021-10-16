@@ -86,6 +86,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
       } yield assert(marked.size)(equalTo(15)) &&
         assert(marked.count(_._2.getRound == 0))(equalTo(8)) &&
         assert(marked.count(e => e._2.getRound == 0 && e._2.getStatus == FightStatus.UNCOMPLETABLE))(equalTo(6)) &&
+        assert(marked.count(e => e._2.getRound != 0 && e._2.getStatus == FightStatus.UNCOMPLETABLE))(equalTo(0)) &&
         assert(marked.count(_._2.getRound == 1))(equalTo(4)) &&
         assert(marked.count(_._2.getRound == 2))(equalTo(2)) &&
         assert(marked.count(_._2.getRound == 3))(equalTo(1))

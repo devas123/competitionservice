@@ -19,7 +19,7 @@ trait CompetitionUpdateOperations[F[+_]] {
   def addStage(stageDescriptor: StageDescriptor): F[Unit]
   def updateStage(stageDescriptor: StageDescriptor): F[Unit]
   def removeStages(competition: String)(categoryId: String): F[Unit]
-  def updateStageStatus(competitionId: String)(stageId: String, newStatus: StageStatus): F[Unit]
+  def updateStageStatus(competitionId: String)(categoryId: String, stageId: String, newStatus: StageStatus): F[Unit]
   def addCategory(category: Category): F[Unit]
   def updateCategoryRegistrationStatus(competitionId: String)(id: String, newStatus: Boolean): F[Unit]
   def removeCategory(competitionId: String)(id: String): F[Unit]
@@ -29,7 +29,7 @@ trait CompetitionUpdateOperations[F[+_]] {
   def addFight(fight: Fight): F[Unit]
   def addFights(fights: List[Fight]): F[Unit]
   def updateFight(fight: Fight): F[Unit]
-  def updateFights(fights: List[Fight]): F[Unit]
+  def updateFightScores(fights: List[Fight]): F[Unit]
   def removeFight(competitionId: String)(id: String): F[Unit]
   def removeFights(competitionId: String)(ids: List[String]): F[Unit]
   def removeFightsForCategory(competitionId: String)(categoryId: String): F[Unit]
@@ -106,7 +106,9 @@ object CompetitionUpdateOperations {
     override def updateStage(stageDescriptor: StageDescriptor): LIO[Unit] =
       stagesUpdate(stageDescriptor.id)(_ => stageDescriptor)
 
-    override def updateStageStatus(competitionId: String)(stageId: String, newStatus: StageStatus): LIO[Unit] =
+    override def updateStageStatus(
+      competitionId: String
+    )(categoryId: String, stageId: String, newStatus: StageStatus): LIO[Unit] =
       stagesUpdate(stageId)(_.copy(stageStatus = newStatus))
 
     override def addCategory(category: Category): LIO[Unit] = add(categories)(category.id)(Some(category))
@@ -129,7 +131,7 @@ object CompetitionUpdateOperations {
 
     override def updateFight(fight: Fight): LIO[Unit] = update(fights)(fight.id)(_ => fight)
 
-    override def updateFights(fights: List[Fight]): LIO[Unit] = fights.traverse(updateFight).map(_ => ())
+    override def updateFightScores(fights: List[Fight]): LIO[Unit] = fights.traverse(updateFight).map(_ => ())
 
     override def removeFight(competitionId: String)(id: String): LIO[Unit] = remove(fights)(id)
 
@@ -250,8 +252,12 @@ object CompetitionUpdateOperations {
     }
 
     override def updateStage(stageDescriptor: StageDescriptor): LIO[Unit] = {
-      val statement =
-        quote { query[StageDescriptor].filter(_.id == lift(stageDescriptor.id)).update(liftCaseClass(stageDescriptor)) }
+      val statement = quote {
+        query[StageDescriptor].filter(s =>
+          s.competitionId == lift(stageDescriptor.competitionId) && s.categoryId == lift(stageDescriptor.categoryId) &&
+            s.id == lift(stageDescriptor.id)
+        ).update(liftCaseClass(stageDescriptor))
+      }
       for {
         _ <- log.info(statement.toString)
         _ <- run(statement).provide(Has(cassandraZioSession))
@@ -269,9 +275,14 @@ object CompetitionUpdateOperations {
       } yield ()
     }
 
-    override def updateStageStatus(competitionId: String)(stageId: String, newStatus: StageStatus): LIO[Unit] = {
-      val statement =
-        quote { query[StageDescriptor].filter(_.id == lift(stageId)).update(_.stageStatus -> lift(newStatus)) }
+    override def updateStageStatus(
+      competitionId: String
+    )(categoryId: String, stageId: String, newStatus: StageStatus): LIO[Unit] = {
+      val statement = quote {
+        query[StageDescriptor].filter(s =>
+          s.competitionId == lift(competitionId) && s.categoryId == lift(categoryId) && s.id == lift(stageId)
+        ).update(_.stageStatus -> lift(newStatus))
+      }
       for {
         _ <- log.info(statement.toString)
         _ <- run(statement).provide(Has(cassandraZioSession))
@@ -352,9 +363,15 @@ object CompetitionUpdateOperations {
       } yield ()
     }
 
-    override def updateFights(fights: List[Fight]): LIO[Unit] = {
-      val statement =
-        quote { liftQuery(fights).foreach(fight2 => query[Fight].filter(_.id == fight2.id).update(fight2)) }
+    override def updateFightScores(fights: List[Fight]): LIO[Unit] = {
+      val statement = quote {
+        liftQuery(fights).foreach(fight2 =>
+          query[Fight].filter(f =>
+            f.id == fight2.id && f.competitionId == fight2.competitionId && f.categoryId == fight2.categoryId &&
+              f.stageId == fight2.stageId
+          ).update(f => f.scores -> fight2.scores)
+        )
+      }
       for {
         _ <- log.info(statement.toString)
         _ <- run(statement).provide(Has(cassandraZioSession))
@@ -527,7 +544,10 @@ object CompetitionUpdateOperations {
     }
 
     override def removeFightsForCategory(competitionId: String)(categoryId: String): LIO[Unit] = {
-      val statement = quote { query[Fight].filter(fight => fight.competitionId == lift(competitionId) && fight.categoryId == lift(categoryId)).delete }
+      val statement = quote {
+        query[Fight].filter(fight => fight.competitionId == lift(competitionId) && fight.categoryId == lift(categoryId))
+          .delete
+      }
       for {
         _ <- log.info(statement.toString)
         _ <- run(statement).provide(Has(cassandraZioSession))

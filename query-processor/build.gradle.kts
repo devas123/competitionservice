@@ -2,6 +2,7 @@ plugins {
     id("competitions-mgr.java-conventions")
     id("com.palantir.docker") version "0.29.0"
     id("com.github.johnrengelman.shadow") version "7.0.0"
+    id("com.github.maiflai.scalatest") version "0.31"
     scala
     application
 }
@@ -41,7 +42,7 @@ dependencies {
     Libraries.embeddedCassandra.forEach { testImplementation(it) }
     testImplementation("com.datastax.oss:java-driver-core:4.13.0")
     testImplementation("org.scalatest:scalatest_$scalaBinary:3.2.8")
-    testImplementation("junit:junit:4.13")
+    testImplementation("com.vladsch.flexmark:flexmark-all:0.35.10")
     scalaCompilerPlugins("org.typelevel:kind-projector_2.13.5:0.13.2")
 }
 description = "query processor"

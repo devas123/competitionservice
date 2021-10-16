@@ -36,7 +36,7 @@ object FightCompetitorsAssignedProc {
           newScores = scores.filter(_.competitorId != newScore.competitorId) :+ newScore
         } yield toFight.copy(scores = newScores)
       }
-      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateFights(updates))
+      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateFightScores(updates))
     } yield ()
   }.value.map(_ => ())
 }

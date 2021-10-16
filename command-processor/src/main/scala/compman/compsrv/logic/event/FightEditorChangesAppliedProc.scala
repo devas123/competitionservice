@@ -3,6 +3,7 @@ package compman.compsrv.logic.event
 import cats.Monad
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
 import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.event.Events.{Event, FightEditorChangesAppliedEvent}
 
 object FightEditorChangesAppliedProc {
@@ -19,9 +20,9 @@ object FightEditorChangesAppliedProc {
     import compman.compsrv.model.extensions._
     val eventT = for {
       payload       <- event.payload
-      updates       <- Option(payload.getUpdates).orElse(Some(Array.empty))
-      removals      <- Option(payload.getRemovedFighids).orElse(Some(Array.empty))
-      additions     <- Option(payload.getNewFights).orElse(Some(Array.empty))
+      updates       <- Option(payload.getUpdates).orElse(Some(Array.empty[FightDescriptionDTO]))
+      removals      <- Option(payload.getRemovedFighids).orElse(Some(Array.empty[String]))
+      additions     <- Option(payload.getNewFights).orElse(Some(Array.empty[FightDescriptionDTO]))
       currentFights <- state.fights
       newFights = currentFights -- removals
       newState  = state.createCopy(fights = Some(newFights)).updateFights((updates ++ additions).toIndexedSeq)

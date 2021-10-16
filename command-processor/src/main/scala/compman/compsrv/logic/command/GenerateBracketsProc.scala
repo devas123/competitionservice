@@ -93,8 +93,10 @@ object GenerateBracketsProc {
         )
       case _ => EitherT.fromEither[F](Right(0))
     }
-    stageId <- EitherT
-      .fromOption[F](stageIdMap.get(stage.getId), Errors.InternalError(s"Generated stage id not found in the map for ${stage.getId}"))
+    stageId <- EitherT.fromOption[F](
+      stageIdMap.get(stage.getId),
+      Errors.InternalError(s"Generated stage id not found in the map for ${stage.getId}")
+    )
     groupDescr <- EitherT.liftF(stage.getGroupDescriptors.toList.traverse { it =>
       IdOperations[F].uid.map(id => it.setId(id))
     })
@@ -117,12 +119,14 @@ object GenerateBracketsProc {
     stageWithIds = stage.setCategoryId(categoryId).setId(stageId).setStageStatus(status).setCompetitionId(state.id)
       .setGroupDescriptors(groupDescr.toArray).setInputDescriptor(inputDescriptor)
       .setStageResultDescriptor(resultDescriptor)
-    size =
-      if (stage.getStageOrder == 0) state.competitors.map(_.size).getOrElse(0)
-      else stage.getInputDescriptor.getNumberOfCompetitors.toInt
+
     comps =
-      if (stage.getStageOrder == 0) { state.competitors.map(_.values.toList).getOrElse(List.empty) }
-      else { List.empty }
+      if (stage.getStageOrder == 0) {
+        state.competitors.map(_.values.toList.filter(_.getCategories.contains(categoryId))).getOrElse(List.empty)
+      } else { List.empty }
+    size =
+      if (stage.getStageOrder == 0) comps.size
+      else stage.getInputDescriptor.getNumberOfCompetitors.toInt
     twoFighterFights <- EitherT(
       FightsService.bracketsGenerator[F](state.id, categoryId, stageWithIds, size, duration, comps, outputSize)
         .apply(stageWithIds.getBracketType)

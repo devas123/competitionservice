@@ -16,9 +16,10 @@ object StageStatusUpdatedProc {
     for {
       payload       <- OptionT.fromOption[F](event.payload)
       competitionId <- OptionT.fromOption[F](event.competitionId)
+      categoryId    <- OptionT.fromOption[F](event.categoryId)
       status        <- OptionT.fromOption[F](Option(payload.getStatus))
       id            <- OptionT.fromOption[F](Option(payload.getStageId))
-      _             <- OptionT.liftF(CompetitionUpdateOperations[F].updateStageStatus(competitionId)(id, status))
+      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateStageStatus(competitionId)(categoryId, id, status))
     } yield ()
   }.value.map(_ => ())
 }
