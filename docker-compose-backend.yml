@@ -13,6 +13,7 @@ services:
           condition: on-failure
     depends_on:
       - cassandra
+      - broker
     ports:
       - "9000:9000"
 
