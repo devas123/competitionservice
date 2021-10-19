@@ -16,7 +16,7 @@ object DtoMapping {
 
   def mapScheduleEntry(competitionId: String)(dto: ScheduleEntryDTO): ScheduleEntry = {
     ScheduleEntry(
-      id = dto.getId,
+      entryId = dto.getId,
       competitionId = competitionId,
       categoryIds = Option(dto.getCategoryIds).map(_.toSet).getOrElse(Set.empty),
       fightIds = Option(dto.getFightIds).map(_.toList).orElse(Option(List.empty))
@@ -30,8 +30,8 @@ object DtoMapping {
       startTime = Option(dto.getStartTime),
       endTime = Option(dto.getEndTime),
       numberOfFights = Option(dto.getNumberOfFights),
-      duration = Option(dto.getDuration),
-      order = dto.getOrder
+      entryDuration = Option(dto.getDuration),
+      entryOrder = dto.getOrder
     )
   }
 

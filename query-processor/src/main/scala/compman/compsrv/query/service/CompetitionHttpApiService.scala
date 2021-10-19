@@ -50,6 +50,8 @@ object CompetitionHttpApiService {
     case GET -> Root / "defaultrestrictions" => sendApiCommandAndReturnResponse(apiActor, GetDefaultRestrictions)
     case GET -> Root / "competition"         => sendApiCommandAndReturnResponse(apiActor, GetAllCompetitions)
     case GET -> Root / "competition" / id    => sendApiCommandAndReturnResponse(apiActor, GetCompetitionProperties(id))
+    case GET -> Root / "competition" / id / "fight" =>
+      sendApiCommandAndReturnResponse(apiActor, GetFightIdsByCategoryIds(id))
     case GET -> Root / "competition" / id / "fight" / fightId =>
       sendApiCommandAndReturnResponse(apiActor, GetFightById(id, fightId))
     case GET -> Root / "competition" / id / "infotemplate" =>

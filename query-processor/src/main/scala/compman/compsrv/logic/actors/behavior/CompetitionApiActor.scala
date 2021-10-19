@@ -104,6 +104,7 @@ object CompetitionApiActor {
   final case class GetCategories(competitionId: String) extends ApiCommand[List[CategoryStateDTO]]
 
   final case class GetFightById(competitionId: String, fightId: String) extends ApiCommand[Option[FightDescriptionDTO]]
+  final case class GetFightIdsByCategoryIds(competitionId: String) extends ApiCommand[Option[Map[String, List[String]]]]
 
   final case class GetCategory(competitionId: String, categoryId: String) extends ApiCommand[Option[CategoryStateDTO]]
 
@@ -197,6 +198,9 @@ object CompetitionApiActor {
               } yield (state, categoryStates.asInstanceOf[A])
             case GetFightById(competitionId, fightId) => CompetitionQueryOperations[LIO]
                 .getFightById(competitionId)(fightId).map(_.map(DtoMapping.toDtoFight))
+                .map(res => (state, res.asInstanceOf[A]))
+            case GetFightIdsByCategoryIds(competitionId) => CompetitionQueryOperations[LIO]
+                .getFightIdsByCategoryIds(competitionId)
                 .map(res => (state, res.asInstanceOf[A]))
             case GetCategory(competitionId, categoryId) => for {
                 res <- (for {

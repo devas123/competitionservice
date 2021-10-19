@@ -97,7 +97,7 @@ private[schedule] object ScheduleProducer {
         period.getTimeBetweenFights
       )
       if (
-        !(pauses(mat.id) == null || pauses(mat.id).isEmpty) &&
+        !(!pauses.contains(mat.id) || pauses.get(mat.id).exists(_.isEmpty)) &&
         mat.currentTime.toEpochMilli + eightyPercentOfDurationInMillis(duration) >= pauses(mat.id)(0)
           .getStartTime.toEpochMilli
       ) {
@@ -244,7 +244,10 @@ private[schedule] object ScheduleProducer {
       accumulator.scheduleEntries.toList,
       accumulator.matSchedules.filter(_ != null).toList,
       accumulator.invalidFights.toSet
-    )}.toEither.leftMap(t => Errors.InternalError(t.getMessage))
+    )}.toEither.leftMap(t => {
+    t.printStackTrace()
+    Errors.InternalError(t.getMessage)
+  })
 
   private def createMatScheduleContainers(
     mats: List[MatDescriptionDTO],

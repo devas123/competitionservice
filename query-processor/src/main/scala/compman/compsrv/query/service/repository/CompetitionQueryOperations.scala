@@ -30,6 +30,7 @@ trait CompetitionQueryOperations[F[+_]] {
   def getFightsByStage(competitionId: String)(categoryId: String, stageId: String): F[List[Fight]]
 
   def getFightById(competitionId: String)(id: String): F[Option[Fight]]
+  def getFightIdsByCategoryIds(competitionId: String): F[Map[String, List[String]]]
   def getFightsByIds(competitionId: String)(ids: Set[String]): F[List[Fight]]
 
   def getCompetitorById(competitionId: String)(id: String): F[Option[Competitor]]
@@ -211,6 +212,16 @@ object CompetitionQueryOperations {
       stages      <- getStagesByCategory(competitionId)(categoryId)
       stageFights <- stages.traverse(s => getFightsByStage(competitionId)(categoryId, s.id))
     } yield stageFights.flatten.size
+
+    override def getFightIdsByCategoryIds(competitionId: String): LIO[Map[String, List[String]]] =
+      fights match {
+        case Some(value) => value.get.map(
+            _.values.filter(f => f.competitionId == competitionId).map(f => (f.categoryId, f.id)).groupMap(_._1)(_._2)
+              .view.mapValues(_.toList).toMap
+          )
+        case None => Task(Map.empty)
+      }
+
   }
 
   def live(cassandraZioSession: CassandraZioSession)(implicit
@@ -491,6 +502,18 @@ object CompetitionQueryOperations {
         res <- run(select).provide(Has(cassandraZioSession))
       } yield res.toInt
 
+    }
+
+    override def getFightIdsByCategoryIds(competitionId: String): LIO[Map[String, List[String]]] = {
+      val select = quote {
+        query[Fight].filter(f =>
+          f.competitionId == lift(competitionId)
+        ).map(f => (f.categoryId, f.id))
+      }
+      for {
+        _   <- log.info(select.toString)
+        res <- run(select).provide(Has(cassandraZioSession))
+      } yield res.groupMap(_._1)(_._2)
     }
   }
 
