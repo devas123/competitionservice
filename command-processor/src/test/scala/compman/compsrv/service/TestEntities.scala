@@ -2,6 +2,7 @@ package compman.compsrv.service
 
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition._
+import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 
@@ -10,14 +11,23 @@ trait TestEntities {
   val competitionId = "managedCompetition"
   val categoryId    = "test-category"
   val stageId       = "stage-id"
-  val groupIdFormat = "group-id-%s"
+  val matId: String = "mat-id"
+  val periodId = "period-id"
 
+  val groupIdFormat = "group-id-%s"
   val groupRange: Range.Inclusive     = 0 to 3
   val startingCompetitorsSizeForGroup = 5
+
   val groupDescriptors: IndexedSeq[GroupDescriptorDTO] = groupRange map { groupIndex =>
     new GroupDescriptorDTO().setId(groupIdFormat.format(groupIndex)).setName(groupIdFormat.format(groupIndex))
       .setSize(startingCompetitorsSizeForGroup + groupIndex)
   }
+
+  val testMat: MatDescriptionDTO = new MatDescriptionDTO()
+    .setId(matId)
+    .setName("Test mat")
+    .setPeriodId(periodId)
+    .setMatOrder(0)
 
   val totalNumberOfCompetitors: Int = groupRange.map(_ + startingCompetitorsSizeForGroup).sum
 

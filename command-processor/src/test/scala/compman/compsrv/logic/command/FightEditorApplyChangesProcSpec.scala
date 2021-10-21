@@ -16,52 +16,8 @@ import org.scalatest.funsuite.AnyFunSuite
 import java.util.UUID
 
 class FightEditorApplyChangesProcSpec extends AnyFunSuite with BeforeAndAfter with TestEntities {
-
-  object Dependencies {
-    implicit val idOps: IdOperations[Eval] = new IdOperations[Eval] {
-      override def generateIdIfMissing(id: Option[String]): Eval[String] = uid
-
-      override def uid: Eval[String] = Eval.later(UUID.randomUUID().toString)
-
-      override def fightId(stageId: String, groupId: String): Eval[String] = uid
-
-      override def competitorId(competitor: CompetitorDTO): Eval[String] = uid
-
-      override def categoryId(category: CategoryDescriptorDTO): Eval[String] = uid
-
-      override def registrationPeriodId(period: RegistrationPeriodDTO): Eval[String] = uid
-
-      override def registrationGroupId(group: RegistrationGroupDTO): Eval[String] = uid
-    }
-
-    implicit val eventOps: EventOperations[Eval] = new EventOperations[Eval] {
-      override def lift(obj: => Seq[EventDTO]): Eval[Seq[EventDTO]] = Eval.later(obj)
-
-      override def create[P <: Payload](
-        `type`: EventType,
-        competitionId: Option[String],
-        competitorId: Option[String],
-        fightId: Option[String],
-        categoryId: Option[String],
-        payload: Option[P]
-      ): Eval[EventDTO] = {
-        val evt = new EventDTO()
-        evt.setPayload(payload.orNull)
-        evt.setType(`type`)
-        evt.setCompetitionId(competitionId.orNull)
-        Eval.later(evt)
-      }
-
-      override def error(error: => Errors.Error): Eval[Either[Errors.Error, EventDTO]] = Eval.now(Left(error))
-    }
-  }
-
   import Dependencies._
 
-//  before {
-//  }
-
-  private val numberOfCompetitors = 3
 
   val stage: StageDescriptorDTO = new StageDescriptorDTO().setId(stageId)
 

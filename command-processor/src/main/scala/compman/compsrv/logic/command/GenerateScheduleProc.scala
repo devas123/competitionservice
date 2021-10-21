@@ -39,7 +39,7 @@ object GenerateScheduleProc {
       periods = payload.getPeriods
       _    <- assertET[F](periods != null && periods.nonEmpty, Some("No periods"))
       mats <- EitherT.liftF(payload.getMats.toList.traverse(mat => updateMatId(mat)))
-      categories        = periods.flatMap(_.getScheduleEntries).flatMap(_.getCategoryIds).toSet
+      categories        = periods.flatMap(p => Option(p.getScheduleRequirements).getOrElse(Array.empty)).flatMap(e => Option(e.getCategoryIds).getOrElse(Array.empty)).toSet
       unknownCategories = state.categories.map(_.keySet).map(c => categories.diff(c)).getOrElse(Set.empty)
       _ <- assertET[F](!state.competitionProperties.exists(_.getSchedulePublished), Some("Schedule already published"))
       _ <- assertET[F](unknownCategories.isEmpty, Some(s"Categories $unknownCategories are unknown"))

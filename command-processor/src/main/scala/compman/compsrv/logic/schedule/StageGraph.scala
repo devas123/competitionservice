@@ -90,13 +90,13 @@ object StageGraph {
   ): Array[List[Int]] = {
     val stageNodesMutable = Array.fill(stageIdsToIds.keySet().size()) { mutable.HashSet.empty[Int] }
     stages.foreach { stage =>
-      stage.getInputDescriptor.getSelectors.foreach { s =>
+      Option(stage.getInputDescriptor).flatMap(inp => Option(inp.getSelectors)).foreach(arr => arr.foreach { s =>
         val parentId = s.getApplyToStageId
         if (stageIdsToIds.containsKey(parentId)) {
           val nodeId = stageIdsToIds.get(stage.getId)
           stageNodesMutable(stageIdsToIds.get(parentId)).add(nodeId)
         }
-      }
+      })
     }
     stageNodesMutable.map { _.toList }
   }

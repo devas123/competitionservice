@@ -125,7 +125,8 @@ private[schedule] object ScheduleProducer {
 
     def addRequirementsToQueue(
       queueToUpdate: mutable.Queue[(ScheduleRequirementDTO, List[String])],
-      requirementsQueue: mutable.Queue[ScheduleRequirementDTO]
+      requirementsQueue: mutable.Queue[ScheduleRequirementDTO],
+      stgGr: StageGraph
     ): Unit = {
       var i = 0
       while ((requirementsQueue.nonEmpty && i < initialFightsByMats.size) || unfinishedRequirements.nonEmpty) {
@@ -141,7 +142,7 @@ private[schedule] object ScheduleProducer {
         else {
           val i1 = requiremetsGraph.getIndex(sr.getId).getOrElse(-1)
           if (i1 >= 0 && requirementsCapacity(i1) > 0) {
-            val fights = stageGraph.flushCompletableFights(requiremetsGraph.getFightIdsForRequirement(sr.getId))
+            val fights = stgGr.flushCompletableFights(requiremetsGraph.getFightIdsForRequirement(sr.getId))
             queueToUpdate.append((sr, fights))
           }
         }
@@ -152,8 +153,10 @@ private[schedule] object ScheduleProducer {
     def dispatchFightsFromQueue(
       period: PeriodDTO,
       periodMats: mutable.Seq[InternalMatScheduleContainer],
-      q: mutable.Queue[(ScheduleRequirementDTO, List[String])]
-    ): Unit = {
+      q: mutable.Queue[(ScheduleRequirementDTO, List[String])],
+      stGr: StageGraph
+    ): StageGraph = {
+      var sg = stGr
       while (q.nonEmpty) {
         val req = q.dequeue()
         if (
@@ -177,54 +180,38 @@ private[schedule] object ScheduleProducer {
             if (matsToIds.contains(req._1.getMatId)) {
               val mat = matsToIds(req._1.getMatId)
               if (mat.periodId == period.getId) {
-                loadBalanceToMats(
-                  req,
-                  Seq(mat),
-                  requirementsCapacity,
-                  requiremetsGraph,
-                  accumulator,
-                  stageGraph,
-                  period
-                )
+                sg = loadBalanceToMats(req, Seq(mat), requirementsCapacity, requiremetsGraph, accumulator, sg, period)
               } else {
-                loadBalanceToMats(
+                sg = loadBalanceToMats(
                   req,
                   periodMats.toSeq,
                   requirementsCapacity,
                   requiremetsGraph,
                   accumulator,
-                  stageGraph,
+                  sg,
                   period
                 )
               }
             }
           } else {
-            loadBalanceToMats(
-              req,
-              periodMats.toSeq,
-              requirementsCapacity,
-              requiremetsGraph,
-              accumulator,
-              stageGraph,
-              period
-            )
+            sg = loadBalanceToMats(req, periodMats.toSeq, requirementsCapacity, requiremetsGraph, accumulator, sg, period)
           }
 
           if (capacity > 0 && capacity == requirementsCapacity(requiremetsGraph.getIndexOrMinus1(req._1.getId))) {
             unfinishedRequirements.enqueue(req._1)
           } else if (requirementsCapacity(requiremetsGraph.getIndexOrMinus1(req._1.getId)) > 0) {
-            q.enqueue(
-              (req._1, stageGraph.flushCompletableFights(requiremetsGraph.getFightIdsForRequirement(req._1.getId)))
-            )
+            q.enqueue((req._1, sg.flushCompletableFights(requiremetsGraph.getFightIdsForRequirement(req._1.getId))))
           }
         }
       }
+      sg
     }
 
+    var sg = stageGraph
     sortedPeriods.foreach { period =>
       val periodMats = accumulator.matSchedules.filter { _.periodId == period.getId }
       unfinishedRequirements.foreach { r =>
-        stageGraph.flushNonCompletedFights(requiremetsGraph.getFightIdsForRequirement(r.getId)).foreach { it =>
+        sg.flushNonCompletedFights(requiremetsGraph.getFightIdsForRequirement(r.getId)).foreach { it =>
           accumulator.invalidFights.add(it)
         }
       }
@@ -233,18 +220,19 @@ private[schedule] object ScheduleProducer {
         .from(requiremetsGraph.orderedRequirements.filter { it => it.getPeriodId == period.getId })
       var dispatchSuccessful = true
       while ((rq.nonEmpty || unfinishedRequirements.nonEmpty) && dispatchSuccessful) {
-        val n              = stageGraph.getNonCompleteCount
+        val n              = sg.getNonCompleteCount
         val onlyUnfinished = rq.isEmpty
-        addRequirementsToQueue(q, rq)
-        dispatchFightsFromQueue(period, periodMats, q)
-        dispatchSuccessful = onlyUnfinished && n == stageGraph.getNonCompleteCount
+        addRequirementsToQueue(q, rq, sg)
+        sg = dispatchFightsFromQueue(period, periodMats, q, sg)
+        dispatchSuccessful = !(onlyUnfinished && n == sg.getNonCompleteCount && n == 0)
       }
     }
     (
       accumulator.scheduleEntries.toList,
       accumulator.matSchedules.filter(_ != null).toList,
       accumulator.invalidFights.toSet
-    )}.toEither.leftMap(t => {
+    )
+  }.toEither.leftMap(t => {
     t.printStackTrace()
     Errors.InternalException(t)
   })

@@ -31,7 +31,7 @@ object ScheduleService {
       )
       flatFights = enrichedScheduleRequirements.flatMap(_.fightIdsOrEmpty)
       _ <- assertET[F](flatFights.size == flatFights.distinct.size, Some("Duplicate fights detected"))
-      requirementsGraph <- EitherT.fromEither[F](RequirementsGraph.create(
+      requirementsGraph <- EitherT.fromEither[F](RequirementsGraph(
         enrichedScheduleRequirements.groupMapReduce(_.getId)(identity)((a, _) => a),
         stageGraph.getCategoryIdsToFightIds,
         sortedPeriods.map(_.getId).toArray

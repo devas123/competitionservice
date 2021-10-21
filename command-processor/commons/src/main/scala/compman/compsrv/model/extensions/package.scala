@@ -41,11 +41,11 @@ package object extensions {
   }
 
   implicit class SchedReqOps(s: ScheduleRequirementDTO) {
-    def categories: Option[Array[String]] = Option(s.getCategoryIds)
+    def categories: Option[Array[String]] = Option(s.getCategoryIds).orElse(Option(Array.empty))
 
     def categoriesOrEmpty: Array[String] = categories.getOrElse(Array.empty)
 
-    def fightIds: Option[Array[String]] = Option(s.getFightIds)
+    def fightIds: Option[Array[String]] = Option(s.getFightIds).orElse(Option(Array.empty))
 
     def fightIdsOrEmpty: Array[String] = fightIds.getOrElse(Array.empty)
   }
@@ -69,7 +69,8 @@ package object extensions {
   }
 
   implicit class ScheduleOps(c: ScheduleDTO) {
-    def mats: Map[String, MatDescriptionDTO] = Option(c.getMats).map(_.groupMapReduce(_.getId)(identity)((a, _) => a)).getOrElse(Map.empty)
+    def mats: Map[String, MatDescriptionDTO] = Option(c.getMats).map(_.groupMapReduce(_.getId)(identity)((a, _) => a))
+      .getOrElse(Map.empty)
   }
 
   implicit class CompScoreOps(c: CompScoreDTO) {
@@ -78,6 +79,27 @@ package object extensions {
 
   implicit class StageDescrOps(s: StageDescriptorDTO) {
     def groupsNumber: Int = Option(s.getGroupDescriptors).map(_.length).getOrElse(0)
+    def copy() = new StageDescriptorDTO(
+      s.getId,
+      s.getName,
+      s.getCategoryId,
+      s.getCompetitionId,
+      s.getBracketType,
+      s.getStageType,
+      s.getStageStatus,
+      s.getStageResultDescriptor,
+      s.getInputDescriptor,
+      s.getStageOrder,
+      s.getWaitForPrevious,
+      s.getHasThirdPlaceFight,
+      s.getGroupDescriptors,
+      s.getNumberOfFights,
+      s.getFightDuration
+    )
+  }
+
+  implicit class CategoryDescriptorOps(c: CategoryDescriptorDTO) {
+    def copy() = new CategoryDescriptorDTO(c.getRestrictions, c.getId, c.getName, c.getRegistrationOpen)
   }
 
   implicit class CompetitionStateOps(c: CompetitionState) {
@@ -89,14 +111,40 @@ package object extensions {
 
   implicit class FightDescrOps(f: FightDescriptionDTO) {
     def copy(
+      id: String = f.getId,
       fightName: String = f.getFightName,
       roundType: StageRoundType = f.getRoundType,
       winFight: String = f.getWinFight,
       loseFight: String = f.getLoseFight,
       scores: Array[CompScoreDTO] = f.getScores,
       fightResult: FightResultDTO = f.getFightResult
-    ): FightDescriptionDTO = f.setWinFight(winFight).setScores(scores).setLoseFight(loseFight).setRoundType(roundType)
-      .setFightName(fightName).setFightResult(fightResult)
+    ): FightDescriptionDTO = {
+      new FightDescriptionDTO(
+        f.getId,
+        f.getCategoryId,
+        f.getFightName,
+        f.getWinFight,
+        f.getLoseFight,
+        f.getScores,
+        f.getDuration,
+        f.getRound,
+        f.getInvalid,
+        f.getRoundType,
+        f.getStatus,
+        f.getFightResult,
+        f.getMat,
+        f.getNumberOnMat,
+        f.getPriority,
+        f.getCompetitionId,
+        f.getPeriod,
+        f.getStartTime,
+        f.getStageId,
+        f.getGroupId,
+        f.getScheduleEntryId,
+        f.getNumberInRound
+      ).setId(id).setWinFight(winFight).setScores(scores).setLoseFight(loseFight).setRoundType(roundType)
+        .setFightName(fightName).setFightResult(fightResult)
+    }
 
     def competitors: List[String] = scores.map(_.toList.mapFilter(s => Option(s.getCompetitorId))).getOrElse(List.empty)
 

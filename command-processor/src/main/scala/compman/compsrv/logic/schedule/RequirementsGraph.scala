@@ -29,7 +29,7 @@ case class RequirementsGraph private[schedule](
 }
 
 object RequirementsGraph {
-  def create(
+  def apply(
     requirements: Map[String, ScheduleRequirementDTO],
     categoryIdToFightIds: Map[String, Set[String]],
     periods: Array[String]
@@ -56,7 +56,7 @@ object RequirementsGraph {
 
       val categories =
         (r.categories.map(_.toList), r.fightIds.flatMap(_.toList.traverse(it => fightIdToCategoryId.get(it))))
-          .mapN((a, b) => a <+> b).map(_.toSet).getOrElse(Set.empty)
+          .mapN((a, b) => a ++ b).map(_.toSet).getOrElse(Set.empty)
       categories.foreach { it => categoryRequirements.getOrElseUpdate(it, ArrayBuffer.empty).append(id) }
       if (i > 0) { requirementsGraph(requirementIdToId.get(sorted(i - 1).getId)).add(id) }
     }
@@ -74,7 +74,6 @@ object RequirementsGraph {
       }
     }
 
-    val requirementFightsSize = requirementFightIds.map(_.size)
 
     val size = n
     for {
@@ -87,7 +86,7 @@ object RequirementsGraph {
       categoryRequirements = categoryRequirements.view.mapValues(_.toList).toMap,
       requirementFightIds = requirementFightIds.map(_.toSet),
       orderedRequirements = orderedRequirements,
-      requirementFightsSize = requirementFightsSize,
+      requirementFightsSize = requirementFightIds.map(_.size),
       size = size
     )
   }
