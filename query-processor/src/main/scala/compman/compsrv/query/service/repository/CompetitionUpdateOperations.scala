@@ -367,8 +367,7 @@ object CompetitionUpdateOperations {
       val statement = quote {
         liftQuery(fights).foreach(fight2 =>
           query[Fight].filter(f =>
-            f.id == fight2.id && f.competitionId == fight2.competitionId && f.categoryId == fight2.categoryId &&
-              f.stageId == fight2.stageId
+            f.id == fight2.id && f.competitionId == fight2.competitionId && f.categoryId == fight2.categoryId
           ).update(f => f.scores -> fight2.scores, _.status -> fight2.status)
         )
       }

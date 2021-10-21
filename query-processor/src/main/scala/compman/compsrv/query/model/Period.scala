@@ -2,15 +2,15 @@ package compman.compsrv.query.model
 
 import io.getquill.Udt
 
-import java.time.Instant
+import java.util.Date
 
 case class Period(
   competitionId: String,
   name: Option[String],
   id: String,
   mats: List[Mat],
-  startTime: Option[Instant],
-  endTime: Option[Instant],
+  startTime: Option[Date],
+  endTime: Option[Date],
   active: Boolean,
   timeBetweenFights: Int,
   riskCoefficient: Int,

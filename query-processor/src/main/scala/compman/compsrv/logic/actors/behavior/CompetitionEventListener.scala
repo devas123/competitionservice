@@ -14,14 +14,17 @@ import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
 import compman.compsrv.query.service.repository._
 import io.getquill.CassandraZioSession
-import zio.{Fiber, Ref, RIO, Tag, ZIO}
+import zio.{Fiber, Queue, Ref, RIO, Tag, ZIO}
 import zio.clock.Clock
-import zio.kafka.consumer.Consumer
+import zio.kafka.consumer.{CommittableRecord, Consumer, Offset}
 import zio.logging.Logging
+import zio.stream.ZStream
 
 object CompetitionEventListener {
   sealed trait ApiCommand[+_]
-  case class EventReceived(event: EventDTO) extends ApiCommand[Unit]
+  case class EventReceived(event: EventDTO, record: CommittableRecord[String, Array[Byte]]) extends ApiCommand[Unit]
+  case class CommitOffset(offset: Offset)                                                   extends ApiCommand[Unit]
+  case class SetQueue(queue: Queue[Offset])                                                   extends ApiCommand[Unit]
 
   trait ActorContext {
     implicit val eventMapping: Mapping.EventMapping[LIO]
@@ -76,7 +79,7 @@ object CompetitionEventListener {
     )
   }
 
-  case class ActorState()
+  private[behavior] case class ActorState(queue: Option[Queue[Offset]] = None)
 
   val initialState: ActorState = ActorState()
 
@@ -86,45 +89,58 @@ object CompetitionEventListener {
     topic: String,
     context: ActorContext,
     websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
-  ): ActorBehavior[R with Logging with Clock, ActorState, ApiCommand] = new ActorBehavior[R with Logging with Clock, ActorState, ApiCommand] {
+  ): ActorBehavior[R with Logging with Clock, ActorState, ApiCommand] =
+    new ActorBehavior[R with Logging with Clock, ActorState, ApiCommand] {
 
-    import context._
-    import zio.interop.catz._
-    override def receive[A](
-      context: Context[ApiCommand],
-      actorConfig: ActorConfig,
-      state: ActorState,
-      command: ApiCommand[A],
-      timers: Timers[R with Logging with Clock, ApiCommand]
-    ): RIO[R with Logging with Clock, (ActorState, A)] = {
-      command match {
-        case EventReceived(event) => {
-            for {
-              mapped <- EventMapping.mapEventDto[LIO](event)
-              _      <- EventProcessors.applyEvent[LIO, Payload](mapped)
-              _      <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork
-            } yield (state, ().asInstanceOf[A])
-          }.onError(cause => logError(cause.squash))
+      import context._
+      import zio.interop.catz._
+      override def receive[A](
+        context: Context[ApiCommand],
+        actorConfig: ActorConfig,
+        state: ActorState,
+        command: ApiCommand[A],
+        timers: Timers[R with Logging with Clock, ApiCommand]
+      ): RIO[R with Logging with Clock, (ActorState, A)] = {
+        command match {
+          case EventReceived(event, record) => {
+              for {
+                mapped <- EventMapping.mapEventDto[LIO](event)
+                _      <- EventProcessors.applyEvent[LIO, Payload](mapped)
+                _      <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork
+                _      <- context.self ! CommitOffset(record.offset)
+              } yield (state, ().asInstanceOf[A])
+            }.onError(cause => logError(cause.squash))
+          case CommitOffset(offset) =>
+            Logging.info(s"Sending offset $offset.") *> state.queue.map(_.offer(offset)).getOrElse(RIO.unit).map(_ => (state, ().asInstanceOf[A]))
+          case SetQueue(queue) =>
+            Logging.info("Setting queue.") *> ZIO.effectTotal((state.copy(queue = Some(queue)), ().asInstanceOf[A]))
+        }
       }
-    }
 
-    override def init(
-      actorConfig: ActorConfig,
-      context: Context[ApiCommand],
-      initState: ActorState,
-      timers: Timers[R with Logging with Clock, ApiCommand]
-    ): RIO[R with Logging with Clock, (Seq[Fiber[Throwable, Unit]], Seq[ApiCommand[Any]])] = for {
-      mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
-      k <- (for {
-        _ <- Logging.info(s"Starting stream for listening to competition events for topic: $topic")
-        _ <- eventStreaming.getByteArrayStream(topic, s"query-service-$competitionId").mapM(record =>
-          (for {
-            event <- ZIO.effect(mapper.readValue(record.value, classOf[EventDTO]))
-            _     <- context.self ! EventReceived(event)
-          } yield ()).as(record.offset)
-        ).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
-        _ <- Logging.info(s"Finished stream for listening to competition events for topic: $topic")
-      } yield ()).fork
-    } yield (Seq(k), Seq.empty[ApiCommand[Any]])
-  }
+      override def init(
+        actorConfig: ActorConfig,
+        context: Context[ApiCommand],
+        initState: ActorState,
+        timers: Timers[R with Logging with Clock, ApiCommand]
+      ): RIO[R with Logging with Clock, (Seq[Fiber[Throwable, Unit]], Seq[ApiCommand[Any]])] = for {
+        mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
+        queue <- Queue.unbounded[Offset]
+        _ <- context.self ! SetQueue(queue)
+        k <- (for {
+          _ <- Logging.info(s"Starting stream for listening to competition events for topic: $topic")
+          _ <- eventStreaming.getByteArrayStream(topic, s"query-service-$competitionId").mapM(record =>
+            (for {
+              event <- ZIO.effect(mapper.readValue(record.value, classOf[EventDTO]))
+              _     <- context.self ! EventReceived(event, record)
+            } yield ()).as(record.offset)
+          ).runDrain
+          _ <- Logging.info(s"Finished stream for listening to competition events for topic: $topic")
+        } yield ()).fork
+        l <- (for {
+          _ <- Logging.info(s"Starting stream for committing offsets.")
+          _ <- ZStream.fromQueue(queue).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
+          _ <- Logging.info(s"Finished stream for committing offsets: $topic")
+        } yield ()).fork
+      } yield (Seq(k, l), Seq.empty[ApiCommand[Any]])
+    }
 }

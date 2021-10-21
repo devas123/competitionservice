@@ -17,10 +17,11 @@ object FightCompetitorsAssignedProc {
     for {
       payload       <- OptionT.fromOption[F](event.payload)
       competitionId <- OptionT.fromOption[F](event.competitionId)
+      categoryId <- OptionT.fromOption[F](event.categoryId)
       assignments   <- OptionT.fromOption[F](Option(payload.getAssignments))
       fightIds = assignments.toList.flatMap(ass => (ass.getToFightId, ass.getFromFightId).toList).filter(_ != null)
         .toSet
-      fightsList <- OptionT.liftF(CompetitionQueryOperations[F].getFightsByIds(competitionId)(fightIds))
+      fightsList <- OptionT.liftF(CompetitionQueryOperations[F].getFightsByIds(competitionId)(categoryId, fightIds))
       fights = fightsList.groupMapReduce(_.id)(identity)((a, _) => a)
       updates = assignments.toList.mapFilter(ass =>
         for {

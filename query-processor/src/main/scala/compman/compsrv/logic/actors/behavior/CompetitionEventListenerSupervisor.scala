@@ -147,7 +147,7 @@ object CompetitionEventListenerSupervisor {
                   _ <- context.self ! ReceivedNotification(notif)
                 } yield ()).as(record.offset)
               ).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
-            _ <- Logging.info(s"Finished stream for listening to global notifications: $notificationStopic")
+            _ <- Logging.info(s"Finished stream that is listening to global notifications: $notificationStopic")
           } yield ()).fork
         } yield (Seq(k), events)
       }

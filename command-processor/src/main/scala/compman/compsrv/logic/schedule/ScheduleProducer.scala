@@ -246,7 +246,7 @@ private[schedule] object ScheduleProducer {
       accumulator.invalidFights.toSet
     )}.toEither.leftMap(t => {
     t.printStackTrace()
-    Errors.InternalError(t.getMessage)
+    Errors.InternalException(t)
   })
 
   private def createMatScheduleContainers(

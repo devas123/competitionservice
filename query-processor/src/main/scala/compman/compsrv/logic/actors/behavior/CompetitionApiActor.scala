@@ -10,6 +10,7 @@ import compman.compsrv.model.commands.payload.AdjacencyList
 import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.PageResponse
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
+import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.{CompetitionQueryOperations, ManagedCompetitionsOperations, Pagination}
@@ -80,7 +81,7 @@ object CompetitionApiActor {
 
   final case class GetCompetitionInfoTemplate(competitionId: String) extends ApiCommand[String]
 
-  final case class GetSchedule(competitionId: String) extends ApiCommand[List[Period]]
+  final case class GetSchedule(competitionId: String) extends ApiCommand[ScheduleDTO]
 
   final case class GetCompetitors(
     competitionId: String,
@@ -103,7 +104,8 @@ object CompetitionApiActor {
 
   final case class GetCategories(competitionId: String) extends ApiCommand[List[CategoryStateDTO]]
 
-  final case class GetFightById(competitionId: String, fightId: String) extends ApiCommand[Option[FightDescriptionDTO]]
+  final case class GetFightById(competitionId: String, categoryId: String, fightId: String)
+      extends ApiCommand[Option[FightDescriptionDTO]]
   final case class GetFightIdsByCategoryIds(competitionId: String) extends ApiCommand[Option[Map[String, List[String]]]]
 
   final case class GetCategory(competitionId: String, categoryId: String) extends ApiCommand[Option[CategoryStateDTO]]
@@ -158,8 +160,12 @@ object CompetitionApiActor {
             case GetCompetitionInfoTemplate(competitionId) => CompetitionQueryOperations[LIO]
                 .getCompetitionInfoTemplate(competitionId).map(ci => ci.map(c => new String(c.template)).getOrElse(""))
                 .map(res => (state, res.asInstanceOf[A]))
-            case GetSchedule(competitionId) => CompetitionQueryOperations[LIO].getPeriodsByCompetitionId(competitionId)
-                .map(res => (state, res.asInstanceOf[A]))
+            case GetSchedule(competitionId) =>
+              for {
+                periods <- CompetitionQueryOperations[LIO].getPeriodsByCompetitionId(competitionId)
+                mats = periods.flatMap(period => period.mats.map(DtoMapping.toDtoMat(period.id))).toArray
+                dtoPeriods = periods.map(DtoMapping.toDtoPeriod).toArray
+              } yield (state, new ScheduleDTO().setId(competitionId).setMats(mats).setPeriods(dtoPeriods).asInstanceOf[A])
             case GetCompetitors(competitionId, categoryId, searchString, pagination) => categoryId match {
                 case Some(value) => CompetitionQueryOperations[LIO]
                     .getCompetitorsByCategoryId(competitionId)(value, pagination, searchString)
@@ -196,12 +202,11 @@ object CompetitionApiActor {
                   } yield createCategoryState(competitionId, category, numberOfFights, numberOfCompetitors)
                 }
               } yield (state, categoryStates.asInstanceOf[A])
-            case GetFightById(competitionId, fightId) => CompetitionQueryOperations[LIO]
-                .getFightById(competitionId)(fightId).map(_.map(DtoMapping.toDtoFight))
+            case GetFightById(competitionId, categoryId, fightId) => CompetitionQueryOperations[LIO]
+                .getFightById(competitionId)(categoryId, fightId).map(_.map(DtoMapping.toDtoFight))
                 .map(res => (state, res.asInstanceOf[A]))
             case GetFightIdsByCategoryIds(competitionId) => CompetitionQueryOperations[LIO]
-                .getFightIdsByCategoryIds(competitionId)
-                .map(res => (state, res.asInstanceOf[A]))
+                .getFightIdsByCategoryIds(competitionId).map(res => (state, res.asInstanceOf[A]))
             case GetCategory(competitionId, categoryId) => for {
                 res <- (for {
                   category <- OptionT(CompetitionQueryOperations[LIO].getCategoryById(competitionId)(categoryId))

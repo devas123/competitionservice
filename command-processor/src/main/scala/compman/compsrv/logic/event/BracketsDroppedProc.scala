@@ -14,14 +14,11 @@ object BracketsDroppedProc {
     event: CategoryBracketsDropped,
     state: CompetitionState
   ): F[Option[CompetitionState]] = {
-    val eventT = for {
+    val maybeState = for {
       currentStages <- state.stages
       catId         <- event.categoryId
-      newState = state.createCopy(
-        stages = Option(currentStages.filter { case (_, o) => o.getCategoryId != catId }),
-        revision = state.revision + 1
-      )
+      newState = state.createCopy(stages = Option(currentStages.filter { case (_, o) => o.getCategoryId != catId }))
     } yield newState
-    Monad[F].pure(eventT)
+    Monad[F].pure(maybeState)
   }
 }

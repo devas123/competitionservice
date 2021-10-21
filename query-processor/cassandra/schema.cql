@@ -133,7 +133,7 @@ create table if not exists query_service.fight
     brackets_info    query_service.brackets_info,
     fight_result     query_service.fight_result,
     scores           list<frozen<query_service.comp_score>>,
-    primary key ( competition_id, category_id, stage_id, id )
+    primary key ( competition_id, category_id, id )
 );
 
 CREATE TABLE if not exists query_service.managed_competition

@@ -11,6 +11,7 @@ object EventProcessors {
     event: Events.Event[P]
   ): F[Unit] = List(
     BracketsDroppedProc(),
+    ScheduleDroppedProc(),
     CategoryRegistrationStatusChangedProc(),
     BracketsGeneratedProc(),
     CategoryAddedProc(),

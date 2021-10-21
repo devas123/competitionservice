@@ -17,6 +17,7 @@ object CommandProcessors {
   ): F[Either[Errors.Error, Seq[EventDTO]]] = {
     Seq(
       DropBracketsProc(state),
+      DropScheduleProc(state),
       AddCategoryProc(state),
       AddCompetitorProc(state),
       CreateFakeCompetitorsProc(),
