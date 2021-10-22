@@ -132,7 +132,9 @@ object CompetitionEventListener {
         _      <- context.self ! SetQueue(queue)
         groupId = s"query-service-$competitionId"
         endOffsets <- eventStreaming.getLastOffsets(topic, groupId)
-        events     <- eventStreaming.retreiveEvents(topic, groupId, endOffsets)
+        _ <- Logging.info(s"Received end offsets for topic $topic: $endOffsets")
+        events     <- eventStreaming.retrieveEvents(topic, groupId, endOffsets)
+        _ <- Logging.info(s"Retrieved ${events.size} events for topic $topic")
         _          <- events.traverse(ev => context.self ! EventReceived(ev))
         k <- (for {
           _ <- Logging.info(s"Starting stream for listening to competition events for topic: $topic")

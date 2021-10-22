@@ -161,10 +161,12 @@ object CompetitionApiActor {
                 .getCompetitionInfoTemplate(competitionId).map(ci => ci.map(c => new String(c.template)).getOrElse(""))
                 .map(res => (state, res.asInstanceOf[A]))
             case GetSchedule(competitionId) =>
+              import extensions._
               for {
                 periods <- CompetitionQueryOperations[LIO].getPeriodsByCompetitionId(competitionId)
+                fighsByScheduleEntries <- CompetitionQueryOperations[LIO].getFightsByScheduleEntries(competitionId)
                 mats = periods.flatMap(period => period.mats.map(DtoMapping.toDtoMat(period.id))).toArray
-                dtoPeriods = periods.map(DtoMapping.toDtoPeriod).toArray
+                dtoPeriods = periods.map(DtoMapping.toDtoPeriod).map(_.enrichWithFightsByScheduleEntries(fighsByScheduleEntries)).toArray
               } yield (state, new ScheduleDTO().setId(competitionId).setMats(mats).setPeriods(dtoPeriods).asInstanceOf[A])
             case GetCompetitors(competitionId, categoryId, searchString, pagination) => categoryId match {
                 case Some(value) => CompetitionQueryOperations[LIO]

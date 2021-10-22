@@ -4,7 +4,7 @@ import compman.compsrv.model.events.EventDTO
 import compman.compsrv.query.sede.SerdeApi
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.TopicPartition
-import zio.{Has, RIO, Task, ZIO, ZLayer}
+import zio.{Chunk, Has, RIO, Task, ZIO, ZLayer}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.consumer._
@@ -18,7 +18,7 @@ object EventStreamingService {
 
   trait EventStreaming[R] {
     def getLastOffsets(topic: String, groupId: String): RIO[R, Map[TopicPartition, Long]]
-    def retreiveEvents(topic: String, groupId: String, endOffsets: Map[TopicPartition, Long]): RIO[R, List[EventDTO]]
+    def retrieveEvents(topic: String, groupId: String, endOffsets: Map[TopicPartition, Long]): RIO[R, List[EventDTO]]
     def getByteArrayStream(
       topic: String,
       groupId: String
@@ -28,10 +28,7 @@ object EventStreamingService {
   def live(consumerSettings: ConsumerSettings): EventStreaming[Clock with Blocking with Logging] = {
     new EventStreaming[Clock with Blocking with Logging] {
 
-      import cats.implicits._
-      import zio.interop.catz._
-
-      override def retreiveEvents(
+      override def retrieveEvents(
         topic: String,
         groupId: String,
         endOffsets: Map[TopicPartition, Long]
@@ -43,19 +40,26 @@ object EventStreamingService {
           if (filteredOffsets.nonEmpty) {
             for {
               _ <- Logging.info(s"Filtered offsets: $filteredOffsets")
-              off = filteredOffsets.keySet.map(tp => (tp.topic(), tp.partition()))
+              off = filteredOffsets.keySet.map(tp => {
+                val partition = tp
+                ((tp.topic(), tp.partition()), endOffsets(partition) - offset(partition))
+              }).filter(o => o._2 > 0)
               _ <- Logging.info(s"Off: $off")
-              res1 <- off.toList.traverse(o => {
-                val partition = new TopicPartition(o._1, o._2)
-                Consumer.subscribeAnd(Subscription.manual(o)).plainStream(Serde.string, SerdeApi.eventDeserializer)
-                  .take(endOffsets(partition) - offset(partition)).runCollect
-              })
-              _ <- res1.traverse(chunk => chunk.map(_.offset).foldLeft(OffsetBatch.empty)(_ merge _).commit)
-
-            } yield res1.flatMap(_.toList.map(_.value))
+              numberOfEventsToTake = off.foldLeft(0L)((acc, el) => acc + el._2)
+              res1 <-
+                if (numberOfEventsToTake > 0) {
+                  Consumer.subscribeAnd(Subscription.manual(off.map(_._1).toIndexedSeq: _*))
+                    .plainStream(Serde.string, SerdeApi.eventDeserializer).take(numberOfEventsToTake).runCollect
+                } else { RIO.effect(Chunk.empty) }
+              _ <- res1.map(_.offset).foldLeft(OffsetBatch.empty)(_ merge _).commit.fork
+            } yield res1.toList.map(_.value)
           } else { ZIO.effectTotal(List.empty) }
         _ <- Logging.info("Done collecting events.")
-      } yield res).provideSomeLayer[Clock with Blocking with Logging](Consumer.make(consumerSettings).toLayer)
+      } yield res).provideSomeLayer[Clock with Blocking with Logging](
+        Consumer.make(consumerSettings.withClientId(UUID.randomUUID().toString).withOffsetRetrieval(
+          Consumer.OffsetRetrieval.Auto(Consumer.AutoOffsetStrategy.Earliest)
+        )).toLayer
+      )
 
       override def getByteArrayStream(
         topic: String,
@@ -85,7 +89,7 @@ object EventStreamingService {
     new EventStreaming[Any] {
       override def getLastOffsets(topic: String, groupId: String): RIO[Any, Map[TopicPartition, Long]] = RIO(Map.empty)
 
-      override def retreiveEvents(
+      override def retrieveEvents(
         topic: String,
         groupId: String,
         endOffsets: Map[TopicPartition, Long]

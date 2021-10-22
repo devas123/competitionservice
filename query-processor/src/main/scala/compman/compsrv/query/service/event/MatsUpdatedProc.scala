@@ -26,7 +26,9 @@ object MatsUpdatedProc {
         for {
           fights <- CompetitionQueryOperations[F].getFightsByMat(competitionId)(m.getId, Int.MaxValue)
           newMat = DtoMapping.mapMat(m)
-          updatedFights = fights.map(f => f.copy(scheduleInfo = f.scheduleInfo.map(_.copy(mat = newMat)), matId = Option(m.getId)))
+          updatedFights = fights.map(f =>
+            f.copy(matName = Option(newMat.name), matOrder = Option(newMat.matOrder), matId = Option(m.getId))
+          )
           _ <- CompetitionUpdateOperations[F].updateFightScores(updatedFights)
         } yield ()
       })

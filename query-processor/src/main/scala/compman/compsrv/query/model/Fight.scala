@@ -4,7 +4,22 @@ import compman.compsrv.model.dto.brackets.{FightReferenceType, StageRoundType}
 import compman.compsrv.model.dto.competition.FightStatus
 import io.getquill.Udt
 
-import java.time.Instant
+import java.util.Date
+
+case class FightStartTimeUpdate(
+  id: String,
+  competitionId: String,
+  categoryId: String,
+  matId: Option[String],
+  matName: Option[String],
+  matOrder: Option[Int],
+  numberOnMat: Option[Int],
+  startTime: Option[Date],
+  invalid: Option[Boolean],
+  scheduleEntryId: Option[String],
+  periodId: Option[String],
+  priority: Option[Int],
+)
 
 case class Fight(
   id: String,
@@ -12,23 +27,21 @@ case class Fight(
   stageId: String,
   categoryId: String,
   matId: Option[String],
+  matName: Option[String],
+  matOrder: Option[Int],
   durationSeconds: Int,
   status: Option[FightStatus],
-  scheduleInfo: Option[ScheduleInfo],
+  numberOnMat: Option[Int],
+  periodId: Option[String],
+  startTime: Option[Date],
+  invalid: Option[Boolean],
+  scheduleEntryId: Option[String],
+  priority: Option[Int],
   bracketsInfo: Option[BracketsInfo],
   fightResult: Option[FightResult],
   scores: List[CompScore]
 )
 
-case class ScheduleInfo(
-  mat: Mat,
-  numberOnMat: Option[Int],
-  periodId: Option[String],
-  startTime: Option[Instant],
-  invalid: Option[Boolean],
-  scheduleEntryId: Option[String],
-  priority: Option[Int]
-) extends Udt
 case class BracketsInfo(
   round: Option[Int],
   numberInRound: Option[Int],

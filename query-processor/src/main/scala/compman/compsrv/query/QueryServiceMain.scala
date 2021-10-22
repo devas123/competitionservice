@@ -11,7 +11,6 @@ import compman.compsrv.logic.actors.behavior.{
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.logError
 import compman.compsrv.query.config.AppConfig
-import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.service.{CompetitionHttpApiService, WebsocketService}
 import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO
 import compman.compsrv.query.service.kafka.EventStreamingService
@@ -42,14 +41,12 @@ object QueryServiceMain extends zio.App {
       WebsocketConnectionSupervisor.initialState,
       WebsocketConnectionSupervisor.behavior[ZEnv]
     )
-    competitions <- Ref.make(Map.empty[String, ManagedCompetition])
     _ <- actorSystem.make(
       "competitionEventListenerSupervisor",
       ActorConfig(),
       (),
       CompetitionEventListenerSupervisor.behavior(
-        EventStreamingService.live(ConsumerSettings(config.consumer.brokers)
-          .withGroupId(config.consumer.groupId)),
+        EventStreamingService.live(ConsumerSettings(config.consumer.brokers).withGroupId(config.consumer.groupId)),
         config.competitionEventListener.competitionNotificationsTopic,
         CompetitionEventListenerSupervisor.Live(cassandraZioSession),
         CompetitionEventListener.Live(cassandraZioSession),

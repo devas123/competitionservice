@@ -14,7 +14,7 @@ case class Context[F[+_]](
   def stopSelf: Task[List[_]] = self.stop
 
   def findChild[F1[+_]](name: String): Task[Option[ActorRef[F1]]] = {
-    actorSystem.select[F1](name).fold(_ => None, Some(_))
+    actorSystem.select[F1](name).fold(_ => None, Option(_))
   }
 
   /** Creates actor and registers it to dependent actor system

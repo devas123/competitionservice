@@ -7,7 +7,9 @@ import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import io.getquill._
 import io.getquill.context.cassandra.encoding.{Decoders, Encoders}
-import zio.{Has, Ref, ZIO}
+import zio.{Has, Ref, Task, ZIO}
+
+import java.util.Date
 
 trait CompetitionUpdateOperations[F[+_]] {
   def updateRegistrationOpen(competitionId: String)(isOpen: Boolean): F[Unit]
@@ -30,6 +32,7 @@ trait CompetitionUpdateOperations[F[+_]] {
   def addFights(fights: List[Fight]): F[Unit]
   def updateFight(fight: Fight): F[Unit]
   def updateFightScores(fights: List[Fight]): F[Unit]
+  def updateFightStartTime(fights: List[FightStartTimeUpdate]): F[Unit]
   def removeFight(competitionId: String)(id: String): F[Unit]
   def removeFights(competitionId: String)(ids: List[String]): F[Unit]
   def removeFightsForCategory(competitionId: String)(categoryId: String): F[Unit]
@@ -181,6 +184,9 @@ object CompetitionUpdateOperations {
 
     override def removeFightsForCategory(competitionId: String)(categoryId: String): LIO[Unit] = fights
       .map(_.update(fs => fs.filter(f => f._2.categoryId != categoryId))).getOrElse(ZIO.unit)
+
+    override def updateFightStartTime(fights: List[FightStartTimeUpdate]): LIO[Unit] = updateFightScores(List.empty)
+
   }
 
   def live(cassandraZioSession: CassandraZioSession)(implicit
@@ -553,5 +559,31 @@ object CompetitionUpdateOperations {
       } yield ()
     }
 
+
+
+    override def updateFightStartTime(fights: List[FightStartTimeUpdate]): LIO[Unit] = {
+      {
+        val statement = quote {
+          liftQuery(fights).foreach(fight2 =>
+            query[Fight].filter(f =>
+              f.id == fight2.id && f.competitionId == fight2.competitionId && f.categoryId == fight2.categoryId
+            ).update(
+              _.matId           -> fight2.matId,
+              _.matName         -> fight2.matName,
+              _.matOrder        -> fight2.matOrder,
+              _.numberOnMat     -> fight2.numberOnMat,
+              _.periodId        -> fight2.periodId,
+              _.startTime       -> fight2.startTime,
+              _.invalid         -> fight2.invalid,
+              _.scheduleEntryId -> fight2.scheduleEntryId
+            )
+          )
+        }
+        for {
+          _ <- log.info(statement.toString)
+          _ <- run(statement).provide(Has(cassandraZioSession))
+        } yield ()
+      }
+    }
   }
 }

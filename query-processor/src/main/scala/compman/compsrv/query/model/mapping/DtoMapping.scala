@@ -189,18 +189,17 @@ object DtoMapping {
       .setScores(f.scores.mapWithIndex((c, i) => toDtoCompScore(c, i)).toArray)
       .setDuration(new BigDecimal(f.durationSeconds))
       .setRound(f.bracketsInfo.flatMap(_.round).map(Integer.valueOf).orNull)
-      .setInvalid(f.scheduleInfo.flatMap(_.invalid).map(java.lang.Boolean.valueOf).getOrElse(false))
+      .setInvalid(f.invalid.map(java.lang.Boolean.valueOf).getOrElse(false))
       .setRoundType(f.bracketsInfo.map(_.roundType).orNull).setStatus(f.status.orNull)
       .setFightResult(f.fightResult.map(toDtoFightResult).orNull).setMat(
-        f.scheduleInfo.map(_.mat).map(m =>
-          new MatDescriptionDTO().setId(m.matId).setName(m.name).setPeriodId(f.scheduleInfo.flatMap(_.periodId).orNull)
-            .setMatOrder(m.matOrder)
+        f.matId.map(m =>
+          new MatDescriptionDTO().setId(m).setName(f.matName.orNull).setPeriodId(f.periodId.orNull)
+            .setMatOrder(f.matOrder.map(Integer.valueOf).orNull)
         ).orNull
-      ).setNumberOnMat(f.scheduleInfo.flatMap(_.numberOnMat).map(Integer.valueOf).orNull)
-      .setPriority(f.scheduleInfo.flatMap(_.priority).map(Integer.valueOf).orNull).setCompetitionId(f.competitionId)
-      .setPeriod(f.scheduleInfo.flatMap(_.periodId).orNull).setStartTime(f.scheduleInfo.flatMap(_.startTime).orNull)
+      ).setNumberOnMat(f.numberOnMat.map(Integer.valueOf).orNull).setPriority(f.priority.map(Integer.valueOf).orNull)
+      .setCompetitionId(f.competitionId).setPeriod(f.periodId.orNull).setStartTime(f.startTime.map(_.toInstant).orNull)
       .setStageId(f.stageId).setGroupId(f.bracketsInfo.flatMap(_.groupId).orNull)
-      .setScheduleEntryId(f.scheduleInfo.flatMap(_.scheduleEntryId).orNull)
+      .setScheduleEntryId(f.scheduleEntryId.orNull)
       .setNumberInRound(f.bracketsInfo.flatMap(_.numberInRound).map(Integer.valueOf).orNull)
   }
 
@@ -211,19 +210,16 @@ object DtoMapping {
       dto.getStageId,
       dto.getCategoryId,
       Option(dto.getMat).flatMap(m => Option(m.getId)),
+      Option(dto.getMat).flatMap(m => Option(m.getName)),
+      Option(dto.getMat).flatMap(m => Option(m.getMatOrder)),
       Option(dto.getDuration).map(_.intValue()).getOrElse(0),
       Option(dto.getStatus),
-      Option(dto.getMat).map(mapMat).map(m =>
-        ScheduleInfo(
-          m,
-          Option(dto.getNumberOnMat).map(_.toInt),
-          Option(dto.getPeriod),
-          Option(dto.getStartTime),
-          Option(dto.getInvalid),
-          Option(dto.getScheduleEntryId),
-          Option(dto.getPriority)
-        )
-      ),
+      Option(dto.getNumberOnMat).map(_.toInt),
+      Option(dto.getPeriod),
+      Option(dto.getStartTime).map(Date.from),
+      Option(dto.getInvalid),
+      Option(dto.getScheduleEntryId),
+      Option(dto.getPriority),
       Some(BracketsInfo(
         Option(dto.getRound),
         Option(dto.getNumberInRound),
@@ -334,10 +330,13 @@ object DtoMapping {
     new ScheduleEntryDTO().setId(o.entryId).setDescription(o.description.orNull).setEntryType(o.entryType)
       .setName(o.name.orNull).setPeriodId(periodId).setOrder(o.entryOrder).setEndTime(o.endTime.map(_.toInstant).orNull)
       .setStartTime(o.startTime.map(_.toInstant).orNull).setColor(o.color.orNull)
-      .setDuration(o.entryDuration.getOrElse(0)).setFightIds(
-        o.fightIds.map(m => new schedule.MatIdAndSomeId(m.matId, m.startTime.map(_.toInstant).orNull, m.someId)).toArray
-      ).setNumberOfFights(o.numberOfFights.getOrElse(0).intValue()).setCategoryIds(o.categoryIds.toArray)
+      .setDuration(o.entryDuration.getOrElse(0)).setFightIds(o.fightIds.map(toDtoMatIdAndSomeId).toArray)
+      .setNumberOfFights(o.numberOfFights.getOrElse(0).intValue()).setCategoryIds(o.categoryIds.toArray)
       .setRequirementIds(o.requirementIds.toArray)
+  }
+
+  def toDtoMatIdAndSomeId(m: MatIdAndSomeId): schedule.MatIdAndSomeId = {
+    new schedule.MatIdAndSomeId(m.matId, m.startTime.map(_.toInstant).orNull, m.someId)
   }
 
   def toDtopScheduleRequirement(o: ScheduleRequirement): ScheduleRequirementDTO = {
@@ -349,12 +348,8 @@ object DtoMapping {
 
   }
 
-  def toDtoMat(periodId: String)(o: Mat): MatDescriptionDTO =
-    new MatDescriptionDTO()
-      .setId(o.matId)
-      .setName(o.name)
-      .setMatOrder(o.matOrder)
-      .setPeriodId(periodId)
+  def toDtoMat(periodId: String)(o: Mat): MatDescriptionDTO = new MatDescriptionDTO().setId(o.matId).setName(o.name)
+    .setMatOrder(o.matOrder).setPeriodId(periodId)
 
   def mapRegistrationPeriod[F[+_]: Monad](competitionId: String)(r: RegistrationPeriodDTO): F[RegistrationPeriod] =
     Monad[F].pure {
