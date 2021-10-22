@@ -135,14 +135,15 @@ create table if not exists query_service.fight
 
 CREATE TABLE if not exists query_service.managed_competition
 (
-    id           varchar,
-    events_topic varchar,
-    creator_id   varchar,
-    created_at   timestamp,
-    starts_at    timestamp,
-    ends_at      timestamp,
-    time_zone    varchar,
-    status       varchar,
+    id               varchar,
+    competition_name varchar,
+    events_topic     varchar,
+    creator_id       varchar,
+    created_at       timestamp,
+    starts_at        timestamp,
+    ends_at          timestamp,
+    time_zone        varchar,
+    status           varchar,
     primary key ( id, status )
 );
 

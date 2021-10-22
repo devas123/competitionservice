@@ -12,6 +12,7 @@ trait TestEntities {
   private[repository] val categoryId    = "test-category"
   val managedCompetition: ManagedCompetition = ManagedCompetition(
     "competitionId",
+    "competitionName",
     "ecompetition-id-topic",
     "valera_protas",
     Instant.now(),

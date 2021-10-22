@@ -11,6 +11,7 @@ sealed trait CommandProcessorNotification {
 
 final case class CompetitionProcessingStarted(
   id: String,
+  name: String,
   topic: String,
   creatorId: String,
   createdAt: Instant,

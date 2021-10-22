@@ -82,11 +82,11 @@ object CompetitionEventListenerSupervisor {
               _ <- Logging.info(s"Created actor to process the competition ${competition.id}")
             } yield res
           case ReceivedNotification(notification) => notification match {
-              case CompetitionProcessingStarted(id, topic, creatorId, createdAt, startsAt, endsAt, timeZone, status) =>
+              case CompetitionProcessingStarted(id, name, topic, creatorId, createdAt, startsAt, endsAt, timeZone, status) =>
                 for {
                   _ <- Logging.info(s"Processing competition processing started notification $id")
                   _ <- ManagedCompetitionsOperations.addManagedCompetition[LIO](
-                    ManagedCompetition(id, topic, creatorId, createdAt, startsAt, Option(endsAt), timeZone, status)
+                    ManagedCompetition(id, name, topic, creatorId, createdAt, startsAt, Option(endsAt), timeZone, status)
                   ).onError(err =>
                     Logging.error(s"Error while saving. ${err.failures.map(t => {
                       val writer = new StringWriter()

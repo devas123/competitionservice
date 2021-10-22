@@ -14,9 +14,8 @@ class PolymorphicNotificationDeserializer extends StdDeserializer[CommandProcess
     operation match {
       case compman.compsrv.model.NotificationTypes.ProcessingStarted => p.getCodec
           .treeToValue(node, classOf[CompetitionProcessingStarted])
-      case compman.compsrv.model.NotificationTypes.ProcessingStopped =>
-        val id = p.getCodec.treeToValue(node.get("competitionId"), classOf[String])
-        CompetitionProcessingStopped(id)
+      case compman.compsrv.model.NotificationTypes.ProcessingStopped => p.getCodec
+          .treeToValue(node, classOf[CompetitionProcessingStopped])
     }
   }
 }

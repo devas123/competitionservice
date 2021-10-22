@@ -6,6 +6,7 @@ import java.time.Instant
 
 case class ManagedCompetition(
   id: String,
+  competitionName: String,
   eventsTopic: String,
   creatorId: String,
   createdAt: Instant,

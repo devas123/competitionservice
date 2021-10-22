@@ -53,6 +53,7 @@ object CompetitionProcessorActor {
         props = initState.competitionProperties.get
         started = CompetitionProcessingStarted(
           competitionId,
+          initState.competitionProperties.map(_.getCompetitionName).getOrElse(""),
           eventTopic,
           props.getCreatorId,
           props.getCreationTimestamp,

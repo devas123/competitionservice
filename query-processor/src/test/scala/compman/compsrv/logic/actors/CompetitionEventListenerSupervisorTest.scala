@@ -80,6 +80,7 @@ object CompetitionEventListenerSupervisorTest extends DefaultRunnableSpec {
           competitionId = "competitionId"
           notification = CompetitionProcessingStarted(
             competitionId,
+            competitionId + "name",
             competitionId + "events",
             "creator",
             Instant.now(),
