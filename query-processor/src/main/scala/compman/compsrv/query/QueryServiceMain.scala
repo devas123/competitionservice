@@ -1,10 +1,15 @@
 package compman.compsrv.query
 import cats.effect
 import compman.compsrv.logic.actors.ActorSystem
+import compman.compsrv.logic.actors.ActorSystem.ActorConfig
+import compman.compsrv.logic.actors.behavior.{
+  CompetitionApiActor,
+  CompetitionEventListener,
+  CompetitionEventListenerSupervisor,
+  WebsocketConnectionSupervisor
+}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.logError
-import ActorSystem.ActorConfig
-import compman.compsrv.logic.actors.behavior.{CompetitionApiActor, CompetitionEventListener, CompetitionEventListenerSupervisor, WebsocketConnectionSupervisor}
 import compman.compsrv.query.config.AppConfig
 import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.service.{CompetitionHttpApiService, WebsocketService}
@@ -18,6 +23,7 @@ import zio._
 import zio.clock.Clock
 import zio.duration.durationInt
 import zio.interop.catz._
+import zio.kafka.consumer.ConsumerSettings
 import zio.logging.Logging
 
 import java.nio.file.{Files, Path}
@@ -42,7 +48,8 @@ object QueryServiceMain extends zio.App {
       ActorConfig(),
       (),
       CompetitionEventListenerSupervisor.behavior(
-        EventStreamingService.live(config.consumer.brokers),
+        EventStreamingService.live(ConsumerSettings(config.consumer.brokers)
+          .withGroupId(config.consumer.groupId)),
         config.competitionEventListener.competitionNotificationsTopic,
         CompetitionEventListenerSupervisor.Live(cassandraZioSession),
         CompetitionEventListener.Live(cassandraZioSession),

@@ -2,6 +2,7 @@ package compman.compsrv.logic.actors.behavior
 
 import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Context, Timers}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
+import compman.compsrv.logic.actors.behavior.CompetitionEventListener.Stop
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model.{CommandProcessorNotification, CompetitionProcessingStarted, CompetitionProcessingStopped}
 import compman.compsrv.query.model.ManagedCompetition
@@ -111,10 +112,9 @@ object CompetitionEventListenerSupervisor {
                     ).map(_ => ((), ().asInstanceOf[A]))
                 } yield res // start new actor if not started
               case CompetitionProcessingStopped(id) => for {
-                  _     <- ManagedCompetitionsOperations.deleteManagedCompetition[LIO](id)
                   child <- context.findChild[Any](id)
                   _ <- child match {
-                    case Some(value) => value.stop.ignore
+                    case Some(value) => value ! Stop
                     case None        => Task.unit
                   }
                 } yield ((), ().asInstanceOf[A])
