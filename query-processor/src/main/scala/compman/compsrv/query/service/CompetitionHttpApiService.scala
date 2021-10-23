@@ -77,7 +77,9 @@ object CompetitionHttpApiService {
     case GET -> Root / "competition" / id / "mat" / matId / "fight" =>
       sendApiCommandAndReturnResponse(apiActor, GetMatFights(id, matId))
     case GET -> Root / "competition" / id / "period" / periodId / "fight" =>
-      sendApiCommandAndReturnResponse(apiActor, GetFightsByMats(id, periodId, 10))
+      sendApiCommandAndReturnResponse(apiActor, GetPeriodFightsByMats(id, periodId, 10))
+    case GET -> Root / "competition" / id / "period" / periodId / "mat" =>
+      sendApiCommandAndReturnResponse(apiActor, GetPeriodMats(id, periodId))
     case GET -> Root / "competition" / id / "competitor" :?
         QueryParameters.SearchStringParamMatcher(maybeSearchString) +& QueryParameters.StartAtParamMatcher(
           maybeStartAt

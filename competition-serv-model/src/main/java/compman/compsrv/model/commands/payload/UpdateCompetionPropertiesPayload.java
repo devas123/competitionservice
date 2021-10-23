@@ -14,5 +14,5 @@ import java.io.Serializable;
 @NoArgsConstructor
 @CommandPayload(type = CommandType.UPDATE_COMPETITION_PROPERTIES_COMMAND)
 public class UpdateCompetionPropertiesPayload implements Serializable, Payload {
-    private CompetitionPropertiesDTO competitor;
+    private CompetitionPropertiesDTO competitionProperties;
 }

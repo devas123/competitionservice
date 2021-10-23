@@ -155,9 +155,9 @@ object DtoMapping {
       .setStaffIds(competitionProperties.staffIds.getOrElse(Set.empty).toArray).setEmailNotificationsEnabled(false)
       .setCompetitionName(competitionProperties.competitionName)
       .setEmailTemplate(new String(competitionProperties.infoTemplate.template)).setPromoCodes(Array.empty)
-      .setStartDate(competitionProperties.startDate).setSchedulePublished(competitionProperties.schedulePublished)
-      .setBracketsPublished(competitionProperties.bracketsPublished).setEndDate(competitionProperties.endDate.orNull)
-      .setTimeZone(competitionProperties.timeZone).setCreationTimestamp(competitionProperties.creationTimestamp)
+      .setStartDate(competitionProperties.startDate.toInstant).setSchedulePublished(competitionProperties.schedulePublished)
+      .setBracketsPublished(competitionProperties.bracketsPublished).setEndDate(competitionProperties.endDate.map(_.toInstant).orNull)
+      .setTimeZone(competitionProperties.timeZone).setCreationTimestamp(competitionProperties.creationTimestamp.toInstant)
       .setStatus(competitionProperties.status)
   }
 
@@ -386,13 +386,13 @@ object DtoMapping {
       Option(r.getStaffIds).map(_.toSet).orElse(Option(Set.empty)),
       r.getCompetitionName,
       CompetitionInfoTemplate(Option(r.getEmailTemplate).map(_.getBytes).getOrElse(Array.empty)),
-      r.getStartDate,
+      Date.from(r.getStartDate),
       r.getSchedulePublished,
       r.getBracketsPublished,
-      Option(r.getEndDate),
+      Option(r.getEndDate).map(Date.from),
       r.getTimeZone,
       registrationOpen,
-      r.getCreationTimestamp,
+      Date.from(r.getCreationTimestamp),
       r.getStatus
     )
   }

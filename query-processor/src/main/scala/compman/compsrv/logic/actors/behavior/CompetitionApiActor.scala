@@ -10,6 +10,7 @@ import compman.compsrv.model.commands.payload.AdjacencyList
 import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.PageResponse
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
+import compman.compsrv.model.dto.dashboard.{MatDescriptionDTO, MatStateDTO}
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.mapping.DtoMapping
@@ -94,9 +95,11 @@ object CompetitionApiActor {
 
   final case class GetDashboard(competitionId: String) extends ApiCommand[List[Period]]
 
-  final case class GetMats(competitionId: String) extends ApiCommand[List[Mat]]
+  final case class GetMats(competitionId: String) extends ApiCommand[List[MatDescriptionDTO]]
 
-  final case class GetMat(competitionId: String, matId: String) extends ApiCommand[Option[Mat]]
+  final case class GetPeriodMats(competitionId: String, periodId: String) extends ApiCommand[List[MatStateDTO]]
+
+  final case class GetMat(competitionId: String, matId: String) extends ApiCommand[Option[MatDescriptionDTO]]
 
   final case class GetMatFights(competitionId: String, matId: String) extends ApiCommand[List[FightDescriptionDTO]]
 
@@ -110,7 +113,7 @@ object CompetitionApiActor {
 
   final case class GetCategory(competitionId: String, categoryId: String) extends ApiCommand[Option[CategoryStateDTO]]
 
-  final case class GetFightsByMats(competitionId: String, periodId: String, limit: Int)
+  final case class GetPeriodFightsByMats(competitionId: String, periodId: String, limit: Int)
       extends ApiCommand[Map[String, List[String]]]
 
   final case class GetFightResulOptions(competitionId: String, stageId: String) extends ApiCommand[List[FightResult]]
@@ -181,9 +184,9 @@ object CompetitionApiActor {
             case GetDashboard(competitionId) => CompetitionQueryOperations[LIO].getPeriodsByCompetitionId(competitionId)
                 .map(res => (state, res.asInstanceOf[A]))
             case GetMats(competitionId) => CompetitionQueryOperations[LIO].getPeriodsByCompetitionId(competitionId)
-                .map(_.flatMap(_.mats)).map(res => (state, res.asInstanceOf[A]))
+                .map(_.flatMap(p => p.mats.map(DtoMapping.toDtoMat(p.id)))).map(res => (state, res.asInstanceOf[A]))
             case GetMat(competitionId, matId) => CompetitionQueryOperations[LIO]
-                .getPeriodsByCompetitionId(competitionId).map(_.flatMap(_.mats).find(_.matId == matId))
+                .getPeriodsByCompetitionId(competitionId).map(_.flatMap(p => p.mats.map(DtoMapping.toDtoMat(p.id))).find(_.getId == matId))
                 .map(res => (state, res.asInstanceOf[A]))
 
             case GetMatFights(competitionId, matId) => CompetitionQueryOperations[LIO]
@@ -223,7 +226,24 @@ object CompetitionApiActor {
                 )).value
               } yield res.getOrElse((state, List.empty.asInstanceOf[A]))
 
-            case GetFightsByMats(competitionId, periodId, limit) =>
+            case GetPeriodMats(competitionId, periodId) =>
+              val optionRes = for {
+                period <- OptionT(CompetitionQueryOperations[LIO]
+                  .getPeriodById(competitionId)(periodId)
+                )
+                mats = period.mats
+                res <- mats.traverse(mat => for {
+                  fights <- OptionT.liftF(CompetitionQueryOperations[LIO].getFightsByMat(competitionId)(mat.matId, 10))
+                  numberOfFights <- OptionT.liftF(CompetitionQueryOperations[LIO].getNumberOfFightsForMat(competitionId)(mat.matId))
+                  matState = new MatStateDTO()
+                    .setMatDescription(DtoMapping.toDtoMat(period.id)(mat))
+                    .setTopFiveFights(fights.map(DtoMapping.toDtoFight).toArray)
+                    .setNumberOfFights(
+                      numberOfFights)
+                } yield matState)
+              } yield res
+              optionRes.value.map(_.getOrElse(List.empty)).map(mats => (state, mats.asInstanceOf[A]))
+            case GetPeriodFightsByMats(competitionId, periodId, limit) =>
               import cats.implicits._
               import zio.interop.catz._
               for {

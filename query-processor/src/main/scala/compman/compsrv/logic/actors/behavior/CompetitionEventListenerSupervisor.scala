@@ -5,6 +5,7 @@ import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.behavior.CompetitionEventListener.Stop
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model.{CommandProcessorNotification, CompetitionProcessingStarted, CompetitionProcessingStopped}
+import compman.compsrv.model.events.payload.CompetitionPropertiesUpdatedPayload
 import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
@@ -23,6 +24,7 @@ object CompetitionEventListenerSupervisor {
   sealed trait ActorMessages[+_]
   case class ReceivedNotification(notification: CommandProcessorNotification) extends ActorMessages[Unit]
   case class ActiveCompetition(managedCompetition: ManagedCompetition)        extends ActorMessages[Unit]
+  case class CompetitionUpdated(update: CompetitionPropertiesUpdatedPayload)  extends ActorMessages[Unit]
 
   trait ActorContext {
     implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO]
@@ -60,6 +62,18 @@ object CompetitionEventListenerSupervisor {
         timers: Timers[SupervisorEnvironment[R], ActorMessages]
       ): RIO[SupervisorEnvironment[R], (Unit, A)] = {
         command match {
+          case CompetitionUpdated(update) => for {
+              _ <- Logging.info(s"Competition properties updated $update")
+              props = update.getProperties
+              _ <- ManagedCompetitionsOperations.updateManagedCompetition[LIO](
+                props.getId,
+                props.getCompetitionName,
+                props.getStartDate,
+                Option(props.getEndDate),
+                props.getTimeZone,
+                props.getStatus
+              )
+            } yield ((), ().asInstanceOf[A])
           case ActiveCompetition(competition) => for {
               _ <- Logging.info(s"Creating listener actor for competition $competition")
               res <- context
@@ -76,18 +90,36 @@ object CompetitionEventListenerSupervisor {
                     eventStreaming,
                     competition.eventsTopic,
                     eventListenerContext,
+                    context.self,
                     websocketConnectionSupervisor
                   )
                 ).map(_ => ((), ().asInstanceOf[A]))
               _ <- Logging.info(s"Created actor to process the competition ${competition.id}")
             } yield res
           case ReceivedNotification(notification) => notification match {
-              case CompetitionProcessingStarted(id, name, topic, creatorId, createdAt, startsAt, endsAt, timeZone, status) =>
-                for {
+              case CompetitionProcessingStarted(
+                    id,
+                    name,
+                    topic,
+                    creatorId,
+                    createdAt,
+                    startsAt,
+                    endsAt,
+                    timeZone,
+                    status
+                  ) => for {
                   _ <- Logging.info(s"Processing competition processing started notification $id")
-                  _ <- ManagedCompetitionsOperations.addManagedCompetition[LIO](
-                    ManagedCompetition(id, name, topic, creatorId, createdAt, startsAt, Option(endsAt), timeZone, status)
-                  ).onError(err =>
+                  _ <- ManagedCompetitionsOperations.addManagedCompetition[LIO](ManagedCompetition(
+                    id,
+                    name,
+                    topic,
+                    creatorId,
+                    createdAt,
+                    startsAt,
+                    Option(endsAt),
+                    timeZone,
+                    status
+                  )).onError(err =>
                     Logging.error(s"Error while saving. ${err.failures.map(t => {
                       val writer = new StringWriter()
                       t.printStackTrace(new PrintWriter(writer))
@@ -104,8 +136,14 @@ object CompetitionEventListenerSupervisor {
                       id,
                       ActorConfig(),
                       CompetitionEventListener.initialState,
-                      CompetitionEventListener
-                        .behavior[R](id, eventStreaming, topic, eventListenerContext, websocketConnectionSupervisor)
+                      CompetitionEventListener.behavior[R](
+                        id,
+                        eventStreaming,
+                        topic,
+                        eventListenerContext,
+                        context.self,
+                        websocketConnectionSupervisor
+                      )
                     ).foldM(
                       _ => Logging.info(s"Actor already exists with id $id"),
                       _ => Logging.info(s"Created actor to process the competition $id")

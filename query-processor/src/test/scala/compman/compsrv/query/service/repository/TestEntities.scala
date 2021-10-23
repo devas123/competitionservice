@@ -6,6 +6,7 @@ import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 
 import java.time.Instant
+import java.util.Date
 
 trait TestEntities {
   private[repository] val competitionId = "managedCompetition"
@@ -28,13 +29,13 @@ trait TestEntities {
     Some(Set("a", "b", "c")),
     "Some competition",
     CompetitionInfoTemplate("superlongdescriptionblob".getBytes),
-    Instant.now(),
+    Date.from(Instant.now()),
     schedulePublished = false,
     bracketsPublished = false,
-    Some(Instant.now()),
+    Some(Instant.now()).map(Date.from),
     "UTC",
     registrationOpen = true,
-    Instant.now(),
+    Date.from(Instant.now()),
     CompetitionStatus.CREATED
   )
   val stageResultDescriptor: StageResultDescriptor = StageResultDescriptor(

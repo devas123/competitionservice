@@ -2,12 +2,15 @@ package compman.compsrv.logic.actors.behavior
 
 import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Context, Timers}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
+import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.CompetitionUpdated
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model
 import compman.compsrv.model.{Mapping, Payload}
 import compman.compsrv.model.Mapping.EventMapping
+import compman.compsrv.model.event.Events.CompetitionPropertiesUpdatedEvent
 import compman.compsrv.model.events.EventDTO
+import compman.compsrv.model.events.payload.CompetitionPropertiesUpdatedPayload
 import compman.compsrv.query.model._
 import compman.compsrv.query.sede.ObjectMapperFactory
 import compman.compsrv.query.service.event.EventProcessors
@@ -90,6 +93,7 @@ object CompetitionEventListener {
     eventStreaming: EventStreaming[R],
     topic: String,
     context: ActorContext,
+    competitionEventListenerSupervisor: ActorRef[CompetitionEventListenerSupervisor.ActorMessages],
     websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
   ): ActorBehavior[R with Logging with Clock, ActorState, ApiCommand] =
     new ActorBehavior[R with Logging with Clock, ActorState, ApiCommand] {
@@ -109,8 +113,13 @@ object CompetitionEventListener {
               for {
                 mapped <- EventMapping.mapEventDto[LIO](event)
                 _      <- EventProcessors.applyEvent[LIO, Payload](mapped)
-                _      <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork
-                _      <- record.fold(Task(()))(r => context.self ! CommitOffset(r.offset))
+                _ <-
+                  if (mapped.isInstanceOf[CompetitionPropertiesUpdatedEvent]) {
+                    competitionEventListenerSupervisor !
+                      CompetitionUpdated(event.getPayload.asInstanceOf[CompetitionPropertiesUpdatedPayload])
+                  } else { ZIO.unit }
+                _ <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork
+                _ <- record.fold(Task(()))(r => context.self ! CommitOffset(r.offset))
               } yield (state, ().asInstanceOf[A])
             }.onError(cause => logError(cause.squash))
           case CommitOffset(offset) => Logging.info(s"Sending offset $offset.") *> state.queue.map(_.offer(offset))
@@ -132,9 +141,9 @@ object CompetitionEventListener {
         _      <- context.self ! SetQueue(queue)
         groupId = s"query-service-$competitionId"
         endOffsets <- eventStreaming.getLastOffsets(topic, groupId)
-        _ <- Logging.info(s"Received end offsets for topic $topic: $endOffsets")
+        _          <- Logging.info(s"Received end offsets for topic $topic: $endOffsets")
         events     <- eventStreaming.retrieveEvents(topic, groupId, endOffsets)
-        _ <- Logging.info(s"Retrieved ${events.size} events for topic $topic")
+        _          <- Logging.info(s"Retrieved ${events.size} events for topic $topic")
         _          <- events.traverse(ev => context.self ! EventReceived(ev))
         k <- (for {
           _ <- Logging.info(s"Starting stream for listening to competition events for topic: $topic")

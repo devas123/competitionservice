@@ -9,8 +9,6 @@ import compman.compsrv.query.service.repository.{CompetitionQueryOperations, Com
 object CompetitionPropertiesUpdatedProc {
   import cats.implicits._
   import compman.compsrv.query.model.extensions._
-
-  import scala.jdk.CollectionConverters._
   def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations, P <: Payload]()
     : PartialFunction[Event[P], F[Unit]] = { case x: CompetitionPropertiesUpdatedEvent => apply[F](x) }
 
@@ -22,7 +20,7 @@ object CompetitionPropertiesUpdatedProc {
       competitionId <- OptionT.fromOption[F](event.competitionId)
       properties    <- OptionT.fromOption[F](Option(payload.getProperties))
       currentProps  <- OptionT(CompetitionQueryOperations[F].getCompetitionProperties(competitionId))
-      updatedProps  <- OptionT.fromOption[F](Option(currentProps.applyProperties(properties.asScala.toMap)))
+      updatedProps  <- OptionT.fromOption[F](Option(currentProps.applyProperties(properties)))
       _             <- OptionT.liftF(CompetitionUpdateOperations[F].updateCompetitionProperties(updatedProps))
     } yield ()
   }.value.map(_ => ())

@@ -10,25 +10,18 @@ import java.time.Instant
 package object extensions {
   import cats.implicits._
 
-  private def parseDate(date: Any, default: Option[Instant] = None) =
-    if (date != null) { Some(Instant.ofEpochMilli(date.toString.toLong)) }
-    else { default }
-
   implicit class CompetitionPropertiesOps(c: CompetitionPropertiesDTO) {
-    def applyProperties(props: Map[String, String]): CompetitionPropertiesDTO = {
+    def applyProperties(props: CompetitionPropertiesDTO): CompetitionPropertiesDTO = {
       for {
         pr <- Option(props)
-        bracketsPublished <- pr.get("bracketsPublished").map(_.toBoolean)
-          .orElse(Option(c.getBracketsPublished).map(_.booleanValue()))
-        startDate <- parseDate(pr("startDate"), Option(c.getStartDate))
-        endDate   <- parseDate(pr("endDate"), Option(c.getEndDate))
-        emailNotificationsEnabled <- pr.get("emailNotificationsEnabled").map(_.toBoolean)
-          .orElse(Option(c.getEmailNotificationsEnabled).map(_.booleanValue()))
-        competitionName <- pr.get("competitionName").orElse(Option(c.getCompetitionName))
-        emailTemplate   <- pr.get("emailTemplate").orElse(Option(c.getEmailTemplate))
-        schedulePublished <- pr.get("schedulePublished").map(_.toBoolean)
-          .orElse(Option(c.getSchedulePublished).map(_.booleanValue()))
-        timeZone <- pr.get("timeZone").orElse(Option(c.getTimeZone))
+        bracketsPublished         = Option(pr.getBracketsPublished).getOrElse(c.getBracketsPublished)
+        startDate                 = Option(pr.getStartDate).getOrElse(c.getStartDate)
+        endDate                   = Option(pr.getEndDate).getOrElse(c.getEndDate)
+        emailNotificationsEnabled = Option(pr.getEmailNotificationsEnabled).getOrElse(c.getEmailNotificationsEnabled)
+        competitionName           = Option(pr.getCompetitionName).getOrElse(c.getCompetitionName)
+        emailTemplate             = Option(pr.getEmailTemplate).getOrElse(c.getEmailTemplate)
+        schedulePublished         = Option(pr.getSchedulePublished).getOrElse(c.getSchedulePublished)
+        timeZone                  = Option(pr.getTimeZone).getOrElse(c.getTimeZone)
       } yield c.setBracketsPublished(bracketsPublished).setStartDate(startDate).setEndDate(endDate)
         .setEmailNotificationsEnabled(emailNotificationsEnabled).setCompetitionName(competitionName)
         .setEmailTemplate(emailTemplate).setSchedulePublished(schedulePublished).setTimeZone(timeZone)

@@ -16,7 +16,7 @@ CREATE TABLE if not exists query_service.competition_properties
     registration_open  Boolean,
     creation_timestamp timestamp,
     status             varchar,
-    primary key ( id, creation_timestamp, creator_id, status, start_date )
+    primary key ( id )
 
 );
 

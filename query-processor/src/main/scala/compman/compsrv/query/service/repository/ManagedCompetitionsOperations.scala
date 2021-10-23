@@ -8,6 +8,8 @@ import io.getquill.{CassandraZioContext, CassandraZioSession, SnakeCase}
 import io.getquill.context.cassandra.encoding.{Decoders, Encoders}
 import zio.{Has, Ref}
 
+import java.time.Instant
+
 object ManagedCompetitionsOperations {
   def test(competitions: Ref[Map[String, ManagedCompetition]]): ManagedCompetitionService[LIO] =
     new ManagedCompetitionService[LIO] {
@@ -22,6 +24,23 @@ object ManagedCompetitionsOperations {
       }
 
       override def deleteManagedCompetition(id: String): LIO[Unit] = { competitions.update(m => m - id) }
+
+      override def updateManagedCompetition(
+        id: String,
+        competitionName: String,
+        startsAt: Instant,
+        endsAt: Option[Instant],
+        timeZone: String,
+        status: CompetitionStatus
+      ): LIO[Unit] = competitions.update(m =>
+        m.updatedWith(id)(_.map(_.copy(
+          competitionName = competitionName,
+          startsAt = startsAt,
+          endsAt = endsAt,
+          timeZone = timeZone,
+          status = status
+        )))
+      )
     }
 
   def live(cassandraZioSession: CassandraZioSession)(implicit
@@ -74,12 +93,43 @@ object ManagedCompetitionsOperations {
         _ <- run(delete).provide(Has(cassandraZioSession))
       } yield ()
     }
+
+    override def updateManagedCompetition(
+      id: String,
+      competitionName: String,
+      startsAt: Instant,
+      endsAt: Option[Instant],
+      timeZone: String,
+      status: CompetitionStatus
+    ): LIO[Unit] = {
+      val statement = quote {
+        query[ManagedCompetition].filter(_.id == lift(id)).update(
+          _.competitionName -> lift(competitionName),
+          _.startsAt        -> lift(startsAt),
+          _.endsAt          -> lift(endsAt),
+          _.timeZone        -> lift(timeZone),
+          _.status          -> lift(status)
+        )
+      }
+      for {
+        _ <- log.info(statement.toString)
+        _ <- run(statement).provide(Has(cassandraZioSession))
+      } yield ()
+    }
   }
 
   trait ManagedCompetitionService[F[+_]] {
     def getManagedCompetitions: F[List[ManagedCompetition]]
     def getActiveCompetitions: F[List[ManagedCompetition]]
     def addManagedCompetition(competition: ManagedCompetition): F[Unit]
+    def updateManagedCompetition(
+      id: String,
+      competitionName: String,
+      startsAt: Instant,
+      endsAt: Option[Instant],
+      timeZone: String,
+      status: CompetitionStatus
+    ): F[Unit]
     def deleteManagedCompetition(id: String): F[Unit]
   }
 
@@ -94,7 +144,15 @@ object ManagedCompetitionsOperations {
   def addManagedCompetition[F[+_]: CompetitionLogging.Service: ManagedCompetitionService](
     competition: ManagedCompetition
   ): F[Unit] = ManagedCompetitionService[F].addManagedCompetition(competition)
+  def updateManagedCompetition[F[+_]: CompetitionLogging.Service: ManagedCompetitionService](
+    id: String,
+    competitionName: String,
+    startsAt: Instant,
+    endsAt: Option[Instant],
+    timeZone: String,
+    status: CompetitionStatus
+  ): F[Unit] = ManagedCompetitionService[F]
+    .updateManagedCompetition(id, competitionName, startsAt, endsAt, timeZone, status)
   def deleteManagedCompetition[F[+_]: CompetitionLogging.Service: ManagedCompetitionService](id: String): F[Unit] =
     ManagedCompetitionService[F].deleteManagedCompetition(id)
-
 }

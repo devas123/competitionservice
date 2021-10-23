@@ -7,9 +7,7 @@ import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import io.getquill._
 import io.getquill.context.cassandra.encoding.{Decoders, Encoders}
-import zio.{Has, Ref, Task, ZIO}
-
-import java.util.Date
+import zio.{Has, Ref, ZIO}
 
 trait CompetitionUpdateOperations[F[+_]] {
   def updateRegistrationOpen(competitionId: String)(isOpen: Boolean): F[Unit]
@@ -217,7 +215,17 @@ object CompetitionUpdateOperations {
     override def updateCompetitionProperties(competitionProperties: CompetitionProperties): LIO[Unit] = {
       val statement = quote {
         query[CompetitionProperties].filter(_.id == lift(competitionProperties.id))
-          .update(liftCaseClass(competitionProperties))
+          .update(
+            _.staffIds -> lift(competitionProperties.staffIds),
+            _.competitionName -> lift(competitionProperties.competitionName),
+            _.startDate -> lift(competitionProperties.startDate),
+            _.schedulePublished -> lift(competitionProperties.schedulePublished),
+            _.bracketsPublished -> lift(competitionProperties.bracketsPublished),
+            _.endDate -> lift(competitionProperties.endDate),
+            _.timeZone -> lift(competitionProperties.timeZone),
+            _.registrationOpen -> lift(competitionProperties.registrationOpen),
+            _.status -> lift(competitionProperties.status)
+          )
       }
       for {
         _ <- log.info(statement.toString)
