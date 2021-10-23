@@ -119,7 +119,7 @@ private[schedule] object ScheduleProducer {
         period.getId
       ))
       mat.totalFights += 1
-      mat.currentTime = mat.currentTime.plus(duration.toLong, ChronoUnit.SECONDS)
+      mat.currentTime = mat.currentTime.plus(duration.toLong, ChronoUnit.MINUTES)
       StageGraph.completeFight(fightId, st)
     }
 

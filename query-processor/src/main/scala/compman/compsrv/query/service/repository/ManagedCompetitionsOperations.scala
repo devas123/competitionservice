@@ -6,9 +6,8 @@ import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.query.model.ManagedCompetition
 import io.getquill.{CassandraZioContext, CassandraZioSession, SnakeCase}
 import io.getquill.context.cassandra.encoding.{Decoders, Encoders}
-import zio.{Has, Ref}
-
-import java.time.Instant
+import zio.{Has, Ref, ZIO, ZLayer}
+import zio.logging.Logging
 
 object ManagedCompetitionsOperations {
   def test(competitions: Ref[Map[String, ManagedCompetition]]): ManagedCompetitionService[LIO] =
@@ -25,20 +24,13 @@ object ManagedCompetitionsOperations {
 
       override def deleteManagedCompetition(id: String): LIO[Unit] = { competitions.update(m => m - id) }
 
-      override def updateManagedCompetition(
-        id: String,
-        competitionName: String,
-        startsAt: Instant,
-        endsAt: Option[Instant],
-        timeZone: String,
-        status: CompetitionStatus
-      ): LIO[Unit] = competitions.update(m =>
-        m.updatedWith(id)(_.map(_.copy(
-          competitionName = competitionName,
-          startsAt = startsAt,
-          endsAt = endsAt,
-          timeZone = timeZone,
-          status = status
+      override def updateManagedCompetition(c: ManagedCompetition): LIO[Unit] = competitions.update(m =>
+        m.updatedWith(c.id)(_.map(_.copy(
+          competitionName = c.competitionName,
+          startsAt = c.startsAt,
+          endsAt = c.endsAt,
+          timeZone = c.timeZone,
+          status = c.status
         )))
       )
     }
@@ -51,6 +43,8 @@ object ManagedCompetitionsOperations {
 
     import ctx._
 
+    private final val managedCompetitionsByStatus = "managed_competition_by_status"
+
     override def getManagedCompetitions: LIO[List[ManagedCompetition]] = {
       val select = quote { query[ManagedCompetition] }
       for {
@@ -61,7 +55,7 @@ object ManagedCompetitionsOperations {
 
     override def getActiveCompetitions: LIO[List[ManagedCompetition]] = {
       val select = quote {
-        query[ManagedCompetition].filter(c =>
+        querySchema[ManagedCompetition](managedCompetitionsByStatus).filter(c =>
           liftQuery(List(
             CompetitionStatus.CREATED,
             CompetitionStatus.STARTED,
@@ -70,7 +64,7 @@ object ManagedCompetitionsOperations {
             CompetitionStatus.PUBLISHED,
             CompetitionStatus.UNPUBLISHED
           )).contains(c.status)
-        ).allowFiltering
+        )
       }
       for {
         _   <- log.info(select.toString)
@@ -79,42 +73,72 @@ object ManagedCompetitionsOperations {
     }
     override def addManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {
       val insert = quote { query[ManagedCompetition].insert(liftCaseClass(competition)) }
-      for {
+      val insert2 =
+        quote { querySchema[ManagedCompetition](managedCompetitionsByStatus).insert(liftCaseClass(competition)) }
+      (for {
         _ <- log.info(insert.toString)
-        _ <- run(insert).provide(Has(cassandraZioSession))
-      } yield ()
+        _ <- run(insert)
+        _ <- run(insert2)
+      } yield ()).provideSomeLayer[Logging](ZLayer.succeed(cassandraZioSession))
+    }
+
+    private val byId = quote { cid: String => query[ManagedCompetition].filter(_.id == cid) }
+
+    private val delete2 = quote { (id: String, status: CompetitionStatus) =>
+      querySchema[ManagedCompetition](managedCompetitionsByStatus)
+        .filter(cmpD2 => cmpD2.status == status && cmpD2.id == id).delete
+    }
+
+    private val insert2 = quote { competition1: ManagedCompetition =>
+      querySchema[ManagedCompetition](managedCompetitionsByStatus).insert(competition1)
     }
 
     override def deleteManagedCompetition(id: String): LIO[Unit] = {
-      val delete =
-        quote { query[ManagedCompetition].filter(_.id == lift(id)).update(_.status -> lift(CompetitionStatus.DELETED)) }
-      for {
-        _ <- log.info(delete.toString)
-        _ <- run(delete).provide(Has(cassandraZioSession))
-      } yield ()
-    }
+      val delete = quote { byId(lift(id)).update(_.status -> lift(CompetitionStatus.DELETED)) }
 
-    override def updateManagedCompetition(
-      id: String,
-      competitionName: String,
-      startsAt: Instant,
-      endsAt: Option[Instant],
-      timeZone: String,
-      status: CompetitionStatus
-    ): LIO[Unit] = {
-      val statement = quote {
-        query[ManagedCompetition].filter(_.id == lift(id)).update(
-          _.competitionName -> lift(competitionName),
-          _.startsAt        -> lift(startsAt),
-          _.endsAt          -> lift(endsAt),
-          _.timeZone        -> lift(timeZone),
-          _.status          -> lift(status)
+      val select = quote { byId(lift(id)) }
+
+      for {
+        _        <- log.info(delete.toString)
+        existing <- run(select).map(_.headOption)
+        _        <- run(delete)
+        _ <- existing match {
+          case Some(cada) =>
+            val newC = cada.copy(status = CompetitionStatus.DELETED)
+            run(quote { delete2(lift(cada.id), lift(cada.status)) }) *> run(quote { insert2(liftCaseClass(newC)) })
+          case None => ZIO.unit
+        }
+      } yield ()
+    }.provideSomeLayer[Logging](ZLayer.succeed(cassandraZioSession))
+
+    override def updateManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {
+      val layer = ZLayer.succeed(cassandraZioSession)
+
+      val select = quote { byId(lift(competition.id)) }
+
+      val update = quote {
+        byId(lift(competition.id)).update(
+          _.competitionName -> lift(competition.competitionName),
+          _.eventsTopic     -> lift(competition.eventsTopic),
+          _.creatorId       -> lift(competition.creatorId),
+          _.createdAt       -> lift(competition.createdAt),
+          _.startsAt        -> lift(competition.startsAt),
+          _.endsAt          -> lift(competition.endsAt),
+          _.timeZone        -> lift(competition.timeZone),
+          _.status          -> lift(competition.status)
         )
       }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+
+
+      (for {
+        existing <- run(select).map(_.headOption)
+        _ <- existing match {
+          case Some(e) => run(quote { delete2(lift(e.id), lift(e.status)) })
+          case None    => ZIO.unit
+        }
+        _ <- run(quote { insert2(liftCaseClass(competition)) })
+        _ <- run(update)
+      } yield ()).provideSomeLayer[Logging](layer)
     }
   }
 
@@ -122,14 +146,7 @@ object ManagedCompetitionsOperations {
     def getManagedCompetitions: F[List[ManagedCompetition]]
     def getActiveCompetitions: F[List[ManagedCompetition]]
     def addManagedCompetition(competition: ManagedCompetition): F[Unit]
-    def updateManagedCompetition(
-      id: String,
-      competitionName: String,
-      startsAt: Instant,
-      endsAt: Option[Instant],
-      timeZone: String,
-      status: CompetitionStatus
-    ): F[Unit]
+    def updateManagedCompetition(c: ManagedCompetition): F[Unit]
     def deleteManagedCompetition(id: String): F[Unit]
   }
 
@@ -145,14 +162,8 @@ object ManagedCompetitionsOperations {
     competition: ManagedCompetition
   ): F[Unit] = ManagedCompetitionService[F].addManagedCompetition(competition)
   def updateManagedCompetition[F[+_]: CompetitionLogging.Service: ManagedCompetitionService](
-    id: String,
-    competitionName: String,
-    startsAt: Instant,
-    endsAt: Option[Instant],
-    timeZone: String,
-    status: CompetitionStatus
-  ): F[Unit] = ManagedCompetitionService[F]
-    .updateManagedCompetition(id, competitionName, startsAt, endsAt, timeZone, status)
+    c: ManagedCompetition
+  ): F[Unit] = ManagedCompetitionService[F].updateManagedCompetition(c)
   def deleteManagedCompetition[F[+_]: CompetitionLogging.Service: ManagedCompetitionService](id: String): F[Unit] =
     ManagedCompetitionService[F].deleteManagedCompetition(id)
 }

@@ -24,7 +24,7 @@ object CompetitionEventListenerSupervisor {
   sealed trait ActorMessages[+_]
   case class ReceivedNotification(notification: CommandProcessorNotification) extends ActorMessages[Unit]
   case class ActiveCompetition(managedCompetition: ManagedCompetition)        extends ActorMessages[Unit]
-  case class CompetitionUpdated(update: CompetitionPropertiesUpdatedPayload)  extends ActorMessages[Unit]
+  case class CompetitionUpdated(update: CompetitionPropertiesUpdatedPayload, eventTopic: String)  extends ActorMessages[Unit]
 
   trait ActorContext {
     implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO]
@@ -62,18 +62,23 @@ object CompetitionEventListenerSupervisor {
         timers: Timers[SupervisorEnvironment[R], ActorMessages]
       ): RIO[SupervisorEnvironment[R], (Unit, A)] = {
         command match {
-          case CompetitionUpdated(update) => for {
-              _ <- Logging.info(s"Competition properties updated $update")
-              props = update.getProperties
+          case CompetitionUpdated(update, eventTopic) => for {
+              props <- ZIO.effect(update.getProperties)
               _ <- ManagedCompetitionsOperations.updateManagedCompetition[LIO](
-                props.getId,
-                props.getCompetitionName,
-                props.getStartDate,
-                Option(props.getEndDate),
-                props.getTimeZone,
-                props.getStatus
+                ManagedCompetition(
+                  props.getId,
+                  props.getCompetitionName,
+                  eventTopic,
+                  props.getCreatorId,
+                  props.getCreationTimestamp,
+                  props.getStartDate,
+                  Option(props.getEndDate),
+                  props.getTimeZone,
+                  props.getStatus
+                )
               )
-            } yield ((), ().asInstanceOf[A])
+              _ <- Logging.info(s"Competition properties updated $update")
+          } yield ((), ().asInstanceOf[A])
           case ActiveCompetition(competition) => for {
               _ <- Logging.info(s"Creating listener actor for competition $competition")
               res <- context
@@ -158,7 +163,7 @@ object CompetitionEventListenerSupervisor {
                 } yield ((), ().asInstanceOf[A])
             }
         }
-      }
+      }.onError(cause => logError(cause.squashTrace))
 
       override def init(
         actorConfig: ActorConfig,

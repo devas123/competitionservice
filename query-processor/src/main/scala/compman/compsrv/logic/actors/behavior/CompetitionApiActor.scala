@@ -156,7 +156,7 @@ object CompetitionApiActor {
                 .map(r => (state, r.asInstanceOf[A]))
             case GetDefaultFightResults => ZIO.effect(FightResultOptionDTO.values.asScala)
                 .map(r => (state, r.asInstanceOf[A]))
-            case GetAllCompetitions => ManagedCompetitionsOperations.getManagedCompetitions[LIO]
+            case GetAllCompetitions => ManagedCompetitionsOperations.getActiveCompetitions[LIO]
                 .map(res => (state, res.asInstanceOf[A]))
             case GetCompetitionProperties(id) => CompetitionQueryOperations[LIO].getCompetitionProperties(id)
                 .map(_.map(DtoMapping.toDtoCompetitionProperties)).map(res => (state, res.asInstanceOf[A]))

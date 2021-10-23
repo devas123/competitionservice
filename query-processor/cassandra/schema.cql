@@ -147,7 +147,21 @@ CREATE TABLE if not exists query_service.managed_competition
     ends_at          timestamp,
     time_zone        varchar,
     status           varchar,
-    primary key ( id, status )
+    primary key ( id )
+);
+
+CREATE TABLE if not exists query_service.managed_competition_by_status
+(
+    id               varchar,
+    competition_name varchar,
+    events_topic     varchar,
+    creator_id       varchar,
+    created_at       timestamp,
+    starts_at        timestamp,
+    ends_at          timestamp,
+    time_zone        varchar,
+    status           varchar,
+    primary key ( status, id )
 );
 
 create type if not exists query_service.schedule_entry(

@@ -116,7 +116,7 @@ object CompetitionEventListener {
                 _ <-
                   if (mapped.isInstanceOf[CompetitionPropertiesUpdatedEvent]) {
                     competitionEventListenerSupervisor !
-                      CompetitionUpdated(event.getPayload.asInstanceOf[CompetitionPropertiesUpdatedPayload])
+                      CompetitionUpdated(event.getPayload.asInstanceOf[CompetitionPropertiesUpdatedPayload], topic)
                   } else { ZIO.unit }
                 _ <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork
                 _ <- record.fold(Task(()))(r => context.self ! CommitOffset(r.offset))
