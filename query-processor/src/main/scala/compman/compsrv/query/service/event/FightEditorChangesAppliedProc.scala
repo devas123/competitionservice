@@ -6,6 +6,7 @@ import compman.compsrv.model.Payload
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.event.Events.{Event, FightEditorChangesAppliedEvent}
 import compman.compsrv.query.model.mapping.DtoMapping
+import compman.compsrv.query.model.CompetitorDisplayInfo
 import compman.compsrv.query.service.repository.{CompetitionQueryOperations, CompetitionUpdateOperations}
 
 object FightEditorChangesAppliedProc {
@@ -16,7 +17,6 @@ object FightEditorChangesAppliedProc {
   private def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations](
     event: FightEditorChangesAppliedEvent
   ): F[Unit] = {
-    def mapFight(f: FightDescriptionDTO) = { DtoMapping.mapFight(f) }
 
     for {
       payload       <- OptionT.fromOption[F](event.payload)
@@ -24,8 +24,11 @@ object FightEditorChangesAppliedProc {
       newFights     <- OptionT.fromOption[F](Option(payload.getNewFights))
       updates       <- OptionT.fromOption[F](Option(payload.getUpdates))
       removedFights <- OptionT.fromOption[F](Option(payload.getRemovedFighids))
-      _ <- OptionT.liftF(CompetitionUpdateOperations[F].addFights(newFights.map(f => mapFight(f)).toList))
-      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateFightScores(updates.map(f => mapFight(f)).toList))
+      categoryId <- OptionT.fromOption[F](event.categoryId)
+      competitors <- OptionT.liftF(CompetitionQueryOperations.getCompetitorsByCategoryId(competitionId)(categoryId, None))
+      compMap = competitors._1.groupMapReduce(_.id)(c => CompetitorDisplayInfo(c.id, Option(c.firstName), Option(c.lastName), c.academy.map(_.academyName)))((a, _) => a)
+      _ <- OptionT.liftF(CompetitionUpdateOperations[F].addFights(newFights.map(DtoMapping.mapFight(compMap)).toList))
+      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateFightScores(updates.map(DtoMapping.mapFight(compMap)).toList))
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].removeFights(competitionId)(removedFights.toList))
     } yield ()
   }.value.map(_ => ())

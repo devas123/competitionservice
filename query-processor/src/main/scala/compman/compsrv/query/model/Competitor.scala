@@ -5,6 +5,13 @@ import io.getquill.Udt
 
 import java.time.Instant
 
+case class CompetitorDisplayInfo(
+  competitorId: String,
+  competitorFirstName: Option[String],
+  competitorLastName: Option[String],
+  competitorAcademyName: Option[String]
+)
+
 case class Competitor(
   competitionId: String,
   userId: Option[String],

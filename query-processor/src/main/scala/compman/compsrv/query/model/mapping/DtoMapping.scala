@@ -56,10 +56,15 @@ object DtoMapping {
     )
   }
 
-  def mapCompScore(o: CompScoreDTO): CompScore = {
+
+
+  def mapCompScore(o: CompScoreDTO, cd: Option[CompetitorDisplayInfo]): CompScore = {
     CompScore(
       Option(o.getPlaceholderId),
       Option(o.getCompetitorId),
+      cd.flatMap(_.competitorFirstName),
+      cd.flatMap(_.competitorLastName),
+      cd.flatMap(_.competitorAcademyName),
       Option(o.getScore).orElse(Some(createEmptyScore)).map(s =>
         Score(
           s.getPoints,
@@ -137,6 +142,11 @@ object DtoMapping {
       .setCompetitionId(competitor.competitionId).setRegistrationStatus(competitor.registrationStatus.orNull)
       .setPlaceholder(competitor.isPlaceholder).setPromo(competitor.promo.getOrElse(""))
   }
+  def toDtoCompetitor(competitorDisplayInfo: CompetitorDisplayInfo): CompetitorDTO = {
+    new CompetitorDTO().setId(competitorDisplayInfo.competitorId)
+      .setFirstName(competitorDisplayInfo.competitorFirstName.orNull).setLastName(competitorDisplayInfo.competitorLastName.orNull)
+      .setAcademy(new AcademyDTO().setName(competitorDisplayInfo.competitorAcademyName.orNull))
+  }
 
   def toDtoCategory(cat: Category): CategoryDescriptorDTO = {
     new CategoryDescriptorDTO().setName(cat.name.getOrElse("")).setId(cat.id).setRegistrationOpen(cat.registrationOpen)
@@ -203,7 +213,7 @@ object DtoMapping {
       .setNumberInRound(f.bracketsInfo.flatMap(_.numberInRound).map(Integer.valueOf).orNull)
   }
 
-  def mapFight(dto: FightDescriptionDTO): Fight = {
+  def mapFight(coms: Map[String, CompetitorDisplayInfo])(dto: FightDescriptionDTO): Fight = {
     Fight(
       dto.getId,
       dto.getCompetitionId,
@@ -229,7 +239,7 @@ object DtoMapping {
         dto.getRoundType
       )),
       Option(dto.getFightResult).map(mapFightResult),
-      Option(dto.getScores).map(_.toList).map(_.map(mapCompScore)).getOrElse(List.empty)
+      Option(dto.getScores).map(_.toList).map(_.map(cs => mapCompScore(cs, coms.get(cs.getCompetitorId)))).getOrElse(List.empty)
     )
   }
 

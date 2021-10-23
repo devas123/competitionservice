@@ -97,11 +97,11 @@ object CompetitionApiActor {
 
   final case class GetMats(competitionId: String) extends ApiCommand[List[MatDescriptionDTO]]
 
-  final case class GetPeriodMats(competitionId: String, periodId: String) extends ApiCommand[List[MatStateDTO]]
+  final case class GetPeriodMats(competitionId: String, periodId: String) extends ApiCommand[MatsQueryResult]
 
   final case class GetMat(competitionId: String, matId: String) extends ApiCommand[Option[MatDescriptionDTO]]
 
-  final case class GetMatFights(competitionId: String, matId: String) extends ApiCommand[List[FightDescriptionDTO]]
+  final case class GetMatFights(competitionId: String, matId: String) extends ApiCommand[MatFightsQueryResult]
 
   final case class GetRegistrationInfo(competitionId: String) extends ApiCommand[Option[RegistrationInfo]]
 
@@ -189,9 +189,13 @@ object CompetitionApiActor {
                 .getPeriodsByCompetitionId(competitionId).map(_.flatMap(p => p.mats.map(DtoMapping.toDtoMat(p.id))).find(_.getId == matId))
                 .map(res => (state, res.asInstanceOf[A]))
 
-            case GetMatFights(competitionId, matId) => CompetitionQueryOperations[LIO]
-                .getFightsByMat(competitionId)(matId, 20).map(_.map(DtoMapping.toDtoFight))
-                .map(res => (state, res.asInstanceOf[A]))
+            case GetMatFights(competitionId, matId) => for {
+              fights <- CompetitionQueryOperations[LIO]
+              .getFightsByMat(competitionId)(matId, 20)
+              fightDtos = fights.map(DtoMapping.toDtoFight)
+              competitors = fights.flatMap(_.scores).filter(_.competitorId.isDefined).map(cs => CompetitorDisplayInfo(cs.competitorId.orNull, cs.competitorFirstName, cs.competitorLastName, cs.competitorAcademyName))
+                .map(DtoMapping.toDtoCompetitor)
+            } yield (state, MatFightsQueryResult(competitors, fightDtos).asInstanceOf[A])
             case GetRegistrationInfo(competitionId) => for {
                 groups  <- CompetitionQueryOperations[LIO].getRegistrationGroups(competitionId)
                 periods <- CompetitionQueryOperations[LIO].getRegistrationPeriods(competitionId)
@@ -235,13 +239,16 @@ object CompetitionApiActor {
                 res <- mats.traverse(mat => for {
                   fights <- OptionT.liftF(CompetitionQueryOperations[LIO].getFightsByMat(competitionId)(mat.matId, 10))
                   numberOfFights <- OptionT.liftF(CompetitionQueryOperations[LIO].getNumberOfFightsForMat(competitionId)(mat.matId))
+                  competitors = fights.flatMap(_.scores).filter(_.competitorId.isDefined)
+                    .map(cs => CompetitorDisplayInfo(cs.competitorId.get, cs.competitorFirstName, cs.competitorLastName, cs.competitorAcademyName))
+                    .map(DtoMapping.toDtoCompetitor)
                   matState = new MatStateDTO()
                     .setMatDescription(DtoMapping.toDtoMat(period.id)(mat))
                     .setTopFiveFights(fights.map(DtoMapping.toDtoFight).toArray)
                     .setNumberOfFights(
                       numberOfFights)
-                } yield matState)
-              } yield res
+                } yield (matState, competitors))
+              } yield MatsQueryResult(res.flatMap(_._2), res.map(_._1))
               optionRes.value.map(_.getOrElse(List.empty)).map(mats => (state, mats.asInstanceOf[A]))
             case GetPeriodFightsByMats(competitionId, periodId, limit) =>
               import cats.implicits._

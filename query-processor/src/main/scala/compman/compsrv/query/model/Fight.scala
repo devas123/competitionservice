@@ -51,11 +51,14 @@ case class BracketsInfo(
   roundType: StageRoundType
 ) extends Udt
 case class CompScore(
-  placeholderId: Option[String],
-  competitorId: Option[String],
-  score: Score,
-  parentReferenceType: Option[FightReferenceType],
-  parentFightId: Option[String]
+                      placeholderId: Option[String],
+                      competitorId: Option[String],
+                      competitorFirstName: Option[String],
+                      competitorLastName: Option[String],
+                      competitorAcademyName: Option[String],
+                      score: Score,
+                      parentReferenceType: Option[FightReferenceType],
+                      parentFightId: Option[String]
 ) extends Udt
 
 case class Score(points: Int, advantages: Int, penalties: Int, pointGroups: List[PointGroup])      extends Udt

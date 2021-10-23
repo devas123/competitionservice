@@ -95,6 +95,9 @@ create type if not exists query_service.score (
 create type if not exists query_service.comp_score (
     placeholder_id varchar,
     competitor_id varchar,
+    competitor_first_name varchar,
+    competitor_last_name varchar,
+    competitor_academy_name varchar,
     score frozen<score>,
     parent_reference_type varchar,
     parent_fight_id varchar
