@@ -59,6 +59,21 @@ package object extensions {
     def competitorId: Option[String] = if (c.isPlaceholder) None else Option(c.getId)
 
     def placeholderId: Option[String] = if (c.isPlaceholder) Option(c.getId) else Option(s"placeholder-${c.getId}")
+
+    def copy(categories: Array[String] = c.getCategories) = new CompetitorDTO(
+      c.getId,
+      c.getEmail,
+      c.getUserId,
+      c.getFirstName,
+      c.getLastName,
+      c.getBirthDate,
+      c.getAcademy,
+      categories,
+      c.getCompetitionId,
+      c.getRegistrationStatus,
+      c.isPlaceholder,
+      c.getPromo
+    )
   }
 
   implicit class ScheduleOps(c: ScheduleDTO) {

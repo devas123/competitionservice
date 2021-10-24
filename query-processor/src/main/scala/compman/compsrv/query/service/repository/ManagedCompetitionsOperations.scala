@@ -95,7 +95,6 @@ object ManagedCompetitionsOperations {
 
     override def deleteManagedCompetition(id: String): LIO[Unit] = {
       val delete = quote { byId(lift(id)).update(_.status -> lift(CompetitionStatus.DELETED)) }
-
       val select = quote { byId(lift(id)) }
 
       for {

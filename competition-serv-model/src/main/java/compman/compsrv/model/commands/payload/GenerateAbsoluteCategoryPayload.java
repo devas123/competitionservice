@@ -14,7 +14,7 @@ import java.io.Serializable;
 @NoArgsConstructor
 @CommandPayload(type = CommandType.SAVE_ABSOLUTE_CATEGORY_COMMAND)
 public class GenerateAbsoluteCategoryPayload implements Serializable, Payload {
-    private CompetitorDTO[] competitors;
+    private String[] competitors;
     private CategoryDescriptorDTO category;
     private String competitionId;
 }

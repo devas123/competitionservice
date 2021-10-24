@@ -1,11 +1,7 @@
 package compman.compsrv.model.event
 
 import compman.compsrv.model.Payload
-import compman.compsrv.model.commands.payload.{
-  CategoryRegistrationStatusChangePayload,
-  ChangeCompetitorCategoryPayload,
-  SetFightResultPayload
-}
+import compman.compsrv.model.commands.payload.{CategoryRegistrationStatusChangePayload, ChangeCompetitorCategoryPayload, CompetitorCategoryAddedPayload, SetFightResultPayload}
 import compman.compsrv.model.events.payload._
 
 object Events {
@@ -132,24 +128,35 @@ object Events {
     override val competitorId: Option[String] = None
     override val fightId: Option[String]      = None
   }
+
   final case class CompetitorCategoryChangedEvent(
-      payload: Option[ChangeCompetitorCategoryPayload],
-      competitionId: Option[String],
-      sequenceNumber: Long
-  ) extends Event[ChangeCompetitorCategoryPayload] {
+                                                   payload: Option[ChangeCompetitorCategoryPayload],
+                                                   competitionId: Option[String],
+                                                   sequenceNumber: Long
+                                                 ) extends Event[ChangeCompetitorCategoryPayload] {
     override val competitorId: Option[String] = None
-    override val categoryId: Option[String]   = None
-    override val fightId: Option[String]      = None
+    override val categoryId: Option[String] = None
+    override val fightId: Option[String] = None
+  }
+
+  final case class CompetitorCategoryAddedEvent(
+                                                 payload: Option[CompetitorCategoryAddedPayload],
+                                                 competitionId: Option[String],
+                                                 sequenceNumber: Long
+                                               ) extends Event[CompetitorCategoryAddedPayload] {
+    override val competitorId: Option[String] = None
+    override val categoryId: Option[String] = None
+    override val fightId: Option[String] = None
   }
 
   final case class FightCompetitorsAssignedEvent(
-      payload: Option[FightCompetitorsAssignedPayload],
-      competitionId: Option[String],
-      categoryId: Option[String],
-      sequenceNumber: Long
-  ) extends Event[FightCompetitorsAssignedPayload] {
+                                                  payload: Option[FightCompetitorsAssignedPayload],
+                                                  competitionId: Option[String],
+                                                  categoryId: Option[String],
+                                                  sequenceNumber: Long
+                                                ) extends Event[FightCompetitorsAssignedPayload] {
     override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
+    override val fightId: Option[String] = None
   }
 
   final case class FightEditorChangesAppliedEvent(

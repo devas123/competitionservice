@@ -240,6 +240,12 @@ object Mapping {
               eventDto.getLocalEventNumber
             )
 
+          case COMPETITOR_CATEGORY_ADDED => CompetitorCategoryAddedEvent(
+              Try { eventDto.getPayload.asInstanceOf[CompetitorCategoryAddedPayload] }.toOption,
+              Option(eventDto.getCompetitionId),
+              eventDto.getLocalEventNumber
+            )
+
           case CATEGORY_ADDED => CategoryAddedEvent(
               Try { eventDto.getPayload.asInstanceOf[CategoryAddedPayload] }.toOption,
               Option(eventDto.getCompetitionId),

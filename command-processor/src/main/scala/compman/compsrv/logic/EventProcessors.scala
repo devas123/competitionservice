@@ -17,6 +17,8 @@ object EventProcessors {
       BracketsDroppedProc(state),
       ScheduleDroppedProc(state),
       CategoryRegistrationStatusChangedProc(state),
+      CompetitorCategoryAddedProc(state),
+      CompetitorCategoryChangedProc(state),
       BracketsGeneratedProc(state),
       CategoryAddedProc(state),
       CompetitionCreatedProc(state),

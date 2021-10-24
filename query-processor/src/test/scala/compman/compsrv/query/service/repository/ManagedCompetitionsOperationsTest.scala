@@ -23,9 +23,9 @@ object ManagedCompetitionsOperationsTest extends DefaultRunnableSpec with Embedd
           ManagedCompetitionsOperations.live(cassandraZioSession)
         for {
           _ <- ManagedCompetitionsOperations.addManagedCompetition[LIO](managedCompetition)
-          competitions <- ManagedCompetitionsOperations.getManagedCompetitions[LIO]
+          competitions <- ManagedCompetitionsOperations.getActiveCompetitions[LIO]
           _ <- ManagedCompetitionsOperations.deleteManagedCompetition[LIO](managedCompetition.id)
-          shouldBeEmpty <- ManagedCompetitionsOperations.getManagedCompetitions[LIO]
+          shouldBeEmpty <- ManagedCompetitionsOperations.getActiveCompetitions[LIO]
         } yield assert(competitions)(isNonEmpty) && assert(shouldBeEmpty)(isEmpty)
       }.provideLayer(layers)
     }

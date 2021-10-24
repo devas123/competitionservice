@@ -10,6 +10,7 @@ object EventProcessors {
   def applyEvent[F[+_]: CompetitionLogging.Service: Monad: CompetitionQueryOperations: CompetitionUpdateOperations, P <: Payload](
     event: Events.Event[P]
   ): F[Unit] = List(
+    CompetitorCategoryChangesProc(),
     BracketsDroppedProc(),
     ScheduleDroppedProc(),
     CategoryRegistrationStatusChangedProc(),

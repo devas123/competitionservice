@@ -1,6 +1,7 @@
 package compman.compsrv.query.service.repository
 
 import com.datastax.oss.driver.api.core.CqlSession
+import com.github.nosan.embedded.cassandra.commons.FileSystemResource
 import com.github.nosan.embedded.cassandra.commons.function.IOSupplier
 import com.github.nosan.embedded.cassandra.cql.CqlScript
 import com.github.nosan.embedded.cassandra.{Cassandra, CassandraBuilder, DefaultWorkingDirectoryInitializer, WebCassandraDirectoryProvider}
@@ -39,7 +40,7 @@ trait EmbeddedCassandra {
   }
 
   def startEmbeddedCassandra(): ZIO[Any, Throwable, Cassandra] = for {
-    _ <- ZIO.effect(println("START \n\n\n\n\n"))
+    _ <- ZIO.effect(println(s"${Paths.get("query-processor/cassandra/schema.cql").toAbsolutePath.toString} \n\n\n\n\n"))
     cassandraDir = Files.createDirectories(Paths.get(".", "tmp", "cassandra"))
     cassandra = new CassandraBuilder()
       .addEnvironmentVariable("JAVA_HOME", System.getProperty("JAVA_HOME"))
@@ -60,7 +61,7 @@ trait EmbeddedCassandra {
       Using(
         CqlSession.builder().addContactPoint(new InetSocketAddress(settings.getAddress, settings.getPort()))
           .withLocalDatacenter("datacenter1").build()
-      ) { connection => CqlScript.ofClassPath("/schema/schema.cql").forEachStatement(st => connection.execute(st)) }
+      ) { connection => CqlScript.ofResource(new FileSystemResource(Paths.get("query-processor/cassandra/schema.cql"))).forEachStatement(st => connection.execute(st)) }
     }
   } yield cassandra
 
