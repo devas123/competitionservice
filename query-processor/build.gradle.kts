@@ -42,7 +42,7 @@ dependencies {
     Libraries.embeddedCassandra.forEach { testImplementation(it) }
     testImplementation("com.datastax.oss:java-driver-core:4.13.0")
     testImplementation("org.scalatest:scalatest_$scalaBinary:3.2.8")
-    testImplementation("com.vladsch.flexmark:flexmark-all:0.35.10")
+    testRuntimeOnly("com.vladsch.flexmark:flexmark-all:0.35.10")
     scalaCompilerPlugins("org.typelevel:kind-projector_2.13.5:0.13.2")
 }
 description = "query processor"
@@ -58,13 +58,14 @@ tasks.register("runMain", JavaExec::class) {
     group = "queryService"
     this.isIgnoreExitValue = true
     classpath = sourceSets.main.get().runtimeClasspath + sourceSets.test.get().runtimeClasspath
-    main = javaMainClass
+    mainClass.set(javaMainClass)
     runFile.deleteOnExit()
     doLast {
         logger.lifecycle("Deleting file.")
         runFile.delete()
     }
 }
+
 
 tasks.jar {
     manifest {

@@ -50,7 +50,7 @@ dependencies {
 
     Libraries.embeddedKafka.forEach { testImplementation(it) }
     testImplementation("org.scalatest:scalatest_$scalaBinary:3.2.8")
-    testImplementation("com.vladsch.flexmark:flexmark-all:0.35.10")
+    testRuntimeOnly("com.vladsch.flexmark:flexmark-all:0.35.10")
     Libraries.zioTest.apply {
         testImplementation(
             group = group,
