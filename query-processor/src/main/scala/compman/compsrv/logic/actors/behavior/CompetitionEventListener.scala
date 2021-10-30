@@ -36,7 +36,8 @@ object CompetitionEventListener {
     implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO]
     implicit val competitionQueryOperations: CompetitionQueryOperations[LIO]
     implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO]
-
+    implicit val fightQueryOperations: FightQueryOperations[LIO]
+    implicit val fightUpdateOperations: FightUpdateOperations[LIO]
   }
 
   case class Live(cassandraZioSession: CassandraZioSession) extends ActorContext {
@@ -47,6 +48,8 @@ object CompetitionEventListener {
       .live(cassandraZioSession)
     implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations
       .live(cassandraZioSession)
+    implicit val fightQueryOperations: FightQueryOperations[LIO]   = FightQueryOperations.live(cassandraZioSession)
+    implicit val fightUpdateOperations: FightUpdateOperations[LIO] = FightUpdateOperations.live(cassandraZioSession)
   }
 
   case class Test(
@@ -62,26 +65,12 @@ object CompetitionEventListener {
     implicit val eventMapping: Mapping.EventMapping[LIO] = model.Mapping.EventMapping.live
     implicit val loggingLive: CompetitionLogging.Service[LIO] = compman.compsrv.logic.logging.CompetitionLogging.Live
       .live[Any]
-    implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations.test(
-      competitionProperties,
-      categories,
-      competitors,
-      fights,
-      periods,
-      registrationPeriods,
-      registrationGroups,
-      stages
-    )
-    implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations.test(
-      competitionProperties,
-      categories,
-      competitors,
-      fights,
-      periods,
-      registrationPeriods,
-      registrationGroups,
-      stages
-    )
+    implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
+      .test(competitionProperties, categories, competitors, periods, registrationPeriods, registrationGroups, stages)
+    implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations
+      .test(competitionProperties, categories, competitors, periods, registrationPeriods, registrationGroups, stages)
+    implicit val fightUpdateOperations: FightUpdateOperations[LIO] = FightUpdateOperations.test(fights)
+    implicit val fightQueryOperations: FightQueryOperations[LIO]   = FightQueryOperations.test(fights, stages)
   }
 
   private[behavior] case class ActorState(queue: Option[Queue[Offset]] = None)

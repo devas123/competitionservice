@@ -26,14 +26,6 @@ trait CompetitionUpdateOperations[F[+_]] {
   def addCompetitor(competitor: Competitor): F[Unit]
   def updateCompetitor(competitor: Competitor): F[Unit]
   def removeCompetitor(competitionId: String)(id: String): F[Unit]
-  def addFight(fight: Fight): F[Unit]
-  def addFights(fights: List[Fight]): F[Unit]
-  def updateFight(fight: Fight): F[Unit]
-  def updateFightScores(fights: List[Fight]): F[Unit]
-  def updateFightStartTime(fights: List[FightStartTimeUpdate]): F[Unit]
-  def removeFight(competitionId: String)(id: String): F[Unit]
-  def removeFights(competitionId: String)(ids: List[String]): F[Unit]
-  def removeFightsForCategory(competitionId: String)(categoryId: String): F[Unit]
   def addRegistrationGroup(group: RegistrationGroup): F[Unit]
   def addRegistrationGroups(groups: List[RegistrationGroup]): F[Unit]
   def updateRegistrationGroup(group: RegistrationGroup): F[Unit]
@@ -60,30 +52,14 @@ object CompetitionUpdateOperations {
     competitionProperties: Option[Ref[Map[String, CompetitionProperties]]] = None,
     categories: Option[Ref[Map[String, Category]]] = None,
     competitors: Option[Ref[Map[String, Competitor]]] = None,
-    fights: Option[Ref[Map[String, Fight]]] = None,
     periods: Option[Ref[Map[String, Period]]] = None,
     registrationPeriods: Option[Ref[Map[String, RegistrationPeriod]]] = None,
     registrationGroups: Option[Ref[Map[String, RegistrationGroup]]] = None,
     stages: Option[Ref[Map[String, StageDescriptor]]] = None
-  ): CompetitionUpdateOperations[LIO] = new CompetitionUpdateOperations[LIO] {
-
-    private def update[T](coll: Option[Ref[Map[String, T]]])(id: String)(u: T => T) = coll
-      .map(_.update(m => m.updatedWith(id)(optComp => optComp.map(u)))).getOrElse(ZIO.unit)
-
-    private def add[T](coll: Option[Ref[Map[String, T]]])(id: String)(a: => Option[T]) = coll
-      .map(_.update(m => m.updatedWith(id)(_ => a))).getOrElse(ZIO.unit)
-
-    private def remove[T](coll: Option[Ref[Map[String, T]]])(id: String) = coll.map(_.update(m => m - id))
-      .getOrElse(ZIO.unit)
-
-    private def comPropsUpdate(competitionId: String)(u: CompetitionProperties => CompetitionProperties) = {
-      update(competitionProperties)(competitionId)(u)
-    }
-
-    private def stagesUpdate(stageId: String)(u: StageDescriptor => StageDescriptor) = { update(stages)(stageId)(u) }
+  ): CompetitionUpdateOperations[LIO] = new CompetitionUpdateOperations[LIO] with CommonOperations {
 
     override def updateRegistrationOpen(competitionId: String)(isOpen: Boolean): LIO[Unit] = {
-      comPropsUpdate(competitionId)(_.copy(registrationOpen = isOpen))
+      comPropsUpdate(competitionProperties)(competitionId)(_.copy(registrationOpen = isOpen))
     }
 
     override def addCompetitionProperties(newProperties: CompetitionProperties): LIO[Unit] = competitionProperties
@@ -96,21 +72,21 @@ object CompetitionUpdateOperations {
       .getOrElse(ZIO.unit)
 
     override def addCompetitionInfoTemplate(competitionId: String)(newTemplate: CompetitionInfoTemplate): LIO[Unit] =
-      comPropsUpdate(competitionId)(_.copy(infoTemplate = newTemplate))
+      comPropsUpdate(competitionProperties)(competitionId)(_.copy(infoTemplate = newTemplate))
 
     override def removeCompetitionInfoTemplate(competitionId: String): LIO[Unit] =
-      comPropsUpdate(competitionId)(_.copy(infoTemplate = CompetitionInfoTemplate(Array.empty)))
+      comPropsUpdate(competitionProperties)(competitionId)(_.copy(infoTemplate = CompetitionInfoTemplate(Array.empty)))
 
     override def addStage(stageDescriptor: StageDescriptor): LIO[Unit] =
       add(stages)(stageDescriptor.id)(Some(stageDescriptor))
 
     override def updateStage(stageDescriptor: StageDescriptor): LIO[Unit] =
-      stagesUpdate(stageDescriptor.id)(_ => stageDescriptor)
+      stagesUpdate(stages)(stageDescriptor.id)(_ => stageDescriptor)
 
     override def updateStageStatus(
       competitionId: String
     )(categoryId: String, stageId: String, newStatus: StageStatus): LIO[Unit] =
-      stagesUpdate(stageId)(_.copy(stageStatus = newStatus))
+      stagesUpdate(stages)(stageId)(_.copy(stageStatus = newStatus))
 
     override def addCategory(category: Category): LIO[Unit] = add(categories)(category.id)(Some(category))
 
@@ -125,19 +101,6 @@ object CompetitionUpdateOperations {
       update(competitors)(competitor.id)(_ => competitor)
 
     override def removeCompetitor(competitionId: String)(id: String): LIO[Unit] = remove(competitors)(id)
-
-    override def addFight(fight: Fight): LIO[Unit] = add(fights)(fight.id)(Some(fight))
-
-    override def addFights(fights: List[Fight]): LIO[Unit] = fights.traverse(addFight).map(_ => ())
-
-    override def updateFight(fight: Fight): LIO[Unit] = update(fights)(fight.id)(_ => fight)
-
-    override def updateFightScores(fights: List[Fight]): LIO[Unit] = fights.traverse(updateFight).map(_ => ())
-
-    override def removeFight(competitionId: String)(id: String): LIO[Unit] = remove(fights)(id)
-
-    override def removeFights(competitionId: String)(ids: List[String]): LIO[Unit] = ids
-      .traverse(removeFight(competitionId)).map(_ => ())
 
     override def addRegistrationGroup(group: RegistrationGroup): LIO[Unit] =
       add(registrationGroups)(group.id)(Some(group))
@@ -179,12 +142,6 @@ object CompetitionUpdateOperations {
 
     override def removeStages(competition: String)(categoryId: String): LIO[Unit] = stages
       .map(_.update(s => s.filter(_._2.categoryId != categoryId))).getOrElse(ZIO.unit)
-
-    override def removeFightsForCategory(competitionId: String)(categoryId: String): LIO[Unit] = fights
-      .map(_.update(fs => fs.filter(f => f._2.categoryId != categoryId))).getOrElse(ZIO.unit)
-
-    override def updateFightStartTime(fights: List[FightStartTimeUpdate]): LIO[Unit] = updateFightScores(List.empty)
-
   }
 
   def live(cassandraZioSession: CassandraZioSession)(implicit
@@ -353,67 +310,6 @@ object CompetitionUpdateOperations {
       } yield ()
     }
 
-    override def addFight(fight: Fight): LIO[Unit] = {
-      val statement = quote { query[Fight].insert(liftCaseClass(fight)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-    }
-
-    override def addFights(fights: List[Fight]): LIO[Unit] = {
-      val statement = quote { liftQuery(fights).foreach(fight1 => query[Fight].insert(fight1)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-    }
-
-    override def updateFight(fight: Fight): LIO[Unit] = {
-      val statement = quote { query[Fight].filter(_.id == lift(fight.id)).update(liftCaseClass(fight)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-    }
-
-    override def updateFightScores(fights: List[Fight]): LIO[Unit] = {
-      val statement = quote {
-        liftQuery(fights).foreach(fight2 =>
-          query[Fight].filter(f =>
-            f.id == fight2.id && f.competitionId == fight2.competitionId && f.categoryId == fight2.categoryId
-          ).update(f => f.scores -> fight2.scores, _.status -> fight2.status)
-        )
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-    }
-
-    override def removeFight(competitionId: String)(id: String): LIO[Unit] = {
-      val statement = quote {
-        query[Fight].filter(fight3 => fight3.competitionId == lift(competitionId) && fight3.id == lift(id)).delete
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-    }
-
-    override def removeFights(competitionId: String)(ids: List[String]): LIO[Unit] = {
-      val statement = quote {
-        liftQuery(ids).foreach(id =>
-          query[Fight].filter(fight4 => fight4.competitionId == lift(competitionId) && fight4.id == id).delete
-        )
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-
-    }
-
     override def addRegistrationGroup(group: RegistrationGroup): LIO[Unit] = {
       val statement = quote { query[RegistrationGroup].insert(liftCaseClass(group)) }
       for {
@@ -554,44 +450,6 @@ object CompetitionUpdateOperations {
         _ <- log.info(statement.toString)
         _ <- run(statement).provide(Has(cassandraZioSession))
       } yield ()
-    }
-
-    override def removeFightsForCategory(competitionId: String)(categoryId: String): LIO[Unit] = {
-      val statement = quote {
-        query[Fight].filter(fight => fight.competitionId == lift(competitionId) && fight.categoryId == lift(categoryId))
-          .delete
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-    }
-
-
-
-    override def updateFightStartTime(fights: List[FightStartTimeUpdate]): LIO[Unit] = {
-      {
-        val statement = quote {
-          liftQuery(fights).foreach(fight2 =>
-            query[Fight].filter(f =>
-              f.id == fight2.id && f.competitionId == fight2.competitionId && f.categoryId == fight2.categoryId
-            ).update(
-              _.matId           -> fight2.matId,
-              _.matName         -> fight2.matName,
-              _.matOrder        -> fight2.matOrder,
-              _.numberOnMat     -> fight2.numberOnMat,
-              _.periodId        -> fight2.periodId,
-              _.startTime       -> fight2.startTime,
-              _.invalid         -> fight2.invalid,
-              _.scheduleEntryId -> fight2.scheduleEntryId
-            )
-          )
-        }
-        for {
-          _ <- log.info(statement.toString)
-          _ <- run(statement).provide(Has(cassandraZioSession))
-        } yield ()
-      }
     }
   }
 }

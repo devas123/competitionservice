@@ -14,7 +14,7 @@ import compman.compsrv.model.dto.dashboard.{MatDescriptionDTO, MatStateDTO}
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.mapping.DtoMapping
-import compman.compsrv.query.service.repository.{CompetitionQueryOperations, ManagedCompetitionsOperations, Pagination}
+import compman.compsrv.query.service.repository.{CompetitionQueryOperations, FightQueryOperations, ManagedCompetitionsOperations, Pagination}
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
 import io.getquill.{CassandraContextConfig, CassandraZioSession}
 import zio.{Ref, RIO, Tag, ZIO}
@@ -29,6 +29,8 @@ object CompetitionApiActor {
     private val cassandraZioSession =
       CassandraZioSession(cassandraConfig.cluster, cassandraConfig.keyspace, cassandraConfig.preparedStatementCacheSize)
     implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
+      .live(cassandraZioSession)
+    implicit val fightQueryOperations: FightQueryOperations[LIO] = FightQueryOperations
       .live(cassandraZioSession)
     implicit val managedCompetitionService: ManagedCompetitionService[LIO] = ManagedCompetitionsOperations
       .live(cassandraZioSession)
@@ -50,11 +52,13 @@ object CompetitionApiActor {
       competitionProperties,
       categories,
       competitors,
-      fights,
       periods,
       registrationPeriods,
       registrationGroups,
       stages
+    )
+    implicit val fightQueryOperations: FightQueryOperations[LIO] = FightQueryOperations.test(
+      fights,
     )
     implicit val managedCompetitionService: ManagedCompetitionService[LIO] = ManagedCompetitionsOperations
       .test(competitions)
@@ -63,6 +67,7 @@ object CompetitionApiActor {
   trait ActorContext {
     implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO]
     implicit val competitionQueryOperations: CompetitionQueryOperations[LIO]
+    implicit val fightQueryOperations: FightQueryOperations[LIO]
     implicit val managedCompetitionService: ManagedCompetitionService[LIO]
   }
 
@@ -167,7 +172,7 @@ object CompetitionApiActor {
               import extensions._
               for {
                 periods <- CompetitionQueryOperations[LIO].getPeriodsByCompetitionId(competitionId)
-                fighsByScheduleEntries <- CompetitionQueryOperations[LIO].getFightsByScheduleEntries(competitionId)
+                fighsByScheduleEntries <- FightQueryOperations[LIO].getFightsByScheduleEntries(competitionId)
                 mats = periods.flatMap(period => period.mats.map(DtoMapping.toDtoMat(period.id))).toArray
                 dtoPeriods = periods.map(DtoMapping.toDtoPeriod).map(_.enrichWithFightsByScheduleEntries(fighsByScheduleEntries)).toArray
               } yield (state, new ScheduleDTO().setId(competitionId).setMats(mats).setPeriods(dtoPeriods).asInstanceOf[A])
@@ -190,7 +195,7 @@ object CompetitionApiActor {
                 .map(res => (state, res.asInstanceOf[A]))
 
             case GetMatFights(competitionId, matId) => for {
-              fights <- CompetitionQueryOperations[LIO]
+              fights <- FightQueryOperations[LIO]
               .getFightsByMat(competitionId)(matId, 20)
               fightDtos = fights.map(DtoMapping.toDtoFight)
               competitors = fights.flatMap(_.scores).filter(_.competitorId.isDefined).map(cs => CompetitorDisplayInfo(cs.competitorId.orNull, cs.competitorFirstName, cs.competitorLastName, cs.competitorAcademyName))
@@ -204,23 +209,23 @@ object CompetitionApiActor {
                 categories <- CompetitionQueryOperations[LIO].getCategoriesByCompetitionId(competitionId)
                 categoryStates <- categories.traverse { category =>
                   for {
-                    numberOfFights <- CompetitionQueryOperations[LIO]
+                    numberOfFights <- FightQueryOperations[LIO]
                       .getNumberOfFightsForCategory(competitionId)(category.id)
                     numberOfCompetitors <- CompetitionQueryOperations[LIO]
                       .getNumberOfCompetitorsForCategory(competitionId)(category.id)
                   } yield createCategoryState(competitionId, category, numberOfFights, numberOfCompetitors)
                 }
               } yield (state, categoryStates.asInstanceOf[A])
-            case GetFightById(competitionId, categoryId, fightId) => CompetitionQueryOperations[LIO]
+            case GetFightById(competitionId, categoryId, fightId) => FightQueryOperations[LIO]
                 .getFightById(competitionId)(categoryId, fightId).map(_.map(DtoMapping.toDtoFight))
                 .map(res => (state, res.asInstanceOf[A]))
-            case GetFightIdsByCategoryIds(competitionId) => CompetitionQueryOperations[LIO]
+            case GetFightIdsByCategoryIds(competitionId) => FightQueryOperations[LIO]
                 .getFightIdsByCategoryIds(competitionId).map(res => (state, res.asInstanceOf[A]))
             case GetCategory(competitionId, categoryId) => for {
                 res <- (for {
                   category <- OptionT(CompetitionQueryOperations[LIO].getCategoryById(competitionId)(categoryId))
                   numberOfFights <- OptionT
-                    .liftF(CompetitionQueryOperations[LIO].getNumberOfFightsForCategory(competitionId)(category.id))
+                    .liftF(FightQueryOperations[LIO].getNumberOfFightsForCategory(competitionId)(category.id))
                   numberOfCompetitors <- OptionT.liftF(
                     CompetitionQueryOperations[LIO].getNumberOfCompetitorsForCategory(competitionId)(category.id)
                   )
@@ -237,8 +242,8 @@ object CompetitionApiActor {
                 )
                 mats = period.mats
                 res <- mats.traverse(mat => for {
-                  fights <- OptionT.liftF(CompetitionQueryOperations[LIO].getFightsByMat(competitionId)(mat.matId, 10))
-                  numberOfFights <- OptionT.liftF(CompetitionQueryOperations[LIO].getNumberOfFightsForMat(competitionId)(mat.matId))
+                  fights <- OptionT.liftF(FightQueryOperations[LIO].getFightsByMat(competitionId)(mat.matId, 10))
+                  numberOfFights <- OptionT.liftF(FightQueryOperations[LIO].getNumberOfFightsForMat(competitionId)(mat.matId))
                   competitors = fights.flatMap(_.scores).filter(_.competitorId.isDefined)
                     .map(cs => CompetitorDisplayInfo(cs.competitorId.get, cs.competitorFirstName, cs.competitorLastName, cs.competitorAcademyName))
                     .map(DtoMapping.toDtoCompetitor)
@@ -257,7 +262,7 @@ object CompetitionApiActor {
                 period <- CompetitionQueryOperations[LIO].getPeriodById(competitionId)(periodId)
                 mats = period.map(_.mats).getOrElse(List.empty).map(_.matId)
                 fights <- mats.traverse(mat =>
-                  CompetitionQueryOperations[LIO].getFightsByMat(competitionId)(mat, limit).map(mat -> _)
+                  FightQueryOperations[LIO].getFightsByMat(competitionId)(mat, limit).map(mat -> _)
                 )
               } yield (state, fights.asInstanceOf[A])
             case GetFightResulOptions(competitionId, categoryId, stageId) => for {
@@ -269,7 +274,7 @@ object CompetitionApiActor {
                 .getStagesByCategory(competitionId)(categoryId).map(res => (state, res.asInstanceOf[A]))
             case GetStageById(competitionId, categoryId, stageId) => CompetitionQueryOperations[LIO]
                 .getStageById(competitionId)(categoryId, stageId).map(res => (state, res.asInstanceOf[A]))
-            case GetStageFights(competitionId, categoryId, stageId) => CompetitionQueryOperations[LIO]
+            case GetStageFights(competitionId, categoryId, stageId) => FightQueryOperations[LIO]
                 .getFightsByStage(competitionId)(categoryId, stageId).map(_.map(DtoMapping.toDtoFight))
                 .map(res => (state, res.asInstanceOf[A]))
           }

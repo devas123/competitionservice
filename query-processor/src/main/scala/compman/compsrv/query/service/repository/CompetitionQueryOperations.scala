@@ -1,6 +1,5 @@
 package compman.compsrv.query.service.repository
 
-import cats.implicits._
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model._
@@ -8,16 +7,11 @@ import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import io.getquill.{CassandraZioContext, CassandraZioSession, EntityQuery, SnakeCase}
 import io.getquill.context.cassandra.encoding.{Decoders, Encoders}
 import zio.{Has, Ref, Task, ZIO}
-import zio.interop.catz._
-
 
 trait CompetitionQueryOperations[F[+_]] {
   def getCompetitionProperties(id: String): F[Option[CompetitionProperties]]
-  def getFightsByScheduleEntries(competitionId: String): F[List[FightByScheduleEntry]]
   def getCategoriesByCompetitionId(competitionId: String): F[List[Category]]
   def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): F[Int]
-  def getNumberOfFightsForCategory(competitionId: String)(categoryId: String): F[Int]
-  def getNumberOfFightsForMat(competitionId: String)(matId: String): F[Int]
 
   def getCompetitionInfoTemplate(competitionId: String): F[Option[CompetitionInfoTemplate]]
 
@@ -26,14 +20,6 @@ trait CompetitionQueryOperations[F[+_]] {
   def searchCategory(
     competitionId: String
   )(searchString: String, pagination: Option[Pagination]): F[(List[Category], Pagination)]
-
-  def getFightsByMat(competitionId: String)(matId: String, limit: Int): F[List[Fight]]
-
-  def getFightsByStage(competitionId: String)(categoryId: String, stageId: String): F[List[Fight]]
-
-  def getFightById(competitionId: String)(categoryId: String, id: String): F[Option[Fight]]
-  def getFightIdsByCategoryIds(competitionId: String): F[Map[String, List[String]]]
-  def getFightsByIds(competitionId: String)(categoryId: String, ids: Set[String]): F[List[Fight]]
 
   def getCompetitorById(competitionId: String)(id: String): F[Option[Competitor]]
 
@@ -80,16 +66,11 @@ object CompetitionQueryOperations {
     competitionProperties: Option[Ref[Map[String, CompetitionProperties]]] = None,
     categories: Option[Ref[Map[String, Category]]] = None,
     competitors: Option[Ref[Map[String, Competitor]]] = None,
-    fights: Option[Ref[Map[String, Fight]]] = None,
     periods: Option[Ref[Map[String, Period]]] = None,
     registrationPeriods: Option[Ref[Map[String, RegistrationPeriod]]] = None,
     registrationGroups: Option[Ref[Map[String, RegistrationGroup]]] = None,
     stages: Option[Ref[Map[String, StageDescriptor]]] = None
-  ): CompetitionQueryOperations[LIO] = new CompetitionQueryOperations[LIO] {
-    private def getById[T](map: Option[Ref[Map[String, T]]])(id: String): Task[Option[T]] = map match {
-      case Some(value) => value.get.map(_.get(id))
-      case None        => Task(None)
-    }
+  ): CompetitionQueryOperations[LIO] = new CompetitionQueryOperations[LIO] with CommonOperations {
 
     override def getCompetitionProperties(id: String): LIO[Option[CompetitionProperties]] =
       getById(competitionProperties)(id)
@@ -110,25 +91,6 @@ object CompetitionQueryOperations {
       competitionId: String
     )(searchString: String, pagination: Option[Pagination]): LIO[(List[Category], Pagination)] =
       getCategoriesByCompetitionId(competitionId).map(cats => (cats, Pagination(0, cats.size, cats.size)))
-
-    override def getFightsByMat(competitionId: String)(matId: String, limit: Int): LIO[List[Fight]] = fights match {
-      case Some(value) => value.get
-          .map(_.values.filter(f => f.competitionId == competitionId && f.matId.contains(matId)).toList)
-      case None => Task(List.empty)
-    }
-
-    override def getFightsByStage(competitionId: String)(categoryId: String, stageId: String): LIO[List[Fight]] =
-      fights match {
-        case Some(value) => value.get
-            .map(_.values.filter(f => f.competitionId == competitionId && f.stageId == stageId).toList)
-        case None => Task(List.empty)
-      }
-
-    override def getFightById(competitionId: String)(categoryId: String, id: String): LIO[Option[Fight]] =
-      getById(fights)(id)
-
-    override def getFightsByIds(competitionId: String)(categoryId: String, ids: Set[String]): LIO[List[Fight]] = ids
-      .toList.traverse(getById(fights)).map(_.mapFilter(identity))
 
     override def getCompetitorById(competitionId: String)(id: String): LIO[Option[Competitor]] =
       getById(competitors)(id)
@@ -196,53 +158,15 @@ object CompetitionQueryOperations {
     override def getPeriodById(competitionId: String)(id: String): LIO[Option[Period]] = getById(periods)(id)
 
     override def getStagesByCategory(competitionId: String)(categoryId: String): LIO[List[StageDescriptor]] =
-      stages match {
-        case Some(value) => value.get.map(_.values.toList.filter(_.categoryId == categoryId))
-        case None        => Task(List.empty)
-      }
+      getStagesByCategory(stages)(competitionId)(categoryId)
 
-    override def getStageById(competitionId: String)(cagtegoryId: String, id: String): LIO[Option[StageDescriptor]] = getById(stages)(id)
+    override def getStageById(competitionId: String)(cagtegoryId: String, id: String): LIO[Option[StageDescriptor]] =
+      getById(stages)(id)
 
     override def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): LIO[Int] = (for {
       cmtrs <- competitors
       result = cmtrs.get.map(_.values.count(_.categories.contains(categoryId)))
     } yield result).getOrElse(ZIO.effectTotal(0))
-
-    override def getNumberOfFightsForCategory(competitionId: String)(categoryId: String): LIO[Int] = for {
-      stages      <- getStagesByCategory(competitionId)(categoryId)
-      stageFights <- stages.traverse(s => getFightsByStage(competitionId)(categoryId, s.id))
-    } yield stageFights.flatten.size
-
-    override def getFightIdsByCategoryIds(competitionId: String): LIO[Map[String, List[String]]] = fights match {
-      case Some(value) => value.get.map(
-          _.values.filter(f => f.competitionId == competitionId).map(f => (f.categoryId, f.id)).groupMap(_._1)(_._2)
-            .view.mapValues(_.toList).toMap
-        )
-      case None => Task(Map.empty)
-    }
-
-    override def getFightsByScheduleEntries(competitionId: String): LIO[List[FightByScheduleEntry]] = fights
-      .map(_.get.map(_.filter(_._2.competitionId == competitionId).map(e => {
-        val scheduleEntry = e._2.scheduleEntryId.getOrElse("")
-        FightByScheduleEntry(
-          categoryId = e._2.categoryId,
-          scheduleEntryId = scheduleEntry,
-          competitionId = competitionId,
-          matId = e._2.matId,
-          fightId = e._2.id,
-          startTime = e._2.startTime,
-          periodId = e._2.periodId.getOrElse("")
-        )
-      }).toList)).getOrElse(Task(List.empty))
-
-    override def getNumberOfFightsForMat(competitionId: String)(matId: String): LIO[Int] = for {
-      compStages <- stages match {
-        case Some(value) => value.get.map(_.values.toList)
-        case None        => Task(List.empty)
-      }
-      stageFights <- compStages.traverse(s => getFightsByStage(competitionId)(s.categoryId, s.id))
-    } yield stageFights.flatten.size
-
   }
 
   def live(cassandraZioSession: CassandraZioSession)(implicit
@@ -317,54 +241,6 @@ object CompetitionQueryOperations {
       } yield (filtered.slice(drop, drop + take), Pagination(drop, take, resSize))
     }
 
-    override def getFightsByMat(competitionId: String)(matId: String, limit: Int): LIO[List[Fight]] = {
-      val select = quote {
-
-        (for { f <- query[Fight] if f.competitionId == lift(competitionId) && f.matId.contains(lift(matId)) } yield f)
-          .take(lift(limit)).allowFiltering
-
-      }
-      for {
-        _   <- log.info(select.toString)
-        res <- run(select).provide(Has(cassandraZioSession))
-      } yield res
-    }
-
-    override def getFightsByStage(competitionId: String)(categoryId: String, stageId: String): LIO[List[Fight]] = {
-      val select = quote {
-        query[Fight].filter(f =>
-          f.competitionId == lift(competitionId) && f.categoryId == lift(categoryId) && f.stageId == lift(stageId)
-        ).allowFiltering
-      }
-      for {
-        _   <- log.info(select.toString)
-        res <- run(select).provide(Has(cassandraZioSession))
-      } yield res
-    }
-
-    override def getFightById(competitionId: String)(categoryId: String, id: String): LIO[Option[Fight]] = {
-      val select = quote {
-        query[Fight]
-          .filter(f => f.competitionId == lift(competitionId) && f.categoryId == lift(categoryId) && f.id == lift(id))
-      }
-      for {
-        _   <- log.info(select.toString)
-        res <- run(select).provide(Has(cassandraZioSession)).map(_.headOption)
-      } yield res
-    }
-
-    override def getFightsByIds(competitionId: String)(categoryId: String, ids: Set[String]): LIO[List[Fight]] = {
-      val select = quote(query[Fight]).dynamic.filterIf(ids.nonEmpty)(f =>
-        quote(
-          f.competitionId == lift(competitionId) && f.categoryId == lift(categoryId) && liftQuery(ids).contains(f.id)
-        )
-      )
-      for {
-        _   <- log.info(select.toString)
-        res <- run(select).provide(Has(cassandraZioSession))
-      } yield res
-    }
-
     override def getCompetitorById(competitionId: String)(id: String): LIO[Option[Competitor]] = {
       val select = quote { query[Competitor].filter(f => f.competitionId == lift(competitionId) && f.id == lift(id)) }
       for {
@@ -376,9 +252,6 @@ object CompetitionQueryOperations {
     val competitorsByCompetitionId: ctx.Quoted[String => EntityQuery[Competitor]] = quote { (competitionId: String) =>
       query[Competitor].filter(_.competitionId == competitionId)
     }
-
-    val competitorsByCompetitionIdAndId: ctx.Quoted[(String, String) => EntityQuery[Competitor]] =
-      quote { (competitionId: String, id: String) => competitorsByCompetitionId(competitionId).filter(_.id == id) }
 
     val competitorsByCompetitionIdAndCategoryId: ctx.Quoted[(String, String) => EntityQuery[Competitor]] =
       quote { (competitionId: String, categoryId: String) =>
@@ -502,8 +375,11 @@ object CompetitionQueryOperations {
     }
 
     override def getStageById(competitionId: String)(categoryId: String, id: String): LIO[Option[StageDescriptor]] = {
-      val select =
-        quote { query[StageDescriptor].filter(rg => rg.competitionId == lift(competitionId) && rg.categoryId == lift(categoryId) && rg.id == lift(id)) }
+      val select = quote {
+        query[StageDescriptor].filter(rg =>
+          rg.competitionId == lift(competitionId) && rg.categoryId == lift(categoryId) && rg.id == lift(id)
+        )
+      }
       for {
         _   <- log.info(select.toString)
         res <- run(select).provide(Has(cassandraZioSession)).map(_.headOption)
@@ -519,50 +395,6 @@ object CompetitionQueryOperations {
         _   <- log.info(select.toString)
         res <- run(select).provide(Has(cassandraZioSession))
       } yield res.size
-    }
-
-    override def getNumberOfFightsForCategory(competitionId: String)(categoryId: String): LIO[Int] = {
-      val select = quote {
-        query[Fight].filter(f => f.competitionId == lift(competitionId) && f.categoryId == lift(categoryId)).size
-      }
-      for {
-        _   <- log.info(select.toString)
-        res <- run(select).provide(Has(cassandraZioSession))
-      } yield res.toInt
-
-    }
-
-    override def getNumberOfFightsForMat(competitionId: String)(matId: String): LIO[Int] = {
-      val select = quote {
-        query[Fight].filter(f => f.competitionId == lift(competitionId) && f.matId.contains(lift(matId))).map(_.id).allowFiltering
-      }
-      for {
-        _   <- log.info(select.toString)
-        res <- run(quote(select)).provide(Has(cassandraZioSession))
-      } yield res.size
-
-    }
-
-    override def getFightIdsByCategoryIds(competitionId: String): LIO[Map[String, List[String]]] = {
-      val select =
-        quote { query[Fight].filter(f => f.competitionId == lift(competitionId)).map(f => (f.categoryId, f.id)) }
-      for {
-        _   <- log.info(select.toString)
-        res <- run(select).provide(Has(cassandraZioSession))
-      } yield res.groupMap(_._1)(_._2)
-    }
-
-    override def getFightsByScheduleEntries(competitionId: String): LIO[List[FightByScheduleEntry]] = {
-      val select = quote {
-        query[Fight].filter(f => f.competitionId == lift(competitionId))
-          .map(f => (f.scheduleEntryId, f.categoryId, f.periodId, f.competitionId, f.matId, f.id, f.startTime))
-      }
-      for {
-        _   <- log.info(select.toString)
-        res <- run(select).provide(Has(cassandraZioSession))
-      } yield res.filter(t => t._1.isDefined && t._3.isDefined)
-        .map(t => (t._1.getOrElse(""), t._2, t._3.getOrElse(""), t._4, t._5, t._6, t._7))
-        .map(FightByScheduleEntry.tupled)
     }
   }
 
@@ -583,21 +415,6 @@ object CompetitionQueryOperations {
     competitionId: String
   )(searchString: String, pagination: Option[Pagination]): F[(List[Category], Pagination)] =
     CompetitionQueryOperations[F].searchCategory(competitionId)(searchString, pagination)
-
-  def getFightsByMat[F[+_]: CompetitionQueryOperations](
-    competitionId: String
-  )(matId: String, limit: Int): F[List[Fight]] = CompetitionQueryOperations[F]
-    .getFightsByMat(competitionId)(matId, limit)
-
-  def getFightsByStage[F[+_]: CompetitionQueryOperations](
-    competitionId: String
-  )(categoryId: String, stageId: String): F[List[Fight]] = CompetitionQueryOperations[F]
-    .getFightsByStage(competitionId)(categoryId, stageId)
-
-  def getFightById[F[+_]: CompetitionQueryOperations](
-    competitionId: String
-  )(categoryId: String, id: String): F[Option[Fight]] = CompetitionQueryOperations[F]
-    .getFightById(competitionId)(categoryId, id)
 
   def getCompetitorById[F[+_]: CompetitionQueryOperations](competitionId: String)(id: String): F[Option[Competitor]] =
     CompetitionQueryOperations[F].getCompetitorById(competitionId)(id)

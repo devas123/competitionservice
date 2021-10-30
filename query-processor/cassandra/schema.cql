@@ -136,6 +136,31 @@ create table if not exists query_service.fight
     primary key ( competition_id, category_id, id )
 );
 
+create table if not exists query_service.fight_by_mat
+(
+
+    id                varchar,
+    competition_id    varchar,
+    category_id       varchar,
+    stage_id          varchar,
+    mat_id            varchar,
+    mat_name          varchar,
+    mat_order         int,
+    duration_seconds  int,
+    status            varchar,
+    number_on_mat     int,
+    period_id         varchar,
+    start_time        timestamp,
+    invalid           boolean,
+    schedule_entry_id varchar,
+    priority          int,
+    brackets_info     query_service.brackets_info,
+    fight_result      query_service.fight_result,
+    scores            list<frozen<query_service.comp_score>>,
+    primary key ( competition_id, mat_id, number_on_mat )
+) with
+  clustering order by (number_on_mat ASC);
+
 CREATE TABLE if not exists query_service.managed_competition
 (
     id               varchar,

@@ -4,14 +4,14 @@ import cats.Monad
 import cats.data.OptionT
 import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, FightCompetitorsAssignedEvent}
-import compman.compsrv.query.service.repository.{CompetitionQueryOperations, CompetitionUpdateOperations}
+import compman.compsrv.query.service.repository.{FightQueryOperations, FightUpdateOperations}
 
 object FightCompetitorsAssignedProc {
   import cats.implicits._
-  def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations, P <: Payload]()
+  def apply[F[+_]: Monad: FightUpdateOperations: FightQueryOperations, P <: Payload]()
     : PartialFunction[Event[P], F[Unit]] = { case x: FightCompetitorsAssignedEvent => apply[F](x) }
 
-  private def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations](
+  private def apply[F[+_]: Monad: FightUpdateOperations: FightQueryOperations](
     event: FightCompetitorsAssignedEvent
   ): F[Unit] = {
     for {
@@ -21,7 +21,7 @@ object FightCompetitorsAssignedProc {
       assignments   <- OptionT.fromOption[F](Option(payload.getAssignments))
       fightIds = assignments.toList.flatMap(ass => (ass.getToFightId, ass.getFromFightId).toList).filter(_ != null)
         .toSet
-      fightsList <- OptionT.liftF(CompetitionQueryOperations[F].getFightsByIds(competitionId)(categoryId, fightIds))
+      fightsList <- OptionT.liftF(FightQueryOperations[F].getFightsByIds(competitionId)(categoryId, fightIds))
       fights = fightsList.groupMapReduce(_.id)(identity)((a, _) => a)
       updates = assignments.toList.mapFilter(ass =>
         for {
@@ -37,7 +37,7 @@ object FightCompetitorsAssignedProc {
           newScores = scores.filter(_.competitorId != newScore.competitorId) :+ newScore
         } yield toFight.copy(scores = newScores)
       }
-      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateFightScores(updates))
+      _ <- OptionT.liftF(FightUpdateOperations[F].updateFightScores(updates))
     } yield ()
   }.value.map(_ => ())
 }

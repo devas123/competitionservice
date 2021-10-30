@@ -6,20 +6,20 @@ import cats.implicits._
 import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, ScheduleDropped}
 import compman.compsrv.query.model.FightStartTimeUpdate
-import compman.compsrv.query.service.repository.{CompetitionQueryOperations, CompetitionUpdateOperations}
+import compman.compsrv.query.service.repository.{CompetitionUpdateOperations, FightQueryOperations, FightUpdateOperations}
 
 object ScheduleDroppedProc {
-  def apply[F[+_]: CompetitionQueryOperations: Monad: CompetitionUpdateOperations, P <: Payload]()
+  def apply[F[+_]: Monad: CompetitionUpdateOperations: FightQueryOperations: FightUpdateOperations, P <: Payload]()
     : PartialFunction[Event[P], F[Unit]] = { case x: ScheduleDropped => apply[F](x) }
 
-  private def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations](
+  private def apply[F[+_]: Monad: CompetitionUpdateOperations: FightQueryOperations: FightUpdateOperations](
     event: ScheduleDropped
   ): F[Unit] = {
     for {
       competitionId <- OptionT.fromOption[F](event.competitionId)
       _             <- OptionT.liftF(CompetitionUpdateOperations[F].removePeriods(competitionId))
-      fights        <- OptionT.liftF(CompetitionQueryOperations[F].getFightsByScheduleEntries(competitionId))
-      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateFightStartTime(fights.map(f =>
+      fights        <- OptionT.liftF(FightQueryOperations[F].getFightsByScheduleEntries(competitionId))
+      _ <- OptionT.liftF(FightUpdateOperations[F].updateFightStartTime(fights.map(f =>
         FightStartTimeUpdate(
           id = f.fightId,
           competitionId = f.competitionId,
