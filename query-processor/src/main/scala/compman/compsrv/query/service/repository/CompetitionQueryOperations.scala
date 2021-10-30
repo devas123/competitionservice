@@ -10,6 +10,7 @@ import io.getquill.context.cassandra.encoding.{Decoders, Encoders}
 import zio.{Has, Ref, Task, ZIO}
 import zio.interop.catz._
 
+
 trait CompetitionQueryOperations[F[+_]] {
   def getCompetitionProperties(id: String): F[Option[CompetitionProperties]]
   def getFightsByScheduleEntries(competitionId: String): F[List[FightByScheduleEntry]]
@@ -69,7 +70,7 @@ trait CompetitionQueryOperations[F[+_]] {
   def getPeriodById(competitionId: String)(id: String): F[Option[Period]]
 
   def getStagesByCategory(competitionId: String)(categoryId: String): F[List[StageDescriptor]]
-  def getStageById(competitionId: String)(id: String): F[Option[StageDescriptor]]
+  def getStageById(competitionId: String)(categoryId: String, id: String): F[Option[StageDescriptor]]
 }
 
 object CompetitionQueryOperations {
@@ -200,7 +201,7 @@ object CompetitionQueryOperations {
         case None        => Task(List.empty)
       }
 
-    override def getStageById(competitionId: String)(id: String): LIO[Option[StageDescriptor]] = getById(stages)(id)
+    override def getStageById(competitionId: String)(cagtegoryId: String, id: String): LIO[Option[StageDescriptor]] = getById(stages)(id)
 
     override def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): LIO[Int] = (for {
       cmtrs <- competitors
@@ -500,9 +501,9 @@ object CompetitionQueryOperations {
       } yield res
     }
 
-    override def getStageById(competitionId: String)(id: String): LIO[Option[StageDescriptor]] = {
+    override def getStageById(competitionId: String)(categoryId: String, id: String): LIO[Option[StageDescriptor]] = {
       val select =
-        quote { query[StageDescriptor].filter(rg => rg.competitionId == lift(competitionId) && rg.id == lift(id)) }
+        quote { query[StageDescriptor].filter(rg => rg.competitionId == lift(competitionId) && rg.categoryId == lift(categoryId) && rg.id == lift(id)) }
       for {
         _   <- log.info(select.toString)
         res <- run(select).provide(Has(cassandraZioSession)).map(_.headOption)

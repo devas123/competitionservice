@@ -116,7 +116,7 @@ object CompetitionApiActor {
   final case class GetPeriodFightsByMats(competitionId: String, periodId: String, limit: Int)
       extends ApiCommand[Map[String, List[String]]]
 
-  final case class GetFightResulOptions(competitionId: String, stageId: String) extends ApiCommand[List[FightResult]]
+  final case class GetFightResulOptions(competitionId: String, categoryId: String, stageId: String) extends ApiCommand[List[FightResult]]
 
   final case class GetStagesForCategory(competitionId: String, categoryId: String)
       extends ApiCommand[List[StageDescriptor]]
@@ -260,15 +260,15 @@ object CompetitionApiActor {
                   CompetitionQueryOperations[LIO].getFightsByMat(competitionId)(mat, limit).map(mat -> _)
                 )
               } yield (state, fights.asInstanceOf[A])
-            case GetFightResulOptions(competitionId, stageId) => for {
-                stage <- CompetitionQueryOperations[LIO].getStageById(competitionId)(stageId)
+            case GetFightResulOptions(competitionId, categoryId, stageId) => for {
+                stage <- CompetitionQueryOperations[LIO].getStageById(competitionId)(categoryId, stageId)
                 fightResultOptions = stage.flatMap(_.stageResultDescriptor).map(_.fightResultOptions)
                   .getOrElse(List.empty)
               } yield (state, fightResultOptions.asInstanceOf[A])
             case GetStagesForCategory(competitionId, categoryId) => CompetitionQueryOperations[LIO]
                 .getStagesByCategory(competitionId)(categoryId).map(res => (state, res.asInstanceOf[A]))
-            case GetStageById(competitionId, _, stageId) => CompetitionQueryOperations[LIO]
-                .getStageById(competitionId)(stageId).map(res => (state, res.asInstanceOf[A]))
+            case GetStageById(competitionId, categoryId, stageId) => CompetitionQueryOperations[LIO]
+                .getStageById(competitionId)(categoryId, stageId).map(res => (state, res.asInstanceOf[A]))
             case GetStageFights(competitionId, categoryId, stageId) => CompetitionQueryOperations[LIO]
                 .getFightsByStage(competitionId)(categoryId, stageId).map(_.map(DtoMapping.toDtoFight))
                 .map(res => (state, res.asInstanceOf[A]))

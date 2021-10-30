@@ -69,8 +69,8 @@ object CompetitionHttpApiService {
       sendApiCommandAndReturnResponse(apiActor, GetStageById(id, categoryId, stageId))
     case GET -> Root / "competition" / id / "category" / categoryId / "stage" / stageId / "fight" =>
       sendApiCommandAndReturnResponse(apiActor, GetStageFights(id, categoryId, stageId))
-    case GET -> Root / "competition" / id / "stage" / stageId / "resultoptions" =>
-      sendApiCommandAndReturnResponse(apiActor, GetFightResulOptions(id, stageId))
+    case GET -> Root / "competition" / id / "category" / categoryId / "stage" / stageId / "resultoptions" =>
+      sendApiCommandAndReturnResponse(apiActor, GetFightResulOptions(id, categoryId, stageId))
     case GET -> Root / "competition" / id / "mat" => sendApiCommandAndReturnResponse(apiActor, GetMats(id))
     case GET -> Root / "competition" / id / "mat" / matId =>
       sendApiCommandAndReturnResponse(apiActor, GetMat(id, matId))
