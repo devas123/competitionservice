@@ -7,10 +7,12 @@ import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model.{CommandProcessorNotification, CompetitionProcessingStarted, CompetitionProcessingStopped}
 import compman.compsrv.model.events.payload.CompetitionPropertiesUpdatedPayload
 import compman.compsrv.query.model.ManagedCompetition
-import compman.compsrv.query.sede.ObjectMapperFactory
+import compman.compsrv.query.serde.ObjectMapperFactory
 import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
+import org.mongodb.scala.MongoClient
+
 import io.getquill.CassandraZioSession
 import zio.{Fiber, Ref, RIO, Tag, Task, ZIO}
 import zio.clock.Clock
@@ -31,11 +33,11 @@ object CompetitionEventListenerSupervisor {
     implicit val managedCompetitionsOperations: ManagedCompetitionService[LIO]
   }
 
-  case class Live(cassandraZioSession: CassandraZioSession) extends ActorContext {
+  case class Live(mongoclient: MongoClient) extends ActorContext {
     override implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO] = compman.compsrv
       .logic.logging.CompetitionLogging.Live.live[Any]
     override implicit val managedCompetitionsOperations: ManagedCompetitionService[LIO] = ManagedCompetitionsOperations
-      .live(cassandraZioSession)
+      .live(mongoclient)
   }
 
   case class Test(competitions: Ref[Map[String, ManagedCompetition]]) extends ActorContext {

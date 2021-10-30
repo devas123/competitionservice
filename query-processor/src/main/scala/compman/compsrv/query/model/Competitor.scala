@@ -1,7 +1,6 @@
 package compman.compsrv.query.model
 
 import compman.compsrv.model.dto.competition.CompetitorRegistrationStatus
-import io.getquill.Udt
 
 import java.time.Instant
 
@@ -27,4 +26,4 @@ case class Competitor(
   registrationStatus: Option[CompetitorRegistrationStatus]
 )
 
-case class Academy(academyId: String, academyName: String) extends Udt
+case class Academy(academyId: String, academyName: String)

@@ -1,13 +1,9 @@
 package compman.compsrv.query
 import cats.effect
+import com.mongodb.connection.ClusterSettings
 import compman.compsrv.logic.actors.ActorSystem
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.logic.actors.behavior.{
-  CompetitionApiActor,
-  CompetitionEventListener,
-  CompetitionEventListenerSupervisor,
-  WebsocketConnectionSupervisor
-}
+import compman.compsrv.logic.actors.behavior.{CompetitionApiActor, CompetitionEventListener, CompetitionEventListenerSupervisor, WebsocketConnectionSupervisor}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.logError
 import compman.compsrv.query.config.AppConfig
@@ -15,7 +11,6 @@ import compman.compsrv.query.service.{CompetitionHttpApiService, WebsocketServic
 import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO
 import compman.compsrv.query.service.kafka.EventStreamingService
 import fs2.concurrent.SignallingRef
-import io.getquill.CassandraZioSession
 import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.server.Router
 import zio._
@@ -26,13 +21,24 @@ import zio.kafka.consumer.ConsumerSettings
 import zio.logging.Logging
 
 import java.nio.file.{Files, Path}
+import scala.jdk.CollectionConverters._
 
 object QueryServiceMain extends zio.App {
 
+  import org.mongodb.scala._
+
+
   def server(args: List[String]): ZIO[zio.ZEnv with Clock with Logging, Throwable, Unit] = for {
-    (config, cassandraConfig) <- AppConfig.load()
-    cassandraZioSession <- ZIO.effect(
-      CassandraZioSession(cassandraConfig.cluster, cassandraConfig.keyspace, cassandraConfig.preparedStatementCacheSize)
+    (config, mongodbConfig) <- AppConfig.load()
+    credential <- ZIO.effect(
+      MongoCredential.createCredential(mongodbConfig.username, mongodbConfig.authenticationDb, mongodbConfig.password.toCharArray)
+    )
+    mongoDbSession <- ZIO.effect(
+      MongoClient(
+        MongoClientSettings.builder()
+          .credential(credential)
+          .applyToClusterSettings((builder: ClusterSettings.Builder) => builder.hosts(List(new ServerAddress(mongodbConfig.host)).asJava))
+          .build())
     )
     actorSystem <- ActorSystem("queryServiceActorSystem")
     webSocketSupervisor <- actorSystem.make(
@@ -48,8 +54,8 @@ object QueryServiceMain extends zio.App {
       CompetitionEventListenerSupervisor.behavior(
         EventStreamingService.live(ConsumerSettings(config.consumer.brokers).withGroupId(config.consumer.groupId)),
         config.competitionEventListener.competitionNotificationsTopic,
-        CompetitionEventListenerSupervisor.Live(cassandraZioSession),
-        CompetitionEventListener.Live(cassandraZioSession),
+        CompetitionEventListenerSupervisor.Live(mongoDbSession),
+        CompetitionEventListener.Live(mongoDbSession),
         webSocketSupervisor
       )
     )
@@ -57,7 +63,7 @@ object QueryServiceMain extends zio.App {
       "queryApiActor",
       ActorConfig(),
       CompetitionApiActor.initialState,
-      CompetitionApiActor.behavior[ZEnv](CompetitionApiActor.Live(cassandraConfig))
+      CompetitionApiActor.behavior[ZEnv](CompetitionApiActor.Live(mongodbConfig))
     )
     signal <- SignallingRef[ServiceIO, Boolean](false)
     _ <- (for {

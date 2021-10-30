@@ -1,7 +1,6 @@
 package compman.compsrv.query.model
 
 import compman.compsrv.model.dto.competition.CategoryRestrictionType
-import io.getquill.Udt
 
 case class Category(
   id: String,
@@ -21,4 +20,4 @@ case class Restriction(
                         maxValue: Option[String],
                         unit: Option[String],
                         restrictionOrder: Int
-) extends Udt
+)

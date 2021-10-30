@@ -1,4 +1,4 @@
-package compman.compsrv.query.sede
+package compman.compsrv.query.serde
 
 import com.fasterxml.jackson.core.{JsonParser, TreeNode}
 import com.fasterxml.jackson.databind.DeserializationContext

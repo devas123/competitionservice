@@ -1,4 +1,4 @@
-package compman.compsrv.query.sede
+package compman.compsrv.query.serde
 
 import com.fasterxml.jackson.annotation.{JsonAutoDetect, JsonInclude, PropertyAccessor}
 import com.fasterxml.jackson.databind.{DeserializationFeature, ObjectMapper, SerializationFeature}

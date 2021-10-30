@@ -6,7 +6,7 @@ import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import CompetitionApiActor.Test
 import compman.compsrv.logic.actors.ActorSystem
 import compman.compsrv.query.model.ManagedCompetition
-import compman.compsrv.query.sede.ObjectMapperFactory
+import compman.compsrv.query.serde.ObjectMapperFactory
 import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO
 import compman.compsrv.query.service.repository.TestEntities
 import org.http4s._

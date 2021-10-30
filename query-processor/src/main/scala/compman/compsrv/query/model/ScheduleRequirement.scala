@@ -20,4 +20,4 @@ case class ScheduleRequirement(
   endTime: Option[Date],
   durationSeconds: Option[Int],
   entryOrder: Option[Int]
-) extends Udt
+)

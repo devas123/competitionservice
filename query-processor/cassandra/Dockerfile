@@ -1,6 +1,7 @@
 FROM cassandra:latest
 
 COPY schema.cql docker-entrypoint-initdb.d/
+COPY cassandra.yml /etc/cassandra/
 
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 COPY init_db.sh /init_db.sh

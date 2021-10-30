@@ -25,7 +25,8 @@ dependencies {
     Libraries.zioConfig.forEach { implementation(it) }
     Libraries.zioKafka.forEach { implementation(it) }
     Libraries.http4s.forEach { implementation(it) }
-    Libraries.quill.forEach { implementation(it) }
+    Libraries.mongoDb.forEach { implementation(it) }
+    Libraries.embeddedMongodb.forEach { testImplementation(it) }
     implementation(project(":competition-serv-model"))
     implementation(project(":compservice-annotations"))
     implementation(project(":command-processor:commons"))
@@ -39,8 +40,6 @@ dependencies {
             version = version
         )
     }
-    Libraries.embeddedCassandra.forEach { testImplementation(it) }
-    testImplementation("com.datastax.oss:java-driver-core:4.13.0")
     testImplementation("org.scalatest:scalatest_$scalaBinary:3.2.8")
     testRuntimeOnly("com.vladsch.flexmark:flexmark-all:0.35.10")
     scalaCompilerPlugins("org.typelevel:kind-projector_2.13.5:0.13.2")

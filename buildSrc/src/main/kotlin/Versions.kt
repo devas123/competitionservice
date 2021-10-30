@@ -15,16 +15,16 @@ object Versions {
     const val kafka = "2.8.1"
     const val rocksdb: String = "6.13.3"
     const val http4s: String = "1.0.0-M27"
-    const val quill: String = "3.10.0"
-    const val embeddedCassandra: String = "4.0.6"
+    const val mongodb: String = "4.3.3"
+    const val embeddedMongodb: String = "3.1.4"
 }
 
 data class Dep(val group: String, val artifactId: String, val version: String, val classifier: String)
 
 object Libraries {
 
-    val embeddedCassandra = listOf(
-        "com.github.nosan:embedded-cassandra:${Versions.embeddedCassandra}"
+    val embeddedMongodb = listOf(
+        "de.flapdoodle.embed:de.flapdoodle.embed.mongo:${Versions.embeddedMongodb}"
     )
     val http4s = listOf(
         "org.http4s:http4s-dsl_${scalaBinary}:${Versions.http4s}",
@@ -35,8 +35,8 @@ object Libraries {
         "org.rocksdb:rocksdbjni:${Versions.rocksdb}"
     )
 
-    val quill = listOf(
-        "io.getquill:quill-cassandra-zio_${scalaBinary}:${Versions.quill}"
+    val mongoDb = listOf(
+        "org.mongodb.scala:mongo-scala-driver_${scalaBinary}:${Versions.mongodb}"
     )
 
     val zio = listOf(

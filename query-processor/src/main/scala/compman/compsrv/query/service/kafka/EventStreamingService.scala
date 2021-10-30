@@ -1,7 +1,7 @@
 package compman.compsrv.query.service.kafka
 
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.query.sede.SerdeApi
+import compman.compsrv.query.serde.SerdeApi
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.TopicPartition
 import zio.{Chunk, Has, RIO, Task, ZIO, ZLayer}

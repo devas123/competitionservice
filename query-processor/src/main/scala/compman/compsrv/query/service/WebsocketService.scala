@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.logic.actors.behavior.WebsocketConnectionSupervisor
 import compman.compsrv.logic.actors.ActorRef
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.query.sede.ObjectMapperFactory
+import compman.compsrv.query.serde.ObjectMapperFactory
 import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO
 import org.http4s.HttpRoutes
 import org.http4s.dsl.Http4sDsl

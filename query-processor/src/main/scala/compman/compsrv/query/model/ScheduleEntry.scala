@@ -21,4 +21,4 @@ case class ScheduleEntry(
   numberOfFights: Option[Int],
   entryDuration: Option[Int],
   entryOrder: Int
-) extends Udt
+)

@@ -12,7 +12,7 @@ import compman.compsrv.model.event.Events.CompetitionPropertiesUpdatedEvent
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.payload.CompetitionPropertiesUpdatedPayload
 import compman.compsrv.query.model._
-import compman.compsrv.query.sede.ObjectMapperFactory
+import compman.compsrv.query.serde.ObjectMapperFactory
 import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
 import compman.compsrv.query.service.repository._

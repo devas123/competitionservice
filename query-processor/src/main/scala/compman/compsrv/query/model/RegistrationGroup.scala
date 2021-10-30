@@ -1,6 +1,5 @@
 package compman.compsrv.query.model
 
-import io.getquill.Udt
 
 case class RegistrationInfo(registrationGroups: List[RegistrationGroup], registrationPeriods: List[RegistrationPeriod])
 
@@ -12,4 +11,4 @@ case class RegistrationGroup(
   categories: Set[String]
 )
 
-case class RegistrationFee(currency: String, amount: Int, remainder: Option[Int]) extends Udt
+case class RegistrationFee(currency: String, amount: Int, remainder: Option[Int])

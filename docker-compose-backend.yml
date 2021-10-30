@@ -4,8 +4,8 @@ services:
     image: query-processor:latest
     environment:
       - KAFKA_BROKERS=broker:29092
-      - CASSANDRA_HOST=cassandra
-      - CASSANDRA_PORT=9042
+      - MONGO_DB_HOST=mongo
+      - MONGO_DB_PORT=27017
     networks:
       compsrv_backend:
     deploy:
@@ -46,22 +46,26 @@ services:
       - broker
 
 
-  cassandra:
-    image: compsrv-cassandra:latest
-    container_name: compsrv-cassandra
+  mongo:
+    image: mongo
+    restart: unless-stopped
     ports:
-      - "9042:9042"
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
     volumes:
-      - ./app-data/cassandra:/var/lib/cassandra
-      - ./app-data/logs:/var/log/cassandra
-    networks:
-      compsrv_backend:
-    deploy:
-      resources:
-        limits:
-          memory: 2GB
-        reservations:
-          memory: 1GB
+      - query_processor_db:/data/db
+
+  mongo-express:
+    image: mongo-express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: example
+      ME_CONFIG_MONGODB_URL: mongodb://root:example@mongo:27017/
 
   zookeeper:
     image: confluentinc/cp-zookeeper:6.2.1

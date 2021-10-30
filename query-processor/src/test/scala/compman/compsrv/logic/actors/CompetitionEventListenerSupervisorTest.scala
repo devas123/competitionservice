@@ -7,7 +7,7 @@ import compman.compsrv.model.CompetitionProcessingStarted
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.query.kafka.EmbeddedKafkaBroker
 import compman.compsrv.query.model._
-import compman.compsrv.query.sede.{ObjectMapperFactory, SerdeApi}
+import compman.compsrv.query.serde.{ObjectMapperFactory, SerdeApi}
 import compman.compsrv.query.service.kafka.EventStreamingService
 import zio.{Ref, URIO, ZIO}
 import zio.blocking.Blocking

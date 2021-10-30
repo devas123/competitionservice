@@ -1,4 +1,4 @@
-package compman.compsrv.query.sede
+package compman.compsrv.query.serde
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.model.commands.CommandDTO
