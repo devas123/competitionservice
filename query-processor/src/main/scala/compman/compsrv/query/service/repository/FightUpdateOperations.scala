@@ -4,8 +4,6 @@ import cats.implicits._
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model.{Fight, FightStartTimeUpdate}
-import io.getquill.{CassandraZioContext, CassandraZioSession, SnakeCase}
-import io.getquill.context.cassandra.encoding.{Decoders, Encoders}
 import zio.{Has, Ref, ZIO}
 import zio.interop.catz._
 
@@ -24,7 +22,7 @@ object FightUpdateOperations {
   def apply[F[+_]](implicit F: FightUpdateOperations[F]): FightUpdateOperations[F] = F
 
   def test(fights: Option[Ref[Map[String, Fight]]] = None): FightUpdateOperations[LIO] = new FightUpdateOperations[LIO]
-    with CommonOperations {
+    with CommonTestOperations {
     override def removeFightsForCategory(competitionId: String)(categoryId: String): LIO[Unit] = fights
       .map(_.update(fs => fs.filter(f => f._2.categoryId != categoryId))).getOrElse(ZIO.unit)
 

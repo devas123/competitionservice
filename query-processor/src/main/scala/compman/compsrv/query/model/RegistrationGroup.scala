@@ -1,7 +1,7 @@
 package compman.compsrv.query.model
 
 
-case class RegistrationInfo(registrationGroups: List[RegistrationGroup], registrationPeriods: List[RegistrationPeriod])
+case class RegistrationInfo(registrationGroups: Map[String, RegistrationGroup], registrationPeriods: Map[String, RegistrationPeriod])
 
 case class RegistrationGroup(
   competitionId: String,

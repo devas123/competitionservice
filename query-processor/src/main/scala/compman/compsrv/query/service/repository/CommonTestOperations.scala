@@ -4,7 +4,7 @@ import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model.{CompetitionProperties, StageDescriptor}
 import zio.{IO, Ref, Task, ZIO}
 
-trait CommonOperations {
+trait CommonTestOperations {
   def getById[T](map: Option[Ref[Map[String, T]]])(id: String): Task[Option[T]] = map match {
     case Some(value) => value.get.map(_.get(id))
     case None        => Task(None)

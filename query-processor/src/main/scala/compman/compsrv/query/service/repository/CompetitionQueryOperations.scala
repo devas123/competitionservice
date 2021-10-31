@@ -4,7 +4,7 @@ import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
-import org.mongodb.scala.{FindObservable, MongoClient, MongoCollection, Observable}
+import org.mongodb.scala.{FindObservable, MongoClient, Observable}
 import org.mongodb.scala.model.Filters._
 import zio.{Ref, RIO, Task, ZIO}
 
@@ -70,7 +70,7 @@ object CompetitionQueryOperations {
     registrationPeriods: Option[Ref[Map[String, RegistrationPeriod]]] = None,
     registrationGroups: Option[Ref[Map[String, RegistrationGroup]]] = None,
     stages: Option[Ref[Map[String, StageDescriptor]]] = None
-  ): CompetitionQueryOperations[LIO] = new CompetitionQueryOperations[LIO] with CommonOperations {
+  ): CompetitionQueryOperations[LIO] = new CompetitionQueryOperations[LIO] with CommonTestOperations {
 
     override def getCompetitionProperties(id: String): LIO[Option[CompetitionProperties]] =
       getById(competitionProperties)(id)
@@ -169,33 +169,15 @@ object CompetitionQueryOperations {
     } yield result).getOrElse(ZIO.effectTotal(0))
   }
 
-  def live(mongoClient: MongoClient, dbName: String)(implicit
+  def live(mongo: MongoClient, name: String)(implicit
     log: CompetitionLogging.Service[LIO]
-  ): CompetitionQueryOperations[LIO] = new CompetitionQueryOperations[LIO] {
+  ): CompetitionQueryOperations[LIO] = new CompetitionQueryOperations[LIO] with CommonLiveOperations {
 
-    private final val competitionStateCollectionName = "competition_state"
+    override def mongoClient: MongoClient = mongo
 
-    private final val competitorsCollectionName = "competitor"
+    override def dbName: String = name
 
-    private final val fightsCollectionName = "fight"
-
-    import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
-    import org.mongodb.scala.bson.codecs.Macros._
-    import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
-
-    private val codecRegistry = fromRegistries(
-      fromProviders(classOf[CompetitionState]),
-      fromProviders(classOf[Competitor]),
-      fromProviders(classOf[Fight]),
-      DEFAULT_CODEC_REGISTRY
-    )
-    private val database = mongoClient.getDatabase(dbName).withCodecRegistry(codecRegistry)
-    private val competitionStateCollection: MongoCollection[CompetitionState] = database
-      .getCollection(competitionStateCollectionName)
-    private val competitorCollection: MongoCollection[Competitor] = database.getCollection(competitorsCollectionName)
-    private val fightCollection: MongoCollection[Fight]           = database.getCollection(fightsCollectionName)
-
-    private val idField = "id"
+    override def idField: String = "id"
 
     override def getCompetitionProperties(id: String): LIO[Option[CompetitionProperties]] = {
       val select = competitionStateCollection.find(equal(idField, id)).map(_.properties)
@@ -207,7 +189,7 @@ object CompetitionQueryOperations {
       for {
         _   <- log.info(select.toString)
         res <- RIO.fromFuture(_ => select.head())
-      } yield res
+      } yield res.values.toList
     }
 
     override def getCompetitionInfoTemplate(competitionId: String): LIO[Option[CompetitionInfoTemplate]] = {
@@ -221,7 +203,7 @@ object CompetitionQueryOperations {
       for {
         _   <- log.info(select.toString)
         res <- RIO.fromFuture(_ => select.head())
-      } yield res.headOption
+      } yield res.headOption.map(_._2)
     }
 
     override def searchCategory(
@@ -235,8 +217,8 @@ object CompetitionQueryOperations {
         res <- RIO.fromFuture(_ => select.head())
       } yield (
         res.categories.filter(c =>
-          searchString == null || searchString.isBlank || c.restrictions.exists(_.name.exists(_.matches(searchString)))
-        ).slice(drop, drop + take),
+          searchString == null || searchString.isBlank || c._2.restrictions.exists(_.name.exists(_.matches(searchString)))
+        ).slice(drop, drop + take).values.toList,
         pagination.getOrElse(Pagination(0, res.categories.size, res.categories.size))
       )
     }
@@ -308,7 +290,7 @@ object CompetitionQueryOperations {
 
     override def getScheduleEntriesByPeriodId(competitionId: String)(periodId: String): LIO[List[ScheduleEntry]] = {
       for { res <- getStateById(competitionId) } yield res match {
-        case Some(value) => value.periods.find(_.id == periodId).map(_.scheduleEntries).getOrElse(List.empty)
+        case Some(value) => value.periods.get(periodId).map(_.scheduleEntries).getOrElse(List.empty)
         case None        => List.empty
       }
     }
@@ -317,21 +299,21 @@ object CompetitionQueryOperations {
       competitionId: String
     )(periodId: String): LIO[List[ScheduleRequirement]] = {
       for { res <- getStateById(competitionId) } yield res match {
-        case Some(value) => value.periods.find(_.id == periodId).map(_.scheduleRequirements).getOrElse(List.empty)
+        case Some(value) => value.periods.get(periodId).map(_.scheduleRequirements).getOrElse(List.empty)
         case None        => List.empty
       }
     }
 
     override def getPeriodsByCompetitionId(competitionId: String): LIO[List[Period]] = {
       for { res <- getStateById(competitionId) } yield res match {
-        case Some(value) => value.periods
+        case Some(value) => value.periods.values.toList
         case None        => List.empty
       }
     }
 
     override def getPeriodById(competitionId: String)(id: String): LIO[Option[Period]] = {
       for { res <- getStateById(competitionId) } yield res match {
-        case Some(value) => value.periods.find(_.id == id)
+        case Some(value) => value.periods.get(id)
         case None        => None
       }
     }
@@ -340,7 +322,7 @@ object CompetitionQueryOperations {
       val select = competitionStateCollection
         .find(and(equal(idField, competitionId), equal("stages.categoryId", categoryId)))
       for { res <- RIO.fromFuture(_ => select.headOption()) } yield res match {
-        case Some(value) => value.stages.filter(_.categoryId == categoryId)
+        case Some(value) => value.stages.values.filter(_.categoryId == categoryId).toList
         case None        => List.empty
       }
     }
@@ -348,7 +330,7 @@ object CompetitionQueryOperations {
     override def getStageById(competitionId: String)(categoryId: String, id: String): LIO[Option[StageDescriptor]] = {
       val select = competitionStateCollection.find(and(equal(idField, competitionId), equal("stages.id", id)))
       for { res <- RIO.fromFuture(_ => select.headOption()) } yield res match {
-        case Some(value) => value.stages.find(_.id == id)
+        case Some(value) => value.stages.get(id)
         case None        => None
       }
     }

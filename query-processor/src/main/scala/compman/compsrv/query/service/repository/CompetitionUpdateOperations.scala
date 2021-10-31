@@ -5,9 +5,8 @@ import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
-import io.getquill._
-import io.getquill.context.cassandra.encoding.{Decoders, Encoders}
-import zio.{Has, Ref, ZIO}
+import org.mongodb.scala.{Document, MongoClient}
+import zio.{Ref, RIO, ZIO}
 
 trait CompetitionUpdateOperations[F[+_]] {
   def updateRegistrationOpen(competitionId: String)(isOpen: Boolean): F[Unit]
@@ -56,7 +55,7 @@ object CompetitionUpdateOperations {
     registrationPeriods: Option[Ref[Map[String, RegistrationPeriod]]] = None,
     registrationGroups: Option[Ref[Map[String, RegistrationGroup]]] = None,
     stages: Option[Ref[Map[String, StageDescriptor]]] = None
-  ): CompetitionUpdateOperations[LIO] = new CompetitionUpdateOperations[LIO] with CommonOperations {
+  ): CompetitionUpdateOperations[LIO] = new CompetitionUpdateOperations[LIO] with CommonTestOperations {
 
     override def updateRegistrationOpen(competitionId: String)(isOpen: Boolean): LIO[Unit] = {
       comPropsUpdate(competitionProperties)(competitionId)(_.copy(registrationOpen = isOpen))
@@ -144,312 +143,182 @@ object CompetitionUpdateOperations {
       .map(_.update(s => s.filter(_._2.categoryId != categoryId))).getOrElse(ZIO.unit)
   }
 
-  def live(cassandraZioSession: CassandraZioSession)(implicit
+  def live(mongo: MongoClient, name: String)(implicit
     log: CompetitionLogging.Service[LIO]
-  ): CompetitionUpdateOperations[LIO] = new CompetitionUpdateOperations[LIO] {
-    private lazy val ctx =
-      new CassandraZioContext(SnakeCase) with CustomDecoders with CustomEncoders with Encoders with Decoders
-    import ctx._
+  ): CompetitionUpdateOperations[LIO] = new CompetitionUpdateOperations[LIO] with CommonLiveOperations {
 
+    override def mongoClient: MongoClient = mongo
+
+    override def dbName: String = name
+
+    override def idField: String = "id"
+    import org.mongodb.scala.model.Filters._
+    import org.mongodb.scala.model.Updates._
     override def updateRegistrationOpen(competitionId: String)(isOpen: Boolean): LIO[Unit] = {
-      val statement = quote {
-        query[CompetitionProperties].filter(_.id == lift(competitionId)).update(_.registrationOpen -> lift(isOpen))
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, competitionId), set("properties.registrationOpen", isOpen))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addCompetitionProperties(competitionProperties: CompetitionProperties): LIO[Unit] = {
-      val statement = quote { query[CompetitionProperties].insert(liftCaseClass(competitionProperties)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection.insertOne(
+        CompetitionState(competitionProperties.id, competitionProperties, Map.empty, Map.empty, Map.empty, None)
+      )
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def updateCompetitionProperties(competitionProperties: CompetitionProperties): LIO[Unit] = {
-      val statement = quote {
-        query[CompetitionProperties].filter(_.id == lift(competitionProperties.id))
-          .update(
-            _.staffIds -> lift(competitionProperties.staffIds),
-            _.competitionName -> lift(competitionProperties.competitionName),
-            _.startDate -> lift(competitionProperties.startDate),
-            _.schedulePublished -> lift(competitionProperties.schedulePublished),
-            _.bracketsPublished -> lift(competitionProperties.bracketsPublished),
-            _.endDate -> lift(competitionProperties.endDate),
-            _.timeZone -> lift(competitionProperties.timeZone),
-            _.registrationOpen -> lift(competitionProperties.registrationOpen),
-            _.status -> lift(competitionProperties.status)
-          )
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, competitionProperties.id), set("properties", competitionProperties))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def removeCompetitionProperties(id: String): LIO[Unit] = {
-      val remove = quote { query[CompetitionProperties].filter(_.id == lift(id)).delete }
-      for {
-        _ <- log.info(remove.toString)
-        _ <- run(remove).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection.deleteOne(equal(idField, id))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addCompetitionInfoTemplate(
       competitionId: String
     )(competitionInfoTemplate: CompetitionInfoTemplate): LIO[Unit] = {
-      val statement = quote {
-        query[CompetitionProperties].filter(_.id == lift(competitionId))
-          .update(_.infoTemplate.template -> lift(competitionInfoTemplate.template))
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, competitionId), set("properties.infoTemplate", competitionInfoTemplate))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def removeCompetitionInfoTemplate(competitionId: String): LIO[Unit] =
       addCompetitionInfoTemplate(competitionId)(CompetitionInfoTemplate(Array.empty))
 
     override def addStage(stageDescriptor: StageDescriptor): LIO[Unit] = {
-      val statement = quote { query[StageDescriptor].insert(liftCaseClass(stageDescriptor)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection.findOneAndUpdate(
+        equal(idField, stageDescriptor.competitionId),
+        set(s"properties.stages.${stageDescriptor.id}", stageDescriptor)
+      )
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
-    override def updateStage(stageDescriptor: StageDescriptor): LIO[Unit] = {
-      val statement = quote {
-        query[StageDescriptor].filter(s =>
-          s.competitionId == lift(stageDescriptor.competitionId) && s.categoryId == lift(stageDescriptor.categoryId) &&
-            s.id == lift(stageDescriptor.id)
-        ).update(liftCaseClass(stageDescriptor))
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-    }
+    override def updateStage(stageDescriptor: StageDescriptor): LIO[Unit] = addStage(stageDescriptor)
 
     override def removeStages(competition: String)(categoryId: String): LIO[Unit] = {
-      val statement = quote {
-        query[StageDescriptor].filter(s => s.competitionId == lift(competition) && s.categoryId == lift(categoryId))
-          .delete
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, competition), set(s"properties.stages", Document()))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def updateStageStatus(
       competitionId: String
     )(categoryId: String, stageId: String, newStatus: StageStatus): LIO[Unit] = {
-      val statement = quote {
-        query[StageDescriptor].filter(s =>
-          s.competitionId == lift(competitionId) && s.categoryId == lift(categoryId) && s.id == lift(stageId)
-        ).update(_.stageStatus -> lift(newStatus))
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, competitionId), set(s"properties.stages.$stageId.stageStatus", newStatus))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addCategory(category: Category): LIO[Unit] = {
-      val statement = quote { query[Category].insert(liftCaseClass(category)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection.findOneAndUpdate(
+        equal(idField, category.competitionId),
+        set(s"properties.categories.${category.id}", category)
+      )
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def updateCategoryRegistrationStatus(competitionId: String)(id: String, newStatus: Boolean): LIO[Unit] = {
-      val statement = quote { query[Category].filter(_.id == lift(id)).update(_.registrationOpen -> lift(newStatus)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, competitionId), set(s"properties.categories.$id.registrationOpen", newStatus))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def removeCategory(competitionId: String)(id: String): LIO[Unit] = {
-      val statement =
-        quote { query[Category].filter(c => c.competitionId == lift(competitionId) && c.id == lift(id)).delete }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, competitionId), unset(s"properties.categories.$id"))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addCompetitor(competitor: Competitor): LIO[Unit] = {
-      val statement = quote { query[Competitor].insert(liftCaseClass(competitor)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitorCollection.insertOne(competitor)
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def updateCompetitor(competitor: Competitor): LIO[Unit] = {
-      val statement = quote { query[Competitor].filter(_.id == lift(competitor.id)).update(liftCaseClass(competitor)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitorCollection.replaceOne(equal(idField, competitor.id), competitor)
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def removeCompetitor(competitionId: String)(id: String): LIO[Unit] = {
-      val statement =
-        quote { query[Competitor].filter(c => c.competitionId == lift(competitionId) && c.id == lift(id)).delete }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitorCollection.deleteOne(equal(idField, id))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addRegistrationGroup(group: RegistrationGroup): LIO[Unit] = {
-      val statement = quote { query[RegistrationGroup].insert(liftCaseClass(group)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection.findOneAndUpdate(
+        equal(idField, group.competitionId),
+        set(s"properties.registrationInfo.registrationGroups.${group.id}", group)
+      )
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addRegistrationGroups(groups: List[RegistrationGroup]): LIO[Unit] = {
-      val statement = quote { liftQuery(groups).foreach(group => query[RegistrationGroup].insert(group)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val updates = groups.map(group => set(s"properties.registrationInfo.registrationGroups.${group.id}", group))
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, groups.head.competitionId), combine(updates: _*))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
-    override def updateRegistrationGroup(group: RegistrationGroup): LIO[Unit] = {
-      val statement = quote {
-        query[RegistrationGroup].filter(gr => gr.competitionId == lift(group.competitionId) && gr.id == lift(group.id))
-          .update(liftCaseClass(group))
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-    }
-
-    override def updateRegistrationGroups(groups: List[RegistrationGroup]): LIO[Unit] = {
-
-      val statement = quote {
-        liftQuery(groups).foreach { group =>
-          query[RegistrationGroup].filter(gr => gr.competitionId == group.competitionId && gr.id == group.id)
-            .update(group)
-        }
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-
-    }
+    override def updateRegistrationGroup(group: RegistrationGroup): LIO[Unit]         = addRegistrationGroup(group)
+    override def updateRegistrationGroups(groups: List[RegistrationGroup]): LIO[Unit] = addRegistrationGroups(groups)
 
     override def removeRegistrationGroup(competitionId: String)(id: String): LIO[Unit] = {
-      val statement = quote {
-        query[RegistrationGroup].filter(gr => gr.competitionId == lift(competitionId) && gr.id == lift(id)).delete
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, competitionId), unset(s"properties.registrationInfo.registrationGroups.$id"))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addRegistrationPeriod(period: RegistrationPeriod): LIO[Unit] = {
-      val statement = quote { query[RegistrationPeriod].insert(liftCaseClass(period)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection.findOneAndUpdate(
+        equal(idField, period.competitionId),
+        set(s"properties.registrationInfo.registrationPeriods.${period.id}", period)
+      )
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
-    override def updateRegistrationPeriod(period: RegistrationPeriod): LIO[Unit] = {
-      val statement = quote {
-        query[RegistrationPeriod].filter(p => p.competitionId == lift(period.competitionId) && p.id == lift(period.id))
-          .update(liftCaseClass(period))
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-    }
-
+    override def updateRegistrationPeriod(period: RegistrationPeriod): LIO[Unit] = addRegistrationPeriod(period)
     override def updateRegistrationPeriods(periods: List[RegistrationPeriod]): LIO[Unit] = {
-      val statement = quote {
-        liftQuery(periods).foreach { period =>
-          query[RegistrationPeriod].filter(p => p.competitionId == period.competitionId && p.id == period.id)
-            .update(period)
-        }
-
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-
+      val updates = periods.map(period => set(s"properties.registrationInfo.registrationPeriods.${period.id}", period))
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, periods.head.competitionId), combine(updates: _*))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def removeRegistrationPeriod(competitionId: String)(id: String): LIO[Unit] = {
-      val statement = quote {
-        query[RegistrationPeriod].filter(p => p.competitionId == lift(competitionId) && p.id == lift(id)).delete
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, competitionId), unset(s"properties.registrationInfo.registrationPeriods.$id"))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addPeriod(entry: Period): LIO[Unit] = {
-      val statement = quote { query[Period].insert(liftCaseClass(entry)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, entry.competitionId), set(s"properties.periods.${entry.id}", entry))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addPeriods(entries: List[Period]): LIO[Unit] = {
-      val statement = quote { liftQuery(entries).foreach { entry => query[Period].insert(entry) } }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-
+      val updates = entries.map(period => set(s"properties.periods.${period.id}", period))
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, entries.head.competitionId), combine(updates: _*))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
-    override def updatePeriods(entries: List[Period]): LIO[Unit] = {
-      val statement = quote {
-        liftQuery(entries).foreach { entry =>
-          query[Period].filter(p => p.id == entry.id && p.competitionId == entry.competitionId).update(entry)
-        }
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-    }
+    override def updatePeriods(entries: List[Period]): LIO[Unit] = addPeriods(entries)
 
     override def removePeriod(competitionId: String)(id: String): LIO[Unit] = {
-      val statement =
-        quote { query[Period].filter(p => p.id == lift(id) && p.competitionId == lift(competitionId)).delete }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, competitionId), unset(s"properties.periods.$id"))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def removePeriods(competitionId: String): LIO[Unit] = {
-      val statement = quote { query[Period].filter(p => p.competitionId == lift(competitionId)).delete }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = competitionStateCollection
+        .findOneAndUpdate(equal(idField, competitionId), set(s"properties.periods", Document()))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
   }
 }
