@@ -1,7 +1,6 @@
 package compman.compsrv.query.model
 
 import compman.compsrv.model.dto.schedule.ScheduleRequirementType
-import io.getquill.Udt
 
 import java.util.Date
 

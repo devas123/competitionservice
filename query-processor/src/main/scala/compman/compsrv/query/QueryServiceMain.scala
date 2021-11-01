@@ -54,8 +54,8 @@ object QueryServiceMain extends zio.App {
       CompetitionEventListenerSupervisor.behavior(
         EventStreamingService.live(ConsumerSettings(config.consumer.brokers).withGroupId(config.consumer.groupId)),
         config.competitionEventListener.competitionNotificationsTopic,
-        CompetitionEventListenerSupervisor.Live(mongoDbSession),
-        CompetitionEventListener.Live(mongoDbSession),
+        CompetitionEventListenerSupervisor.Live(mongoDbSession, mongodbConfig),
+        CompetitionEventListener.Live(mongoDbSession, mongodbConfig),
         webSocketSupervisor
       )
     )
@@ -63,7 +63,7 @@ object QueryServiceMain extends zio.App {
       "queryApiActor",
       ActorConfig(),
       CompetitionApiActor.initialState,
-      CompetitionApiActor.behavior[ZEnv](CompetitionApiActor.Live(mongodbConfig))
+      CompetitionApiActor.behavior[ZEnv](CompetitionApiActor.Live(mongoDbSession, mongodbConfig))
     )
     signal <- SignallingRef[ServiceIO, Boolean](false)
     _ <- (for {

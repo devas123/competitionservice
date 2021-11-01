@@ -12,7 +12,7 @@ final case class ConsumerConfig(bootstrapServers: String, groupId: String) {
   def brokers: List[String] = bootstrapServers.split(",").toList
 }
 
-final case class MongodbConfig(host: String, port: String, username: String, password: String, authenticationDb: String)
+final case class MongodbConfig(host: String, port: Int, username: String, password: String, authenticationDb: String, queryDatabaseName: String)
 object MongodbConfig {
   private[config] val descriptor = DeriveConfigDescriptor.descriptor[MongodbConfig]
 }

@@ -12,11 +12,12 @@ import compman.compsrv.model.PageResponse
 import compman.compsrv.model.dto.brackets.FightResultOptionDTO
 import compman.compsrv.model.dto.dashboard.{MatDescriptionDTO, MatStateDTO}
 import compman.compsrv.model.dto.schedule.ScheduleDTO
+import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.{CompetitionQueryOperations, FightQueryOperations, ManagedCompetitionsOperations, Pagination}
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
-import io.getquill.{CassandraContextConfig, CassandraZioSession}
+import org.mongodb.scala.MongoClient
 import zio.{Ref, RIO, Tag, ZIO}
 import zio.logging.Logging
 
@@ -24,16 +25,14 @@ import scala.jdk.CollectionConverters.IterableHasAsScala
 
 object CompetitionApiActor {
 
-  case class Live(cassandraConfig: CassandraContextConfig) extends ActorContext {
+  case class Live(mongoClient: MongoClient, mongodbConfig: MongodbConfig) extends ActorContext {
     implicit val loggingLive: CompetitionLogging.Service[LIO] = CompetitionLogging.Live.live[Any]
-    private val cassandraZioSession =
-      CassandraZioSession(cassandraConfig.cluster, cassandraConfig.keyspace, cassandraConfig.preparedStatementCacheSize)
     implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
-      .live(cassandraZioSession)
+      .live(mongoClient, mongodbConfig.queryDatabaseName)
     implicit val fightQueryOperations: FightQueryOperations[LIO] = FightQueryOperations
-      .live(cassandraZioSession)
+      .live(mongoClient, mongodbConfig.queryDatabaseName)
     implicit val managedCompetitionService: ManagedCompetitionService[LIO] = ManagedCompetitionsOperations
-      .live(cassandraZioSession)
+      .live(mongoClient, mongodbConfig.queryDatabaseName)
   }
 
   case class Test(
@@ -204,7 +203,7 @@ object CompetitionApiActor {
             case GetRegistrationInfo(competitionId) => for {
                 groups  <- CompetitionQueryOperations[LIO].getRegistrationGroups(competitionId)
                 periods <- CompetitionQueryOperations[LIO].getRegistrationPeriods(competitionId)
-              } yield (state, RegistrationInfo(groups, periods).asInstanceOf[A])
+              } yield (state, RegistrationInfo(groups.groupMapReduce(_.id)(identity)((a, _) => a), periods.groupMapReduce(_.id)(identity)((a, _) => a)).asInstanceOf[A])
             case GetCategories(competitionId) => for {
                 categories <- CompetitionQueryOperations[LIO].getCategoriesByCompetitionId(competitionId)
                 categoryStates <- categories.traverse { category =>

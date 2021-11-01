@@ -273,19 +273,19 @@ object CompetitionQueryOperations {
     } yield res
 
     override def getRegistrationGroups(competitionId: String): LIO[List[RegistrationGroup]] = {
-      getStateById(competitionId).map(_.flatMap(_.registrationInfo).map(_.registrationGroups).getOrElse(List.empty))
+      getStateById(competitionId).map(_.flatMap(_.registrationInfo).map(_.registrationGroups.values.toList).getOrElse(List.empty))
     }
 
     override def getRegistrationGroupById(competitionId: String)(id: String): LIO[Option[RegistrationGroup]] = {
-      getStateById(competitionId).map(_.flatMap(_.registrationInfo).flatMap(_.registrationGroups.find(_.id == id)))
+      getStateById(competitionId).map(_.flatMap(_.registrationInfo).flatMap(_.registrationGroups.get(id)))
     }
 
     override def getRegistrationPeriods(competitionId: String): LIO[List[RegistrationPeriod]] = {
-      getStateById(competitionId).map(_.flatMap(_.registrationInfo).map(_.registrationPeriods).getOrElse(List.empty))
+      getStateById(competitionId).map(_.flatMap(_.registrationInfo).map(_.registrationPeriods.values.toList).getOrElse(List.empty))
     }
 
     override def getRegistrationPeriodById(competitionId: String)(id: String): LIO[Option[RegistrationPeriod]] = {
-      getStateById(competitionId).map(_.flatMap(_.registrationInfo).flatMap(_.registrationPeriods.find(_.id == id)))
+      getStateById(competitionId).map(_.flatMap(_.registrationInfo).flatMap(_.registrationPeriods.get(id)))
     }
 
     override def getScheduleEntriesByPeriodId(competitionId: String)(periodId: String): LIO[List[ScheduleEntry]] = {

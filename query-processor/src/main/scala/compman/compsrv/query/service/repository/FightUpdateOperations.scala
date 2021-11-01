@@ -4,7 +4,9 @@ import cats.implicits._
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model.{Fight, FightStartTimeUpdate}
-import zio.{Has, Ref, ZIO}
+import org.mongodb.scala.MongoClient
+import org.mongodb.scala.model.UpdateOneModel
+import zio.{Ref, RIO, ZIO}
 import zio.interop.catz._
 
 trait FightUpdateOperations[F[+_]] {
@@ -41,108 +43,74 @@ object FightUpdateOperations {
       .traverse(removeFight(competitionId)).map(_ => ())
   }
 
-  def live(
-    cassandraZioSession: CassandraZioSession
-  )(implicit log: CompetitionLogging.Service[LIO]): FightUpdateOperations[LIO] = new FightUpdateOperations[LIO] {
-    private lazy val ctx =
-      new CassandraZioContext(SnakeCase) with CustomDecoders with CustomEncoders with Encoders with Decoders
-    import ctx._
+  def live(mongo: MongoClient, name: String)(implicit
+    log: CompetitionLogging.Service[LIO]
+  ): FightUpdateOperations[LIO] = new FightUpdateOperations[LIO] with CommonLiveOperations {
+
+    override def mongoClient: MongoClient = mongo
+
+    override def dbName: String = name
+
+    override def idField: String = "id"
+
+    import org.mongodb.scala.model.Filters._
+    import org.mongodb.scala.model.Updates._
 
     override def addFight(fight: Fight): LIO[Unit] = {
-      val statement = quote { query[Fight].insert(liftCaseClass(fight)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = fightCollection.insertOne(fight)
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addFights(fights: List[Fight]): LIO[Unit] = {
-      val statement = quote { liftQuery(fights).foreach(fight1 => query[Fight].insert(fight1)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = fightCollection.insertMany(fights)
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def updateFight(fight: Fight): LIO[Unit] = {
-      val statement = quote { query[Fight].filter(_.id == lift(fight.id)).update(liftCaseClass(fight)) }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = fightCollection.replaceOne(equal(idField, fight.id), fight)
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def updateFightScores(fights: List[Fight]): LIO[Unit] = {
-      val statement = quote {
-        liftQuery(fights).foreach(fight2 =>
-          query[Fight].filter(f =>
-            f.id == fight2.id && f.competitionId == fight2.competitionId && f.categoryId == fight2.categoryId
-          ).update(f => f.scores -> fight2.scores, _.status -> fight2.status)
-        )
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = fightCollection.bulkWrite(fights.map(f =>
+        UpdateOneModel(equal(idField, f.id), combine(set("scores", f.scores), set("status", f.status)))
+      ))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def removeFight(competitionId: String)(id: String): LIO[Unit] = {
-      val statement = quote {
-        query[Fight].filter(fight3 => fight3.competitionId == lift(competitionId) && fight3.id == lift(id)).delete
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = fightCollection.deleteOne(and(equal("competitionId", competitionId), equal(idField, id)))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def removeFights(competitionId: String)(ids: List[String]): LIO[Unit] = {
-      val statement = quote {
-        liftQuery(ids).foreach(id =>
-          query[Fight].filter(fight4 => fight4.competitionId == lift(competitionId) && fight4.id == id).delete
-        )
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
-
+      val statement = fightCollection.deleteMany(and(in(idField, ids), equal("competitionId", competitionId)))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def removeFightsForCategory(competitionId: String)(categoryId: String): LIO[Unit] = {
-      val statement = quote {
-        query[Fight].filter(fight => fight.competitionId == lift(competitionId) && fight.categoryId == lift(categoryId))
-          .delete
-      }
-      for {
-        _ <- log.info(statement.toString)
-        _ <- run(statement).provide(Has(cassandraZioSession))
-      } yield ()
+      val statement = fightCollection
+        .deleteMany(and(equal("categoryId", categoryId), equal("competitionId", competitionId)))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def updateFightStartTime(fights: List[FightStartTimeUpdate]): LIO[Unit] = {
-      {
-        val statement = quote {
-          liftQuery(fights).foreach(fight2 =>
-            query[Fight].filter(f =>
-              f.id == fight2.id && f.competitionId == fight2.competitionId && f.categoryId == fight2.categoryId
-            ).update(
-              _.matId           -> fight2.matId,
-              _.matName         -> fight2.matName,
-              _.matOrder        -> fight2.matOrder,
-              _.numberOnMat     -> fight2.numberOnMat,
-              _.periodId        -> fight2.periodId,
-              _.startTime       -> fight2.startTime,
-              _.invalid         -> fight2.invalid,
-              _.scheduleEntryId -> fight2.scheduleEntryId
-            )
+      val statement = fightCollection.bulkWrite(fights.map(f =>
+        UpdateOneModel(
+          equal(idField, f.id),
+          combine(
+            set("matId", f.matId),
+            set("matName", f.matName),
+            set("matOrder", f.matOrder),
+            set("numberOnMat", f.numberOnMat),
+            set("periodId", f.periodId),
+            set("startTime", f.startTime),
+            set("invalid", f.invalid),
+            set("scheduleEntryId", f.scheduleEntryId)
           )
-        }
-        for {
-          _ <- log.info(statement.toString)
-          _ <- run(statement).provide(Has(cassandraZioSession))
-        } yield ()
-      }
+        )
+      ))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
   }
 }

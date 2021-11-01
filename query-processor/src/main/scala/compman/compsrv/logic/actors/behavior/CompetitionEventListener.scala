@@ -11,12 +11,13 @@ import compman.compsrv.model.Mapping.EventMapping
 import compman.compsrv.model.event.Events.CompetitionPropertiesUpdatedEvent
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.payload.CompetitionPropertiesUpdatedPayload
+import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.serde.ObjectMapperFactory
 import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.kafka.EventStreamingService.EventStreaming
 import compman.compsrv.query.service.repository._
-import io.getquill.CassandraZioSession
+import org.mongodb.scala.MongoClient
 import zio.{Fiber, Queue, Ref, RIO, Tag, Task, ZIO}
 import zio.clock.Clock
 import zio.kafka.consumer.{CommittableRecord, Consumer, Offset}
@@ -40,16 +41,16 @@ object CompetitionEventListener {
     implicit val fightUpdateOperations: FightUpdateOperations[LIO]
   }
 
-  case class Live(cassandraZioSession: CassandraZioSession) extends ActorContext {
+  case class Live(mongoClient: MongoClient, mongodbConfig: MongodbConfig) extends ActorContext {
     implicit val eventMapping: Mapping.EventMapping[LIO] = model.Mapping.EventMapping.live
     implicit val loggingLive: CompetitionLogging.Service[LIO] = compman.compsrv.logic.logging.CompetitionLogging.Live
       .live[Any]
     implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
-      .live(cassandraZioSession)
+      .live(mongoClient, mongodbConfig.queryDatabaseName)
     implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations
-      .live(cassandraZioSession)
-    implicit val fightQueryOperations: FightQueryOperations[LIO]   = FightQueryOperations.live(cassandraZioSession)
-    implicit val fightUpdateOperations: FightUpdateOperations[LIO] = FightUpdateOperations.live(cassandraZioSession)
+      .live(mongoClient, mongodbConfig.queryDatabaseName)
+    implicit val fightQueryOperations: FightQueryOperations[LIO]   = FightQueryOperations.live(mongoClient, mongodbConfig.queryDatabaseName)
+    implicit val fightUpdateOperations: FightUpdateOperations[LIO] = FightUpdateOperations.live(mongoClient, mongodbConfig.queryDatabaseName)
   }
 
   case class Test(
