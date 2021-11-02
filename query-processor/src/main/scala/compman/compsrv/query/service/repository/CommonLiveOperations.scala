@@ -1,16 +1,15 @@
 package compman.compsrv.query.service.repository
 
 import compman.compsrv.model.dto.brackets._
-import compman.compsrv.model.dto.competition.{
-  CategoryRestrictionType,
-  CompetitionStatus,
-  CompetitorRegistrationStatus,
-  FightStatus
-}
+import compman.compsrv.model.dto.competition.{CategoryRestrictionType, CompetitionStatus, CompetitorRegistrationStatus, FightStatus}
 import compman.compsrv.model.dto.schedule.{ScheduleEntryType, ScheduleRequirementType}
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
-import org.bson.codecs.pojo.{ClassModel, PojoCodecProvider}
+import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
+import org.bson.codecs.pojo.{ClassModel, EnumPropertyCodecProvider, PojoCodecProvider}
+import org.bson.{BSON, BsonReader, BsonWriter}
+import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
+import org.bson.codecs.configuration.CodecRegistries.fromCodecs
 import org.mongodb.scala.{MongoClient, MongoCollection, MongoDatabase}
 
 trait CommonLiveOperations {
@@ -24,6 +23,8 @@ trait CommonLiveOperations {
   import org.mongodb.scala.bson.codecs.Macros._
   import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
 
+
+/*
   val enumsProvider: PojoCodecProvider = PojoCodecProvider.builder().register(
     ClassModel.builder(classOf[CompetitionStatus]).build(),
     ClassModel.builder(classOf[DistributionType]).build(),
@@ -43,8 +44,56 @@ trait CommonLiveOperations {
     ClassModel.builder(classOf[CompetitorRegistrationStatus]).build(),
     ClassModel.builder(classOf[FightStatus]).build()
   ).build()
+*/
 
-  private val codecRegistry = fromRegistries(
+
+  class EnumCodec[T <: Enum[T]](val clazz: Class[T]) extends Codec[T] {
+    override def encode(writer: BsonWriter, value: T, encoderContext: EncoderContext): Unit = {
+      writer.writeString(value.name)
+    }
+    override def getEncoderClass: Class[T] = clazz
+    override def decode(reader: BsonReader, decoderContext: DecoderContext): T = Enum.valueOf(clazz, reader.readString)
+  }
+
+  val competitionStatusCodec = new EnumCodec[CompetitionStatus](classOf[CompetitionStatus])
+  val distributionTypeCodec = new EnumCodec[DistributionType](classOf[DistributionType])
+  val stageRoundTypeCodec = new EnumCodec[StageRoundType](classOf[StageRoundType])
+  val groupSortDirectionCodec = new EnumCodec[GroupSortDirection](classOf[GroupSortDirection])
+  val logicalOperatorCodec = new EnumCodec[LogicalOperator](classOf[LogicalOperator])
+  val groupSortSpecifierCodec = new EnumCodec[GroupSortSpecifier](classOf[GroupSortSpecifier])
+  val selectorClassifierCodec = new EnumCodec[SelectorClassifier](classOf[SelectorClassifier])
+  val operatorTypeCodec = new EnumCodec[OperatorType](classOf[OperatorType])
+  val bracketTypeCodec = new EnumCodec[BracketType](classOf[BracketType])
+  val stageTypeCodec = new EnumCodec[StageType](classOf[StageType])
+  val stageStatusCodec = new EnumCodec[StageStatus](classOf[StageStatus])
+  val categoryRestrictionTypeCodec = new EnumCodec[CategoryRestrictionType](classOf[CategoryRestrictionType])
+  val fightReferenceTypeCodec = new EnumCodec[FightReferenceType](classOf[FightReferenceType])
+  val scheduleEntryTypeCodec = new EnumCodec[ScheduleEntryType](classOf[ScheduleEntryType])
+  val scheduleRequirementTypeCodec = new EnumCodec[ScheduleRequirementType](classOf[ScheduleRequirementType])
+  val competitorRegistrationStatusCodec = new EnumCodec[CompetitorRegistrationStatus](classOf[CompetitorRegistrationStatus])
+  val fightStatusCodec = new EnumCodec[FightStatus](classOf[FightStatus])
+
+
+  private val caseClassRegistry = fromRegistries(
+    fromCodecs(
+      competitionStatusCodec,
+      distributionTypeCodec,
+      stageRoundTypeCodec,
+      groupSortDirectionCodec,
+      logicalOperatorCodec,
+      groupSortSpecifierCodec,
+      selectorClassifierCodec,
+      operatorTypeCodec,
+      bracketTypeCodec,
+      stageTypeCodec,
+      stageStatusCodec,
+      categoryRestrictionTypeCodec,
+      fightReferenceTypeCodec,
+      scheduleEntryTypeCodec,
+      scheduleRequirementTypeCodec,
+      competitorRegistrationStatusCodec,
+      fightStatusCodec
+    ),
     fromProviders(classOf[CompetitionState]),
     fromProviders(classOf[Period]),
     fromProviders(classOf[StageDescriptor]),
@@ -71,15 +120,15 @@ trait CommonLiveOperations {
     fromProviders(classOf[PointGroup]),
     fromProviders(classOf[Academy]),
     fromProviders(classOf[Category]),
-    fromProviders(enumsProvider),
     DEFAULT_CODEC_REGISTRY
   )
+
 
   def mongoClient: MongoClient
   def dbName: String
   def idField: String
 
-  def database: MongoDatabase = mongoClient.getDatabase(dbName).withCodecRegistry(codecRegistry)
+  def database: MongoDatabase = mongoClient.getDatabase(dbName).withCodecRegistry(fromRegistries(caseClassRegistry))
   def competitionStateCollection: MongoCollection[CompetitionState] = database
     .getCollection(competitionStateCollectionName)
   def competitorCollection: MongoCollection[Competitor] = database.getCollection(competitorsCollectionName)

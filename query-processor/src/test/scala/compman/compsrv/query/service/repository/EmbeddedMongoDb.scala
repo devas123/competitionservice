@@ -36,9 +36,10 @@ trait EmbeddedMongoDb {
 object EmbeddedMongoDb {
   implicit val logging: CompetitionLogging.Service[LIO] = CompetitionLogging.Live.live[Any]
 
-  lazy val mongoClient: MongoClient = MongoClient("mongodb://localhost:27018")
+  private val port = 27017
 
-  val mongodbConfig: MongodbConfig = MongodbConfig("localhost", 27018, "user", "password", "admin", "query_service")
+  lazy val mongoClient: MongoClient = MongoClient(s"mongodb://localhost:$port")
+  val mongodbConfig: MongodbConfig = MongodbConfig("localhost", port, "user", "password", "admin", "query_service")
   implicit val queryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
     .live(mongoClient, mongodbConfig.queryDatabaseName)
   implicit val updateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations

@@ -199,11 +199,10 @@ object CompetitionQueryOperations {
 
     override def getCategoryById(competitionId: String)(id: String): LIO[Option[Category]] = {
       val select = competitionStateCollection.find(and(equal(idField, competitionId), equal("categories.id", id)))
-        .map(_.categories)
       for {
         _   <- log.info(select.toString)
-        res <- RIO.fromFuture(_ => select.head())
-      } yield res.headOption.map(_._2)
+        res <- RIO.fromFuture(_ => select.headOption())
+      } yield res.flatMap(_.categories.get(id))
     }
 
     override def searchCategory(

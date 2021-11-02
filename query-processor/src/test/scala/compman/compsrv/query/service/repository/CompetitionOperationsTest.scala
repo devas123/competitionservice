@@ -2,6 +2,7 @@ package compman.compsrv.query.service.repository
 
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import compman.compsrv.query.service.repository.CompetitionOperationsTest.category
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
@@ -14,28 +15,21 @@ object CompetitionOperationsTest extends DefaultRunnableSpec with TestEntities w
   import EmbeddedMongoDb._
   override def spec: ZSpec[Any, Throwable] = suite("competition operations")(
     testM("query should return none when there are no competitions") {
-      getCassandraResource.use { _ =>
-        (for {
-          _     <- CompetitionUpdateOperations[LIO].removeCompetitionProperties("managedCompetition")
-          props <- CompetitionQueryOperations.getCompetitionProperties("managedCompetition")
-        } yield assert(props)(isNone)).provideLayer(layers)
-      }
+      (for {
+        _     <- CompetitionUpdateOperations[LIO].removeCompetitionProperties("managedCompetition")
+        props <- CompetitionQueryOperations.getCompetitionProperties("managedCompetition")
+      } yield assert(props)(isNone)).provideLayer(layers)
     },
     testM("should save competition") {
-      getCassandraResource.use { _ =>
-        (for {
-          _     <- CompetitionUpdateOperations[LIO].addCompetitionProperties(competitionProperties)
-          props <- CompetitionQueryOperations.getCompetitionProperties(competitionId)
-        } yield assert(props)(isSome)).provideLayer(layers)
-      }
+      (for {
+        _     <- CompetitionUpdateOperations[LIO].addCompetitionProperties(competitionProperties)
+        props <- CompetitionQueryOperations.getCompetitionProperties(competitionId)
+      } yield assert(props)(isSome)).provideLayer(layers)
     },
     testM("should save category") {
-      getCassandraResource.use { _ =>
-        (for {
-          _        <- CompetitionUpdateOperations[LIO].addCategory(category)
-          category <- CompetitionQueryOperations.getCategoryById(competitionId)(categoryId)
-        } yield assert(category)(isSome)).provideLayer(layers)
-      }
-    }
+      (for {
+        _        <- CompetitionUpdateOperations[LIO].addCategory(category)
+        category <- CompetitionQueryOperations.getCategoryById(competitionId)(categoryId)
+      } yield assert(category)(isSome)).provideLayer(layers)    }
   ) @@ sequential
 }
