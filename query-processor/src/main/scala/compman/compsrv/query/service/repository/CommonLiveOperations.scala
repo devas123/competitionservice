@@ -5,9 +5,7 @@ import compman.compsrv.model.dto.competition.{CategoryRestrictionType, Competiti
 import compman.compsrv.model.dto.schedule.{ScheduleEntryType, ScheduleRequirementType}
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
-import org.bson.codecs.configuration.{CodecRegistries, CodecRegistry}
-import org.bson.codecs.pojo.{ClassModel, EnumPropertyCodecProvider, PojoCodecProvider}
-import org.bson.{BSON, BsonReader, BsonWriter}
+import org.bson.{BsonReader, BsonWriter}
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 import org.bson.codecs.configuration.CodecRegistries.fromCodecs
 import org.mongodb.scala.{MongoClient, MongoCollection, MongoDatabase}
@@ -18,33 +16,11 @@ trait CommonLiveOperations {
   private final val competitorsCollectionName = "competitor"
 
   private final val fightsCollectionName = "fight"
+  private final val managedCompetitionCollectionName = "managed_competition"
 
   import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
   import org.mongodb.scala.bson.codecs.Macros._
   import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
-
-
-/*
-  val enumsProvider: PojoCodecProvider = PojoCodecProvider.builder().register(
-    ClassModel.builder(classOf[CompetitionStatus]).build(),
-    ClassModel.builder(classOf[DistributionType]).build(),
-    ClassModel.builder(classOf[StageRoundType]).build(),
-    ClassModel.builder(classOf[GroupSortDirection]).build(),
-    ClassModel.builder(classOf[LogicalOperator]).build(),
-    ClassModel.builder(classOf[GroupSortSpecifier]).build(),
-    ClassModel.builder(classOf[SelectorClassifier]).build(),
-    ClassModel.builder(classOf[OperatorType]).build(),
-    ClassModel.builder(classOf[BracketType]).build(),
-    ClassModel.builder(classOf[StageType]).build(),
-    ClassModel.builder(classOf[StageStatus]).build(),
-    ClassModel.builder(classOf[CategoryRestrictionType]).build(),
-    ClassModel.builder(classOf[FightReferenceType]).build(),
-    ClassModel.builder(classOf[ScheduleEntryType]).build(),
-    ClassModel.builder(classOf[ScheduleRequirementType]).build(),
-    ClassModel.builder(classOf[CompetitorRegistrationStatus]).build(),
-    ClassModel.builder(classOf[FightStatus]).build()
-  ).build()
-*/
 
 
   class EnumCodec[T <: Enum[T]](val clazz: Class[T]) extends Codec[T] {
@@ -120,6 +96,7 @@ trait CommonLiveOperations {
     fromProviders(classOf[PointGroup]),
     fromProviders(classOf[Academy]),
     fromProviders(classOf[Category]),
+    fromProviders(classOf[ManagedCompetition]),
     DEFAULT_CODEC_REGISTRY
   )
 
@@ -128,9 +105,10 @@ trait CommonLiveOperations {
   def dbName: String
   def idField: String
 
-  def database: MongoDatabase = mongoClient.getDatabase(dbName).withCodecRegistry(fromRegistries(caseClassRegistry))
-  def competitionStateCollection: MongoCollection[CompetitionState] = database
+  lazy val database: MongoDatabase = mongoClient.getDatabase(dbName).withCodecRegistry(fromRegistries(caseClassRegistry))
+  lazy val competitionStateCollection: MongoCollection[CompetitionState] = database
     .getCollection(competitionStateCollectionName)
-  def competitorCollection: MongoCollection[Competitor] = database.getCollection(competitorsCollectionName)
-  def fightCollection: MongoCollection[Fight]           = database.getCollection(fightsCollectionName)
+  lazy val competitorCollection: MongoCollection[Competitor] = database.getCollection(competitorsCollectionName)
+  lazy val fightCollection: MongoCollection[Fight]           = database.getCollection(fightsCollectionName)
+  lazy val managedCompetitionCollection: MongoCollection[ManagedCompetition] = database.getCollection(managedCompetitionCollectionName)
 }

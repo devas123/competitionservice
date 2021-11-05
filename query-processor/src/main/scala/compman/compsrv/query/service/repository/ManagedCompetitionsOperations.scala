@@ -35,31 +35,29 @@ object ManagedCompetitionsOperations {
       )
     }
 
-  def live(mongoClient: MongoClient, dbName: String)(implicit
+  def live(mongo: MongoClient, name: String)(implicit
     log: CompetitionLogging.Service[LIO]
-  ): ManagedCompetitionService[LIO] = new ManagedCompetitionService[LIO] {
+  ): ManagedCompetitionService[LIO] = new ManagedCompetitionService[LIO] with CommonLiveOperations {
 
-    private final val managedCompetitionCollection = "managed_competition"
 
-    import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
-    import org.mongodb.scala.bson.codecs.Macros._
-    import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
+    override def mongoClient: MongoClient = mongo
 
-    private val codecRegistry = fromRegistries(fromProviders(classOf[ManagedCompetition]), DEFAULT_CODEC_REGISTRY)
-    private val database      = mongoClient.getDatabase(dbName).withCodecRegistry(codecRegistry)
-    private val collection: MongoCollection[ManagedCompetition] = database.getCollection(managedCompetitionCollection)
+    override def dbName: String = name
+
+    override def idField: String = "id"
+
 
     override def getManagedCompetitions: LIO[List[ManagedCompetition]] = {
-      val select = collection.find()
+      val select = managedCompetitionCollection.find()
       runQuery(select)
     }
 
     override def getActiveCompetitions: LIO[List[ManagedCompetition]] = {
-      val select = collection.find().filter(_.status != CompetitionStatus.DELETED)
+      val select = managedCompetitionCollection.find().filter(_.status != CompetitionStatus.DELETED)
       runQuery(select)
     }
     override def addManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {
-      val insert = collection.insertOne(competition)
+      val insert = managedCompetitionCollection.insertOne(competition)
       for {
         _ <- log.info(insert.toString)
         _ <- RIO.fromFuture(_ => insert.toFuture())
@@ -67,7 +65,7 @@ object ManagedCompetitionsOperations {
     }
 
     override def deleteManagedCompetition(id: String): LIO[Unit] = {
-      val delete = collection.deleteOne(equal("id", id))
+      val delete = managedCompetitionCollection.deleteOne(equal("id", id))
       for {
         _ <- log.info(delete.toString)
         _ <- RIO.fromFuture(_ => delete.toFuture())
@@ -76,7 +74,7 @@ object ManagedCompetitionsOperations {
 
     override def updateManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {
 
-      val update = collection.updateOne(
+      val update = managedCompetitionCollection.updateOne(
         equal("id", competition.id),
         Seq(
           set("competitionName", competition.competitionName),

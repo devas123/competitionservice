@@ -14,7 +14,7 @@ trait EmbeddedMongoDb {
   import de.flapdoodle.embed.mongo.distribution.Version
   import de.flapdoodle.embed.process.runtime.Network
 
-  def startEmbeddedCassandra(): (MongodProcess, Int) = {
+  def startEmbeddedMongo(): (MongodProcess, Int) = {
     val starter: MongodStarter = MongodStarter.getDefaultInstance
 
     val port: Int = 27018
@@ -27,7 +27,7 @@ trait EmbeddedMongoDb {
   }
 
   def getCassandraResource: ZManaged[Any, Throwable, (MongodProcess, Int)] = ZManaged
-    .make(ZIO.effect(startEmbeddedCassandra()))(c => URIO(c._1.stop()))
+    .make(ZIO.effect(startEmbeddedMongo()))(c => URIO(c._1.stop()))
 }
 
 object EmbeddedMongoDb {

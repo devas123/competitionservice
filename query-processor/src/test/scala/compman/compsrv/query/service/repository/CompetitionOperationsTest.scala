@@ -30,5 +30,5 @@ object CompetitionOperationsTest extends DefaultRunnableSpec with TestEntities w
         _        <- CompetitionUpdateOperations[LIO].addCategory(category)
         category <- CompetitionQueryOperations.getCategoryById(competitionId)(categoryId)
       } yield assert(category)(isSome)).provideLayer(layers)    }
-  ) @@ sequential @@ aroundAll(ZIO.effect(startEmbeddedCassandra()))(srv => URIO(srv._1.stop()))
+  ) @@ sequential @@ aroundAll(ZIO.effect(startEmbeddedMongo()))(srv => URIO(srv._1.stop()))
 }
