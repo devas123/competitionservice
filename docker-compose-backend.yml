@@ -6,13 +6,17 @@ services:
       - KAFKA_BROKERS=broker:29092
       - MONGO_DB_HOST=mongo
       - MONGO_DB_PORT=27017
+      - MONGO_DB_NAMESPACE=query_service
+      - MONGO_DB_USERNAME=root
+      - MONGO_DB_PASSWORD=example
+      - MONGO_DB_AUTH_DB=admin
     networks:
       compsrv_backend:
     deploy:
         restart_policy:
           condition: on-failure
     depends_on:
-      - cassandra
+      - mongo
       - broker
     ports:
       - "9000:9000"

@@ -5,6 +5,7 @@ import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import org.mongodb.scala.{FindObservable, MongoClient, Observable}
+import org.mongodb.scala.bson.collection.immutable.Document
 import org.mongodb.scala.model.Filters._
 import zio.{Ref, RIO, Task, ZIO}
 
@@ -187,7 +188,6 @@ object CompetitionQueryOperations {
     override def getCategoriesByCompetitionId(competitionId: String): LIO[List[Category]] = {
       val select = competitionStateCollection.find(equal(idField, competitionId)).map(_.categories)
       for {
-        _   <- log.info(select.toString)
         res <- RIO.fromFuture(_ => select.head())
       } yield res.values.toList
     }
@@ -198,9 +198,8 @@ object CompetitionQueryOperations {
     }
 
     override def getCategoryById(competitionId: String)(id: String): LIO[Option[Category]] = {
-      val select = competitionStateCollection.find(and(equal(idField, competitionId), equal("categories.id", id)))
+      val select = competitionStateCollection.find(and(equal(idField, competitionId), exists(s"categories.$id")))
       for {
-        _   <- log.info(select.toString)
         res <- RIO.fromFuture(_ => select.headOption())
       } yield res.flatMap(_.categories.get(id))
     }
@@ -212,7 +211,6 @@ object CompetitionQueryOperations {
       val take   = pagination.map(_.maxResults).getOrElse(30)
       val select = competitionStateCollection.find(and(equal(idField, competitionId)))
       for {
-        _   <- log.info(select.toString)
         res <- RIO.fromFuture(_ => select.head())
       } yield (
         res.categories.filter(c =>
@@ -343,7 +341,6 @@ object CompetitionQueryOperations {
 
   private def selectOne[T](select: Observable[T])(implicit log: CompetitionLogging.Service[LIO]) = {
     for {
-      _   <- log.info(select.toString)
       res <- RIO.fromFuture(_ => select.headOption())
     } yield res
   }

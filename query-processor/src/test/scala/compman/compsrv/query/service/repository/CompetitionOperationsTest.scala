@@ -2,12 +2,11 @@ package compman.compsrv.query.service.repository
 
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compman.compsrv.query.service.repository.CompetitionOperationsTest.category
+import zio.{URIO, ZIO, ZLayer}
+import zio.logging.Logging
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
-import zio.ZLayer
-import zio.logging.Logging
 
 object CompetitionOperationsTest extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
   type Env = Logging
@@ -31,5 +30,5 @@ object CompetitionOperationsTest extends DefaultRunnableSpec with TestEntities w
         _        <- CompetitionUpdateOperations[LIO].addCategory(category)
         category <- CompetitionQueryOperations.getCategoryById(competitionId)(categoryId)
       } yield assert(category)(isSome)).provideLayer(layers)    }
-  ) @@ sequential
+  ) @@ sequential @@ aroundAll(ZIO.effect(startEmbeddedCassandra()))(srv => URIO(srv._1.stop()))
 }

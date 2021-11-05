@@ -192,7 +192,7 @@ object CompetitionUpdateOperations {
     override def addStage(stageDescriptor: StageDescriptor): LIO[Unit] = {
       val statement = competitionStateCollection.findOneAndUpdate(
         equal(idField, stageDescriptor.competitionId),
-        set(s"properties.stages.${stageDescriptor.id}", stageDescriptor)
+        set(s"stages.${stageDescriptor.id}", stageDescriptor)
       )
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
@@ -201,7 +201,7 @@ object CompetitionUpdateOperations {
 
     override def removeStages(competition: String)(categoryId: String): LIO[Unit] = {
       val statement = competitionStateCollection
-        .findOneAndUpdate(equal(idField, competition), set(s"properties.stages", Document()))
+        .findOneAndUpdate(equal(idField, competition), set(s"stages", Document()))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
@@ -209,27 +209,27 @@ object CompetitionUpdateOperations {
       competitionId: String
     )(categoryId: String, stageId: String, newStatus: StageStatus): LIO[Unit] = {
       val statement = competitionStateCollection
-        .findOneAndUpdate(equal(idField, competitionId), set(s"properties.stages.$stageId.stageStatus", newStatus))
+        .findOneAndUpdate(equal(idField, competitionId), set(s"stages.$stageId.stageStatus", newStatus))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addCategory(category: Category): LIO[Unit] = {
       val statement = competitionStateCollection.findOneAndUpdate(
         equal(idField, category.competitionId),
-        set(s"properties.categories.${category.id}", category)
+        set(s"categories.${category.id}", category)
       )
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def updateCategoryRegistrationStatus(competitionId: String)(id: String, newStatus: Boolean): LIO[Unit] = {
       val statement = competitionStateCollection
-        .findOneAndUpdate(equal(idField, competitionId), set(s"properties.categories.$id.registrationOpen", newStatus))
+        .findOneAndUpdate(equal(idField, competitionId), set(s"categories.$id.registrationOpen", newStatus))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def removeCategory(competitionId: String)(id: String): LIO[Unit] = {
       val statement = competitionStateCollection
-        .findOneAndUpdate(equal(idField, competitionId), unset(s"properties.categories.$id"))
+        .findOneAndUpdate(equal(idField, competitionId), unset(s"categories.$id"))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
@@ -251,13 +251,13 @@ object CompetitionUpdateOperations {
     override def addRegistrationGroup(group: RegistrationGroup): LIO[Unit] = {
       val statement = competitionStateCollection.findOneAndUpdate(
         equal(idField, group.competitionId),
-        set(s"properties.registrationInfo.registrationGroups.${group.id}", group)
+        set(s"registrationInfo.registrationGroups.${group.id}", group)
       )
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addRegistrationGroups(groups: List[RegistrationGroup]): LIO[Unit] = {
-      val updates = groups.map(group => set(s"properties.registrationInfo.registrationGroups.${group.id}", group))
+      val updates = groups.map(group => set(s"registrationInfo.registrationGroups.${group.id}", group))
       val statement = competitionStateCollection
         .findOneAndUpdate(equal(idField, groups.head.competitionId), combine(updates: _*))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
@@ -268,21 +268,21 @@ object CompetitionUpdateOperations {
 
     override def removeRegistrationGroup(competitionId: String)(id: String): LIO[Unit] = {
       val statement = competitionStateCollection
-        .findOneAndUpdate(equal(idField, competitionId), unset(s"properties.registrationInfo.registrationGroups.$id"))
+        .findOneAndUpdate(equal(idField, competitionId), unset(s"registrationInfo.registrationGroups.$id"))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addRegistrationPeriod(period: RegistrationPeriod): LIO[Unit] = {
       val statement = competitionStateCollection.findOneAndUpdate(
         equal(idField, period.competitionId),
-        set(s"properties.registrationInfo.registrationPeriods.${period.id}", period)
+        set(s"registrationInfo.registrationPeriods.${period.id}", period)
       )
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def updateRegistrationPeriod(period: RegistrationPeriod): LIO[Unit] = addRegistrationPeriod(period)
     override def updateRegistrationPeriods(periods: List[RegistrationPeriod]): LIO[Unit] = {
-      val updates = periods.map(period => set(s"properties.registrationInfo.registrationPeriods.${period.id}", period))
+      val updates = periods.map(period => set(s"registrationInfo.registrationPeriods.${period.id}", period))
       val statement = competitionStateCollection
         .findOneAndUpdate(equal(idField, periods.head.competitionId), combine(updates: _*))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
@@ -290,18 +290,18 @@ object CompetitionUpdateOperations {
 
     override def removeRegistrationPeriod(competitionId: String)(id: String): LIO[Unit] = {
       val statement = competitionStateCollection
-        .findOneAndUpdate(equal(idField, competitionId), unset(s"properties.registrationInfo.registrationPeriods.$id"))
+        .findOneAndUpdate(equal(idField, competitionId), unset(s"registrationInfo.registrationPeriods.$id"))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addPeriod(entry: Period): LIO[Unit] = {
       val statement = competitionStateCollection
-        .findOneAndUpdate(equal(idField, entry.competitionId), set(s"properties.periods.${entry.id}", entry))
+        .findOneAndUpdate(equal(idField, entry.competitionId), set(s"periods.${entry.id}", entry))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def addPeriods(entries: List[Period]): LIO[Unit] = {
-      val updates = entries.map(period => set(s"properties.periods.${period.id}", period))
+      val updates = entries.map(period => set(s"periods.${period.id}", period))
       val statement = competitionStateCollection
         .findOneAndUpdate(equal(idField, entries.head.competitionId), combine(updates: _*))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
@@ -311,13 +311,13 @@ object CompetitionUpdateOperations {
 
     override def removePeriod(competitionId: String)(id: String): LIO[Unit] = {
       val statement = competitionStateCollection
-        .findOneAndUpdate(equal(idField, competitionId), unset(s"properties.periods.$id"))
+        .findOneAndUpdate(equal(idField, competitionId), unset(s"periods.$id"))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
     override def removePeriods(competitionId: String): LIO[Unit] = {
       val statement = competitionStateCollection
-        .findOneAndUpdate(equal(idField, competitionId), set(s"properties.periods", Document()))
+        .findOneAndUpdate(equal(idField, competitionId), set(s"periods", Document()))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
   }

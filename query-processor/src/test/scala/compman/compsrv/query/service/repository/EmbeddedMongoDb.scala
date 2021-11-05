@@ -1,14 +1,11 @@
 package compman.compsrv.query.service.repository
 
-import com.mongodb.connection.ClusterSettings
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.config.MongodbConfig
 import de.flapdoodle.embed.mongo.config.Net
-import org.mongodb.scala.{MongoClient, MongoClientSettings, ServerAddress}
+import org.mongodb.scala.MongoClient
 import zio.{URIO, ZIO, ZManaged}
-
-import scala.jdk.CollectionConverters._
 
 trait EmbeddedMongoDb {
 
@@ -36,10 +33,10 @@ trait EmbeddedMongoDb {
 object EmbeddedMongoDb {
   implicit val logging: CompetitionLogging.Service[LIO] = CompetitionLogging.Live.live[Any]
 
-  private val port = 27017
+  private val port = 27018
 
   lazy val mongoClient: MongoClient = MongoClient(s"mongodb://localhost:$port")
-  val mongodbConfig: MongodbConfig = MongodbConfig("localhost", port, "user", "password", "admin", "query_service")
+  val mongodbConfig: MongodbConfig  = MongodbConfig("localhost", port, "user", "password", "admin", "query_service")
   implicit val queryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
     .live(mongoClient, mongodbConfig.queryDatabaseName)
   implicit val updateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations
