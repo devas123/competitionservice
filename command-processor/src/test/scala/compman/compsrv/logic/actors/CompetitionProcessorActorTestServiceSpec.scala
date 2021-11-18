@@ -3,12 +3,13 @@ package compman.compsrv.logic.actors
 import compman.compsrv.config.CommandProcessorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorSupervisorActor.CommandReceived
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.{CommandProcessorNotification, CompetitionState}
+import compman.compsrv.model.CommandProcessorNotification
 import compman.compsrv.model.commands.{CommandDTO, CommandType}
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
 import compman.compsrv.model.events.EventDTO
 import ActorSystem.ActorConfig
+import compman.compsrv.logic.CompetitionState
 import zio.{Layer, Queue, Ref}
 import zio.blocking.Blocking
 import zio.clock.Clock

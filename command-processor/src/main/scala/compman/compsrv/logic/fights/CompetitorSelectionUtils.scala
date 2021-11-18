@@ -1,11 +1,11 @@
 package compman.compsrv.logic.fights
 
-import cats.{~>, Monad, MonoidK, Show}
+import cats.{Monad, MonoidK, Show, ~>}
 import cats.free.Free
 import cats.implicits._
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.brackets.StageRoundType
-import compman.compsrv.model.CompetitionState
 import zio.Task
 
 object CompetitorSelectionUtils {

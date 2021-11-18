@@ -5,12 +5,10 @@ import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.{MatIdAndSomeId, ScheduleDTO, ScheduleEntryDTO, ScheduleRequirementDTO}
 
-import java.time.Instant
-
 package object extensions {
   import cats.implicits._
 
-  implicit class CompetitionPropertiesOps(c: CompetitionPropertiesDTO) {
+  final implicit class CompetitionPropertiesOps(private val c: CompetitionPropertiesDTO) extends AnyVal {
     def applyProperties(props: CompetitionPropertiesDTO): CompetitionPropertiesDTO = {
       for {
         pr <- Option(props)
@@ -29,11 +27,11 @@ package object extensions {
     }.getOrElse(c)
   }
 
-  implicit class CategoryRestrictionOps(c: CategoryRestrictionDTO) {
+  final implicit class CategoryRestrictionOps(private val c: CategoryRestrictionDTO) extends AnyVal {
     def aliasOrName: String = Option(c.getAlias).getOrElse(c.getName)
   }
 
-  implicit class SchedReqOps(s: ScheduleRequirementDTO) {
+  final implicit class SchedReqOps(private val s: ScheduleRequirementDTO) extends AnyVal {
     def categories: Option[Array[String]] = Option(s.getCategoryIds).orElse(Option(Array.empty))
 
     def categoriesOrEmpty: Array[String] = categories.getOrElse(Array.empty)
@@ -43,7 +41,7 @@ package object extensions {
     def fightIdsOrEmpty: Array[String] = fightIds.getOrElse(Array.empty)
   }
 
-  implicit class SchedEntryOps(s: ScheduleEntryDTO) {
+  final implicit class SchedEntryOps(private val s: ScheduleEntryDTO) extends AnyVal {
     def categories: Option[Array[String]]       = Option(s.getCategoryIds)
     def categoriesOrEmpty: Array[String]        = categories.getOrElse(Array.empty)
     def fightIds: Option[Array[MatIdAndSomeId]] = Option(s.getFightIds)
@@ -55,7 +53,7 @@ package object extensions {
     def addCategoryId(categoryId: String): ScheduleEntryDTO = s.setCategoryIds(s.categoriesOrEmpty :+ categoryId)
   }
 
-  implicit class CompetitorOps(c: CompetitorDTO) {
+  final implicit class CompetitorOps(private val c: CompetitorDTO) extends AnyVal {
     def competitorId: Option[String] = if (c.isPlaceholder) None else Option(c.getId)
 
     def placeholderId: Option[String] = if (c.isPlaceholder) Option(c.getId) else Option(s"placeholder-${c.getId}")
@@ -76,16 +74,16 @@ package object extensions {
     )
   }
 
-  implicit class ScheduleOps(c: ScheduleDTO) {
+  final implicit class ScheduleOps(private val c: ScheduleDTO) extends AnyVal {
     def mats: Map[String, MatDescriptionDTO] = Option(c.getMats).map(_.groupMapReduce(_.getId)(identity)((a, _) => a))
       .getOrElse(Map.empty)
   }
 
-  implicit class CompScoreOps(c: CompScoreDTO) {
+  final implicit class CompScoreOps(private val c: CompScoreDTO) extends AnyVal {
     def hasCompetitorIdOrPlaceholderId: Boolean = c.getCompetitorId != null || c.getPlaceholderId != null
   }
 
-  implicit class StageDescrOps(s: StageDescriptorDTO) {
+  final implicit class StageDescrOps(private val s: StageDescriptorDTO) extends AnyVal {
     def groupsNumber: Int = Option(s.getGroupDescriptors).map(_.length).getOrElse(0)
     def copy() = new StageDescriptorDTO(
       s.getId,
@@ -106,18 +104,11 @@ package object extensions {
     )
   }
 
-  implicit class CategoryDescriptorOps(c: CategoryDescriptorDTO) {
+  final implicit class CategoryDescriptorOps(private val c: CategoryDescriptorDTO) extends AnyVal {
     def copy() = new CategoryDescriptorDTO(c.getRestrictions, c.getId, c.getName, c.getRegistrationOpen)
   }
 
-  implicit class CompetitionStateOps(c: CompetitionState) {
-    def updateFights(fights: Seq[FightDescriptionDTO]): CompetitionState = c
-      .createCopy(fights = c.fights.map(f => f ++ fights.groupMapReduce(_.getId)(identity)((a, _) => a)))
-    def updateStage(stage: StageDescriptorDTO): CompetitionState = c
-      .createCopy(stages = c.stages.map(stgs => stgs + (stage.getId -> stage)))
-  }
-
-  implicit class FightDescrOps(f: FightDescriptionDTO) {
+  final implicit class FightDescrOps(private val f: FightDescriptionDTO) extends AnyVal {
     def copy(
       id: String = f.getId,
       fightName: String = f.getFightName,

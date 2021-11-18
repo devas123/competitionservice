@@ -1,10 +1,11 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.config.CommandProcessorConfig
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.actors.CompetitionProcessorActor.LiveEnv
-import compman.compsrv.model.{CommandProcessorNotification, CompetitionState}
+import compman.compsrv.model.CommandProcessorNotification
 import compman.compsrv.model.events.EventDTO
-import zio.{Queue, Ref, RIO, Tag}
+import zio.{Queue, RIO, Ref, Tag}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.admin.AdminClient

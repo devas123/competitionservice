@@ -7,7 +7,7 @@ import java.util.Date
 
 package object extensions {
 
-  implicit class PeriodOps(p: PeriodDTO) {
+  final implicit class PeriodOps(private val p: PeriodDTO) extends AnyVal {
     def enrichWithFightsByScheduleEntries(fightsByScheduleEntries: List[FightByScheduleEntry]): PeriodDTO = {
       val map = fightsByScheduleEntries.filter(e => e.matId.isDefined && e.periodId == p.getId)
         .groupMap(_.scheduleEntryId)(e =>
@@ -21,7 +21,7 @@ package object extensions {
     }
   }
 
-  implicit class CompetitionPropertiesOps(c: CompetitionProperties) {
+  final implicit class CompetitionPropertiesOps(private val c: CompetitionProperties) extends AnyVal {
     def applyProperties(props: CompetitionPropertiesDTO): CompetitionProperties = {
       for { pr <- Option(props) } yield c.copy(
         timeZone = pr.getTimeZone,

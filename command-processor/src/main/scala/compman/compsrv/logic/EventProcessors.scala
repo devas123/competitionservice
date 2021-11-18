@@ -3,7 +3,7 @@ package compman.compsrv.logic
 import cats.Monad
 import compman.compsrv.logic.event._
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events
 
 object EventProcessors {
@@ -44,5 +44,5 @@ object EventProcessors {
       StageResultSetProc(state),
       StageStatusUpdatedProc(state)
     ).reduce((a, b) => a.orElse(b)).apply(event)
-  )(_.map(s => s.createCopy(revision = s.revision + 1)).getOrElse(state))
+  )(_.map(s => s.copy(revision = s.revision + 1)).getOrElse(state))
 }

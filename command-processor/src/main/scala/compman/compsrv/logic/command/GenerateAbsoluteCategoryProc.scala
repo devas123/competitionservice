@@ -3,13 +3,14 @@ package compman.compsrv.logic.command
 import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.model.Errors.{CategoryAlreadyExists, InternalError}
 import compman.compsrv.model.command.Commands.{Command, GenerateAbsoluteCategoryCommand}
 import compman.compsrv.model.commands.payload.CompetitorCategoryAddedPayload
 import compman.compsrv.model.events.payload.CategoryAddedPayload
 import compman.compsrv.model.events.{EventDTO, EventType}
-import compman.compsrv.model.{CompetitionState, Errors, Payload}
+import compman.compsrv.model.{Errors, Payload}
 
 object GenerateAbsoluteCategoryProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](

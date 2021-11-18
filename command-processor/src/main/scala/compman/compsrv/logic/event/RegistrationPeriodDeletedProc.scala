@@ -1,8 +1,9 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.Payload
 import compman.compsrv.model.dto.competition.RegistrationPeriodDTO
 import compman.compsrv.model.event.Events.{Event, RegistrationPeriodDeletedEvent}
 
@@ -23,7 +24,7 @@ object RegistrationPeriodDeletedProc {
       regInfo <- state.registrationInfo
       periods <- Option(regInfo.getRegistrationPeriods).orElse(Some(Array.empty[RegistrationPeriodDTO]))
       newPeriods = periods.filter(_.getId != deleted)
-      newState   = state.createCopy(registrationInfo = Some(regInfo.setRegistrationPeriods(newPeriods)))
+      newState   = state.copy(registrationInfo = Some(regInfo.setRegistrationPeriods(newPeriods)))
     } yield newState
     Monad[F].pure(eventT)
   }

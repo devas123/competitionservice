@@ -1,10 +1,11 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
 import compman.compsrv.model.event.Events.{CompetitorCategoryChangedEvent, Event}
 import compman.compsrv.model.extensions.CompetitorOps
-import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.Payload
 
 object CompetitorCategoryChangedProc {
   def apply[F[+_] : Monad : IdOperations : EventOperations, P <: Payload](
@@ -26,7 +27,7 @@ object CompetitorCategoryChangedProc {
       competitor <- state.competitors.flatMap(_.get(fighterId))
       updatedCategories = (oldCategoryOpt.map(c => competitor.getCategories.filter(_ != c)).getOrElse(competitor.getCategories) :+ newCategoryId).distinct
       newCompetitor = competitor.copy(categories = updatedCategories)
-      newState = state.createCopy(competitors = state.competitors.map(_ + (competitor.getId -> newCompetitor)))
+      newState = state.copy(competitors = state.competitors.map(_ + (competitor.getId -> newCompetitor)))
     } yield newState
     Monad[F].pure(eventT)
   }

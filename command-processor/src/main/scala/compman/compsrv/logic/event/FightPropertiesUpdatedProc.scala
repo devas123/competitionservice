@@ -1,8 +1,9 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, FightPropertiesUpdatedEvent}
 
 object FightPropertiesUpdatedProc {
@@ -27,7 +28,7 @@ object FightPropertiesUpdatedProc {
       updatedFight = fight.setMat(Option(update.getMatId).flatMap(mats.get).getOrElse(fight.getMat))
         .setNumberOnMat(Option(update.getNumberOnMat).getOrElse(fight.getNumberOnMat))
         .setStartTime(Option(update.getStartTime).getOrElse(fight.getStartTime))
-      newState = state.createCopy(fights = Some(fights + (updatedFight.getId -> updatedFight)))
+      newState = state.copy(fights = Some(fights + (updatedFight.getId -> updatedFight)))
     } yield newState
     Monad[F].pure(eventT)
   }

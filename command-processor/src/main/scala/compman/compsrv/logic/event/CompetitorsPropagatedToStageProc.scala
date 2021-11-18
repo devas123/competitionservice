@@ -1,9 +1,10 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
 import compman.compsrv.logic.fights.createEmptyScore
-import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.Payload
 import compman.compsrv.model.dto.brackets.FightReferenceType
 import compman.compsrv.model.dto.competition.CompScoreDTO
 import compman.compsrv.model.event.Events.{CompetitorsPropagatedToStageEvent, Event}

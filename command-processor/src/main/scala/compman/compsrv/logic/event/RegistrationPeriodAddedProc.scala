@@ -1,8 +1,9 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, RegistrationPeriodAddedEvent}
 
 object RegistrationPeriodAddedProc {
@@ -22,7 +23,7 @@ object RegistrationPeriodAddedProc {
       regInfo    <- state.registrationInfo
       regPeriods <- Option(regInfo.getRegistrationPeriods).orElse(Some(Array.empty))
       newPeriods = (regPeriods :+ newP).distinctBy(_.getId)
-      newState   = state.createCopy(registrationInfo = Some(regInfo.setRegistrationPeriods(newPeriods)))
+      newState   = state.copy(registrationInfo = Some(regInfo.setRegistrationPeriods(newPeriods)))
     } yield newState
     Monad[F].pure(eventT)
   }

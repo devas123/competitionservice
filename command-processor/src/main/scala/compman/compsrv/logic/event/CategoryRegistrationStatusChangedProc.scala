@@ -1,8 +1,9 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{CategoryRegistrationStatusChanged, Event}
 
 object CategoryRegistrationStatusChangedProc {
@@ -20,7 +21,7 @@ object CategoryRegistrationStatusChangedProc {
     val eventT = for {
       payload <- event.payload
       comProps <- state.registrationInfo
-      newState = state.createCopy(registrationInfo = Some(comProps.setRegistrationOpen(payload.isNewStatus)))
+      newState = state.copy(registrationInfo = Some(comProps.setRegistrationOpen(payload.isNewStatus)))
     } yield newState
     Monad[F].pure(eventT)
   }

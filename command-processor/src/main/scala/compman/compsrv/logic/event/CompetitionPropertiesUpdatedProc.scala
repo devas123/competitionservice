@@ -1,8 +1,9 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{CompetitionPropertiesUpdatedEvent, Event}
 import compman.compsrv.model.extensions._
 
@@ -22,7 +23,7 @@ object CompetitionPropertiesUpdatedProc {
       payload <- event.payload
       props = payload.getProperties
       stateProps <- state.competitionProperties
-      newState = state.createCopy(competitionProperties = Some(stateProps.applyProperties(props)))
+      newState = state.copy(competitionProperties = Some(stateProps.applyProperties(props)))
     } yield newState
     Monad[F].pure(eventT)
   }

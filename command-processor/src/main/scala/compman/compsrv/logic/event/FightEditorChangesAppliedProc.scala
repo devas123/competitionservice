@@ -1,8 +1,9 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.Payload
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.event.Events.{Event, FightEditorChangesAppliedEvent}
 
@@ -25,7 +26,7 @@ object FightEditorChangesAppliedProc {
       additions     <- Option(payload.getNewFights).orElse(Some(Array.empty[FightDescriptionDTO]))
       currentFights <- state.fights
       newFights = currentFights -- removals
-      newState  = state.createCopy(fights = Some(newFights)).updateFights((updates ++ additions).toIndexedSeq)
+      newState  = state.copy(fights = Some(newFights)).updateFights((updates ++ additions).toIndexedSeq)
     } yield newState
     Monad[F].pure(eventT)
   }

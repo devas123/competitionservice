@@ -2,8 +2,9 @@ package compman.compsrv.logic.event
 
 import cats.Monad
 import cats.data.OptionT
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.Payload
 import compman.compsrv.model.dto.competition.CategoryDescriptorDTO
 import compman.compsrv.model.event.Events.{CategoryAddedEvent, Event}
 
@@ -24,7 +25,7 @@ object CategoryAddedProc {
         payload <- OptionT.fromOption[F](event.payload)
         category = payload.getCategoryState
         cats <- OptionT.fromOption[F](state.categories.orElse(Some(Map.empty[String, CategoryDescriptorDTO])))
-      } yield state.createCopy(categories = Some(cats + (category.getId -> category)))
+      } yield state.copy(categories = Some(cats + (category.getId -> category)))
     eventT.value
   }
 }

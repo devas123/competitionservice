@@ -1,8 +1,9 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, ScheduleDropped}
 
 object ScheduleDroppedProc {
@@ -13,5 +14,5 @@ object ScheduleDroppedProc {
   private def apply[F[+_]: Monad: IdOperations: EventOperations](
     event: ScheduleDropped,
     state: CompetitionState
-  ): F[Option[CompetitionState]] = { Monad[F].pure(Some(state.createCopy(schedule = None))) }
+  ): F[Option[CompetitionState]] = { Monad[F].pure(Some(state.copy(schedule = None))) }
 }

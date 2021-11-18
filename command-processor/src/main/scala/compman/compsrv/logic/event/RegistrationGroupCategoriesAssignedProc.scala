@@ -1,8 +1,9 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, RegistrationGroupCategoriesAssignedEvent}
 
 object RegistrationGroupCategoriesAssignedProc {
@@ -24,7 +25,7 @@ object RegistrationGroupCategoriesAssignedProc {
       ind           = groups.indexOf(targetGroup)
       updatedGroup  = targetGroup.setCategories(payload.getCategories)
       updatedGroups = (groups.slice(0, ind) :+ updatedGroup) ++ groups.slice(ind + 1, groups.length)
-      newState      = state.createCopy(registrationInfo = Some(regInfo.setRegistrationGroups(updatedGroups)))
+      newState      = state.copy(registrationInfo = Some(regInfo.setRegistrationGroups(updatedGroups)))
     } yield newState
     Monad[F].pure(eventT)
   }

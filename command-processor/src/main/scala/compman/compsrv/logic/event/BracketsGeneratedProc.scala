@@ -1,8 +1,9 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{BracketsGeneratedEvent, Event}
 
 object BracketsGeneratedProc {
@@ -17,7 +18,7 @@ object BracketsGeneratedProc {
     val eventT = for {
       payload       <- event.payload
       currentStages <- state.stages
-      newState = state.createCopy(stages = Some(currentStages ++ payload.getStages.map(s => s.getId -> s)))
+      newState = state.copy(stages = Some(currentStages ++ payload.getStages.map(s => s.getId -> s)))
     } yield newState
     Monad[F].pure(eventT)
   }

@@ -1,9 +1,9 @@
 package compman.compsrv.logic.actors
 
-import compman.compsrv.logic.Operations
+import compman.compsrv.logic.{CompetitionState, Operations}
 import compman.compsrv.logic.actors.CommandProcessorOperations.KafkaTopicConfig
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
-import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionProcessingStopped, CompetitionState}
+import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionProcessingStopped}
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
 import Messages._

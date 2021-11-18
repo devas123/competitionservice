@@ -1,7 +1,7 @@
 package compman.compsrv.logic.command
 
 import cats.Eval
-import compman.compsrv.model.{CompetitionStateImpl, Payload}
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.model.command.Commands.GenerateScheduleCommand
 import compman.compsrv.model.commands.payload.GenerateSchedulePayload
 import compman.compsrv.model.dto.brackets._
@@ -9,6 +9,7 @@ import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.dto.schedule.{PeriodDTO, ScheduleRequirementDTO, ScheduleRequirementType}
 import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.ScheduleGeneratedPayload
+import compman.compsrv.model.Payload
 import compman.compsrv.service.TestEntities
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
@@ -49,7 +50,7 @@ class ScheduleServiceSpec extends AnyFunSuite with BeforeAndAfter with TestEntit
           .orNull
       )
   )
-  val initialState: CompetitionStateImpl = CompetitionStateImpl(
+  val initialState: CompetitionState = CompetitionState(
     id = competitionId,
     competitors = Some(competitors.groupMapReduce(_.getId)(identity)((a, _) => a)),
     competitionProperties = Some(new CompetitionPropertiesDTO().setId(competitionId).setTimeZone("UTC")),

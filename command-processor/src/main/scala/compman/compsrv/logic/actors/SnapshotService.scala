@@ -2,7 +2,7 @@ package compman.compsrv.logic.actors
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.jackson.ObjectMapperFactory
-import compman.compsrv.model.{CompetitionState, CompetitionStateImpl}
+import compman.compsrv.logic.CompetitionState
 import org.rocksdb.RocksDB
 import zio.{Has, Ref, Task, UIO, URIO, ZIO, ZManaged}
 
@@ -20,7 +20,7 @@ object SnapshotService {
       URIO { rocksDB.put(state.id.getBytes, mapper.writeValueAsBytes(state)) }
 
     override def loadSnapshot(id: String): URIO[Snapshot, Option[CompetitionState]] =
-      URIO { Option(rocksDB.get(id.getBytes)).map(bytes => mapper.readValue(bytes, classOf[CompetitionStateImpl])) }
+      URIO { Option(rocksDB.get(id.getBytes)).map(bytes => mapper.readValue(bytes, classOf[CompetitionState])) }
 
     private[actors] def close: UIO[Unit] = UIO(rocksDB.close())
   }

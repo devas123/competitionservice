@@ -3,9 +3,10 @@ package compman.compsrv.logic.command
 import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.fights.FightsService
-import compman.compsrv.model.{CompetitionState, Errors, Payload}
+import compman.compsrv.model.{Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, GenerateBracketsCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.Errors.{NoCategoryIdError, NoCompetitionIdError, NoPayloadError}

@@ -31,7 +31,7 @@ object WebsocketConnectionTest extends DefaultRunnableSpec with TestEntities {
             _   <- Logging.info(msg.mkString("\n"))
           } yield ()).fork
           _ <- wsActor ! WebsocketConnection.ReceivedEvent(new EventDTO())
-          _        <- wsActor ! WebsocketConnection.Stop
+          _        <- wsActor ? WebsocketConnection.Stop
           _ <- test.join
           shutdown <- queue.isShutdown
         } yield assert(shutdown)(isTrue)

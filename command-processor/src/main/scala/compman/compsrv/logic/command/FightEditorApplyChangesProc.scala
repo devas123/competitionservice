@@ -3,18 +3,14 @@ package compman.compsrv.logic.command
 import cats.Monad
 import cats.data.{EitherT, OptionT}
 import cats.implicits._
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.fights._
-import compman.compsrv.model.{CompetitionState, Errors, Payload}
+import compman.compsrv.model.{Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, FightEditorApplyChangesCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.Errors.NoPayloadError
-import compman.compsrv.model.commands.payload.{
-  CompetitorMovedToGroup,
-  FightEditorApplyChangesPayload,
-  FightsCompetitorUpdated,
-  GroupChangeType
-}
+import compman.compsrv.model.commands.payload.{CompetitorMovedToGroup, FightEditorApplyChangesPayload, FightsCompetitorUpdated, GroupChangeType}
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition.{CompScoreDTO, FightDescriptionDTO, FightStatus}
 import compman.compsrv.model.events.payload.FightEditorChangesAppliedPayload

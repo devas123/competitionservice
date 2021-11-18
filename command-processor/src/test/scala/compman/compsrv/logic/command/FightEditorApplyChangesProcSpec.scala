@@ -1,14 +1,14 @@
 package compman.compsrv.logic.command
 
 import cats.Eval
-import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.{CompetitionStateImpl, Errors, Payload}
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.model.command.Commands.FightEditorApplyChangesCommand
 import compman.compsrv.model.commands.payload.{FightEditorApplyChangesPayload, FightsCompetitorUpdated}
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition._
-import compman.compsrv.model.events.{EventDTO, EventType}
+import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.FightEditorChangesAppliedPayload
+import compman.compsrv.model.Payload
 import compman.compsrv.service.TestEntities
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
@@ -21,7 +21,7 @@ class FightEditorApplyChangesProcSpec extends AnyFunSuite with BeforeAndAfter wi
 
   val stage: StageDescriptorDTO = new StageDescriptorDTO().setId(stageId)
 
-  val initialState: CompetitionStateImpl = CompetitionStateImpl(
+  val initialState: CompetitionState = CompetitionState(
     id = competitionId,
     competitors = Some(
       competitors.groupMapReduce(_.getId)(identity)((a, _) => a)

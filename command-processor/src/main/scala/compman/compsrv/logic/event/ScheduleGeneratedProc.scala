@@ -1,8 +1,9 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
+import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.{CompetitionState, Payload}
+import compman.compsrv.model.Payload
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.{PeriodDTO, ScheduleDTO}
 import compman.compsrv.model.event.Events.{Event, ScheduleGeneratedEvent}
@@ -23,7 +24,7 @@ object ScheduleGeneratedProc {
       mats    <- Option(sc.getMats).orElse(Some(Array.empty[MatDescriptionDTO]))
       periods <- Option(sc.getPeriods).orElse(Some(Array.empty[PeriodDTO]))
       schedule = new ScheduleDTO().setId(id).setMats(mats).setPeriods(periods)
-      newState = state.createCopy(schedule = Some(schedule))
+      newState = state.copy(schedule = Some(schedule))
     } yield newState
     Monad[F].pure(eventT)
   }
