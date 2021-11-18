@@ -43,6 +43,7 @@ dependencies {
     Libraries.zioConfig.forEach { implementation(it) }
     Libraries.jackson.forEach { implementation(it) }
     Libraries.rocksdb.forEach { implementation(it) }
+    Libraries.monocle.forEach { implementation(it) }
     implementation(project(":competition-serv-model"))
     implementation(project(":compservice-annotations"))
     implementation(project(":command-processor:commons"))

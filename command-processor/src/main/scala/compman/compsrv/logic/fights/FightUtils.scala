@@ -3,6 +3,7 @@ package compman.compsrv.logic.fights
 import cats.{Monad, Traverse}
 import cats.data.OptionT
 import cats.implicits._
+import compman.compsrv.Utils.groupById
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.fights.CompetitorSelectionUtils._
 import compman.compsrv.model.dto.brackets._
@@ -122,7 +123,7 @@ object FightUtils {
         for { canBePacked <- checkIfFightIsPackedOrCanBePackedEventually[F](it.getId, fights) } yield
           if (canBePacked) it else markAsUncompletable(it)
       )
-    } yield fights ++ uncompletableFights.groupMapReduce(_.getId)(identity)((a, _) => a)
+    } yield fights ++ groupById(uncompletableFights)(_.getId)
   }
 
   def advanceCompetitorsInUncompletableFights[F[_]: Monad](

@@ -3,6 +3,7 @@ package compman.compsrv.logic.command
 import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
+import compman.compsrv.Utils.groupById
 import compman.compsrv.logic._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.fights.FightUtils
@@ -46,10 +47,10 @@ object UpdateStageStatusProc {
       e = payload.getStatus match {
         case StageStatus.APPROVED | StageStatus.WAITING_FOR_APPROVAL | StageStatus.WAITING_FOR_COMPETITORS =>
           val stageFights = state.fights.map(_.values.filter(_.getStageId == stageId)).getOrElse(Iterable.empty)
-          val dirtyStageFights = stageFights.map(sf =>
+          val dirtyStageFights = groupById(stageFights.map(sf =>
             if (sf.getStatus == FightStatus.UNCOMPLETABLE) { sf.setStatus(FightStatus.PENDING) }
             else sf
-          ).groupMapReduce(_.getId)(identity)((a, _) => a)
+          ))(_.getId)
           for {
             markedStageFights <-
               if (payload.getStatus == StageStatus.WAITING_FOR_COMPETITORS) Monad[F].pure(dirtyStageFights)

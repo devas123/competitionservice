@@ -2,6 +2,7 @@ package compman.compsrv.logic.fights
 
 import cats.Monad
 import cats.data.EitherT
+import compman.compsrv.Utils.groupById
 import compman.compsrv.logic.fights.FightUtils.filterPreliminaryFights
 import compman.compsrv.model.Errors
 import compman.compsrv.model.dto.brackets._
@@ -48,7 +49,7 @@ object FightsService {
     import BracketsUtils._
     import GroupsUtils._
     def postProcessFights(generated: List[FightDescriptionDTO]) = {
-      val fights = generated.groupMapReduce(_.getId)(identity)((a, _) => a)
+      val fights = groupById(generated)(_.getId)
       val lifted: EitherT[F, Errors.Error, List[FightDescriptionDTO]] = for {
         assignedFights <- stage.getStageOrder.toInt match {
           case 0 => EitherT.fromEither[F](BracketsUtils.distributeCompetitors(competitors, fights))

@@ -1,6 +1,7 @@
 package compman.compsrv.logic.actors.behavior
 
 import cats.data.OptionT
+import compman.compsrv.Utils
 import compman.compsrv.logic.actors.{ActorBehavior, Context, Timers}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.category.CategoryGenerateService
@@ -18,7 +19,7 @@ import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.{CompetitionQueryOperations, FightQueryOperations, ManagedCompetitionsOperations, Pagination}
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
 import org.mongodb.scala.MongoClient
-import zio.{Ref, RIO, Tag, ZIO}
+import zio.{RIO, Ref, Tag, ZIO}
 import zio.logging.Logging
 
 import scala.jdk.CollectionConverters.IterableHasAsScala
@@ -203,7 +204,7 @@ object CompetitionApiActor {
             case GetRegistrationInfo(competitionId) => for {
                 groups  <- CompetitionQueryOperations[LIO].getRegistrationGroups(competitionId)
                 periods <- CompetitionQueryOperations[LIO].getRegistrationPeriods(competitionId)
-              } yield (state, RegistrationInfo(groups.groupMapReduce(_.id)(identity)((a, _) => a), periods.groupMapReduce(_.id)(identity)((a, _) => a)).asInstanceOf[A])
+              } yield (state, RegistrationInfo(Utils.groupById(groups)(_.id), Utils.groupById(periods)(_.id)).asInstanceOf[A])
             case GetCategories(competitionId) => for {
                 categories <- CompetitionQueryOperations[LIO].getCategoriesByCompetitionId(competitionId)
                 categoryStates <- categories.traverse { category =>

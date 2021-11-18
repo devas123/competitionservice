@@ -2,14 +2,11 @@ package compman.compsrv.query.service.event
 
 import cats.Monad
 import cats.data.OptionT
+import compman.compsrv.Utils
 import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, FightStartTimeUpdatedEvent}
 import compman.compsrv.query.model.FightStartTimeUpdate
-import compman.compsrv.query.service.repository.{
-  CompetitionQueryOperations,
-  FightQueryOperations,
-  FightUpdateOperations
-}
+import compman.compsrv.query.service.repository.{CompetitionQueryOperations, FightQueryOperations, FightUpdateOperations}
 
 import java.util.Date
 
@@ -28,9 +25,9 @@ object FightStartTimeUpdatedProc {
       existing <- updates.groupBy(_.getFightCategoryId).toList.traverse(arr =>
         OptionT.liftF(FightQueryOperations[F].getFightsByIds(competitionId)(arr._1, arr._2.map(_.getFightId).toSet))
       )
-      updatesMap = updates.groupMapReduce(_.getFightId)(identity)((a, _) => a)
+      updatesMap = Utils.groupById(updates)(_.getFightId)
       periods <- OptionT.liftF(CompetitionQueryOperations[F].getPeriodsByCompetitionId(competitionId))
-      mats = periods.flatMap(_.mats).groupMapReduce(_.matId)(identity)((a, _) => a)
+      mats = Utils.groupById(periods.flatMap(_.mats))(_.matId)
       existingUpdated = existing.flatten.map { f =>
         val u   = updatesMap(f.id)
         val mat = Option(u.getMatId).flatMap(mats.get)

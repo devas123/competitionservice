@@ -2,6 +2,7 @@ package compman.compsrv.logic.command
 
 import cats.Monad
 import cats.data.EitherT
+import compman.compsrv.Utils.groupById
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.model.extensions._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
@@ -39,7 +40,7 @@ object PropagateCompetitorsProc {
         FightsService.distributeCompetitors[F](
           state.competitors.map(_.values).map(_.filter { it => propagatedCompetitorsSet.contains(it.getId) }.toList)
             .getOrElse(List.empty),
-          propagatedStageFights.groupMapReduce(_.getId)(identity)((a, _) => a)
+          groupById(propagatedStageFights)(_.getId)
         ).apply(stage.getBracketType)
       )
       compAssignmentDescriptors = competitorIdsToFightIds.flatMap(f =>

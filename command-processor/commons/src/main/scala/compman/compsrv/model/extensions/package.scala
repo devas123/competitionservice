@@ -1,5 +1,6 @@
 package compman.compsrv.model
 
+import compman.compsrv.Utils
 import compman.compsrv.model.dto.brackets.{StageDescriptorDTO, StageRoundType}
 import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
@@ -75,7 +76,7 @@ package object extensions {
   }
 
   final implicit class ScheduleOps(private val c: ScheduleDTO) extends AnyVal {
-    def mats: Map[String, MatDescriptionDTO] = Option(c.getMats).map(_.groupMapReduce(_.getId)(identity)((a, _) => a))
+    def mats: Map[String, MatDescriptionDTO] = Option(c.getMats).map(ms => Utils.groupById(ms)(_.getId))
       .getOrElse(Map.empty)
   }
 

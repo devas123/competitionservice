@@ -26,6 +26,7 @@ dependencies {
     Libraries.zioKafka.forEach { implementation(it) }
     Libraries.http4s.forEach { implementation(it) }
     Libraries.mongoDb.forEach { implementation(it) }
+    Libraries.monocle.forEach { implementation(it) }
     Libraries.embeddedMongodb.forEach { testImplementation(it) }
     implementation(project(":competition-serv-model"))
     implementation(project(":compservice-annotations"))

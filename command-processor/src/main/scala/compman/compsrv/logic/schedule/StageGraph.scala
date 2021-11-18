@@ -1,6 +1,7 @@
 package compman.compsrv.logic.schedule
 
 import com.google.common.collect.{BiMap, HashBiMap}
+import compman.compsrv.Utils
 import compman.compsrv.logic.fights.CanFail
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
@@ -149,7 +150,7 @@ object StageGraph {
     for {
       stageOrdering <- GraphUtils.findTopologicalOrdering(stagesGraph)
       sortedFights  = fights.sortBy { _.roundOrZero }.sortBy { it => stageOrdering(stageIdsToIds.get(it.getStageId)) }
-      fightsMap     = sortedFights.groupMapReduce(_.getId)(identity)((a, _) => a)
+      fightsMap     = Utils.groupById(sortedFights)(_.getId)
       fightIdsToIds = createFightIdsToIntIds(sortedFights)
       (fightsGraph, stageIdsToFightIds) =
         getFightsGraphAndStageIdToFightId(fights, stages.size, fightsMap.size, fightIdsToIds, stageIdsToIds)

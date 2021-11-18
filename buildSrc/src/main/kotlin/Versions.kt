@@ -17,6 +17,7 @@ object Versions {
     const val http4s: String = "1.0.0-M27"
     const val mongodb: String = "4.3.3"
     const val embeddedMongodb: String = "3.1.4"
+    const val monocle: String = "3.1.0"
 }
 
 data class Dep(val group: String, val artifactId: String, val version: String, val classifier: String)
@@ -26,6 +27,13 @@ object Libraries {
     val embeddedMongodb = listOf(
         "de.flapdoodle.embed:de.flapdoodle.embed.mongo:${Versions.embeddedMongodb}"
     )
+
+    val monocle = listOf(
+        "dev.optics:monocle-core_2.13:${Versions.monocle}",
+        "dev.optics:monocle-macro_2.13:${Versions.monocle}"
+    )
+
+
     val http4s = listOf(
         "org.http4s:http4s-dsl_${scalaBinary}:${Versions.http4s}",
         "org.http4s:http4s-blaze-server_${scalaBinary}:${Versions.http4s}",

@@ -1,6 +1,7 @@
 package compman.compsrv.logic.command
 
 import cats.Eval
+import compman.compsrv.Utils
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.model.command.Commands.GenerateScheduleCommand
 import compman.compsrv.model.commands.payload.GenerateSchedulePayload
@@ -52,10 +53,10 @@ class ScheduleServiceSpec extends AnyFunSuite with BeforeAndAfter with TestEntit
   )
   val initialState: CompetitionState = CompetitionState(
     id = competitionId,
-    competitors = Some(competitors.groupMapReduce(_.getId)(identity)((a, _) => a)),
+    competitors = Some(Utils.groupById(competitors)(_.getId)),
     competitionProperties = Some(new CompetitionPropertiesDTO().setId(competitionId).setTimeZone("UTC")),
     stages = Some(Map(stageId -> stage, stage2 -> stage.copy().setId(stage2).setCategoryId(category2))),
-    fights = Some(fights ++ fights2).map(_.groupMapReduce(_.getId)(identity)((a, _) => a)),
+    fights = Some(fights ++ fights2).map(fs => Utils.groupById(fs)(_.getId)),
     categories = Some(Map(
       categoryId -> new CategoryDescriptorDTO().copy().setId(categoryId),
       category2  -> new CategoryDescriptorDTO().copy().setId(category2)

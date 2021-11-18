@@ -2,10 +2,11 @@ package compman.compsrv.logic.fights
 
 import cats.Monad
 import cats.data.EitherT
+import compman.compsrv.Utils.groupById
 import compman.compsrv.logic._
 import compman.compsrv.model.Errors
 import compman.compsrv.model.dto.brackets._
-import compman.compsrv.model.dto.competition.{CompetitorDTO, CompScoreDTO, FightDescriptionDTO, FightStatus}
+import compman.compsrv.model.dto.competition.{CompScoreDTO, CompetitorDTO, FightDescriptionDTO, FightStatus}
 
 import scala.util.Random
 
@@ -155,7 +156,7 @@ object BracketsUtils {
       secondLoopUpdatedFights = secondLoopPairsWithFights.mapFilter { case (f, c1) => f.pushCompetitor(c1.getId) }
       _ <- checkAllFightsWereUpdated(secondLoopPairsWithFights.size, secondLoopUpdatedFights.size)
       result = secondLoopUpdatedFights ++ updatedFirstRoundFights.drop(secondLoopUpdatedFights.size)
-    } yield fights ++ result.groupMapReduce(_.getId)(identity)((a, _) => a)
+    } yield fights ++ groupById(result)(_.getId)
   }
 
   def buildStageResults(

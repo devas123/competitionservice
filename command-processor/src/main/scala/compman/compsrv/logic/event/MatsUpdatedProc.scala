@@ -1,6 +1,7 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
+import compman.compsrv.Utils.groupById
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
 import compman.compsrv.model.Payload
@@ -19,7 +20,7 @@ object MatsUpdatedProc {
       payload  <- event.payload
       schedule <- state.schedule
       mats     <- Option(schedule.getMats).orElse(Some(Array.empty))
-      updates  <- Option(payload.getMats).map(_.groupMapReduce(_.getId)(identity)((a, _) => a))
+      updates  <- Option(payload.getMats).map(ms => groupById(ms)(_.getId))
       updatedMats = mats.map(mat => {
         updates.get(mat.getId).map(m => {
           mat.setName(Option(m.getName).getOrElse(mat.getName))

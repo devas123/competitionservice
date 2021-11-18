@@ -1,8 +1,10 @@
 package compman.compsrv.logic
 
+import compman.compsrv.Utils
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.dto.schedule.ScheduleDTO
+import monocle.macros.GenLens
 
 final case class CompetitionState(
   id: String,
@@ -16,11 +18,13 @@ final case class CompetitionState(
   revision: Long)
 
 object CompetitionState {
-  final implicit class CompetitionStateOps(private val c: CompetitionState) extends AnyVal {
-    def updateFights(fights: Seq[FightDescriptionDTO]): CompetitionState = c
-      .copy(fights = c.fights.map(f => f ++ fights.groupMapReduce(_.getId)(identity)((a, _) => a)))
+  private val fightsLens = GenLens[CompetitionState](_.fights)
+  private val stagesLens = GenLens[CompetitionState](_.stages)
 
-    def updateStage(stage: StageDescriptorDTO): CompetitionState = c
-      .copy(stages = c.stages.map(stgs => stgs + (stage.getId -> stage)))
+  final implicit class CompetitionStateOps(private val c: CompetitionState) extends AnyVal {
+    def updateFights(fights: Seq[FightDescriptionDTO]): CompetitionState = fightsLens.modify(f => f.map(f => f ++ Utils.groupById(fights)(_.getId)))(c)
+
+    def updateStage(stage: StageDescriptorDTO): CompetitionState =
+      stagesLens.modify(s => s.map(stgs => stgs + (stage.getId -> stage)))(c)
   }
 }

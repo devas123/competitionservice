@@ -1,5 +1,6 @@
 package compman.compsrv.service
 
+import compman.compsrv.Utils
 import compman.compsrv.logic.competitor.CompetitorService
 import compman.compsrv.logic.fights.{BracketsUtils, FightUtils}
 import compman.compsrv.model.dto.competition.FightStatus
@@ -27,7 +28,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
           competitionId = competitionId
         ))
         res         = fights.fold(_ => List.empty, identity)
-        distributed = BracketsUtils.distributeCompetitors(fighters, res.groupMapReduce(_.getId)(identity)((a, _) => a))
+        distributed = BracketsUtils.distributeCompetitors(fighters, Utils.groupById(res)(_.getId))
         distribRes <- ZIO.effectTotal(distributed).flatMap(_.fold(err => ZIO.fail(err), ZIO.effectTotal(_)))
           .onError(err => URIO(println(err.toString)))
       } yield assert(res.size)(equalTo(7)) && assert(distribRes.size)(equalTo(7)) &&
@@ -54,7 +55,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
           competitionId = competitionId
         ))
         res         = fights.fold(_ => List.empty, identity)
-        distributed = BracketsUtils.distributeCompetitors(fighters, res.groupMapReduce(_.getId)(identity)((a, _) => a))
+        distributed = BracketsUtils.distributeCompetitors(fighters, Utils.groupById(res)(_.getId))
         distribRes <- ZIO.effectTotal(distributed).flatMap(_.fold(err => ZIO.fail(err), ZIO.effectTotal(_)))
           .onError(err => URIO(println(err.toString)))
       } yield assert(res.size)(equalTo(15)) && assert(distribRes.size)(equalTo(15)) &&
@@ -79,7 +80,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
           competitionId = competitionId
         ))
         res         = fights.fold(_ => List.empty, identity)
-        distributed = BracketsUtils.distributeCompetitors(fighters, res.groupMapReduce(_.getId)(identity)((a, _) => a))
+        distributed = BracketsUtils.distributeCompetitors(fighters, Utils.groupById(res)(_.getId))
         distribRes <- ZIO.effectTotal(distributed).flatMap(_.fold(err => ZIO.fail(err), ZIO.effectTotal(_)))
           .onError(err => URIO(println(err.toString)))
         marked <- FightUtils.markAndProcessUncompletableFights[Task](distribRes)

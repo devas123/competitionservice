@@ -1,6 +1,7 @@
 package compman.compsrv.logic.command
 
 import cats.Eval
+import compman.compsrv.Utils
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.model.command.Commands.FightEditorApplyChangesCommand
 import compman.compsrv.model.commands.payload.{FightEditorApplyChangesPayload, FightsCompetitorUpdated}
@@ -24,7 +25,7 @@ class FightEditorApplyChangesProcSpec extends AnyFunSuite with BeforeAndAfter wi
   val initialState: CompetitionState = CompetitionState(
     id = competitionId,
     competitors = Some(
-      competitors.groupMapReduce(_.getId)(identity)((a, _) => a)
+      Utils.groupById(competitors)(_.getId)
     ),
     competitionProperties = None,
     stages = Some(Map(stageId -> stage)),
@@ -49,7 +50,7 @@ class FightEditorApplyChangesProcSpec extends AnyFunSuite with BeforeAndAfter wi
 
   test("Should set fight statuses") {
     val updatedFights = (for {
-      newFights <- Eval.later(fights.groupMapReduce(_.getId)(identity)((a, _) => a))
+      newFights <- Eval.later(Utils.groupById(fights)(_.getId))
       result <- FightEditorApplyChangesProc[Eval, Payload](initialState.copy(fights = Some(newFights)))
         .apply(command)
     } yield result).value

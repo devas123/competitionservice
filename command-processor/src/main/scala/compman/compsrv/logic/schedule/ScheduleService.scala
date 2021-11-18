@@ -3,6 +3,7 @@ package compman.compsrv.logic.schedule
 import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
+import compman.compsrv.Utils
 import compman.compsrv.logic._
 import compman.compsrv.logic.Operations.IdOperations
 import compman.compsrv.logic.fights.CanFail
@@ -32,7 +33,7 @@ object ScheduleService {
       flatFights = enrichedScheduleRequirements.flatMap(_.fightIdsOrEmpty)
       _ <- assertET[F](flatFights.size == flatFights.distinct.size, Some("Duplicate fights detected"))
       requirementsGraph <- EitherT.fromEither[F](RequirementsGraph(
-        enrichedScheduleRequirements.groupMapReduce(_.getId)(identity)((a, _) => a),
+        Utils.groupById(enrichedScheduleRequirements)(_.getId),
         stageGraph.getCategoryIdsToFightIds,
         sortedPeriods.map(_.getId).toArray
       ))

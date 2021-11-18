@@ -1,5 +1,6 @@
 package compman.compsrv.logic.category
 
+import compman.compsrv.Utils
 import compman.compsrv.model.commands.payload.{AdjacencyList, GenerateCategoriesFromRestrictionsPayload}
 import compman.compsrv.model.dto.competition._
 
@@ -34,7 +35,7 @@ object CategoryGenerateService {
     restrictionNamesOrder: Map[String, Int]
   ): List[CategoryDescriptorDTO] = {
     val stack = mutable.Stack[AdjacencyListEntryWithLevelAndId]()
-    val idMap = idTree.getVertices.groupMapReduce(_.getId)(identity)((a, _) => a)
+    val idMap = Utils.groupById(idTree.getVertices)(_.getId)
     stack.push(AdjacencyListEntryWithLevelAndId(idTree.getRoot, restrictions(idTree.getRoot), 0))
     val paths       = ArrayBuffer.empty[Array[CategoryRestrictionDTO]]
     val currentPath = mutable.ArrayDeque.empty[CategoryRestrictionDTO]

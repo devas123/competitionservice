@@ -3,6 +3,7 @@ package compman.compsrv.logic.fights
 import cats.{Monad, MonoidK, Show, ~>}
 import cats.free.Free
 import cats.implicits._
+import compman.compsrv.Utils.groupById
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.brackets.StageRoundType
@@ -21,9 +22,9 @@ object CompetitorSelectionUtils {
       val stages = state.stages.getOrElse(Map.empty)
       def results(stageId: String) = stages.get(stageId).flatMap(s => Option(s.getStageResultDescriptor))
         .flatMap(s => Option(s.getCompetitorResults))
-        .map(res => res.groupMapReduce(_.getCompetitorId)(identity)((a, _) => a)).getOrElse(Map.empty)
+        .map(res => groupById(res)(_.getCompetitorId)).getOrElse(Map.empty)
       def fights(stageId: String) = state.fights
-        .map(_.values.filter(_.getStageId == stageId).groupMapReduce(_.getId)(identity)((a, _) => a))
+        .map(fs => groupById(fs.values.filter(_.getStageId == stageId))(_.getId))
       new (CompetitorSelectA ~> LIO) {
         override def apply[A](fa: CompetitorSelectA[A]): LIO[A] = {
           fa match {

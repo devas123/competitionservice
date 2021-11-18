@@ -1,13 +1,14 @@
 package compman.compsrv.logic.schedule
 
 import cats.implicits._
+import compman.compsrv.Utils.groupById
 import compman.compsrv.logic.fights.CanFail
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule._
 import compman.compsrv.model.extensions._
 import compman.compsrv.model.Errors
 
-import java.time.{Instant, ZonedDateTime, ZoneId}
+import java.time.{Instant, ZoneId, ZonedDateTime}
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import scala.collection.mutable
@@ -62,7 +63,7 @@ private[schedule] object ScheduleProducer {
     val pauses = req.filter { _.getEntryType == ScheduleRequirementType.FIXED_PAUSE }.groupBy { _.getMatId }.view
       .mapValues { e => e.sortBy { _.getStartTime.toEpochMilli() } }.mapValues(ArrayBuffer.from(_))
     val unfinishedRequirements = mutable.Queue.empty[ScheduleRequirementDTO]
-    val matsToIds              = accumulator.matSchedules.groupMapReduce(_.id)(identity)((a, _) => a)
+    val matsToIds              = groupById(accumulator.matSchedules)(_.id)
     val sortedPeriods          = periods.sortBy { _.getStartTime }
     val requirementsCapacity   = requiremetsGraph.requirementFightsSize
 

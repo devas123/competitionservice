@@ -2,6 +2,7 @@ package compman.compsrv.query.service.event
 
 import cats.Monad
 import cats.data.OptionT
+import compman.compsrv.Utils
 import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, FightCompetitorsAssignedEvent}
 import compman.compsrv.query.service.repository.{FightQueryOperations, FightUpdateOperations}
@@ -22,7 +23,7 @@ object FightCompetitorsAssignedProc {
       fightIds = assignments.toList.flatMap(ass => (ass.getToFightId, ass.getFromFightId).toList).filter(_ != null)
         .toSet
       fightsList <- OptionT.liftF(FightQueryOperations[F].getFightsByIds(competitionId)(categoryId, fightIds))
-      fights = fightsList.groupMapReduce(_.id)(identity)((a, _) => a)
+      fights = Utils.groupById(fightsList)(_.id)
       updates = assignments.toList.mapFilter(ass =>
         for {
           fromFight <- fights.get(ass.getFromFightId)

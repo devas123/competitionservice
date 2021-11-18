@@ -2,6 +2,7 @@ package compman.compsrv.query.service.event
 
 import cats.Monad
 import cats.data.OptionT
+import compman.compsrv.Utils
 import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, FightPropertiesUpdatedEvent}
 import compman.compsrv.query.service.repository.{CompetitionQueryOperations, FightQueryOperations, FightUpdateOperations}
@@ -23,8 +24,8 @@ object FightPropertiesUpdatedProc {
       dto           <- OptionT.fromOption[F](Option(payload.getUpdate))
       existing      <- OptionT(FightQueryOperations[F].getFightById(competitionId)(categoryId, dto.getFightId))
       periodId      <- OptionT.fromOption[F](existing.periodId)
-      periods       <- OptionT(CompetitionQueryOperations[F].getPeriodById(competitionId)(periodId))
-      mats = periods.mats.groupMapReduce(_.matId)(identity)((a, _) => a)
+      period       <- OptionT(CompetitionQueryOperations[F].getPeriodById(competitionId)(periodId))
+      mats = Utils.groupById(period.mats)(_.matId)
       matId <- OptionT.fromOption[F](Option(dto.getMatId))
       mat = mats.get(matId)
       _ <- OptionT.liftF(FightUpdateOperations[F].updateFight(existing.copy(
