@@ -20,6 +20,7 @@ import compman.compsrv.query.service.repository._
 import org.mongodb.scala.MongoClient
 import zio.{Fiber, Queue, Ref, RIO, Tag, Task, ZIO}
 import zio.clock.Clock
+import zio.duration.durationInt
 import zio.kafka.consumer.{Consumer, Offset}
 import zio.logging.Logging
 import zio.stream.ZStream
@@ -135,7 +136,7 @@ object CompetitionEventListener {
         _          <- Logging.info(s"Received end offsets for topic $topic: $endOffsets")
         events     <- eventStreaming.retrieveEvents(topic, groupId, endOffsets)
         _          <- Logging.info(s"Retrieved ${events.size} events for topic $topic")
-        _          <- events.traverse(ev => context.self ! EventReceived(ev.value, Some(ev.offset)))
+        _          <- events.traverse(ev => context.self ! EventReceived(ev.value, None))
         k <- (for {
           _ <- Logging.info(s"Starting stream for listening to competition events for topic: $topic")
           _ <- eventStreaming.getByteArrayStream(topic, groupId).mapM(record =>
@@ -150,7 +151,11 @@ object CompetitionEventListener {
           _ <- Logging.info(s"Starting stream for committing offsets.")
           _ <- ZStream.fromQueue(queue)
             .aggregateAsync(Consumer.offsetBatches)
-            .mapM(o => Logging.info(s"Committing offsets ${o.offsets}") *> o.commit)
+            .mapM(o => for {
+              _ <- Logging.info(s"Committing offsets ${o.offsets}")
+              res <- o.commit.timeout(1.seconds)
+              _ <- Logging.info(s"Done! $res")
+            } yield ())
             .runDrain
           _ <- Logging.info(s"Finished stream for committing offsets: $topic")
         } yield ()).fork

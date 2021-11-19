@@ -49,6 +49,7 @@ object EventStreamingService {
                   Consumer.subscribeAnd(Subscription.manual(off.map(_._1).toIndexedSeq: _*))
                     .plainStream(Serde.string, SerdeApi.eventDeserializer).take(numberOfEventsToTake).runCollect
                 } else { RIO.effect(Chunk.empty) }
+              _ <- res1.map(_.offset).foldLeft(OffsetBatch.empty)(_ merge _).commit
             } yield res1.toList
           } else { ZIO.effectTotal(List.empty) }
         _ <- Logging.info("Done collecting events.")
