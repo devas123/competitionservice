@@ -12,13 +12,11 @@ import zio.kafka.serde.Serde
 import zio.logging.Logging
 import zio.stream.ZStream
 
-import java.util.UUID
-
 object EventStreamingService {
 
   trait EventStreaming[R] {
     def getLastOffsets(topic: String, groupId: String): RIO[R, Map[TopicPartition, Long]]
-    def retrieveEvents(topic: String, groupId: String, endOffsets: Map[TopicPartition, Long]): RIO[R, List[EventDTO]]
+    def retrieveEvents(topic: String, groupId: String, endOffsets: Map[TopicPartition, Long]): RIO[R, List[CommittableRecord[String, EventDTO]]]
     def getByteArrayStream(
       topic: String,
       groupId: String
@@ -32,7 +30,7 @@ object EventStreamingService {
         topic: String,
         groupId: String,
         endOffsets: Map[TopicPartition, Long]
-      ): RIO[Clock with Blocking with Logging, List[EventDTO]] = (for {
+      ): RIO[Clock with Blocking with Logging, List[CommittableRecord[String, EventDTO]]] = (for {
         offset          <- Consumer.beginningOffsets(endOffsets.keySet)
         filteredOffsets <- RIO(endOffsets.filter(_._2 > 0))
         _ <- Logging.info(s"Getting events from topic $topic, endOffsets: $endOffsets, start from $offset")
@@ -44,19 +42,18 @@ object EventStreamingService {
                 val partition = tp
                 ((tp.topic(), tp.partition()), endOffsets(partition) - offset(partition))
               }).filter(o => o._2 > 0)
-              _ <- Logging.info(s"Off: $off")
+              _ <- Logging.info(s"Effective offsets to retrieve: $off")
               numberOfEventsToTake = off.foldLeft(0L)((acc, el) => acc + el._2)
               res1 <-
                 if (numberOfEventsToTake > 0) {
                   Consumer.subscribeAnd(Subscription.manual(off.map(_._1).toIndexedSeq: _*))
                     .plainStream(Serde.string, SerdeApi.eventDeserializer).take(numberOfEventsToTake).runCollect
                 } else { RIO.effect(Chunk.empty) }
-              _ <- res1.map(_.offset).foldLeft(OffsetBatch.empty)(_ merge _).commit.fork
-            } yield res1.toList.map(_.value)
+            } yield res1.toList
           } else { ZIO.effectTotal(List.empty) }
         _ <- Logging.info("Done collecting events.")
       } yield res).provideSomeLayer[Clock with Blocking with Logging](
-        Consumer.make(consumerSettings.withClientId(UUID.randomUUID().toString).withOffsetRetrieval(
+        Consumer.make(consumerSettings.withOffsetRetrieval(
           Consumer.OffsetRetrieval.Auto(Consumer.AutoOffsetStrategy.Earliest)
         )).toLayer
       )
@@ -66,7 +63,6 @@ object EventStreamingService {
         groupId: String
       ): ZStream[Clock with Blocking with Logging, Throwable, CommittableRecord[String, Array[Byte]]] = {
         val settings: ConsumerSettings = ConsumerSettings(consumerSettings.bootstrapServers).withGroupId(groupId)
-          .withClientId(UUID.randomUUID().toString)
           .withOffsetRetrieval(Consumer.OffsetRetrieval.Auto(Consumer.AutoOffsetStrategy.Earliest))
         val layer: ZLayer[Clock with Blocking with Logging, Throwable, Has[Consumer.Service]] = Consumer.make(settings)
           .toLayer
@@ -93,7 +89,7 @@ object EventStreamingService {
         topic: String,
         groupId: String,
         endOffsets: Map[TopicPartition, Long]
-      ): RIO[Any, List[EventDTO]] = RIO(events)
+      ): RIO[Any, List[CommittableRecord[String, EventDTO]]] = RIO(events.map(e => CommittableRecord(new ConsumerRecord(topic, 0,0,"id",e), _ => Task.unit)))
 
       override def getByteArrayStream(
         topic: String,

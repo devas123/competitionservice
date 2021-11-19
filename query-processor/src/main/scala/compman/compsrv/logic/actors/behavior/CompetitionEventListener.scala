@@ -20,13 +20,13 @@ import compman.compsrv.query.service.repository._
 import org.mongodb.scala.MongoClient
 import zio.{Fiber, Queue, Ref, RIO, Tag, Task, ZIO}
 import zio.clock.Clock
-import zio.kafka.consumer.{CommittableRecord, Consumer, Offset}
+import zio.kafka.consumer.{Consumer, Offset}
 import zio.logging.Logging
 import zio.stream.ZStream
 
 object CompetitionEventListener {
   sealed trait ApiCommand[+_]
-  case class EventReceived(event: EventDTO, record: Option[CommittableRecord[String, Array[Byte]]] = None)
+  case class EventReceived(event: EventDTO, offset: Option[Offset])
       extends ApiCommand[Unit]
   case class CommitOffset(offset: Offset)   extends ApiCommand[Unit]
   case class SetQueue(queue: Queue[Offset]) extends ApiCommand[Unit]
@@ -109,10 +109,11 @@ object CompetitionEventListener {
                       CompetitionUpdated(event.getPayload.asInstanceOf[CompetitionPropertiesUpdatedPayload], topic)
                   } else { ZIO.unit }
                 _ <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork
-                _ <- record.fold(Task(()))(r => context.self ! CommitOffset(r.offset))
+                _ <- record.fold(Task(()))(offset => context.self ! CommitOffset(offset))
               } yield (state, ().asInstanceOf[A])
             }.onError(cause => logError(cause.squash))
-          case CommitOffset(offset) => Logging.info(s"Sending offset $offset.") *> state.queue.map(_.offer(offset))
+          case CommitOffset(offset) =>
+            state.queue.map(_.offer(offset))
               .getOrElse(RIO.unit).map(_ => (state, ().asInstanceOf[A]))
           case SetQueue(queue) => Logging.info("Setting queue.") *>
               ZIO.effectTotal((state.copy(queue = Some(queue)), ().asInstanceOf[A]))
@@ -134,20 +135,23 @@ object CompetitionEventListener {
         _          <- Logging.info(s"Received end offsets for topic $topic: $endOffsets")
         events     <- eventStreaming.retrieveEvents(topic, groupId, endOffsets)
         _          <- Logging.info(s"Retrieved ${events.size} events for topic $topic")
-        _          <- events.traverse(ev => context.self ! EventReceived(ev))
+        _          <- events.traverse(ev => context.self ! EventReceived(ev.value, Some(ev.offset)))
         k <- (for {
           _ <- Logging.info(s"Starting stream for listening to competition events for topic: $topic")
           _ <- eventStreaming.getByteArrayStream(topic, groupId).mapM(record =>
             (for {
               event <- ZIO.effect(mapper.readValue(record.value, classOf[EventDTO]))
-              _     <- context.self ! EventReceived(event, Some(record))
+              _     <- context.self ! EventReceived(event, Some(record.offset))
             } yield ()).as(record.offset)
           ).runDrain
           _ <- Logging.info(s"Finished stream for listening to competition events for topic: $topic")
         } yield ()).fork
         l <- (for {
           _ <- Logging.info(s"Starting stream for committing offsets.")
-          _ <- ZStream.fromQueue(queue).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
+          _ <- ZStream.fromQueue(queue)
+            .aggregateAsync(Consumer.offsetBatches)
+            .mapM(o => Logging.info(s"Committing offsets ${o.offsets}") *> o.commit)
+            .runDrain
           _ <- Logging.info(s"Finished stream for committing offsets: $topic")
         } yield ()).fork
       } yield (Seq(k, l), Seq.empty[ApiCommand[Any]])
