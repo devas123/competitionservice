@@ -3,7 +3,7 @@ package compman.compsrv.logic.actors
 import ActorSystem.PendingMessage
 import zio.{Promise, Queue, Task}
 
-final case class ActorRef[Msg[+_]](private val queue: Queue[PendingMessage[Msg, _]])(
+final case class ActorRef[Msg[_]](private val queue: Queue[PendingMessage[Msg, _]])(
   private val postStop: () => Task[Unit]
 ) {
   def ![A](fa: Msg[A]): Task[Unit] = for {
