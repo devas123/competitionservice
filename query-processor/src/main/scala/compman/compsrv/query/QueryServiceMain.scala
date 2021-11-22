@@ -1,6 +1,7 @@
 package compman.compsrv.query
 import cats.effect
 import com.mongodb.connection.ClusterSettings
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors.ActorSystem
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.behavior.{CompetitionApiActor, CompetitionEventListener, CompetitionEventListenerSupervisor, WebsocketConnectionSupervisor}
@@ -9,7 +10,6 @@ import compman.compsrv.logic.logging.CompetitionLogging.logError
 import compman.compsrv.query.config.AppConfig
 import compman.compsrv.query.service.{CompetitionHttpApiService, WebsocketService}
 import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO
-import compman.compsrv.query.service.kafka.EventStreamingService
 import fs2.concurrent.SignallingRef
 import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.server.Router
@@ -17,7 +17,6 @@ import zio._
 import zio.clock.Clock
 import zio.duration.durationInt
 import zio.interop.catz._
-import zio.kafka.consumer.ConsumerSettings
 import zio.logging.Logging
 
 import java.nio.file.{Files, Path}
@@ -47,14 +46,22 @@ object QueryServiceMain extends zio.App {
       WebsocketConnectionSupervisor.initialState,
       WebsocketConnectionSupervisor.behavior[ZEnv]
     )
+    kafkaSupervisor <- actorSystem.make(
+      "kafkaSupervisor",
+      ActorConfig(),
+      (),
+      KafkaSupervisor.behavior[ZEnv](
+        config.consumer.brokers
+      )
+    )
     _ <- actorSystem.make(
       "competitionEventListenerSupervisor",
       ActorConfig(),
       (),
-      CompetitionEventListenerSupervisor.behavior(
-        EventStreamingService.live(ConsumerSettings(config.consumer.brokers).withGroupId(config.consumer.groupId)),
+      CompetitionEventListenerSupervisor.behavior[ZEnv](
         config.competitionEventListener.competitionNotificationsTopic,
         CompetitionEventListenerSupervisor.Live(mongoDbSession, mongodbConfig),
+        kafkaSupervisor,
         CompetitionEventListener.Live(mongoDbSession, mongodbConfig),
         webSocketSupervisor
       )

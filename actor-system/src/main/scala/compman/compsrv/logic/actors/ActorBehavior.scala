@@ -11,7 +11,7 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
   self =>
   def receive[A](
     context: Context[Msg],
-    actorConfig: ActorConfig,
+    actorConfig: ActorConfig = ActorConfig(),
     state: S,
     command: Msg[A],
     timers: Timers[R, Msg]

@@ -32,6 +32,7 @@ dependencies {
     implementation(project(":compservice-annotations"))
     implementation(project(":command-processor:commons"))
     implementation(project(":actor-system"))
+    implementation(project(":kafka-common"))
 
     Libraries.embeddedKafka.forEach { testImplementation(it) }
     Libraries.zioTest.apply {
