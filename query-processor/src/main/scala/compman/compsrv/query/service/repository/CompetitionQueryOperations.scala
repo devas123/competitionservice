@@ -5,9 +5,10 @@ import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import org.mongodb.scala.{FindObservable, MongoClient, Observable}
-import org.mongodb.scala.bson.collection.immutable.Document
 import org.mongodb.scala.model.Filters._
 import zio.{Ref, RIO, Task, ZIO}
+
+import scala.concurrent.Future
 
 trait CompetitionQueryOperations[F[+_]] {
   def getCompetitionProperties(id: String): F[Option[CompetitionProperties]]
@@ -225,10 +226,13 @@ object CompetitionQueryOperations {
       for { res <- RIO.fromFuture(_ => select.headOption()) } yield res
     }
 
-    private def selectWithPagination[T](select: FindObservable[T], pagination: Option[Pagination]) = {
-      for { res <- RIO.fromFuture(_ => select.toFuture()) } yield (
+    private def selectWithPagination[T](select: FindObservable[T], pagination: Option[Pagination], total: Future[Long]) = {
+      for {
+        res <- RIO.fromFuture(_ => select.toFuture())
+        tr <- RIO.fromFuture(_ => total)
+      } yield (
         res.toList,
-        pagination.getOrElse(Pagination(0, res.size, res.size))
+        pagination.map(_.copy(totalResults = tr.toInt)).getOrElse(Pagination(0, res.size, tr.toInt))
       )
     }
     override def getCompetitorsByCategoryId(competitionId: String)(
@@ -240,7 +244,8 @@ object CompetitionQueryOperations {
       val take = pagination.map(_.maxResults).getOrElse(0)
       val select = competitorCollection
         .find(and(equal("competitionId", competitionId), equal("categoryId", categoryId))).skip(drop).limit(take)
-      selectWithPagination(select, pagination)
+      val total = competitorCollection.countDocuments(equal("competitionId", competitionId)).toFuture()
+      selectWithPagination(select, pagination, total)
     }
 
     override def getCompetitorsByCompetitionId(
@@ -249,7 +254,8 @@ object CompetitionQueryOperations {
       val drop   = pagination.map(_.offset).getOrElse(0)
       val take   = pagination.map(_.maxResults).getOrElse(0)
       val select = competitorCollection.find(equal("competitionId", competitionId)).skip(drop).limit(take)
-      selectWithPagination(select, pagination)
+      val total = competitorCollection.countDocuments(equal("competitionId", competitionId)).toFuture()
+      selectWithPagination(select, pagination, total)
     }
 
     override def getCompetitorsByAcademyId(competitionId: String)(
@@ -261,7 +267,8 @@ object CompetitionQueryOperations {
       val take = pagination.map(_.maxResults).getOrElse(0)
       val select = competitorCollection.find(and(equal("competitionId", competitionId), equal("academy.id", academyId)))
         .skip(drop).limit(take)
-      selectWithPagination(select, pagination)
+      val total = competitorCollection.countDocuments(equal("competitionId", competitionId)).toFuture()
+      selectWithPagination(select, pagination, total)
     }
 
     private def getStateById(competitionId: String) = for {
