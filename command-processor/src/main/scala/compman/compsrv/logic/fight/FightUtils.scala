@@ -1,11 +1,11 @@
-package compman.compsrv.logic.fights
+package compman.compsrv.logic.fight
 
 import cats.{Monad, Traverse}
 import cats.data.OptionT
 import cats.implicits._
 import compman.compsrv.Utils.groupById
 import compman.compsrv.logic.CompetitionState
-import compman.compsrv.logic.fights.CompetitorSelectionUtils._
+import compman.compsrv.logic.fight.CompetitorSelectionUtils._
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition.{CompScoreDTO, FightDescriptionDTO, FightResultDTO, FightStatus}
 import compman.compsrv.model.events.payload.CompetitorAssignmentDescriptor

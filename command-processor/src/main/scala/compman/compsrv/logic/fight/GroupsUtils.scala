@@ -1,4 +1,4 @@
-package compman.compsrv.logic.fights
+package compman.compsrv.logic.fight
 
 import cats.implicits._
 import cats.Monad

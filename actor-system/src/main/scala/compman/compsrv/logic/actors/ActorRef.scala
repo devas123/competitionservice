@@ -1,6 +1,6 @@
 package compman.compsrv.logic.actors
 
-import ActorSystem.PendingMessage
+import compman.compsrv.logic.actors.ActorSystem.PendingMessage
 import zio.{Promise, Queue, Task}
 
 final case class ActorRef[Msg[+_]](private val queue: Queue[PendingMessage[Msg, _]])(

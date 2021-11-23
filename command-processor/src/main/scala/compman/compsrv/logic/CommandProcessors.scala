@@ -2,7 +2,7 @@ package compman.compsrv.logic
 
 import cats.Monad
 import compman.compsrv.logic.command._
-import compman.compsrv.logic.fights.CompetitorSelectionUtils.Interpreter
+import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.{Errors, Payload}
 import compman.compsrv.model.command.Commands.Command

@@ -2,7 +2,7 @@ package compman.compsrv.service
 
 import compman.compsrv.Utils
 import compman.compsrv.logic.competitor.CompetitorService
-import compman.compsrv.logic.fights.{BracketsUtils, FightUtils}
+import compman.compsrv.logic.fight.{BracketsUtils, FightUtils}
 import compman.compsrv.model.dto.competition.FightStatus
 import zio.{Task, URIO, ZIO}
 import zio.interop.catz._

@@ -2,7 +2,7 @@ package compman.compsrv.logic.schedule
 
 import cats.implicits._
 import compman.compsrv.Utils.groupById
-import compman.compsrv.logic.fights.CanFail
+import compman.compsrv.logic.fight.CanFail
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule._
 import compman.compsrv.model.extensions._

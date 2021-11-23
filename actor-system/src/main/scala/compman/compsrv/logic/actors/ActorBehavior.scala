@@ -1,11 +1,10 @@
 package compman.compsrv.logic.actors
 
 import cats.implicits._
-import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import ActorSystem.{ActorConfig, PendingMessage}
 import compman.compsrv.logic.actors
-import zio.{Fiber, Queue, Ref, RIO, Task}
+import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
 import zio.interop.catz._
+import zio.{Fiber, Queue, RIO, Ref, Task}
 
 trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
   self =>
@@ -18,11 +17,11 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
   ): RIO[R, (S, A)]
 
   def init(
-    actorConfig: ActorConfig,
-    context: Context[Msg],
-    initState: S,
-    timers: Timers[R, Msg]
-  ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg[Any]])] = RIO((Seq.empty, Seq.empty))
+            actorConfig: ActorConfig,
+            context: Context[Msg],
+            initState: S,
+            timers: Timers[R, Msg]
+          ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg[Any]], S)] = RIO((Seq.empty, Seq.empty, initState))
 
   def postStop(actorConfig: ActorConfig, context: Context[Msg], state: S, timers: Timers[R, Msg]): RIO[R, Unit] =
     RIO(())
@@ -62,15 +61,18 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
     }
 
     for {
-      queue <- Queue.sliding[PendingMessage[Msg, _]](actorConfig.mailboxSize)
+      queue <- Queue.bounded[PendingMessage[Msg, _]](actorConfig.mailboxSize)
       actor = actors.ActorRef[Msg](queue)(optPostStop)
-      stateRef  <- Ref.make(initialState)
-      timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
-      ts      = Timers[R, Msg](actor, timersMap)
-      context = Context(children, actor, id, actorSystem)
-      (_, msgs) <- init(actorConfig, context, initialState, ts)
-      _         <- msgs.traverse(m => actor ! m)
-      _ <- innerLoop(queue, stateRef, ts, context).fork
+      _ <- (for {
+        stateRef <- Ref.make(initialState)
+        timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
+        ts = Timers[R, Msg](actor, timersMap)
+        context = Context(children, actor, id, actorSystem)
+        (_, msgs, initState) <- init(actorConfig, context, initialState, ts)
+        _ <- stateRef.set(initState)
+        _ <- msgs.traverse(m => actor ! m)
+        _ <- innerLoop(queue, stateRef, ts, context).fork
+      } yield ()).fork
     } yield actor
   }
 

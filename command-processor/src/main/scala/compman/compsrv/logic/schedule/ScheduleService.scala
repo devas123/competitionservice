@@ -6,7 +6,7 @@ import cats.implicits._
 import compman.compsrv.Utils
 import compman.compsrv.logic._
 import compman.compsrv.logic.Operations.IdOperations
-import compman.compsrv.logic.fights.CanFail
+import compman.compsrv.logic.fight.CanFail
 import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import compman.compsrv.model.dto.schedule.{FightStartTimePairDTO, PeriodDTO, ScheduleDTO}
 import compman.compsrv.model.extensions._

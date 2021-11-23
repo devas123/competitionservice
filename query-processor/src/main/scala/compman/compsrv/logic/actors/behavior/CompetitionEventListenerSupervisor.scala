@@ -178,7 +178,7 @@ object CompetitionEventListenerSupervisor {
         context: Context[ActorMessages],
         initState: Unit,
         timers: Timers[SupervisorEnvironment[R], ActorMessages]
-      ): RIO[SupervisorEnvironment[R], (Seq[Fiber.Runtime[Throwable, Unit]], Seq[ActorMessages[Any]])] = {
+      ): RIO[SupervisorEnvironment[R], (Seq[Fiber.Runtime[Throwable, Unit]], Seq[ActorMessages[Any]], Unit)] = {
         for {
           mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
           adapter <- context.messageAdapter(new FunctionK[KafkaConsumerApi, ActorMessages] {
@@ -201,7 +201,7 @@ object CompetitionEventListenerSupervisor {
           events <- ZIO.effect { activeCompetitions.map(ActiveCompetition) }
           _ <- kafkaSupervisorActor !
             QueryAndSubscribe(notificationStopic, s"query-service-global-events-listener", adapter)
-        } yield (Seq(), events)
+        } yield (Seq(), events, ())
       }
     }
 }

@@ -5,6 +5,8 @@ import compman.compsrv.logic.actors.CompetitionProcessorActor.ProcessCommand
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.commands.CommandDTO
 import ActorSystem.ActorConfig
+import compman.compsrv.jackson.ObjectMapperFactory
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.KafkaSupervisorCommand
 import zio.{RIO, Tag, ZIO}
 import zio.clock.Clock
 import zio.logging.Logging
@@ -12,9 +14,10 @@ import zio.logging.Logging
 object CompetitionProcessorSupervisorActor {
 
   def behavior[Env: Tag](
-    commandProcessorOperationsFactory: CommandProcessorOperationsFactory[Env],
-    commandProcessorConfig: CommandProcessorConfig
-  ): ActorBehavior[Env with Logging with Clock with SnapshotService.Snapshot, Unit, Message] =
+                          commandProcessorOperationsFactory: CommandProcessorOperationsFactory[Env],
+                          commandProcessorConfig: CommandProcessorConfig,
+                          kafkaSupervisor: ActorRef[KafkaSupervisorCommand]
+                        ): ActorBehavior[Env with Logging with Clock with SnapshotService.Snapshot, Unit, Message] =
     new ActorBehavior[Env with Logging with Clock with SnapshotService.Snapshot, Unit, Message] {
       override def receive[A](
         context: Context[Message],
@@ -43,15 +46,18 @@ object CompetitionProcessorSupervisorActor {
                         case Some(value) => ZIO.effect(value)
                       }
                       _ <- Logging.info(s"Resolved initial state of the competition is $initialState")
+                      mapper <- ZIO.effectTotal(ObjectMapperFactory.createObjectMapper)
                       a <- context.make(
                         actorName,
                         ActorConfig(),
                         initialState,
                         CompetitionProcessorActor.behavior[Env](
-                          commandProcessorOperations,
                           competitionId,
                           s"$competitionId-${commandProcessorConfig.eventsTopicPrefix}",
-                          commandProcessorConfig.actorIdleTimeoutMillis.getOrElse(300000)
+                          kafkaSupervisor,
+                          commandProcessorConfig.competitionNotificationsTopic,
+                          mapper,
+                          commandProcessorConfig.actorIdleTimeoutMillis.getOrElse(300000),
                         )
                       )
                     } yield a)

@@ -20,8 +20,8 @@ object ActorSystemSpec extends DefaultRunnableSpec {
           context: Context[Msg],
           initState: Unit,
           timers: Timers[TestEnvironment, Msg]
-        ): RIO[TestEnvironment, (Seq[Fiber[Throwable, Unit]], Seq[Msg[Any]])] =
-          for { _ <- timers.startSingleTimer("stop", 1.seconds, Stop) } yield (Seq.empty, Seq.empty)
+        ): RIO[TestEnvironment, (Seq[Fiber[Throwable, Unit]], Seq[Msg[Any]], Unit)] =
+          for { _ <- timers.startSingleTimer("stop", 1.seconds, Stop) } yield (Seq.empty, Seq.empty, ())
         override def receive[A](
           context: Context[Msg],
           actorConfig: ActorSystem.ActorConfig,

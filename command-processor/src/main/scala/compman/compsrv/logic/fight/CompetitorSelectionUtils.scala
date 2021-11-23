@@ -1,4 +1,4 @@
-package compman.compsrv.logic.fights
+package compman.compsrv.logic.fight
 
 import cats.{Monad, MonoidK, Show, ~>}
 import cats.free.Free
@@ -67,29 +67,29 @@ object CompetitorSelectionUtils {
     }
   }
 
-  private [fights] sealed trait CompetitorSelectA[A]
-  private [fights] case class FirstNPlaces(stageId: String, n: Int)                             extends CompetitorSelectA[Seq[String]]
-  private [fights] case class LastNPlaces(stageId: String, n: Int)                              extends CompetitorSelectA[Seq[String]]
-  private [fights] case class WinnerOfFight(stageId: String, id: String)                        extends CompetitorSelectA[Seq[String]]
-  private [fights] case class LoserOfFight(stageId: String, id: String)                         extends CompetitorSelectA[Seq[String]]
-  private [fights] case class PassedToRound(stageId: String, n: Int, roundType: StageRoundType) extends CompetitorSelectA[Seq[String]]
-  private [fights] case class Return(ids: Seq[String])                                          extends CompetitorSelectA[Seq[String]]
+  private [fight] sealed trait CompetitorSelectA[A]
+  private [fight] case class FirstNPlaces(stageId: String, n: Int)                             extends CompetitorSelectA[Seq[String]]
+  private [fight] case class LastNPlaces(stageId: String, n: Int)                              extends CompetitorSelectA[Seq[String]]
+  private [fight] case class WinnerOfFight(stageId: String, id: String)                        extends CompetitorSelectA[Seq[String]]
+  private [fight] case class LoserOfFight(stageId: String, id: String)                         extends CompetitorSelectA[Seq[String]]
+  private [fight] case class PassedToRound(stageId: String, n: Int, roundType: StageRoundType) extends CompetitorSelectA[Seq[String]]
+  private [fight] case class Return(ids: Seq[String])                                          extends CompetitorSelectA[Seq[String]]
 
   type CompetitorSelect[A] = Free[CompetitorSelectA, A]
 
-  private [fights] def firstNPlaces(stageId: String, n: Int): CompetitorSelect[Seq[String]]      = Free.liftF(FirstNPlaces(stageId, n))
-  private [fights] def lastNPlaces(stageId: String, n: Int): CompetitorSelect[Seq[String]]       = Free.liftF(LastNPlaces(stageId, n))
-  private [fights] def winnerOfFight(stageId: String, id: String): CompetitorSelect[Seq[String]] = Free.liftF(WinnerOfFight(stageId, id))
-  private [fights] def loserOfFight(stageId: String, id: String): CompetitorSelect[Seq[String]]  = Free.liftF(LoserOfFight(stageId, id))
-  private [fights] def passedToRound(stageId: String, n: Int, roundType: StageRoundType): CompetitorSelect[Seq[String]] = Free
+  private [fight] def firstNPlaces(stageId: String, n: Int): CompetitorSelect[Seq[String]]      = Free.liftF(FirstNPlaces(stageId, n))
+  private [fight] def lastNPlaces(stageId: String, n: Int): CompetitorSelect[Seq[String]]       = Free.liftF(LastNPlaces(stageId, n))
+  private [fight] def winnerOfFight(stageId: String, id: String): CompetitorSelect[Seq[String]] = Free.liftF(WinnerOfFight(stageId, id))
+  private [fight] def loserOfFight(stageId: String, id: String): CompetitorSelect[Seq[String]]  = Free.liftF(LoserOfFight(stageId, id))
+  private [fight] def passedToRound(stageId: String, n: Int, roundType: StageRoundType): CompetitorSelect[Seq[String]] = Free
     .liftF(PassedToRound(stageId, n, roundType))
-  private [fights] def returnIds(ids: Seq[String]): CompetitorSelect[Seq[String]] = Free.liftF(Return(ids))
-  private [fights] def and[F[_]: MonoidK, A](a: CompetitorSelect[F[A]], b: CompetitorSelect[F[A]]): CompetitorSelect[F[A]] = for {
+  private [fight] def returnIds(ids: Seq[String]): CompetitorSelect[Seq[String]] = Free.liftF(Return(ids))
+  private [fight] def and[F[_]: MonoidK, A](a: CompetitorSelect[F[A]], b: CompetitorSelect[F[A]]): CompetitorSelect[F[A]] = for {
     l <- a
     r <- b
   } yield MonoidK[F].combineK(l, r)
 
-  private [fights] def log: CompetitorSelectA ~> Show = new (CompetitorSelectA ~> Show) {
+  private [fight] def log: CompetitorSelectA ~> Show = new (CompetitorSelectA ~> Show) {
     override def apply[A](fa: CompetitorSelectA[A]): Show[A] = {
       fa match {
         case FirstNPlaces(stageId, n)   => Show.show(_ => s"First $n places of stage $stageId")

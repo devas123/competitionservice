@@ -1,10 +1,9 @@
 package compman.compsrv.logic.actors
 
-import cats.arrow.FunctionK
 import cats.~>
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import zio.{Ref, RIO, Task, ZIO}
 import zio.clock.Clock
+import zio.{RIO, Ref, Task, ZIO}
 
 import java.util.UUID
 

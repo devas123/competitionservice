@@ -2,7 +2,7 @@ package compman.compsrv.logic.schedule
 
 import com.google.common.collect.{BiMap, HashBiMap}
 import compman.compsrv.Utils
-import compman.compsrv.logic.fights.CanFail
+import compman.compsrv.logic.fight.CanFail
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO
 import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.extensions._

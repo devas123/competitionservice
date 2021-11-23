@@ -1,7 +1,7 @@
 package compman.compsrv.service
 
 import compman.compsrv.logic.competitor.CompetitorService
-import compman.compsrv.logic.fights.GroupsUtils
+import compman.compsrv.logic.fight.GroupsUtils
 import zio.{Task, ZIO}
 import zio.interop.catz._
 import zio.test._

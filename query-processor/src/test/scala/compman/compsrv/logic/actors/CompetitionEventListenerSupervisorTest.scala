@@ -54,7 +54,7 @@ object CompetitionEventListenerSupervisorTest extends DefaultRunnableSpec {
           stages                <- Ref.make(Map.empty[String, StageDescriptor])
           websocketSupervisor   <- TestKit[WebsocketConnectionSupervisor.ApiCommand](actorSystem)
           kafkaSupervisor <- actorSystem
-            .make("kafkaSupervisor", ActorConfig(), (), KafkaSupervisor.behavior[Any](List(brokerUrl)))
+            .make("kafkaSupervisor", ActorConfig(), None, KafkaSupervisor.behavior[Any](List(brokerUrl)))
           supervisorContext = CompetitionEventListenerSupervisor.Test(competitions)
           eventListenerContext = CompetitionEventListener.Test(
             Some(competitionProperties),

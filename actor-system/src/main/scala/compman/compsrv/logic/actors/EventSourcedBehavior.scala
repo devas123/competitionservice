@@ -1,13 +1,11 @@
 package compman.compsrv.logic.actors
 
 import cats.implicits._
-import compman.compsrv.logic.actors.ActorSystem.ActorConfig
+import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
 import compman.compsrv.logic.actors.Messages.Command
-import ActorSystem.{ActorConfig, PendingMessage}
-import Messages.Command
-import zio.{Fiber, Queue, Ref, RIO, Task}
 import zio.clock.Clock
 import zio.interop.catz._
+import zio.{Fiber, Queue, RIO, Ref, Task, ZIO}
 
 abstract class EventSourcedBehavior[R, S, Msg[+_], Ev](persistenceId: String) extends AbstractBehavior[R, S, Msg] {
   self =>
@@ -86,17 +84,19 @@ abstract class EventSourcedBehavior[R, S, Msg[+_], Ev](persistenceId: String) ex
     }
 
     for {
-      events       <- getEvents(persistenceId, initialState)
-      sourcedState <- applyEvents(events, initialState)
-      state        <- Ref.make(sourcedState)
-      queue        <- Queue.bounded[PendingMessage[Msg, _]](actorConfig.mailboxSize)
-      actor = ActorRef[Msg](queue)(optPostStop)
-      timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
-      ts      = Timers[R, Msg](actor, timersMap)
-      context = Context(children, actor, id, actorSystem)
-      (_, msgs) <- init(actorConfig, context, sourcedState, ts)
-      _         <- msgs.traverse(m => actor ! m)
-      _ <- innerLoop(state, queue, ts, context).fork
+      queue <- Queue.bounded[PendingMessage[Msg, _]](actorConfig.mailboxSize)
+      actor <- ZIO.effectTotal(ActorRef[Msg](queue)(optPostStop))
+      _ <- (for {
+        events <- getEvents(persistenceId, initialState)
+        sourcedState <- applyEvents(events, initialState)
+        state <- Ref.make(sourcedState)
+        timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
+        ts = Timers[R, Msg](actor, timersMap)
+        context = Context(children, actor, id, actorSystem)
+        (_, msgs) <- init(actorConfig, context, sourcedState, ts)
+        _ <- msgs.traverse(m => actor ! m)
+        _ <- innerLoop(state, queue, ts, context).fork
+      } yield ()).fork
     } yield actor
   }
 }

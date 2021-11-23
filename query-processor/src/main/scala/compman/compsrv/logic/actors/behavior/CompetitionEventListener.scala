@@ -136,7 +136,7 @@ object CompetitionEventListener {
         context: Context[ApiCommand],
         initState: ActorState,
         timers: Timers[R with Logging with Clock, ApiCommand]
-      ): RIO[R with Logging with Clock, (Seq[Fiber[Throwable, Unit]], Seq[ApiCommand[Any]])] = for {
+      ): RIO[R with Logging with Clock, (Seq[Fiber[Throwable, Unit]], Seq[ApiCommand[Any]], ActorState)] = for {
         adapter <- context.messageAdapter(new FunctionK[KafkaConsumerApi, ApiCommand] {
           override def apply[A](fa: KafkaConsumerApi[A]): ApiCommand[A] = {
             EventReceived(fa).asInstanceOf[ApiCommand[A]]
@@ -144,7 +144,7 @@ object CompetitionEventListener {
         })
         groupId = s"query-service-$competitionId"
         _ <- kafkaSupervisorActor ! KafkaSupervisor.QueryAndSubscribe(topic, groupId, adapter)
-      } yield (Seq(), Seq.empty[ApiCommand[Any]])
+      } yield (Seq(), Seq.empty[ApiCommand[Any]], initState)
     }
   }
 }

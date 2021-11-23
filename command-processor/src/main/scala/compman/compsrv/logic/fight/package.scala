@@ -8,7 +8,7 @@ import compman.compsrv.model.dto.competition._
 
 import java.util.UUID
 
-package object fights {
+package object fight {
   type CanFail[A] = Either[Errors.Error, A]
   type ThreeFights = (FightDescriptionDTO, FightDescriptionDTO, FightDescriptionDTO)
   type TwoFights = (FightDescriptionDTO, FightDescriptionDTO)

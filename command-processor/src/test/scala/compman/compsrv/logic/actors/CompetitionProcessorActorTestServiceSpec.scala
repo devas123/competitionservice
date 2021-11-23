@@ -1,24 +1,23 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.config.CommandProcessorConfig
+import compman.compsrv.logic.CompetitionState
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaSupervisorCommand, PublishMessage, QuerySync}
+import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorSupervisorActor.CommandReceived
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.CommandProcessorNotification
-import compman.compsrv.model.commands.{CommandDTO, CommandType}
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
+import compman.compsrv.model.commands.{CommandDTO, CommandType}
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
-import compman.compsrv.model.events.EventDTO
-import ActorSystem.ActorConfig
-import compman.compsrv.logic.CompetitionState
-import zio.{Layer, Queue, Ref}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
 import zio.kafka.consumer.ConsumerSettings
 import zio.kafka.producer.ProducerSettings
 import zio.logging.Logging
-import zio.test._
 import zio.test.Assertion._
+import zio.test._
+import zio.{Layer, Ref, ZIO}
 
 import java.time.Instant
 import java.util.UUID
@@ -44,17 +43,17 @@ object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
   def spec: Spec[TestEnvironment, TestFailure[Throwable], TestSuccess] =
     suite("The Competition Processor should")(testM("Accept commands") {
       for {
-        eventsQueue       <- Queue.unbounded[EventDTO]
-        notificationQueue <- Queue.unbounded[CommandProcessorNotification]
-        snapshotsRef      <- Ref.make(Map.empty[String, CompetitionState])
-        actorSystem       <- ActorSystem("Test")
+        snapshotsRef <- Ref.make(Map.empty[String, CompetitionState])
+        actorSystem <- ActorSystem("Test")
+        kafkaSupervisor <- TestKit[KafkaSupervisorCommand](actorSystem)
         processor <- actorSystem.make(
           s"CompetitionProcessorSupervisor",
           ActorConfig(),
           (),
           CompetitionProcessorSupervisorActor.behavior(
-            CommandProcessorOperationsFactory.test(eventsQueue, notificationQueue, snapshotsRef),
-            CommandProcessorConfig(None, "events", "notif")
+            CommandProcessorOperationsFactory.test(snapshotsRef),
+            CommandProcessorConfig(None, "events", "notif"),
+            kafkaSupervisor.ref
           )
         )
         command = {
@@ -74,10 +73,14 @@ object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
           )
           cmd
         }
-        _       <- processor ! CommandReceived(competitionId, command)
-        f       <- eventsQueue.takeN(1).fork
-        eventsO <- f.join.timeout(10.seconds)
-        events = eventsO.getOrElse(List.empty)
-      } yield assert(events)(isNonEmpty)
+        _ <- processor ! CommandReceived(competitionId, command)
+        _ <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[CreateTopicIfMissing])
+        msg <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[QuerySync])
+        unwrapped = msg.get
+        promise = unwrapped.promise
+        _ <- promise.succeed(Seq.empty)
+        eventsOptional <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[PublishMessage])
+        event = eventsOptional.get.message
+      } yield assert(event)(not(isNull))
     }).provideLayer(loggingLayer ++ snapshotLayer ++ Clock.live ++ Blocking.live)
 }

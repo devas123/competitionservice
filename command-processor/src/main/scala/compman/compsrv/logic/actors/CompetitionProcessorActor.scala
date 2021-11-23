@@ -1,18 +1,21 @@
 package compman.compsrv.logic.actors
 
-import compman.compsrv.logic.{CompetitionState, Operations}
-import compman.compsrv.logic.actors.CommandProcessorOperations.KafkaTopicConfig
+import com.fasterxml.jackson.databind.ObjectMapper
+import compman.compsrv.jackson.ObjectMapperFactory
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaSupervisorCommand, KafkaTopicConfig, PublishMessage, QuerySync}
+import compman.compsrv.logic.actors.Messages._
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
-import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionProcessingStopped}
+import compman.compsrv.logic.{CompetitionState, Operations}
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
-import Messages._
-import zio.{Fiber, RIO, Task, ZIO}
+import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionProcessingStopped}
 import zio.blocking.Blocking
 import zio.clock.Clock
+import zio.duration.durationInt
 import zio.kafka.consumer.Consumer
 import zio.kafka.producer.Producer
 import zio.logging.{LogAnnotation, Logging}
+import zio.{Fiber, Promise, RIO, Task, ZIO}
 
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -24,10 +27,12 @@ object CompetitionProcessorActor {
   private val DefaultTimerKey = "stopTimer"
 
   def behavior[Env](
-    processorOperations: CommandProcessorOperations[Env],
-    competitionId: String,
-    eventTopic: String,
-    actorIdleTimeoutMillis: Long = 300000
+                     competitionId: String,
+                     eventTopic: String,
+                     kafkaSupervisor: ActorRef[KafkaSupervisorCommand],
+                     competitionNotificationsTopic: String,
+                     mapper: ObjectMapper =  ObjectMapperFactory.createObjectMapper,
+                     actorIdleTimeoutMillis: Long = 300000
   ): EventSourcedBehavior[Env with Logging with Clock, CompetitionState, Message, EventDTO] =
     new EventSourcedBehavior[Env with Logging with Clock, CompetitionState, Message, EventDTO](competitionId) {
 
@@ -37,7 +42,7 @@ object CompetitionProcessorActor {
         state: CompetitionState,
         timers: Timers[Env with Logging with Clock, Message]
       ): RIO[Env with Logging with Clock, Unit] = for {
-        _ <- processorOperations.sendNotifications(competitionId, Seq(CompetitionProcessingStopped(competitionId)))
+        _ <- kafkaSupervisor ! PublishMessage(competitionNotificationsTopic, competitionId, mapper.writeValueAsBytes(CompetitionProcessingStopped(competitionId)))
       } yield (Seq.empty, Seq.empty)
 
       override def init(
@@ -68,7 +73,7 @@ object CompetitionProcessorActor {
           zio.duration.Duration(actorIdleTimeoutMillis, TimeUnit.MILLISECONDS),
           Stop
         )
-        _ <- processorOperations.sendNotifications(competitionId, Seq(started))
+        _ <- kafkaSupervisor ! PublishMessage(competitionNotificationsTopic, competitionId, mapper.writeValueAsBytes(started))
       } yield (Seq.empty, Seq.empty)
 
       override def receive[A](
@@ -123,14 +128,20 @@ object CompetitionProcessorActor {
         persistenceId: String,
         state: CompetitionState
       ): RIO[Env with Logging with Clock, Seq[EventDTO]] = for {
-        _      <- processorOperations.createTopicIfMissing(eventTopic, KafkaTopicConfig())
+        promise <- Promise.make[Throwable, Seq[Array[Byte]]]
+        _      <- kafkaSupervisor ! CreateTopicIfMissing(eventTopic, KafkaTopicConfig())
         _ <- Logging.info(s"Getting events from topic: $eventTopic, starting from ${state.revision}")
-        events <- processorOperations.retrieveEvents(eventTopic, state.revision)
+        _ <- kafkaSupervisor ! QuerySync(eventTopic, UUID.randomUUID().toString, promise)
+        events <- promise.await.map(_.map(e => mapper.readValue(e, classOf[EventDTO])))
+          .onError(e => Logging.info(e.prettyPrint))
+          .foldM(_ => RIO(Seq.empty), RIO(_))
         _ <- Logging.info(s"Done getting events!")
       } yield events
 
-      override def persistEvents(persistenceId: String, events: Seq[EventDTO]): RIO[Env with Logging with Clock, Unit] =
-        processorOperations.persistEvents(events)
+      override def persistEvents(persistenceId: String, events: Seq[EventDTO]): RIO[Env with Logging with Clock, Unit] = {
+        import cats.implicits._
+        events.traverse(e => kafkaSupervisor ! PublishMessage(eventTopic, competitionId, mapper.writeValueAsBytes(e))).as(())
+      }
     }
 
   sealed trait Message[+_]

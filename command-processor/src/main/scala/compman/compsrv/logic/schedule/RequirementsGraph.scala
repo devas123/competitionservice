@@ -2,7 +2,7 @@ package compman.compsrv.logic.schedule
 
 import cats.implicits._
 import com.google.common.collect.{BiMap, HashBiMap}
-import compman.compsrv.logic.fights.CanFail
+import compman.compsrv.logic.fight.CanFail
 import compman.compsrv.model.dto.schedule.{ScheduleRequirementDTO, ScheduleRequirementType}
 import compman.compsrv.model.extensions._
 import compman.compsrv.model.Errors

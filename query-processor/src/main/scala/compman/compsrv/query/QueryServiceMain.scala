@@ -49,7 +49,7 @@ object QueryServiceMain extends zio.App {
     kafkaSupervisor <- actorSystem.make(
       "kafkaSupervisor",
       ActorConfig(),
-      (),
+      None,
       KafkaSupervisor.behavior[ZEnv](
         config.consumer.brokers
       )
