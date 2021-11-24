@@ -61,8 +61,8 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
     }
 
     for {
-      queue <- Queue.bounded[PendingMessage[Msg, _]](actorConfig.mailboxSize)
-      actor = actors.ActorRef[Msg](queue)(optPostStop)
+      queue <- Queue.dropping[PendingMessage[Msg, _]](actorConfig.mailboxSize)
+      actor = actors.ActorRef[Msg](queue, id)(optPostStop)
       _ <- (for {
         stateRef <- Ref.make(initialState)
         timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
@@ -71,7 +71,7 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
         (_, msgs, initState) <- init(actorConfig, context, initialState, ts)
         _ <- stateRef.set(initState)
         _ <- msgs.traverse(m => actor ! m)
-        _ <- innerLoop(queue, stateRef, ts, context).fork
+        _ <- innerLoop(queue, stateRef, ts, context)
       } yield ()).fork
     } yield actor
   }

@@ -13,7 +13,7 @@ object CompetitionOperationsStageOperationsTest extends DefaultRunnableSpec with
   val layers: ZLayer[Any, Throwable, Env] = CompetitionLogging.Live.loggingLayer
   import EmbeddedMongoDb._
   override def spec: ZSpec[Any, Throwable] = suite("competition operations")(testM("should save stage") {
-    getCassandraResource.use { _ =>
+    getMongoDbResource.use { _ =>
       (for {_ <- CompetitionUpdateOperations[LIO].addStage(stageDescriptor)} yield assert(Some(()))(isSome))
         .provideLayer(layers)
     }

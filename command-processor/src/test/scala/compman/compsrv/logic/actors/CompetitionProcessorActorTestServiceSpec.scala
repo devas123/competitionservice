@@ -41,7 +41,7 @@ object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
   import zio.test.environment._
 
   def spec: Spec[TestEnvironment, TestFailure[Throwable], TestSuccess] =
-    suite("The Competition Processor should")(testM("Accept commands") {
+suite("The Competition Processor should")(testM("Accept commands") {
       for {
         snapshotsRef <- Ref.make(Map.empty[String, CompetitionState])
         actorSystem <- ActorSystem("Test")

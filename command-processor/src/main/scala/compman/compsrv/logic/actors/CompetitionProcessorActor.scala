@@ -68,12 +68,12 @@ object CompetitionProcessorActor {
           props.getStatus
         )
         _ <- Logging.info(s"Sending notification: $started")
-        _ <- timers.startSingleTimer(
-          DefaultTimerKey,
-          zio.duration.Duration(actorIdleTimeoutMillis, TimeUnit.MILLISECONDS),
-          Stop
-        )
         _ <- kafkaSupervisor ! PublishMessage(competitionNotificationsTopic, competitionId, mapper.writeValueAsBytes(started))
+        _ <- timers.startSingleTimer(
+                 DefaultTimerKey,
+                 zio.duration.Duration(actorIdleTimeoutMillis, TimeUnit.MILLISECONDS),
+                 Stop
+        )
       } yield (Seq.empty, Seq.empty)
 
       override def receive[A](
@@ -129,9 +129,9 @@ object CompetitionProcessorActor {
         state: CompetitionState
       ): RIO[Env with Logging with Clock, Seq[EventDTO]] = for {
         promise <- Promise.make[Throwable, Seq[Array[Byte]]]
-        _      <- kafkaSupervisor ! CreateTopicIfMissing(eventTopic, KafkaTopicConfig())
-        _ <- Logging.info(s"Getting events from topic: $eventTopic, starting from ${state.revision}")
+        _ <- kafkaSupervisor ! CreateTopicIfMissing(eventTopic, KafkaTopicConfig())
         _ <- kafkaSupervisor ! QuerySync(eventTopic, UUID.randomUUID().toString, promise)
+        _ <- Logging.info(s"Getting events from topic: $eventTopic, starting from ${state.revision}")
         events <- promise.await.map(_.map(e => mapper.readValue(e, classOf[EventDTO])))
           .onError(e => Logging.info(e.prettyPrint))
           .foldM(_ => RIO(Seq.empty), RIO(_))

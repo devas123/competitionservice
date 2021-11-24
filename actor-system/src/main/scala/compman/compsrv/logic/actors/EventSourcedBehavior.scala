@@ -85,7 +85,7 @@ abstract class EventSourcedBehavior[R, S, Msg[+_], Ev](persistenceId: String) ex
 
     for {
       queue <- Queue.bounded[PendingMessage[Msg, _]](actorConfig.mailboxSize)
-      actor <- ZIO.effectTotal(ActorRef[Msg](queue)(optPostStop))
+      actor <- ZIO.effectTotal(ActorRef[Msg](queue, id)(optPostStop))
       _ <- (for {
         events <- getEvents(persistenceId, initialState)
         sourcedState <- applyEvents(events, initialState)
@@ -95,7 +95,7 @@ abstract class EventSourcedBehavior[R, S, Msg[+_], Ev](persistenceId: String) ex
         context = Context(children, actor, id, actorSystem)
         (_, msgs) <- init(actorConfig, context, sourcedState, ts)
         _ <- msgs.traverse(m => actor ! m)
-        _ <- innerLoop(state, queue, ts, context).fork
+        _ <- innerLoop(state, queue, ts, context)
       } yield ()).fork
     } yield actor
   }

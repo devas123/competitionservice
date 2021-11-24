@@ -52,10 +52,9 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
         initialState <- processorOperations.getStateSnapshot(competitionId).flatMap(p => ZIO.effect(p.fold(processorOperations.createInitialState(competitionId, None))(identity)))
         kafkaSupervisor <- TestKit[KafkaSupervisorCommand](actorSystem)
         processor <- actorSystem.make( s"CompetitionProcessor-$competitionId",
-          ActorConfig(),
-          initialState,
-          CompetitionProcessorActor.behavior[Clock with Blocking with Logging](competitionId, "test-events", kafkaSupervisor.ref, "test-notifications"))
-        _ <- Logging.info(s"Created actor: $processor")
+                 ActorConfig(),
+                 initialState,
+                 CompetitionProcessorActor.behavior[Clock with Blocking with Logging](competitionId, "test-events", kafkaSupervisor.ref, "test-notifications"))
         _ <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[CreateTopicIfMissing])
         msg <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[QuerySync])
         unwrapped = msg.get
@@ -67,15 +66,14 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
           cmd.setType(CommandType.CREATE_COMPETITION_COMMAND)
           cmd.setCompetitionId(competitionId)
           cmd.setPayload(
-            new CreateCompetitionPayload().setReginfo(
-              new RegistrationInfoDTO().setId(competitionId).setRegistrationGroups(Array.empty)
-                .setRegistrationPeriods(Array.empty).setRegistrationOpen(true)
-            ).setProperties(
-              new CompetitionPropertiesDTO().setId(competitionId).setCompetitionName("Test competition")
-                .setStatus(CompetitionStatus.CREATED).setTimeZone("UTC").setStartDate(Instant.now())
-                .setEndDate(Instant.now())
-            )
-          )
+          new CreateCompetitionPayload().setReginfo(
+          new RegistrationInfoDTO().setId(competitionId).setRegistrationGroups(Array.empty)
+            .setRegistrationPeriods(Array.empty).setRegistrationOpen(true)
+          ).setProperties(
+          new CompetitionPropertiesDTO().setId(competitionId).setCompetitionName("Test competition")
+            .setStatus(CompetitionStatus.CREATED).setTimeZone("UTC").setStartDate(Instant.now())
+            .setEndDate(Instant.now())
+          ))
           cmd
         }
         _ <- processor ! ProcessCommand(command)
@@ -85,12 +83,11 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
         eventBytes = eventOpt.get.message
         mapper = ObjectMapperFactory.createObjectMapper
         event = mapper.readValue(eventBytes, classOf[EventDTO])
-        _ <- TestClock.adjust(10.seconds)
       } yield assert(notification)(not(isNull)) &&
         assert(event.getType)(equalTo(EventType.COMPETITION_CREATED)) &&
         assert(event.getPayload)(not(isNull)) &&
         assert(event.getPayload)(isSubtype[CompetitionCreatedPayload](anything)) &&
         assert(event.getCorrelationId)(equalTo(command.getId)) &&
         assert(event.getLocalEventNumber.toLong)(equalTo(0L))
-    }).provideLayer(loggingLayer ++ snapshotLayer ++ TestEnvironment.live)
+    }).provideLayer(loggingLayer ++ snapshotLayer ++ Clock.live ++ Blocking.live)
 }

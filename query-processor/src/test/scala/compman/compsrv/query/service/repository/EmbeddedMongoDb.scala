@@ -26,7 +26,7 @@ trait EmbeddedMongoDb {
     (mongodExecutable.start, port)
   }
 
-  def getCassandraResource: ZManaged[Any, Throwable, (MongodProcess, Int)] = ZManaged
+  def getMongoDbResource: ZManaged[Any, Throwable, (MongodProcess, Int)] = ZManaged
     .make(ZIO.effect(startEmbeddedMongo()))(c => URIO(c._1.stop()))
 }
 
