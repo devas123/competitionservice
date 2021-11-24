@@ -33,8 +33,7 @@ dependencies {
     implementation(project(":command-processor:commons"))
     implementation(project(":actor-system"))
     implementation(project(":kafka-common"))
-
-    Libraries.embeddedKafka.forEach { testImplementation(it) }
+    testImplementation(project(":kafka-common:kafka-common-test"))
     Libraries.zioTest.apply {
         testImplementation(
             group = group,
@@ -47,25 +46,6 @@ dependencies {
     scalaCompilerPlugins("org.typelevel:kind-projector_2.13.5:0.13.2")
 }
 description = "query processor"
-
-
-tasks.register("runMain", JavaExec::class) {
-    val runFile: File = file("kafkarun")
-    doFirst {
-        runFile.createNewFile()
-    }
-
-    args(runFile.absolutePath)
-    group = "queryService"
-    this.isIgnoreExitValue = true
-    classpath = sourceSets.main.get().runtimeClasspath + sourceSets.test.get().runtimeClasspath
-    mainClass.set(javaMainClass)
-    runFile.deleteOnExit()
-    doLast {
-        logger.lifecycle("Deleting file.")
-        runFile.delete()
-    }
-}
 
 
 tasks.jar {

@@ -7,7 +7,7 @@ plugins {
     application
 }
 
-val javaMainClass = "compman.compsrv.Main"
+val javaMainClass = "compman.compsrv.CommandProcessorMain"
 
 
 application {

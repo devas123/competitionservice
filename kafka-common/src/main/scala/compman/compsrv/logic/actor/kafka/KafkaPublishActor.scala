@@ -28,7 +28,7 @@ object KafkaPublishActor {
                              ): RIO[KafkaPublishActorEnvironment[R], (Unit, A)] =
         command match {
           case PublishMessageToKafka(topic, key, message) =>
-            Logging.info(s"Sending message to kafka: $topic, $key, ${message.mkString("Array(", ", ", ")")}") *> zio.kafka.producer.Producer
+            zio.kafka.producer.Producer
               .produce(topic, key, message).as(((), ().asInstanceOf[A]))
           case Stop => context.stopSelf.as(((), ().asInstanceOf[A]))
         }

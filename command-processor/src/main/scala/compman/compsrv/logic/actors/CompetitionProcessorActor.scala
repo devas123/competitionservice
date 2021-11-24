@@ -21,7 +21,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 object CompetitionProcessorActor {
-  import compman.compsrv.Main.Live._
+  import compman.compsrv.CommandProcessorMain.Live._
   import compman.compsrv.logic.logging._
   import zio.interop.catz._
   private val DefaultTimerKey = "stopTimer"

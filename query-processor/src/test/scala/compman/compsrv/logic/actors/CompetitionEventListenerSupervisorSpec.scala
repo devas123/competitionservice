@@ -1,16 +1,12 @@
 package compman.compsrv.logic.actors
 
+import compman.compsrv.kafka.EmbeddedKafkaBroker
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.logic.actors.behavior.{
-  CompetitionEventListener,
-  CompetitionEventListenerSupervisor,
-  WebsocketConnectionSupervisor
-}
+import compman.compsrv.logic.actors.behavior.{CompetitionEventListener, CompetitionEventListenerSupervisor, WebsocketConnectionSupervisor}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.CompetitionProcessingStarted
 import compman.compsrv.model.dto.competition.CompetitionStatus
-import compman.compsrv.query.kafka.EmbeddedKafkaBroker
 import compman.compsrv.query.model._
 import compman.compsrv.query.serde.{ObjectMapperFactory, SerdeApi}
 import zio.{Ref, URIO, ZIO}
@@ -25,7 +21,7 @@ import zio.test.environment.TestEnvironment
 
 import java.time.Instant
 
-object CompetitionEventListenerSupervisorTest extends DefaultRunnableSpec {
+object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
   private val notificationTopic = "notifications"
   private val brokerUrl         = s"localhost:${EmbeddedKafkaBroker.port}"
   private val loggingLayer      = CompetitionLogging.Live.loggingLayer

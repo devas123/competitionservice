@@ -1,9 +1,9 @@
-package compman.compsrv.query.kafka
+package compman.compsrv.kafka
 
 import io.github.embeddedkafka.{EmbeddedK, EmbeddedKafka, EmbeddedKafkaConfig}
 import org.apache.kafka.metadata.BrokerState
 import org.slf4j.LoggerFactory
-import zio.{RIO, ZIO}
+import zio.{RIO, Task, URIO, ZIO}
 import zio.clock.Clock
 import zio.duration.durationInt
 
@@ -16,11 +16,17 @@ object EmbeddedKafkaBroker extends EmbeddedKafka {
 
   def embeddedKafkaServer: RIO[Clock, EmbeddedK] = {
     for {
-      server <- ZIO.effect(EmbeddedKafka.start())
+      server <- startKafkaBroker
       _      <- ZIO.effect(server.broker.awaitShutdown()).fork
-      t <- ZIO.effect { while (server.broker.brokerState.get() != BrokerState.RUNNING) { ZIO.sleep(1.seconds) } *> ZIO.sleep(10.seconds)}.fork
+      t <- ZIO.effect {
+        while (server.broker.brokerState.get() != BrokerState.RUNNING) { ZIO.sleep(1.seconds) } *> ZIO.sleep(10.seconds)
+      }.fork
       _ <- t.join.timeout(300.seconds)
       _ <- ZIO.effect(log.info(s"Kafka running: localhost: $port"))
     } yield server
   }
+
+  private def startKafkaBroker: Task[EmbeddedK] = { ZIO.effect(EmbeddedKafka.start()) }
+
+  def stopKafkaBroker(server: EmbeddedK): URIO[Any, Any] = { URIO(EmbeddedKafka.stop(server)) }
 }

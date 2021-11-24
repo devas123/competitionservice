@@ -242,9 +242,10 @@ object CompetitionQueryOperations {
     ): LIO[(List[Competitor], Pagination)] = {
       val drop = pagination.map(_.offset).getOrElse(0)
       val take = pagination.map(_.maxResults).getOrElse(0)
+      val filter = and(equal("competitionId", competitionId), equal("categories", categoryId))
       val select = competitorCollection
-        .find(and(equal("competitionId", competitionId), equal("categoryId", categoryId))).skip(drop).limit(take)
-      val total = competitorCollection.countDocuments(equal("competitionId", competitionId)).toFuture()
+        .find(filter).skip(drop).limit(take)
+      val total = competitorCollection.countDocuments(filter).toFuture()
       selectWithPagination(select, pagination, total)
     }
 
@@ -341,7 +342,7 @@ object CompetitionQueryOperations {
 
     override def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): LIO[Int] = {
       val select = competitorCollection
-        .countDocuments(and(equal("competitionId", competitionId), equal("categoryId", categoryId)))
+        .countDocuments(and(equal("competitionId", competitionId), equal("categories", categoryId)))
       RIO.fromFuture(_ => select.toFuture()).map(_.toInt)
     }
   }

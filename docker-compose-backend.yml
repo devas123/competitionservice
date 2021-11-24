@@ -123,11 +123,6 @@ services:
     networks:
       compsrv_backend:
 
-
-
-
-
-
   control-center:
     image: provectuslabs/kafka-ui:latest
     depends_on:

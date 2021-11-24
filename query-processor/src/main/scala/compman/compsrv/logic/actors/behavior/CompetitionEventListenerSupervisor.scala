@@ -103,10 +103,9 @@ object CompetitionEventListenerSupervisor {
                     websocketConnectionSupervisor
                   )
                 ).foldM(
-                  _ => Logging.info(s"Actor already exists with id ${competition.id}"),
+                  _ => Logging.debug(s"Actor already exists with id ${competition.id}"),
                   _ => Logging.info(s"Created actor to process the competition ${competition.id}")
                 ).map(_ => ((), ().asInstanceOf[A]))
-              _ <- Logging.info(s"Created actor to process the competition ${competition.id}")
             } yield res
           case ReceivedNotification(notification) => notification match {
               case CompetitionProcessingStarted(

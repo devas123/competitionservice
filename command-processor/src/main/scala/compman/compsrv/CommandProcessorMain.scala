@@ -25,7 +25,7 @@ import zio.logging.Logging
 import java.util.UUID
 import scala.util.{Failure, Success, Try}
 
-object Main extends zio.App {
+object CommandProcessorMain extends zio.App {
 
   object Live {
     implicit val commandMapping: Mapping.CommandMapping[LIO] = Mapping.CommandMapping.live

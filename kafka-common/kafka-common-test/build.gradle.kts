@@ -1,6 +1,5 @@
 plugins {
     id("competitions-mgr.java-conventions")
-    id("com.github.maiflai.scalatest") version "0.31"
     scala
 }
 
@@ -10,12 +9,8 @@ dependencies {
     Libraries.logging.forEach { implementation(it) }
     Libraries.zio.forEach { implementation(it) }
     Libraries.zioLogging.forEach { implementation(it) }
-    Libraries.jackson.forEach { implementation(it) }
-    Libraries.zioConfig.forEach { implementation(it) }
     Libraries.zioKafka.forEach { implementation(it) }
-    Libraries.embeddedKafka.forEach { testImplementation(it) }
-    implementation(project(":actor-system"))
-    testImplementation(project(":kafka-common:kafka-common-test"))
+    Libraries.embeddedKafka.forEach { implementation(it) }
 
     Libraries.zioTest.apply {
         testImplementation(
@@ -25,7 +20,5 @@ dependencies {
         )
     }
     testImplementation("org.scalatest:scalatest_$scalaBinary:3.2.8")
-    testRuntimeOnly("com.vladsch.flexmark:flexmark-all:0.35.10")
-    scalaCompilerPlugins("org.typelevel:kind-projector_2.13.5:0.13.2")
 }
-description = "Common kafka actors"
+description = "Common kafka test utils"
