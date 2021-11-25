@@ -1,16 +1,16 @@
 package compman.compsrv.logic.actor.kafka
 
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
-import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Context, Timers}
+import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import org.apache.kafka.common.TopicPartition
+import zio.{Chunk, Fiber, RIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.consumer._
 import zio.kafka.serde.Serde
 import zio.logging.Logging
 import zio.stream.ZStream
-import zio.{Chunk, Fiber, RIO, ZIO}
 
 private[kafka] object KafkaQueryAndSubscribeActor {
 
@@ -18,32 +18,35 @@ private[kafka] object KafkaQueryAndSubscribeActor {
   case object Stop extends KafkaQueryActorCommand[Unit]
 
   def behavior(
-                        topic: String,
-                        groupId: String,
-                        replyTo: ActorRef[KafkaConsumerApi],
-                        brokers: List[String],
-                        subscribe: Boolean,
-                        query: Boolean,
-                        startOffset: Long = 0L
-                      ): ActorBehavior[Logging with Clock with Blocking, Unit, KafkaQueryActorCommand] =
+    topic: String,
+    groupId: String,
+    replyTo: ActorRef[KafkaConsumerApi],
+    brokers: List[String],
+    subscribe: Boolean,
+    query: Boolean,
+    startOffset: Long = 0L
+  ): ActorBehavior[Logging with Clock with Blocking, Unit, KafkaQueryActorCommand] =
     new ActorBehavior[Logging with Clock with Blocking, Unit, KafkaQueryActorCommand] {
       override def receive[A](
-                               context: Context[KafkaQueryActorCommand],
-                               actorConfig: ActorConfig,
-                               state: Unit,
-                               command: KafkaQueryActorCommand[A],
-                               timers: Timers[Logging with Clock with Blocking, KafkaQueryActorCommand]
-                             ): RIO[Logging with Clock with Blocking, (Unit, A)] =
+        context: Context[KafkaQueryActorCommand],
+        actorConfig: ActorConfig,
+        state: Unit,
+        command: KafkaQueryActorCommand[A],
+        timers: Timers[Logging with Clock with Blocking, KafkaQueryActorCommand]
+      ): RIO[Logging with Clock with Blocking, (Unit, A)] =
         command match { case Stop => context.stopSelf.as(((), ().asInstanceOf[A])) }
 
       import cats.implicits._
       import zio.interop.catz._
       override def init(
-                         actorConfig: ActorConfig,
-                         context: Context[KafkaQueryActorCommand],
-                         initState: Unit,
-                         timers: Timers[Logging with Clock with Blocking, KafkaQueryActorCommand]
-                       ): RIO[Logging with Clock with Blocking, (Seq[Fiber[Throwable, Unit]], Seq[KafkaQueryActorCommand[Any]], Unit)] = {
+        actorConfig: ActorConfig,
+        context: Context[KafkaQueryActorCommand],
+        initState: Unit,
+        timers: Timers[Logging with Clock with Blocking, KafkaQueryActorCommand]
+      ): RIO[
+        Logging with Clock with Blocking,
+        (Seq[Fiber[Throwable, Unit]], Seq[KafkaQueryActorCommand[Any]], Unit)
+      ] = {
         (for {
           _ <- super.init(actorConfig, context, initState, timers)
           _ <-
@@ -59,12 +62,16 @@ private[kafka] object KafkaQueryAndSubscribeActor {
                 _ <- replyTo ! queryResult
               } yield ()
             } else { ZIO.unit }
-          fiber <-
-            if (subscribe) { getByteArrayStream(topic).runDrain.fork }
-            else { ZIO.unit.fork }
-          _ <- fiber.join
-          _ <- context.self ! Stop
-        } yield (Seq.empty, Seq.empty, ())).provideSomeLayer[Logging with Clock with Blocking](
+          fiber <- (for {
+            _ <-
+              if (subscribe) {
+                getByteArrayStream(topic).mapM(record => (replyTo ! MessageReceived(topic, record)).as(record))
+                  .map(_.offset).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
+              } else { ZIO.unit }
+            _ <- Logging.info("Stopping the subscription.")
+            _ <- context.self ! Stop
+          } yield ()).fork
+        } yield (Seq(fiber), Seq.empty, ())).provideSomeLayer[Logging with Clock with Blocking](
           Consumer.make(ConsumerSettings(brokers).withGroupId(groupId).withOffsetRetrieval(
             Consumer.OffsetRetrieval.Auto(Consumer.AutoOffsetStrategy.Earliest)
           )).toLayer
@@ -72,16 +79,16 @@ private[kafka] object KafkaQueryAndSubscribeActor {
       }
 
       def getByteArrayStream(
-                              topic: String
-                            ): ZStream[Clock with Blocking with Logging with Consumer, Throwable, CommittableRecord[String, Array[Byte]]] = {
+        topic: String
+      ): ZStream[Clock with Blocking with Logging with Consumer, Throwable, CommittableRecord[String, Array[Byte]]] = {
         Consumer.subscribeAnd(Subscription.topics(topic)).plainStream(Serde.string, Serde.byteArray)
       }
 
       def retrieveEvents(
-                          topic: String,
-                          endOffsets: Map[TopicPartition, Long],
-                          startOffset: Long
-                        ): RIO[Clock with Blocking with Logging with Consumer, List[CommittableRecord[String, Array[Byte]]]] = for {
+        topic: String,
+        endOffsets: Map[TopicPartition, Long],
+        startOffset: Long
+      ): RIO[Clock with Blocking with Logging with Consumer, List[CommittableRecord[String, Array[Byte]]]] = for {
         offset          <- Consumer.beginningOffsets(endOffsets.keySet)
         filteredOffsets <- RIO(endOffsets.filter(_._2 > 0))
         _ <- Logging.info(s"Getting events from topic $topic, endOffsets: $endOffsets, start from $offset")

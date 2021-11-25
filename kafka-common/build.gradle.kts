@@ -15,7 +15,7 @@ dependencies {
     Libraries.zioKafka.forEach { implementation(it) }
     Libraries.embeddedKafka.forEach { testImplementation(it) }
     implementation(project(":actor-system"))
-    testImplementation(project(":kafka-common:kafka-common-test"))
+    implementation(project(":command-processor:commons"))
 
     Libraries.zioTest.apply {
         testImplementation(
@@ -24,6 +24,7 @@ dependencies {
             version = version
         )
     }
+
     testImplementation("org.scalatest:scalatest_$scalaBinary:3.2.8")
     testRuntimeOnly("com.vladsch.flexmark:flexmark-all:0.35.10")
     scalaCompilerPlugins("org.typelevel:kind-projector_2.13.5:0.13.2")

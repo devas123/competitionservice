@@ -27,13 +27,15 @@ dependencies {
     Libraries.http4s.forEach { implementation(it) }
     Libraries.mongoDb.forEach { implementation(it) }
     Libraries.monocle.forEach { implementation(it) }
-    Libraries.embeddedMongodb.forEach { testImplementation(it) }
     implementation(project(":competition-serv-model"))
     implementation(project(":compservice-annotations"))
     implementation(project(":command-processor:commons"))
     implementation(project(":actor-system"))
     implementation(project(":kafka-common"))
-    testImplementation(project(":kafka-common:kafka-common-test"))
+
+    implementation(project(":command-processor:commons"))
+    Libraries.embeddedMongodb.forEach { testImplementation(it) }
+    Libraries.embeddedKafka.forEach { testImplementation(it) }
     Libraries.zioTest.apply {
         testImplementation(
             group = group,

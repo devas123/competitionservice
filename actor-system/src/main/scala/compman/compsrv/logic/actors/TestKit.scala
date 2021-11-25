@@ -44,13 +44,13 @@ object TestKit {
 
       override def expectMessageClass[C](timeout: Duration, expectedMsgClass: Class[C]): RIO[Any with Clock, Option[C]] = {
         for {
-          nextMsg <- queue.take
-          msg <- if (expectedMsgClass.isAssignableFrom(nextMsg.getClass)) {
-            RIO(expectedMsgClass.cast(nextMsg))
+          nextMsg <- queue.take.timeout(timeout)
+          msg <- if (nextMsg.exists(n => expectedMsgClass.isAssignableFrom(n.getClass))) {
+            RIO(nextMsg.map(n => expectedMsgClass.cast(n)))
           } else {
-            RIO.fail(new RuntimeException(s"Expected class ${expectedMsgClass.getName} but received ${nextMsg.getClass.getName}"))
+            RIO.fail(new RuntimeException(s"Expected class ${expectedMsgClass.getName} but received ${nextMsg.map(_.getClass.getName)}"))
           }
-        } yield Option(msg)
+        } yield msg
       }
     }
 }
