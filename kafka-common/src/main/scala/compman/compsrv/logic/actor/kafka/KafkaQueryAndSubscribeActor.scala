@@ -3,6 +3,8 @@ package compman.compsrv.logic.actor.kafka
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
 import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Context, Timers}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
+import compman.compsrv.logic.logging.CompetitionLogging.logError
+import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.TopicPartition
 import zio.{Chunk, Fiber, RIO, ZIO}
 import zio.blocking.Blocking
@@ -10,7 +12,8 @@ import zio.clock.Clock
 import zio.kafka.consumer._
 import zio.kafka.serde.Serde
 import zio.logging.Logging
-import zio.stream.ZStream
+
+import scala.util.{Failure, Success, Try}
 
 private[kafka] object KafkaQueryAndSubscribeActor {
 
@@ -47,42 +50,71 @@ private[kafka] object KafkaQueryAndSubscribeActor {
         Logging with Clock with Blocking,
         (Seq[Fiber[Throwable, Unit]], Seq[KafkaQueryActorCommand[Any]], Unit)
       ] = {
-        (for {
+        for {
           _ <- super.init(actorConfig, context, initState, timers)
           _ <-
-            if (query) {
-              for {
-                partitions <- Consumer.partitionsFor(topic)
-                endOffsets <- Consumer
-                  .endOffsets(partitions.map(p => new TopicPartition(p.topic(), p.partition())).toSet)
-                _      <- replyTo ! QueryStarted()
-                events <- retrieveEvents(topic, endOffsets, startOffset)
-                queryResult <- events.traverse(e => replyTo ! MessageReceived(topic = topic, committableRecord = e))
-                  .fold(e => QueryError(e), _ => QueryFinished())
-                _ <- replyTo ! queryResult
-              } yield ()
-            } else { ZIO.unit }
+            if (query) { queryAndSendEvents() }
+            else { ZIO.unit }
           fiber <- (for {
             _ <-
               if (subscribe) {
-                getByteArrayStream(topic).mapM(record => (replyTo ! MessageReceived(topic, record)).as(record))
-                  .map(_.offset).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
+                getByteArrayStream(
+                  topic,
+                  { record =>
+                    val tryValue: Try[Array[Byte]] = record.record.value()
+                    Logging.info(s"Received message: $tryValue") *>
+                      (tryValue match {
+                        case Failure(exception) => for {
+                            _ <- Logging.error("Error during deserialization")
+                            _ <- logError(exception)
+                          } yield ()
+                        case Success(value) =>
+                          val newConsumerRecord = new ConsumerRecord[String, Array[Byte]](
+                            topic,
+                            record.partition,
+                            record.offset.offset,
+                            record.key,
+                            value
+                          )
+                          replyTo ! MessageReceived(topic, record.copy(record = newConsumerRecord))
+                      })
+                  }
+                )
               } else { ZIO.unit }
             _ <- Logging.info("Stopping the subscription.")
             _ <- context.self ! Stop
           } yield ()).fork
-        } yield (Seq(fiber), Seq.empty, ())).provideSomeLayer[Logging with Clock with Blocking](
-          Consumer.make(ConsumerSettings(brokers).withGroupId(groupId).withOffsetRetrieval(
-            Consumer.OffsetRetrieval.Auto(Consumer.AutoOffsetStrategy.Earliest)
-          )).toLayer
-        )
+        } yield (Seq(fiber), Seq.empty, ())
       }
 
+      def queryAndSendEvents(): ZIO[Clock with Blocking with Logging, Throwable, Unit] = {
+        for {
+          partitions <- Consumer.partitionsFor(topic)
+          endOffsets <- Consumer.endOffsets(partitions.map(p => new TopicPartition(p.topic(), p.partition())).toSet)
+          _          <- replyTo ! QueryStarted()
+          events     <- retrieveEvents(topic, endOffsets, startOffset)
+          queryResult <- events.traverse(e => replyTo ! MessageReceived(topic = topic, committableRecord = e))
+            .fold(e => QueryError(e), _ => QueryFinished())
+          _ <- replyTo ! queryResult
+        } yield ()
+      }.provideSomeLayer[Logging with Clock with Blocking](
+        Consumer.make(ConsumerSettings(brokers).withGroupId(groupId).withOffsetRetrieval(Consumer.OffsetRetrieval.Auto(
+          Consumer.AutoOffsetStrategy.Earliest
+        ))).toLayer
+      )
+
       def getByteArrayStream(
-        topic: String
-      ): ZStream[Clock with Blocking with Logging with Consumer, Throwable, CommittableRecord[String, Array[Byte]]] = {
-        Consumer.subscribeAnd(Subscription.topics(topic)).plainStream(Serde.string, Serde.byteArray)
-      }
+        topic: String,
+        action: CommittableRecord[String, Try[Array[Byte]]] => ZIO[Logging, Throwable, Unit]
+      ): ZIO[Logging with Clock with Blocking, Throwable, Unit] = {
+        Consumer.subscribeAnd(Subscription.topics(topic)).plainStream(Serde.string, Serde.byteArray.asTry)
+          .mapM(record => action(record).as(record)).map(_.offset).aggregateAsync(Consumer.offsetBatches).mapM(_.commit)
+          .runDrain
+      }.provideSomeLayer[Logging with Clock with Blocking](
+        Consumer.make(ConsumerSettings(brokers).withGroupId(groupId).withOffsetRetrieval(Consumer.OffsetRetrieval.Auto(
+          Consumer.AutoOffsetStrategy.Earliest
+        ))).toLayer
+      )
 
       def retrieveEvents(
         topic: String,
