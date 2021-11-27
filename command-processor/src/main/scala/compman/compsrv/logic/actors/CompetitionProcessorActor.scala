@@ -7,11 +7,10 @@ import compman.compsrv.logic.actors.Messages._
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
 import compman.compsrv.logic.{CompetitionState, Operations}
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.events.EventDTO
+import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionProcessingStopped}
 import zio.blocking.Blocking
 import zio.clock.Clock
-import zio.duration.durationInt
 import zio.kafka.consumer.Consumer
 import zio.kafka.producer.Producer
 import zio.logging.{LogAnnotation, Logging}

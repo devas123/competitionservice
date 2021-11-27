@@ -6,13 +6,17 @@ import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, Kafk
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Context, Timers}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.CompetitionUpdated
+import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{
+  CompetitionDeletedMessage,
+  CompetitionUpdated
+}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model
 import compman.compsrv.model.{Mapping, Payload}
 import compman.compsrv.model.Mapping.EventMapping
-import compman.compsrv.model.event.Events.CompetitionPropertiesUpdatedEvent
+import compman.compsrv.model.event.Events
+import compman.compsrv.model.event.Events.{CompetitionDeletedEvent, CompetitionPropertiesUpdatedEvent}
 import compman.compsrv.model.events.EventDTO
 import compman.compsrv.model.events.payload.CompetitionPropertiesUpdatedPayload
 import compman.compsrv.query.config.MongodbConfig
@@ -89,6 +93,16 @@ object CompetitionEventListener {
     competitionEventListenerSupervisor: ActorRef[CompetitionEventListenerSupervisor.ActorMessages],
     websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
   ): ActorBehavior[R with Logging with Clock, ActorState, ApiCommand] = {
+    def notifyEventListenerSupervisor[A](topic: String, event: EventDTO, mapped: Events.Event[Payload]) = {
+      mapped match {
+        case CompetitionPropertiesUpdatedEvent(_, _, _) => competitionEventListenerSupervisor !
+            CompetitionUpdated(event.getPayload.asInstanceOf[CompetitionPropertiesUpdatedPayload], topic)
+        case CompetitionDeletedEvent(competitionId, _) => competitionId
+            .map(id => competitionEventListenerSupervisor ! CompetitionDeletedMessage(id)).getOrElse(ZIO.unit)
+        case _ => ZIO.unit
+      }
+    }
+
     new ActorBehavior[R with Logging with Clock, ActorState, ApiCommand] {
       import context._
       import zio.interop.catz._
@@ -112,13 +126,9 @@ object CompetitionEventListener {
                     event  <- ZIO.effect(mapper.readValue(record.value, classOf[EventDTO]))
                     mapped <- EventMapping.mapEventDto[LIO](event)
                     _      <- EventProcessors.applyEvent[LIO, Payload](mapped)
-                    _ <-
-                      if (mapped.isInstanceOf[CompetitionPropertiesUpdatedEvent]) {
-                        competitionEventListenerSupervisor !
-                          CompetitionUpdated(event.getPayload.asInstanceOf[CompetitionPropertiesUpdatedPayload], topic)
-                      } else { ZIO.unit }
-                    _ <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork
-                    _ <- context.self ! CommitOffset(record.offset)
+                    _      <- notifyEventListenerSupervisor(topic, event, mapped)
+                    _      <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork
+                    _      <- context.self ! CommitOffset(record.offset)
                   } yield (state, ().asInstanceOf[A])
                 }.onError(cause => logError(cause.squash))
             }

@@ -28,6 +28,8 @@ object CompetitionEventListenerSupervisor {
   case class ActiveCompetition(managedCompetition: ManagedCompetition)        extends ActorMessages[Unit]
   case class CompetitionUpdated(update: CompetitionPropertiesUpdatedPayload, eventTopic: String)
       extends ActorMessages[Unit]
+  case class CompetitionDeletedMessage(competitionId: String)
+      extends ActorMessages[Unit]
   case class KafkaNotification(msg: String) extends ActorMessages[Unit]
 
   trait ActorContext {
@@ -67,13 +69,15 @@ object CompetitionEventListenerSupervisor {
       ): RIO[SupervisorEnvironment[R], (Unit, A)] = {
         command match {
           case KafkaNotification(msg) => Logging.info(msg).as(((), ().asInstanceOf[A]))
+          case CompetitionDeletedMessage(competitionId) =>
+            ManagedCompetitionsOperations.deleteManagedCompetition[LIO](competitionId).as(((), ().asInstanceOf[A]))
           case CompetitionUpdated(update, eventTopic) => for {
               props <- ZIO.effect(update.getProperties)
               _ <- ManagedCompetitionsOperations.updateManagedCompetition[LIO](ManagedCompetition(
                 props.getId,
-                props.getCompetitionName,
+                Option(props.getCompetitionName),
                 eventTopic,
-                props.getCreatorId,
+                Option(props.getCreatorId),
                 props.getCreationTimestamp,
                 props.getStartDate,
                 Option(props.getEndDate),
@@ -83,7 +87,6 @@ object CompetitionEventListenerSupervisor {
               _ <- Logging.info(s"Competition properties updated $update")
             } yield ((), ().asInstanceOf[A])
           case ActiveCompetition(competition) => for {
-              _ <- Logging.info(s"Creating listener actor for competition $competition")
               res <- context
                 .make[
                   R with Logging with Clock,
@@ -122,9 +125,9 @@ object CompetitionEventListenerSupervisor {
                   _ <- Logging.info(s"Processing competition processing started notification $id")
                   _ <- ManagedCompetitionsOperations.addManagedCompetition[LIO](ManagedCompetition(
                     id,
-                    name,
+                    Option(name),
                     topic,
-                    creatorId,
+                    Option(creatorId),
                     createdAt,
                     startsAt,
                     Option(endsAt),

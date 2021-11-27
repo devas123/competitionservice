@@ -8,11 +8,11 @@ import compman.compsrv.logic.actors._
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorActor.LiveEnv
 import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
-import compman.compsrv.logic.logging.CompetitionLogging.{LIO, logError}
+import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.logic.logging.CompetitionLogging.Live.loggingLayer
 import compman.compsrv.model.Mapping
 import compman.compsrv.model.commands.CommandDTO
-import zio.{ExitCode, URIO, ZEnv, ZIO}
+import zio.{ExitCode, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt

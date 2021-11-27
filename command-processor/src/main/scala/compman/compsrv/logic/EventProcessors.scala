@@ -14,6 +14,7 @@ object EventProcessors {
     state: CompetitionState
   ): F[CompetitionState] = Monad[F].map(
     List(
+      CompetitionDeletedProc(state),
       BracketsDroppedProc(state),
       ScheduleDroppedProc(state),
       CategoryRegistrationStatusChangedProc(state),

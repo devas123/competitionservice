@@ -18,6 +18,7 @@ trait FightUpdateOperations[F[+_]] {
   def removeFight(competitionId: String)(id: String): F[Unit]
   def removeFights(competitionId: String)(ids: List[String]): F[Unit]
   def removeFightsForCategory(competitionId: String)(categoryId: String): F[Unit]
+  def removeFightsForCompetition(competitionId: String): F[Unit]
 }
 
 object FightUpdateOperations {
@@ -41,6 +42,9 @@ object FightUpdateOperations {
 
     override def removeFights(competitionId: String)(ids: List[String]): LIO[Unit] = ids
       .traverse(removeFight(competitionId)).map(_ => ())
+
+    override def removeFightsForCompetition(competitionId: String): LIO[Unit] = fights
+      .map(_.update(_.filter(_._2.competitionId != competitionId))).getOrElse(ZIO.unit)
   }
 
   def live(mongo: MongoClient, name: String)(implicit
@@ -112,5 +116,11 @@ object FightUpdateOperations {
       ))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
+
+    override def removeFightsForCompetition(competitionId: String): LIO[Unit] = {
+      val statement = fightCollection.deleteMany(equal("competitionId", competitionId))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+    }
+
   }
 }

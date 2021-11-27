@@ -15,7 +15,7 @@ object CompetitionOperationsTest extends DefaultRunnableSpec with TestEntities w
   override def spec: ZSpec[Any, Throwable] = suite("competition operations")(
     testM("query should return none when there are no competitions") {
       (for {
-        _     <- CompetitionUpdateOperations[LIO].removeCompetitionProperties("managedCompetition")
+        _     <- CompetitionUpdateOperations[LIO].removeCompetitionState("managedCompetition")
         props <- CompetitionQueryOperations.getCompetitionProperties("managedCompetition")
       } yield assert(props)(isNone)).provideLayer(layers)
     },

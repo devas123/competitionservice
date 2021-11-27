@@ -12,7 +12,7 @@ trait CompetitionUpdateOperations[F[+_]] {
   def updateRegistrationOpen(competitionId: String)(isOpen: Boolean): F[Unit]
   def addCompetitionProperties(competitionProperties: CompetitionProperties): F[Unit]
   def updateCompetitionProperties(competitionProperties: CompetitionProperties): F[Unit]
-  def removeCompetitionProperties(id: String): F[Unit]
+  def removeCompetitionState(id: String): F[Unit]
   def addCompetitionInfoTemplate(competitionId: String)(competitionInfoTemplate: CompetitionInfoTemplate): F[Unit]
   def removeCompetitionInfoTemplate(competitionId: String): F[Unit]
   def addStage(stageDescriptor: StageDescriptor): F[Unit]
@@ -25,6 +25,7 @@ trait CompetitionUpdateOperations[F[+_]] {
   def addCompetitor(competitor: Competitor): F[Unit]
   def updateCompetitor(competitor: Competitor): F[Unit]
   def removeCompetitor(competitionId: String)(id: String): F[Unit]
+  def removeCompetitorsForCompetition(competitionId: String): F[Unit]
   def addRegistrationGroup(group: RegistrationGroup): F[Unit]
   def addRegistrationGroups(groups: List[RegistrationGroup]): F[Unit]
   def updateRegistrationGroup(group: RegistrationGroup): F[Unit]
@@ -67,7 +68,7 @@ object CompetitionUpdateOperations {
     override def updateCompetitionProperties(competitionProperties: CompetitionProperties): LIO[Unit] =
       addCompetitionProperties(competitionProperties)
 
-    override def removeCompetitionProperties(id: String): LIO[Unit] = competitionProperties.map(_.update(m => m - id))
+    override def removeCompetitionState(id: String): LIO[Unit] = competitionProperties.map(_.update(m => m - id))
       .getOrElse(ZIO.unit)
 
     override def addCompetitionInfoTemplate(competitionId: String)(newTemplate: CompetitionInfoTemplate): LIO[Unit] =
@@ -141,6 +142,9 @@ object CompetitionUpdateOperations {
 
     override def removeStages(competition: String)(categoryId: String): LIO[Unit] = stages
       .map(_.update(s => s.filter(_._2.categoryId != categoryId))).getOrElse(ZIO.unit)
+
+    override def removeCompetitorsForCompetition(competitionId: String): LIO[Unit] = competitors
+      .map(_.update(c => c.filter(_._2.competitionId != competitionId))).getOrElse(ZIO.unit)
   }
 
   def live(mongo: MongoClient, name: String)(implicit
@@ -173,7 +177,7 @@ object CompetitionUpdateOperations {
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
-    override def removeCompetitionProperties(id: String): LIO[Unit] = {
+    override def removeCompetitionState(id: String): LIO[Unit] = {
       val statement = competitionStateCollection.deleteOne(equal(idField, id))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
@@ -245,6 +249,11 @@ object CompetitionUpdateOperations {
 
     override def removeCompetitor(competitionId: String)(id: String): LIO[Unit] = {
       val statement = competitorCollection.deleteOne(equal(idField, id))
+      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+    }
+
+    override def removeCompetitorsForCompetition(competitionId: String): LIO[Unit] = {
+      val statement = competitorCollection.deleteMany(equal("competitionId", competitionId))
       RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
     }
 
