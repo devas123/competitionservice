@@ -1,14 +1,15 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.PendingMessage
-import zio.{Promise, Queue, Task}
+import zio.{Promise, Queue, Task, ZIO}
 
 final case class ActorRef[Msg[+_]](private val queue: Queue[PendingMessage[Msg, _]], private val path: String)(
   private val postStop: () => Task[Unit]
 ) {
   def ![A](fa: Msg[A]): Task[Unit] = for {
     promise <- Promise.make[Throwable, A]
-    _       <- queue.offer((fa, promise))
+    shutdown <- queue.isShutdown
+    _       <- if (shutdown) ZIO.fail(new RuntimeException("Actor stopped")) else queue.offer((fa, promise))
   } yield ()
 
   def ?[A](fa: Msg[A]): Task[A] = for {

@@ -80,74 +80,102 @@ object FightQueryOperations {
 
   }
 
-  def live(
-            mongo: MongoClient, name: String
-  )(implicit log: CompetitionLogging.Service[LIO]): FightQueryOperations[LIO] = new FightQueryOperations[LIO] with CommonLiveOperations {
+  def live(mongo: MongoClient, name: String)(implicit log: CompetitionLogging.Service[LIO]): FightQueryOperations[LIO] =
+    new FightQueryOperations[LIO] with CommonLiveOperations {
 
+      override def mongoClient: MongoClient = mongo
 
-    override def mongoClient: MongoClient = mongo
+      override def dbName: String = name
 
-    override def dbName: String = name
+      override def idField: String = "id"
 
-    override def idField: String = "id"
+      import org.mongodb.scala.model.Filters._
 
-    import org.mongodb.scala.model.Filters._
+      override def getFightsByMat(competitionId: String)(matId: String, limit: Int): LIO[List[Fight]] = {
+        for {
+          collection <- fightCollection
+          statement = collection.find(and(equal("competitionId", competitionId), equal("matId", matId))).limit(limit)
+          res <- RIO.fromFuture(_ => statement.toFuture()).map(_.toList)
+        } yield res
+      }
 
-    override def getFightsByMat(competitionId: String)(matId: String, limit: Int): LIO[List[Fight]] = {
-      val statement = fightCollection
-        .find(and(equal("competitionId", competitionId), equal("matId", matId)))
-        .limit(limit)
-      RIO.fromFuture(_ => statement.toFuture()).map(_.toList)
+      override def getFightsByStage(competitionId: String)(categoryId: String, stageId: String): LIO[List[Fight]] = {
+        for {
+          collection <- fightCollection
+          statement = collection.find(
+            and(equal("competitionId", competitionId), equal("stageId", stageId), equal("categoryId", categoryId))
+          )
+
+          res <- RIO.fromFuture(_ => statement.toFuture()).map(_.toList)
+        } yield res
+
+      }
+
+      override def getFightById(competitionId: String)(categoryId: String, id: String): LIO[Option[Fight]] = {
+        for {
+          collection <- fightCollection
+          statement = collection
+            .find(and(equal("competitionId", competitionId), equal(idField, id), equal("categoryId", categoryId)))
+          res <- RIO.fromFuture(_ => statement.headOption())
+        } yield res
+      }
+
+      override def getFightsByIds(competitionId: String)(categoryId: String, ids: Set[String]): LIO[List[Fight]] = {
+        for {
+          collection <- fightCollection
+          statement = collection.find(in(idField, ids))
+          res <- RIO.fromFuture(_ => statement.toFuture()).map(_.toList)
+
+        } yield res
+      }
+
+      override def getNumberOfFightsForCategory(competitionId: String)(categoryId: String): LIO[Int] = {
+        for {
+          collection <- fightCollection
+          statement = collection
+            .countDocuments(and(equal("competitionId", competitionId), equal("categoryId", categoryId)))
+          res <- RIO.fromFuture(_ => statement.toFuture()).map(_.toInt)
+        } yield res
+      }
+
+      override def getNumberOfFightsForMat(competitionId: String)(matId: String): LIO[Int] = {
+        for {
+          collection <- fightCollection
+          statement = collection.countDocuments(and(equal("competitionId", competitionId), equal("matId", matId)))
+          res <- RIO.fromFuture(_ => statement.toFuture()).map(_.toInt)
+        } yield res
+      }
+
+      override def getFightIdsByCategoryIds(competitionId: String): LIO[Map[String, List[String]]] = {
+        for {
+          collection <- fightCollection
+          statement = collection.find(equal("competitionId", competitionId))
+          res <- RIO.fromFuture(_ => statement.toFuture())
+            .map(_.groupMap(_.categoryId)(_.id).map(e => e._1 -> e._2.toList))
+
+        } yield res
+      }
+
+      override def getFightsByScheduleEntries(competitionId: String): LIO[List[FightByScheduleEntry]] = {
+        for {
+          collection <- fightCollection
+          statement = collection
+            .find(and(equal("competitionId", competitionId), exists("scheduleEntryId"), exists("periodId")))
+          res <- RIO.fromFuture(_ => statement.toFuture()).map(
+            _.map(f =>
+              FightByScheduleEntry(
+                scheduleEntryId = f.scheduleEntryId.get,
+                categoryId = f.categoryId,
+                periodId = f.periodId.get,
+                competitionId = f.competitionId,
+                matId = f.matId,
+                fightId = f.id,
+                startTime = f.startTime
+              )
+            ).toList
+          )
+        } yield res
+
+      }
     }
-
-    override def getFightsByStage(competitionId: String)(categoryId: String, stageId: String): LIO[List[Fight]] = {
-      val statement = fightCollection
-        .find(and(equal("competitionId", competitionId), equal("stageId", stageId), equal("categoryId", categoryId)))
-      RIO.fromFuture(_ => statement.toFuture()).map(_.toList)
-    }
-
-    override def getFightById(competitionId: String)(categoryId: String, id: String): LIO[Option[Fight]] = {
-      val statement = fightCollection
-        .find(and(equal("competitionId", competitionId), equal(idField, id), equal("categoryId", categoryId)))
-      RIO.fromFuture(_ => statement.headOption())
-    }
-
-    override def getFightsByIds(competitionId: String)(categoryId: String, ids: Set[String]): LIO[List[Fight]] = {
-      val statement = fightCollection
-        .find(in(idField, ids))
-      RIO.fromFuture(_ => statement.toFuture()).map(_.toList)
-    }
-
-    override def getNumberOfFightsForCategory(competitionId: String)(categoryId: String): LIO[Int] = {
-      val statement = fightCollection
-        .countDocuments(and(equal("competitionId", competitionId), equal("categoryId", categoryId)))
-      RIO.fromFuture(_ => statement.toFuture()).map(_.toInt)
-    }
-
-    override def getNumberOfFightsForMat(competitionId: String)(matId: String): LIO[Int] = {
-      val statement = fightCollection
-        .countDocuments(and(equal("competitionId", competitionId), equal("matId", matId)))
-      RIO.fromFuture(_ => statement.toFuture()).map(_.toInt)
-    }
-
-    override def getFightIdsByCategoryIds(competitionId: String): LIO[Map[String, List[String]]] = {
-      val statement = fightCollection
-        .find(equal("competitionId", competitionId))
-      RIO.fromFuture(_ => statement.toFuture()).map(_.groupMap(_.categoryId)(_.id).map(e => e._1 -> e._2.toList))
-    }
-
-    override def getFightsByScheduleEntries(competitionId: String): LIO[List[FightByScheduleEntry]] = {
-      val statement = fightCollection
-        .find(and(equal("competitionId", competitionId), exists("scheduleEntryId"), exists("periodId")))
-      RIO.fromFuture(_ => statement.toFuture()).map(_.map(f => FightByScheduleEntry(
-        scheduleEntryId = f.scheduleEntryId.get,
-        categoryId = f.categoryId,
-        periodId = f.periodId.get,
-        competitionId = f.competitionId,
-        matId = f.matId,
-        fightId = f.id,
-        startTime = f.startTime,
-      )).toList)
-    }
-  }
 }

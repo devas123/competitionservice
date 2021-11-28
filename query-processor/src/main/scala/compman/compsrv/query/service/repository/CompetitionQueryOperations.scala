@@ -182,25 +182,33 @@ object CompetitionQueryOperations {
     override def idField: String = "id"
 
     override def getCompetitionProperties(id: String): LIO[Option[CompetitionProperties]] = {
-      val select = competitionStateCollection.find(equal(idField, id)).map(_.properties)
-      selectOne(select)
+      for {
+        collection <- competitionStateCollection
+        select = collection.find(equal(idField, id)).map(_.properties)
+        res <- selectOne(select)
+      } yield res
     }
 
     override def getCategoriesByCompetitionId(competitionId: String): LIO[List[Category]] = {
-      val select = competitionStateCollection.find(equal(idField, competitionId)).map(_.categories)
       for {
+        collection <- competitionStateCollection
+        select = collection.find(equal(idField, competitionId)).map(_.categories)
         res <- RIO.fromFuture(_ => select.head())
       } yield res.values.toList
     }
 
     override def getCompetitionInfoTemplate(competitionId: String): LIO[Option[CompetitionInfoTemplate]] = {
-      val select = competitionStateCollection.find(equal(idField, competitionId)).map(_.properties.infoTemplate)
-      selectOne(select)
+      for {
+        collection <- competitionStateCollection
+        select = collection.find(equal(idField, competitionId)).map(_.properties.infoTemplate)
+        res <- selectOne(select)
+      } yield res
     }
 
     override def getCategoryById(competitionId: String)(id: String): LIO[Option[Category]] = {
-      val select = competitionStateCollection.find(and(equal(idField, competitionId), exists(s"categories.$id")))
       for {
+        collection <- competitionStateCollection
+        select = collection.find(and(equal(idField, competitionId), exists(s"categories.$id")))
         res <- RIO.fromFuture(_ => select.headOption())
       } yield res.flatMap(_.categories.get(id))
     }
@@ -208,55 +216,67 @@ object CompetitionQueryOperations {
     override def searchCategory(
       competitionId: String
     )(searchString: String, pagination: Option[Pagination]): LIO[(List[Category], Pagination)] = {
-      val drop   = pagination.map(_.offset).getOrElse(0)
-      val take   = pagination.map(_.maxResults).getOrElse(30)
-      val select = competitionStateCollection.find(and(equal(idField, competitionId)))
+      val drop = pagination.map(_.offset).getOrElse(0)
+      val take = pagination.map(_.maxResults).getOrElse(30)
       for {
+        collection <- competitionStateCollection
+        select = collection.find(and(equal(idField, competitionId)))
         res <- RIO.fromFuture(_ => select.head())
       } yield (
         res.categories.filter(c =>
-          searchString == null || searchString.isBlank || c._2.restrictions.exists(_.name.exists(_.matches(searchString)))
+          searchString == null || searchString.isBlank ||
+            c._2.restrictions.exists(_.name.exists(_.matches(searchString)))
         ).slice(drop, drop + take).values.toList,
         pagination.getOrElse(Pagination(0, res.categories.size, res.categories.size))
       )
     }
 
     override def getCompetitorById(competitionId: String)(id: String): LIO[Option[Competitor]] = {
-      val select = competitorCollection.find(and(equal("competitionId", competitionId), equal(idField, id)))
-      for { res <- RIO.fromFuture(_ => select.headOption()) } yield res
+      for {
+        collection <- competitorCollection
+        select = collection.find(and(equal("competitionId", competitionId), equal(idField, id)))
+        res <- RIO.fromFuture(_ => select.headOption())
+      } yield res
     }
 
-    private def selectWithPagination[T](select: FindObservable[T], pagination: Option[Pagination], total: Future[Long]) = {
+    private def selectWithPagination[T](
+      select: FindObservable[T],
+      pagination: Option[Pagination],
+      total: Future[Long]
+    ) = {
       for {
         res <- RIO.fromFuture(_ => select.toFuture())
-        tr <- RIO.fromFuture(_ => total)
-      } yield (
-        res.toList,
-        pagination.map(_.copy(totalResults = tr.toInt)).getOrElse(Pagination(0, res.size, tr.toInt))
-      )
+        tr  <- RIO.fromFuture(_ => total)
+      } yield (res.toList, pagination.map(_.copy(totalResults = tr.toInt)).getOrElse(Pagination(0, res.size, tr.toInt)))
     }
     override def getCompetitorsByCategoryId(competitionId: String)(
       categoryId: String,
       pagination: Option[Pagination],
       searchString: Option[String]
     ): LIO[(List[Competitor], Pagination)] = {
-      val drop = pagination.map(_.offset).getOrElse(0)
-      val take = pagination.map(_.maxResults).getOrElse(0)
+      val drop   = pagination.map(_.offset).getOrElse(0)
+      val take   = pagination.map(_.maxResults).getOrElse(0)
       val filter = and(equal("competitionId", competitionId), equal("categories", categoryId))
-      val select = competitorCollection
-        .find(filter).skip(drop).limit(take)
-      val total = competitorCollection.countDocuments(filter).toFuture()
-      selectWithPagination(select, pagination, total)
+      for {
+        collection <- competitorCollection
+        select = collection.find(filter).skip(drop).limit(take)
+        total  = collection.countDocuments(filter).toFuture()
+        res <- selectWithPagination(select, pagination, total)
+      } yield res
     }
 
     override def getCompetitorsByCompetitionId(
       competitionId: String
     )(pagination: Option[Pagination], searchString: Option[String]): LIO[(List[Competitor], Pagination)] = {
-      val drop   = pagination.map(_.offset).getOrElse(0)
-      val take   = pagination.map(_.maxResults).getOrElse(0)
-      val select = competitorCollection.find(equal("competitionId", competitionId)).skip(drop).limit(take)
-      val total = competitorCollection.countDocuments(equal("competitionId", competitionId)).toFuture()
-      selectWithPagination(select, pagination, total)
+
+      val drop = pagination.map(_.offset).getOrElse(0)
+      val take = pagination.map(_.maxResults).getOrElse(0)
+      for {
+        collection <- competitorCollection
+        select = collection.find(equal("competitionId", competitionId)).skip(drop).limit(take)
+        total  = collection.countDocuments(equal("competitionId", competitionId)).toFuture()
+        res <- selectWithPagination(select, pagination, total)
+      } yield res
     }
 
     override def getCompetitorsByAcademyId(competitionId: String)(
@@ -266,19 +286,29 @@ object CompetitionQueryOperations {
     ): LIO[(List[Competitor], Pagination)] = {
       val drop = pagination.map(_.offset).getOrElse(0)
       val take = pagination.map(_.maxResults).getOrElse(0)
-      val select = competitorCollection.find(and(equal("competitionId", competitionId), equal("academy.id", academyId)))
-        .skip(drop).limit(take)
-      val total = competitorCollection.countDocuments(equal("competitionId", competitionId)).toFuture()
-      selectWithPagination(select, pagination, total)
+      for {
+        collection <- competitorCollection
+        select = collection.find(and(equal("competitionId", competitionId), equal("academy.id", academyId))).skip(drop)
+          .limit(take)
+        total = collection.countDocuments(equal("competitionId", competitionId)).toFuture()
+        res <- selectWithPagination(select, pagination, total)
+      } yield res
     }
 
-    private def getStateById(competitionId: String) = for {
-      select <- RIO.effect(competitionStateCollection.find(equal(idField, competitionId)))
-      res    <- RIO.fromFuture(_ => select.headOption())
-    } yield res
+    private def getStateById(competitionId: String) = {
+      for {
+        collection <- competitionStateCollection
+        select = collection.find(equal(idField, competitionId))
+        res <- RIO.fromFuture(_ => select.headOption())
+      } yield res
+    }
 
     override def getRegistrationGroups(competitionId: String): LIO[List[RegistrationGroup]] = {
-      getStateById(competitionId).map(_.flatMap(_.registrationInfo).map(_.registrationGroups.values.toList).getOrElse(List.empty))
+      for {
+        collection <- competitorCollection
+        res <- getStateById(competitionId)
+          .map(_.flatMap(_.registrationInfo).map(_.registrationGroups.values.toList).getOrElse(List.empty))
+      } yield res
     }
 
     override def getRegistrationGroupById(competitionId: String)(id: String): LIO[Option[RegistrationGroup]] = {
@@ -286,7 +316,8 @@ object CompetitionQueryOperations {
     }
 
     override def getRegistrationPeriods(competitionId: String): LIO[List[RegistrationPeriod]] = {
-      getStateById(competitionId).map(_.flatMap(_.registrationInfo).map(_.registrationPeriods.values.toList).getOrElse(List.empty))
+      getStateById(competitionId)
+        .map(_.flatMap(_.registrationInfo).map(_.registrationPeriods.values.toList).getOrElse(List.empty))
     }
 
     override def getRegistrationPeriodById(competitionId: String)(id: String): LIO[Option[RegistrationPeriod]] = {
@@ -324,33 +355,38 @@ object CompetitionQueryOperations {
     }
 
     override def getStagesByCategory(competitionId: String)(categoryId: String): LIO[List[StageDescriptor]] = {
-      val select = competitionStateCollection
-        .find(and(equal(idField, competitionId), equal("stages.categoryId", categoryId)))
-      for { res <- RIO.fromFuture(_ => select.headOption()) } yield res match {
+      for {
+        collection <- competitionStateCollection
+        select = collection.find(and(equal(idField, competitionId), equal("stages.categoryId", categoryId)))
+        res <- RIO.fromFuture(_ => select.headOption())
+      } yield res match {
         case Some(value) => value.stages.values.filter(_.categoryId == categoryId).toList
         case None        => List.empty
       }
     }
 
     override def getStageById(competitionId: String)(categoryId: String, id: String): LIO[Option[StageDescriptor]] = {
-      val select = competitionStateCollection.find(and(equal(idField, competitionId), equal("stages.id", id)))
-      for { res <- RIO.fromFuture(_ => select.headOption()) } yield res match {
+      for {
+        collection <- competitionStateCollection
+        select = collection.find(and(equal(idField, competitionId), equal("stages.id", id)))
+        res <- RIO.fromFuture(_ => select.headOption())
+      } yield res match {
         case Some(value) => value.stages.get(id)
         case None        => None
       }
     }
 
     override def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): LIO[Int] = {
-      val select = competitorCollection
-        .countDocuments(and(equal("competitionId", competitionId), equal("categories", categoryId)))
-      RIO.fromFuture(_ => select.toFuture()).map(_.toInt)
+      for {
+        collection <- competitionStateCollection
+        select = collection.countDocuments(and(equal("competitionId", competitionId), equal("categories", categoryId)))
+        res <- RIO.fromFuture(_ => select.toFuture()).map(_.toInt)
+      } yield res
     }
   }
 
   private def selectOne[T](select: Observable[T])(implicit log: CompetitionLogging.Service[LIO]) = {
-    for {
-      res <- RIO.fromFuture(_ => select.headOption())
-    } yield res
+    for { res <- RIO.fromFuture(_ => select.headOption()) } yield res
   }
 
   def getCompetitionProperties[F[+_]: CompetitionQueryOperations](id: String): F[Option[CompetitionProperties]] =

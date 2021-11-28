@@ -61,66 +61,91 @@ object FightUpdateOperations {
     import org.mongodb.scala.model.Updates._
 
     override def addFight(fight: Fight): LIO[Unit] = {
-      val statement = fightCollection.insertOne(fight)
-      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      for {
+        collection <- fightCollection
+        statement = collection.insertOne(fight)
+        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      } yield res
     }
 
     override def addFights(fights: List[Fight]): LIO[Unit] = {
-      val statement = fightCollection.insertMany(fights)
-      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      for {
+        collection <- fightCollection
+        statement = collection.insertMany(fights)
+        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      } yield res
     }
 
     override def updateFight(fight: Fight): LIO[Unit] = {
-      val statement = fightCollection.replaceOne(equal(idField, fight.id), fight)
-      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      for {
+        collection <- fightCollection
+        statement = collection.replaceOne(equal(idField, fight.id), fight)
+        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      } yield res
     }
 
     override def updateFightScores(fights: List[Fight]): LIO[Unit] = {
-      val statement = fightCollection.bulkWrite(fights.map(f =>
-        UpdateOneModel(equal(idField, f.id), combine(set("scores", f.scores), set("status", f.status)))
-      ))
-      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      for {
+        collection <- fightCollection
+        statement = collection.bulkWrite(fights.map(f =>
+          UpdateOneModel(equal(idField, f.id), combine(set("scores", f.scores), set("status", f.status)))
+        ))
+        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      } yield res
     }
 
     override def removeFight(competitionId: String)(id: String): LIO[Unit] = {
-      val statement = fightCollection.deleteOne(and(equal("competitionId", competitionId), equal(idField, id)))
-      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      for {
+        collection <- fightCollection
+        statement = collection.deleteOne(and(equal("competitionId", competitionId), equal(idField, id)))
+        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      } yield res
     }
 
     override def removeFights(competitionId: String)(ids: List[String]): LIO[Unit] = {
-      val statement = fightCollection.deleteMany(and(in(idField, ids), equal("competitionId", competitionId)))
-      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      for {
+        collection <- fightCollection
+        statement = collection.deleteMany(and(in(idField, ids), equal("competitionId", competitionId)))
+        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      } yield res
     }
 
     override def removeFightsForCategory(competitionId: String)(categoryId: String): LIO[Unit] = {
-      val statement = fightCollection
-        .deleteMany(and(equal("categoryId", categoryId), equal("competitionId", competitionId)))
-      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      for {
+        collection <- fightCollection
+        statement = collection.deleteMany(and(equal("categoryId", categoryId), equal("competitionId", competitionId)))
+        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      } yield res
     }
 
     override def updateFightStartTime(fights: List[FightStartTimeUpdate]): LIO[Unit] = {
-      val statement = fightCollection.bulkWrite(fights.map(f =>
-        UpdateOneModel(
-          equal(idField, f.id),
-          combine(
-            set("matId", f.matId),
-            set("matName", f.matName),
-            set("matOrder", f.matOrder),
-            set("numberOnMat", f.numberOnMat),
-            set("periodId", f.periodId),
-            set("startTime", f.startTime),
-            set("invalid", f.invalid),
-            set("scheduleEntryId", f.scheduleEntryId)
+      for {
+        collection <- fightCollection
+        statement = collection.bulkWrite(fights.map(f =>
+          UpdateOneModel(
+            equal(idField, f.id),
+            combine(
+              set("matId", f.matId),
+              set("matName", f.matName),
+              set("matOrder", f.matOrder),
+              set("numberOnMat", f.numberOnMat),
+              set("periodId", f.periodId),
+              set("startTime", f.startTime),
+              set("invalid", f.invalid),
+              set("scheduleEntryId", f.scheduleEntryId)
+            )
           )
-        )
-      ))
-      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        ))
+        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      } yield res
     }
 
     override def removeFightsForCompetition(competitionId: String): LIO[Unit] = {
-      val statement = fightCollection.deleteMany(equal("competitionId", competitionId))
-      RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      for {
+        collection <- fightCollection
+        statement = collection.deleteMany(equal("competitionId", competitionId))
+        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+      } yield res
     }
-
   }
 }

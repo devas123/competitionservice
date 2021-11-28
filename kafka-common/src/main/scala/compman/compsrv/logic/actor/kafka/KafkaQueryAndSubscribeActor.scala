@@ -11,8 +11,7 @@ import org.apache.kafka.common.TopicPartition
 import zio.{Chunk, Fiber, RIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
-import zio.kafka.admin.AdminClient.OffsetAndMetadata
-import zio.kafka.consumer.{Consumer, _}
+import zio.kafka.consumer._
 import zio.kafka.serde.Serde
 import zio.logging.Logging
 
@@ -21,7 +20,8 @@ import scala.util.{Failure, Success, Try}
 private[kafka] object KafkaQueryAndSubscribeActor {
 
   sealed trait KafkaQueryActorCommand[+_]
-  case object Stop extends KafkaQueryActorCommand[Unit]
+  case object Stop                                                               extends KafkaQueryActorCommand[Unit]
+  case class ForwardMesage(msg: MessageReceived, to: ActorRef[KafkaConsumerApi]) extends KafkaQueryActorCommand[Unit]
 
   def behavior(
     topic: String,
@@ -39,8 +39,10 @@ private[kafka] object KafkaQueryAndSubscribeActor {
         state: Unit,
         command: KafkaQueryActorCommand[A],
         timers: Timers[Logging with Clock with Blocking, KafkaQueryActorCommand]
-      ): RIO[Logging with Clock with Blocking, (Unit, A)] =
-        command match { case Stop => context.stopSelf.as(((), ().asInstanceOf[A])) }
+      ): RIO[Logging with Clock with Blocking, (Unit, A)] = command match {
+        case ForwardMesage(msg, to) => (to ! msg).as(((), ().asInstanceOf[A]))
+        case Stop                   => context.stopSelf.as(((), ().asInstanceOf[A]))
+      }
 
       import cats.implicits._
       import zio.interop.catz._
@@ -65,22 +67,23 @@ private[kafka] object KafkaQueryAndSubscribeActor {
                   topic,
                   { record =>
                     val tryValue: Try[Array[Byte]] = record.record.value()
-                      tryValue match {
-                        case Failure(exception) => for {
-                            _ <- Logging.error("Error during deserialization")
-                            _ <- logError(exception)
-                          } yield ()
-                        case Success(value) =>
-                          val newConsumerRecord = new ConsumerRecord[String, Array[Byte]](
-                            topic,
-                            record.partition,
-                            record.offset.offset,
-                            record.key,
-                            value
-                          )
-                          Logging.info(s"Forwarding message to actor: $replyTo") *>
-                            (replyTo ! MessageReceived(topic, record.copy(record = newConsumerRecord)))
-                      }
+                    tryValue match {
+                      case Failure(exception) => for {
+                          _ <- Logging.error("Error during deserialization")
+                          _ <- logError(exception)
+                        } yield ()
+                      case Success(value) =>
+                        val newConsumerRecord = new ConsumerRecord[String, Array[Byte]](
+                          topic,
+                          record.partition,
+                          record.offset.offset,
+                          record.key,
+                          value
+                        )
+                        Logging.info(s"Forwarding message to actor: $replyTo") *>
+                          (context.self !
+                            ForwardMesage(MessageReceived(topic, record.copy(record = newConsumerRecord)), replyTo))
+                    }
                   }
                 )
               } else { ZIO.unit }
@@ -92,8 +95,8 @@ private[kafka] object KafkaQueryAndSubscribeActor {
 
       def queryAndSendEvents(): ZIO[Clock with Blocking with Logging, Throwable, Unit] = {
         for {
-          _          <- replyTo ! QueryStarted()
-          events     <- retrieveEvents(topic, startOffset)
+          _      <- replyTo ! QueryStarted()
+          events <- retrieveEvents(topic, startOffset)
           queryResult <- events.traverse(e => replyTo ! MessageReceived(topic = topic, committableRecord = e))
             .fold(e => QueryError(e), _ => QueryFinished())
           _ <- replyTo ! queryResult
@@ -120,7 +123,7 @@ private[kafka] object KafkaQueryAndSubscribeActor {
         for {
           partitions <- Consumer.partitionsFor(topic)
           endOffsets <- Consumer.endOffsets(partitions.map(p => new TopicPartition(p.topic(), p.partition())).toSet)
-          offset <- Consumer.committed(endOffsets.keySet)
+          offset     <- Consumer.committed(endOffsets.keySet)
           filteredOffsets <- RIO(endOffsets.filter(_._2 > 0))
           _ <- Logging.info(s"Getting events from topic $topic, endOffsets: $endOffsets, start from $offset")
           res <-
@@ -129,7 +132,8 @@ private[kafka] object KafkaQueryAndSubscribeActor {
                 _ <- Logging.info(s"Filtered offsets: $filteredOffsets")
                 off = filteredOffsets.keySet.map(tp => {
                   val partition = tp
-                  val committedOffset = offset.get(partition).flatten.getOrElse(new consumer.OffsetAndMetadata(0)).offset()
+                  val committedOffset = offset.get(partition).flatten.getOrElse(new consumer.OffsetAndMetadata(0))
+                    .offset()
                   ((tp.topic(), tp.partition()), endOffsets(partition) - committedOffset)
                 }).filter(o => o._2 > 0)
                 numberOfEventsToTake = off.foldLeft(0L)((acc, el) => acc + el._2) - startOffset
@@ -138,13 +142,9 @@ private[kafka] object KafkaQueryAndSubscribeActor {
                   if (numberOfEventsToTake > 0) {
                     Consumer.subscribeAnd(Subscription.manual(off.map(_._1).toIndexedSeq: _*))
                       .plainStream(Serde.string, Serde.byteArray).take(numberOfEventsToTake).runCollect
-                  } else {
-                    RIO.effect(Chunk.empty)
-                  }
+                  } else { RIO.effect(Chunk.empty) }
               } yield res1.toList
-            } else {
-              ZIO.effectTotal(List.empty)
-            }
+            } else { ZIO.effectTotal(List.empty) }
           _ <- Logging.info(s"Done collecting ${res.size} events.")
         } yield res
       }.onError(err => CompetitionLogging.logError(err.squashTrace)).provideSomeLayer[Clock with Blocking with Logging](

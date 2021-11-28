@@ -21,7 +21,7 @@ case class StageDescriptor(
 )
 
 case class StageResultDescriptor(
-  name: String,
+  name: Option[String],
   forceManualAssignment: Boolean,
   outputSize: Int,
   fightResultOptions: List[FightResultOption],

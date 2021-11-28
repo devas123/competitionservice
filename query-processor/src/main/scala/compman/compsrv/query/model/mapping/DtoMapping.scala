@@ -123,7 +123,7 @@ object DtoMapping {
 
   def mapStageResultDescriptor(dto: StageResultDescriptorDTO): StageResultDescriptor = {
     StageResultDescriptor(
-      dto.getName,
+      Option(dto.getName),
       dto.isForceManualAssignment,
       dto.getOutputSize,
       Option(dto.getFightResultOptions).map(_.toList).map(_.map(mapFightResultOption)).getOrElse(List.empty),

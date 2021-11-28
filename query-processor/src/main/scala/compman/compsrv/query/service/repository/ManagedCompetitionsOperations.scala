@@ -4,7 +4,7 @@ import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.query.model.ManagedCompetition
-import org.mongodb.scala.{MongoClient, MongoCollection, Observable}
+import org.mongodb.scala.{MongoClient, Observable}
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.Updates.set
 import zio.{Ref, RIO}
@@ -39,63 +39,66 @@ object ManagedCompetitionsOperations {
     log: CompetitionLogging.Service[LIO]
   ): ManagedCompetitionService[LIO] = new ManagedCompetitionService[LIO] with CommonLiveOperations {
 
-
     override def mongoClient: MongoClient = mongo
 
     override def dbName: String = name
 
     override def idField: String = "id"
 
-
     override def getManagedCompetitions: LIO[List[ManagedCompetition]] = {
-      val select = managedCompetitionCollection.find()
-      runQuery(select)
+      for {
+        collection <- managedCompetitionCollection
+        select = collection.find()
+        res <- runQuery(select)
+      } yield res
     }
 
     override def getActiveCompetitions: LIO[List[ManagedCompetition]] = {
-      val select = managedCompetitionCollection.find().filter(_.status != CompetitionStatus.DELETED)
-      runQuery(select)
+      for {
+        collection <- managedCompetitionCollection
+        select = collection.find().filter(_.status != CompetitionStatus.DELETED)
+        res <- runQuery(select)
+      } yield res
     }
     override def addManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {
-      val insert = managedCompetitionCollection.insertOne(competition)
       for {
-        _ <- log.info(insert.toString)
-        _ <- RIO.fromFuture(_ => insert.toFuture())
+        collection <- managedCompetitionCollection
+        insert = collection.insertOne(competition)
+        res <- RIO.fromFuture(_ => insert.toFuture())
       } yield ()
     }
 
     override def deleteManagedCompetition(id: String): LIO[Unit] = {
-      val delete = managedCompetitionCollection.deleteOne(equal("id", id))
       for {
-        _ <- log.info(delete.toString)
-        _ <- RIO.fromFuture(_ => delete.toFuture())
+        collection <- managedCompetitionCollection
+        delete = collection.deleteMany(equal(idField, id))
+        res <- RIO.fromFuture(_ => delete.toFuture())
       } yield ()
     }
 
     override def updateManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {
-
-      val update = managedCompetitionCollection.updateOne(
-        equal("id", competition.id),
-        Seq(
-          set("competitionName", competition.competitionName),
-          set("eventsTopic", competition.eventsTopic),
-          set("creatorId", competition.creatorId),
-          set("createdAt", competition.createdAt),
-          set("startsAt", competition.startsAt),
-          set("endsAt", competition.endsAt),
-          set("timeZone", competition.timeZone),
-          set("status", competition.status)
+      for {
+        collection <- managedCompetitionCollection
+        update = collection.updateMany(
+          equal(idField, competition.id),
+          Seq(
+            set("competitionName", competition.competitionName),
+            set("eventsTopic", competition.eventsTopic),
+            set("creatorId", competition.creatorId),
+            set("createdAt", competition.createdAt),
+            set("startsAt", competition.startsAt),
+            set("endsAt", competition.endsAt),
+            set("timeZone", competition.timeZone),
+            set("status", competition.status)
+          )
         )
-      )
-      for { _ <- RIO.fromFuture(_ => update.toFuture()) } yield ()
+        res <- RIO.fromFuture(_ => update.toFuture())
+      } yield ()
     }
   }
 
   private def runQuery(select: Observable[ManagedCompetition])(implicit log: CompetitionLogging.Service[LIO]) = {
-    for {
-      _   <- log.info(select.toString)
-      res <- RIO.fromFuture(_ => select.toFuture())
-    } yield res.toList
+    for { res <- RIO.fromFuture(_ => select.toFuture()) } yield res.toList
   }
 
   trait ManagedCompetitionService[F[+_]] {

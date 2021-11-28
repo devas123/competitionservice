@@ -13,9 +13,9 @@ trait TestEntities {
   private[repository] val categoryId    = "test-category"
   val managedCompetition: ManagedCompetition = ManagedCompetition(
     "competitionId",
-    "competitionName",
+    Option("competitionName"),
     "ecompetition-id-topic",
-    "valera_protas",
+    Option("valera_protas"),
     Instant.now(),
     Instant.now(),
     Some(Instant.now()),
@@ -39,7 +39,7 @@ trait TestEntities {
     CompetitionStatus.CREATED
   )
   val stageResultDescriptor: StageResultDescriptor = StageResultDescriptor(
-    "what's up",
+    Option("what's up"),
     forceManualAssignment = false,
     10,
     List(
