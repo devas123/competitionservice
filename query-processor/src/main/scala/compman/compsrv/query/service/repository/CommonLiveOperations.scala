@@ -104,6 +104,7 @@ trait CommonLiveOperations {
     fromProviders(classOf[Score]),
     fromProviders(classOf[PointGroup]),
     fromProviders(classOf[Academy]),
+    fromProviders(classOf[Mat]),
     fromProviders(classOf[Category]),
     fromProviders(classOf[ManagedCompetition]),
     DEFAULT_CODEC_REGISTRY

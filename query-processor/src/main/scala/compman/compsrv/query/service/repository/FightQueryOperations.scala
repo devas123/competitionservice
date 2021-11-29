@@ -160,9 +160,9 @@ object FightQueryOperations {
         for {
           collection <- fightCollection
           statement = collection
-            .find(and(equal("competitionId", competitionId), exists("scheduleEntryId"), exists("periodId")))
+            .find(and(equal("competitionId", competitionId), not(equal("periodId", null)), not(equal("scheduleEntryId", null))))
           res <- RIO.fromFuture(_ => statement.toFuture()).map(
-            _.map(f =>
+            _.filter(_.scheduleEntryId.isDefined).map(f =>
               FightByScheduleEntry(
                 scheduleEntryId = f.scheduleEntryId.get,
                 categoryId = f.categoryId,

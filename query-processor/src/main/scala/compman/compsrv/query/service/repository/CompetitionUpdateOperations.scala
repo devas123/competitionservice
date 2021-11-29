@@ -1,11 +1,13 @@
 package compman.compsrv.query.service.repository
 
+import com.mongodb.client.model.ReplaceOptions
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import org.mongodb.scala.{Document, MongoClient}
+import org.mongodb.scala.model.Filters
 import zio.{Ref, RIO, ZIO}
 
 trait CompetitionUpdateOperations[F[+_]] {
@@ -170,8 +172,10 @@ object CompetitionUpdateOperations {
     override def addCompetitionProperties(competitionProperties: CompetitionProperties): LIO[Unit] = {
       for {
         collection <- competitionStateCollection
-        statement = collection.insertOne(
-          CompetitionState(competitionProperties.id, competitionProperties, Map.empty, Map.empty, Map.empty, None)
+        statement = collection.replaceOne(
+          Filters.eq(idField, competitionProperties.id),
+          CompetitionState(competitionProperties.id, competitionProperties, Map.empty, Map.empty, Map.empty, None),
+          new ReplaceOptions().upsert(true)
         )
         res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
       } yield res
@@ -269,7 +273,8 @@ object CompetitionUpdateOperations {
     override def addCompetitor(competitor: Competitor): LIO[Unit] = {
       for {
         collection <- competitorCollection
-        statement = collection.insertOne(competitor)
+        statement = collection
+          .replaceOne(Filters.eq(idField, competitor.id), competitor, new ReplaceOptions().upsert(true))
         res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
       } yield res
     }

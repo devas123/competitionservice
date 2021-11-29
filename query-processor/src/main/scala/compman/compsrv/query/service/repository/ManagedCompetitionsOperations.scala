@@ -1,10 +1,12 @@
 package compman.compsrv.query.service.repository
 
+import com.mongodb.client.model.{ReplaceOptions, UpdateOptions}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.query.model.ManagedCompetition
 import org.mongodb.scala.{MongoClient, Observable}
+import org.mongodb.scala.model.Filters
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.Updates.set
 import zio.{Ref, RIO}
@@ -63,8 +65,8 @@ object ManagedCompetitionsOperations {
     override def addManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {
       for {
         collection <- managedCompetitionCollection
-        insert = collection.insertOne(competition)
-        res <- RIO.fromFuture(_ => insert.toFuture())
+        insert = collection.replaceOne(Filters.eq(idField, competition.id), competition, new ReplaceOptions().upsert(true))
+        _ <- RIO.fromFuture(_ => insert.toFuture())
       } yield ()
     }
 

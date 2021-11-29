@@ -22,16 +22,14 @@ object FightStartTimeUpdatedProc {
       payload       <- OptionT.fromOption[F](event.payload)
       competitionId <- OptionT.fromOption[F](event.competitionId)
       updates       <- OptionT.fromOption[F](Option(payload.getNewFights))
-      existing <- updates.groupBy(_.getFightCategoryId).toList.traverse(arr =>
-        OptionT.liftF(FightQueryOperations[F].getFightsByIds(competitionId)(arr._1, arr._2.map(_.getFightId).toSet))
-      )
       updatesMap = Utils.groupById(updates)(_.getFightId)
       periods <- OptionT.liftF(CompetitionQueryOperations[F].getPeriodsByCompetitionId(competitionId))
       mats = Utils.groupById(periods.flatMap(_.mats))(_.matId)
-      existingUpdated = existing.flatten.map { f =>
-        val u   = updatesMap(f.id)
+      existingUpdated = updatesMap.map { case (id, f) =>
+        val u   = updatesMap(f.getFightId)
         val mat = Option(u.getMatId).flatMap(mats.get)
-        f.copy(
+        FightStartTimeUpdate(
+          id = id,
           scheduleEntryId = Option(u.getScheduleEntryId),
           matId = mat.map(_.matId),
           matName = mat.map(_.name),
@@ -39,25 +37,13 @@ object FightStartTimeUpdatedProc {
           numberOnMat = Option(u.getNumberOnMat),
           periodId = Option(u.getPeriodId),
           startTime = Option(u.getStartTime).map(Date.from),
-          invalid = Option(u.getInvalid)
+          invalid = Option(u.getInvalid),
+          competitionId = competitionId,
+          categoryId = f.getFightCategoryId,
+          priority = None
         )
-      }
-      _ <- OptionT.liftF(FightUpdateOperations[F].updateFightStartTime(existingUpdated.map(f =>
-        FightStartTimeUpdate(
-          id = f.id,
-          competitionId = f.competitionId,
-          categoryId = f.categoryId,
-          matId = f.matId,
-          matName = f.matName,
-          matOrder = f.matOrder,
-          numberOnMat = f.numberOnMat,
-          startTime = f.startTime,
-          invalid = f.invalid,
-          scheduleEntryId = f.scheduleEntryId,
-          periodId = f.periodId,
-          priority = f.priority
-        )
-      )))
+      }.toList
+      _ <- OptionT.liftF(FightUpdateOperations[F].updateFightStartTime(existingUpdated))
     } yield ()
   }.value.map(_ => ())
 }

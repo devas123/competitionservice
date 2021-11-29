@@ -357,7 +357,7 @@ object CompetitionQueryOperations {
     override def getStagesByCategory(competitionId: String)(categoryId: String): LIO[List[StageDescriptor]] = {
       for {
         collection <- competitionStateCollection
-        select = collection.find(and(equal(idField, competitionId), equal("stages.categoryId", categoryId)))
+        select = collection.find(and(equal(idField, competitionId)))
         res <- RIO.fromFuture(_ => select.headOption())
       } yield res match {
         case Some(value) => value.stages.values.filter(_.categoryId == categoryId).toList
@@ -368,7 +368,7 @@ object CompetitionQueryOperations {
     override def getStageById(competitionId: String)(categoryId: String, id: String): LIO[Option[StageDescriptor]] = {
       for {
         collection <- competitionStateCollection
-        select = collection.find(and(equal(idField, competitionId), equal("stages.id", id)))
+        select = collection.find(and(equal(idField, competitionId), exists(s"stages.$id")))
         res <- RIO.fromFuture(_ => select.headOption())
       } yield res match {
         case Some(value) => value.stages.get(id)
@@ -378,7 +378,7 @@ object CompetitionQueryOperations {
 
     override def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): LIO[Int] = {
       for {
-        collection <- competitionStateCollection
+        collection <- competitorCollection
         select = collection.countDocuments(and(equal("competitionId", competitionId), equal("categories", categoryId)))
         res <- RIO.fromFuture(_ => select.toFuture()).map(_.toInt)
       } yield res

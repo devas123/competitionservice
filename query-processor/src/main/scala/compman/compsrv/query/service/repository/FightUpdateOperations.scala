@@ -121,22 +121,25 @@ object FightUpdateOperations {
     override def updateFightStartTime(fights: List[FightStartTimeUpdate]): LIO[Unit] = {
       for {
         collection <- fightCollection
-        statement = collection.bulkWrite(fights.map(f =>
+        writes = fights.map(f =>
           UpdateOneModel(
             equal(idField, f.id),
             combine(
-              set("matId", f.matId),
-              set("matName", f.matName),
-              set("matOrder", f.matOrder),
-              set("numberOnMat", f.numberOnMat),
-              set("periodId", f.periodId),
-              set("startTime", f.startTime),
-              set("invalid", f.invalid),
-              set("scheduleEntryId", f.scheduleEntryId)
+              set("matId", f.matId.orNull),
+              set("matName", f.matName.orNull),
+              set("matOrder", f.matOrder.getOrElse(-1)),
+              set("numberOnMat", f.numberOnMat.getOrElse(-1)),
+              set("periodId", f.periodId.orNull),
+              set("startTime", f.startTime.orNull),
+              set("invalid", f.invalid.getOrElse(false)),
+              set("scheduleEntryId", f.scheduleEntryId.orNull)
             )
           )
-        ))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        )
+
+        res <-
+          if (writes.nonEmpty) { RIO.fromFuture(_ => collection.bulkWrite(writes).toFuture()).map(_ => ()) }
+          else { ZIO.unit }
       } yield res
     }
 
