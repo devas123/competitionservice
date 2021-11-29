@@ -2,20 +2,19 @@ package compman.compsrv.query.service.repository
 
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import org.junit.runner.RunWith
+import zio.{URIO, ZIO, ZLayer}
+import zio.logging.Logging
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
-import zio.ZLayer
-import zio.logging.Logging
-
-object CompetitionOperationsStageOperationsTest extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
+@RunWith(classOf[zio.test.junit.ZTestJUnitRunner])
+class CompetitionOperationsStageOperationsTest extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
   type Env = Logging
   val layers: ZLayer[Any, Throwable, Env] = CompetitionLogging.Live.loggingLayer
   import EmbeddedMongoDb._
   override def spec: ZSpec[Any, Throwable] = suite("competition operations")(testM("should save stage") {
-    getMongoDbResource.use { _ =>
-      (for {_ <- CompetitionUpdateOperations[LIO].addStage(stageDescriptor)} yield assert(Some(()))(isSome))
-        .provideLayer(layers)
-    }
-  }) @@ sequential
+    (for { _ <- CompetitionUpdateOperations[LIO].addStage(stageDescriptor) } yield assert(Some(()))(isSome))
+      .provideLayer(layers)
+  }) @@ sequential @@ aroundAll(ZIO.effect(startEmbeddedMongo()))(tuple => URIO(tuple._1.stop()))
 }

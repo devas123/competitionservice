@@ -57,12 +57,18 @@ object Libraries {
         "dev.zio:zio-kafka_$scalaBinary:${Versions.zioKafka}"
     )
 
-    val zioTest = Dep(
+    val zioTest = listOf(Dep(
         group = "dev.zio",
         artifactId = "zio-test_$scalaBinary",
         version = Versions.zio,
         classifier = "test"
-    )
+    ),
+        Dep(
+            group = "dev.zio",
+            artifactId = "zio-test-junit_$scalaBinary",
+            version = Versions.zio,
+            classifier = ""
+        ))
 
     val zioConfig = listOf(
         "dev.zio:zio-config-magnolia_$scalaBinary:${Versions.zioConfig}",

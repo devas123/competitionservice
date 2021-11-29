@@ -12,6 +12,7 @@ import compman.compsrv.model.commands.{CommandDTO, CommandType}
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
 import compman.compsrv.model.events.payload.CompetitionCreatedPayload
 import compman.compsrv.model.events.{EventDTO, EventType}
+import org.junit.runner.RunWith
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -25,7 +26,8 @@ import zio.{Layer, Ref, ZIO}
 import java.time.Instant
 import java.util.UUID
 
-object CompetitionServiceSpec extends DefaultRunnableSpec {
+@RunWith(classOf[zio.test.junit.ZTestJUnitRunner])
+class CompetitionServiceSpec extends DefaultRunnableSpec {
   object Deps {
     val competitionId   = "test-competition-id"
     val groupId: String = UUID.randomUUID().toString

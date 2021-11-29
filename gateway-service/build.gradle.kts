@@ -29,37 +29,20 @@ dependencies {
     implementation(project(":command-processor:commons"))
     implementation(project(":actor-system"))
 
-    Libraries.zioTest.apply {
-        testImplementation(
-            group = group,
-            name = artifactId,
-            version = version
-        )
+    Libraries.zioTest.map {
+        it.apply {
+            testImplementation(
+                group = group,
+                name = artifactId,
+                version = version
+            )
+        }
     }
     testImplementation("org.scalatest:scalatest_$scalaBinary:3.2.8")
     testImplementation("junit:junit:4.13")
     scalaCompilerPlugins("org.typelevel:kind-projector_2.13.5:0.13.2")
 }
 description = "gateway-service"
-
-
-tasks.register("runMain", JavaExec::class) {
-    val runFile: File = file("kafkarun")
-    doFirst {
-        runFile.createNewFile()
-    }
-
-    args(runFile.absolutePath)
-    group = "gatewayService"
-    this.isIgnoreExitValue = true
-    classpath = sourceSets.main.get().runtimeClasspath + sourceSets.test.get().runtimeClasspath
-    main = javaMainClass
-    runFile.deleteOnExit()
-    doLast {
-        logger.lifecycle("Deleting file.")
-        runFile.delete()
-    }
-}
 
 tasks.jar {
     manifest {

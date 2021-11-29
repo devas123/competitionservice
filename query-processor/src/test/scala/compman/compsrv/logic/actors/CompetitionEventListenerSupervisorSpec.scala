@@ -9,6 +9,7 @@ import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.query.model._
 import compman.compsrv.query.serde.{ObjectMapperFactory, SerdeApi}
 import compman.compsrv.query.service.EmbeddedKafkaBroker
+import org.junit.runner.RunWith
 import zio.{Ref, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
@@ -21,7 +22,8 @@ import zio.test.environment.TestEnvironment
 
 import java.time.Instant
 
-object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
+@RunWith(classOf[zio.test.junit.ZTestJUnitRunner])
+class CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
   private val notificationTopic = "notifications"
   private val brokerUrl         = s"localhost:${EmbeddedKafkaBroker.port}"
   private val loggingLayer      = CompetitionLogging.Live.loggingLayer

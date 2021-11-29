@@ -11,11 +11,14 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.FightEditorChangesAppliedPayload
 import compman.compsrv.model.Payload
 import compman.compsrv.service.TestEntities
+import org.junit.runner.RunWith
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
+import org.scalatestplus.junit.JUnitRunner
 
 import java.util.UUID
 
+@RunWith(classOf[JUnitRunner])
 class FightEditorApplyChangesProcSpec extends AnyFunSuite with BeforeAndAfter with TestEntities {
   import Dependencies._
 

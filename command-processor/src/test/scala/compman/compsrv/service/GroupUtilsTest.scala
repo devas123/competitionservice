@@ -2,13 +2,15 @@ package compman.compsrv.service
 
 import compman.compsrv.logic.competitor.CompetitorService
 import compman.compsrv.logic.fight.GroupsUtils
+import org.junit.runner.RunWith
 import zio.{Task, ZIO}
 import zio.interop.catz._
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect.sequential
 
-object GroupUtilsTest extends DefaultRunnableSpec with TestEntities {
+@RunWith(classOf[zio.test.junit.ZTestJUnitRunner])
+class GroupUtilsTest extends DefaultRunnableSpec with TestEntities {
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
     suite("Brackets utils")(testM("Should generate brackets for 8 fighters") {
       for {

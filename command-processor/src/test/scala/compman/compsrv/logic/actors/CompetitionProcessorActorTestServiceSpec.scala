@@ -9,6 +9,7 @@ import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.commands.{CommandDTO, CommandType}
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
+import org.junit.runner.RunWith
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -22,7 +23,8 @@ import zio.{Layer, Ref, ZIO}
 import java.time.Instant
 import java.util.UUID
 
-object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
+@RunWith(classOf[zio.test.junit.ZTestJUnitRunner])
+class CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
   object Deps {
     val competitionId   = "test-competition-id"
     val groupId: String = UUID.randomUUID().toString

@@ -2,7 +2,6 @@ plugins {
     id("competitions-mgr.java-conventions")
     id("com.palantir.docker") version "0.29.0"
     id("com.github.johnrengelman.shadow") version "7.0.0"
-    id("com.github.maiflai.scalatest") version "0.31"
     scala
     application
 }
@@ -52,13 +51,15 @@ dependencies {
 
     Libraries.embeddedKafka.forEach { testImplementation(it) }
     testImplementation("org.scalatest:scalatest_$scalaBinary:3.2.8")
-    testRuntimeOnly("com.vladsch.flexmark:flexmark-all:0.35.10")
-    Libraries.zioTest.apply {
+    testImplementation("org.scalatestplus:junit-4-13_$scalaBinary:3.2.10.0")
+    Libraries.zioTest.map {
+        it.apply {
         testImplementation(
             group = group,
             name = artifactId,
             version = version
         )
+    }
     }
 }
 description = "command processor"

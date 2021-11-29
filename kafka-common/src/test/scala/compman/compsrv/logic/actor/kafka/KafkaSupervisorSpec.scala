@@ -4,7 +4,8 @@ import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
 import compman.compsrv.logic.actors.{ActorSystem, TestKit}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.logging.CompetitionLogging
-import zio.{Has, URIO, ZIO, ZLayer}
+import org.junit.runner.RunWith
+import zio.{Has, URIO, ZLayer}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -19,7 +20,8 @@ import zio.test.TestAspect.aroundAll
 import java.util.UUID
 import scala.util.{Random, Try}
 
-object KafkaSupervisorSpec extends DefaultRunnableSpec {
+@RunWith(classOf[zio.test.junit.ZTestJUnitRunner])
+class KafkaSupervisorSpec extends DefaultRunnableSpec {
   private val notificationTopic                     = "notifications"
   private val brokerUrl                             = s"localhost:${EmbeddedKafkaBroker.port}"
   val loggingLayer: ZLayer[Any, Throwable, Logging] = CompetitionLogging.Live.loggingLayer

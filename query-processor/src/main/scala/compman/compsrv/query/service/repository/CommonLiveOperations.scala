@@ -114,19 +114,18 @@ trait CommonLiveOperations {
   def idField: String
 
   private def createCollection[T: ClassTag](name: String, id: String) = {
-    for {
+    (for {
       collection <- ZIO.effect(database.getCollection[T](name))
-      _ <- ZIO.fromFuture(_ => collection.createIndex(Indexes.ascending(id), new IndexOptions().unique(true)).toFuture())
-    } yield collection
+      _ <- ZIO
+        .fromFuture(_ => collection.createIndex(Indexes.ascending(id), new IndexOptions().unique(true)).toFuture())
+    } yield collection).memoize.flatten
   }
 
-  lazy val database: MongoDatabase = mongoClient.getDatabase(dbName)
-    .withCodecRegistry(fromRegistries(caseClassRegistry))
-  lazy val competitionStateCollection: Task[MongoCollection[CompetitionState]] =
+  val database: MongoDatabase = mongoClient.getDatabase(dbName).withCodecRegistry(fromRegistries(caseClassRegistry))
+  val competitionStateCollection: Task[MongoCollection[CompetitionState]] =
     createCollection(competitionStateCollectionName, idField)
-  lazy val competitorCollection: Task[MongoCollection[Competitor]] =
-    createCollection(competitorsCollectionName, idField)
-  lazy val fightCollection: Task[MongoCollection[Fight]] = createCollection(fightsCollectionName, idField)
-  lazy val managedCompetitionCollection: Task[MongoCollection[ManagedCompetition]] =
+  val competitorCollection: Task[MongoCollection[Competitor]] = createCollection(competitorsCollectionName, idField)
+  val fightCollection: Task[MongoCollection[Fight]]           = createCollection(fightsCollectionName, idField)
+  val managedCompetitionCollection: Task[MongoCollection[ManagedCompetition]] =
     createCollection(managedCompetitionCollectionName, idField)
 }
