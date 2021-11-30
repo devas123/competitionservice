@@ -19,9 +19,9 @@ final case class ActorRef[Msg[+_]](private val queue: Queue[PendingMessage[Msg, 
   } yield res
 
   private[actors] val stop: Task[List[_]] = for {
+    _    <- postStop()
     tail <- queue.takeAll
     _    <- queue.shutdown
-    _    <- postStop()
   } yield tail
 
   override def toString: String = s"ActorRef($path)"

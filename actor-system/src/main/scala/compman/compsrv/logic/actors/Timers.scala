@@ -37,14 +37,25 @@ case class Timers[R, Msg[+_]](
     } yield ()
   }
 
-  def cancelTimer[A](key: String): RIO[R with Clock, Unit] = {
+  def cancelTimer[A](key: String): RIO[R, Unit] = {
     for {
       fiber <- timers.modify(ts => {
         val fiber = ts.get(key)
         val nm    = ts - key
-        (fiber.map(_.interruptFork), nm)
+        (fiber.map(_.interrupt), nm)
       })
       res <- fiber.getOrElse(RIO.unit)
-    } yield res
+    } yield ()
   }
+
+  def cancelAll[A](): RIO[R, Unit] = {
+    import cats.implicits._
+    import zio.interop.catz._
+    for {
+      timersMap <- timers.get
+      _         <- timersMap.values.toList.traverse { fiber => fiber.interrupt}
+      _         <- timers.set(Map.empty)
+    } yield ()
+  }
+
 }

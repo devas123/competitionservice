@@ -27,8 +27,8 @@ object KafkaSyncQueryReceiverActor {
                              ): RIO[Logging with Clock with Blocking, (Seq[Array[Byte]], A)] =
         command match {
           case QueryStarted() => RIO((state, ().asInstanceOf[A]))
-          case QueryFinished() => promise.succeed(state) *> context.stopSelf.as((state, ().asInstanceOf[A]))
-          case QueryError(error) => Logging.error(s"Error during kafka query: $error") *> promise.succeed(state) *> context.stopSelf.as((state, ().asInstanceOf[A]))
+          case QueryFinished() => Logging.error(s"Successfully finished the query. Stopping.") *> promise.succeed(state) *> context.stopSelf *> RIO((state, ().asInstanceOf[A]))
+          case QueryError(error) => Logging.error(s"Error during kafka query: $error") *> promise.succeed(state) *> context.stopSelf *> RIO((state, ().asInstanceOf[A]))
           case MessageReceived(_, committableRecord) => RIO((state :+ committableRecord.value, ().asInstanceOf[A]))
         }
 

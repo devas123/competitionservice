@@ -134,7 +134,7 @@ object CompetitionProcessorActor {
         events <- promise.await.map(_.map(e => mapper.readValue(e, classOf[EventDTO])))
           .onError(e => Logging.info(e.prettyPrint))
           .foldM(_ => RIO(Seq.empty), RIO(_))
-        _ <- Logging.info(s"Done getting events!")
+        _ <- Logging.info(s"Done getting events! ${events.size} events were received.")
       } yield events
 
       override def persistEvents(persistenceId: String, events: Seq[EventDTO]): RIO[Env with Logging with Clock, Unit] = {

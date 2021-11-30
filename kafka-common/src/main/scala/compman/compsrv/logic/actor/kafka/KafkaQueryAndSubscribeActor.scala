@@ -14,7 +14,6 @@ import zio.clock.Clock
 import zio.kafka.consumer._
 import zio.kafka.serde.Serde
 import zio.logging.Logging
-import zio.stream.ZStream
 
 import scala.util.{Failure, Success, Try}
 
@@ -44,9 +43,6 @@ private[kafka] object KafkaQueryAndSubscribeActor {
         case ForwardMesage(msg, to) => (to ! msg).as(((), ().asInstanceOf[A]))
         case Stop                   => context.stopSelf.as(((), ().asInstanceOf[A]))
       }
-
-      import cats.implicits._
-      import zio.interop.catz._
       override def init(
         actorConfig: ActorConfig,
         context: Context[KafkaQueryActorCommand],
@@ -97,10 +93,8 @@ private[kafka] object KafkaQueryAndSubscribeActor {
       def queryAndSendEvents(): ZIO[Clock with Blocking with Logging, Throwable, Unit] = {
         for {
           _      <- replyTo ! QueryStarted()
-          events <- retrieveEvents(topic, startOffset)
-          queryResult <- events.traverse(e => replyTo ! MessageReceived(topic = topic, committableRecord = e))
-            .fold(e => QueryError(e), _ => QueryFinished())
-          _ <- replyTo ! queryResult
+          result <- retrieveEvents(topic, startOffset).fold(e => QueryError(e), _ => QueryFinished())
+          _      <- replyTo ! result
         } yield ()
       }
 
@@ -120,7 +114,7 @@ private[kafka] object KafkaQueryAndSubscribeActor {
       def retrieveEvents(
         topic: String,
         startOffset: Long
-      ): RIO[Clock with Blocking with Logging, List[CommittableRecord[String, Array[Byte]]]] = {
+      ): RIO[Clock with Blocking with Logging, Unit] = {
         for {
           partitions <- Consumer.partitionsFor(topic)
           endOffsets <- Consumer.endOffsets(partitions.map(p => new TopicPartition(p.topic(), p.partition())).toSet)
@@ -139,16 +133,16 @@ private[kafka] object KafkaQueryAndSubscribeActor {
                 }).filter(o => o._2 > 0)
                 numberOfEventsToTake = off.foldLeft(0L)((acc, el) => acc + el._2) - startOffset
                 _ <- Logging.info(s"Effective offsets to retrieve: $off, number of events: $numberOfEventsToTake")
-                res1 <-
+                _ <-
                   if (numberOfEventsToTake > 0) {
                     Consumer.subscribeAnd(Subscription.manual(off.map(_._1).toIndexedSeq: _*))
                       .plainStream(Serde.string, Serde.byteArray).take(numberOfEventsToTake)
-                      .runCollect
+                      .mapM(e => (replyTo ! MessageReceived(topic = topic, committableRecord = e)).as(e))
+                      .map(_.offset).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
                   } else { RIO.effect(Chunk.empty) }
-                _ <- ZStream.fromIterable(res1).map(_.offset).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
-              } yield res1.toList
-            } else { ZIO.effectTotal(List.empty) }
-          _ <- Logging.info(s"Done collecting ${res.size} events.")
+              } yield ()
+            } else { ZIO.unit }
+          _ <- Logging.info(s"Done collecting events.")
         } yield res
       }.onError(err => CompetitionLogging.logError(err.squashTrace)).provideSomeLayer[Clock with Blocking with Logging](
         Consumer.make(ConsumerSettings(brokers).withGroupId(groupId).withOffsetRetrieval(Consumer.OffsetRetrieval.Auto(

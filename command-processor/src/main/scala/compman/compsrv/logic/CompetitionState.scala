@@ -25,6 +25,7 @@ object CompetitionState {
   final implicit class CompetitionStateOps(private val c: CompetitionState) extends AnyVal {
     def updateStatus(competitionStatus: CompetitionStatus): CompetitionState = compPropertiesLens.modify(p => p.map(_.setStatus(competitionStatus)))(c)
     def updateFights(fights: Seq[FightDescriptionDTO]): CompetitionState = fightsLens.modify(f => f.map(f => f ++ Utils.groupById(fights)(_.getId)))(c)
+    def fightsApply(update: Option[Map[String, FightDescriptionDTO]] => Option[Map[String, FightDescriptionDTO]]): CompetitionState = fightsLens.modify(update)(c)
 
     def updateStage(stage: StageDescriptorDTO): CompetitionState =
       stagesLens.modify(s => s.map(stgs => stgs + (stage.getId -> stage)))(c)

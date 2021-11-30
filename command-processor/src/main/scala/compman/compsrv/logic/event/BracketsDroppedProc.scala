@@ -19,6 +19,7 @@ object BracketsDroppedProc {
       currentStages <- state.stages
       catId         <- event.categoryId
       newState = state.copy(stages = Option(currentStages.filter { case (_, o) => o.getCategoryId != catId }))
+        .fightsApply(fightsOpt => fightsOpt.map(_.filter(_._2.getCategoryId != catId)))
     } yield newState
     Monad[F].pure(maybeState)
   }

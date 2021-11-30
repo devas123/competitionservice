@@ -46,7 +46,7 @@ object KafkaSupervisor {
     topic: String,
     groupId: String,
     promise: Promise[Throwable, Seq[Array[Byte]]],
-    timeout: Duration = 1.seconds
+    timeout: Duration = 10.seconds
   ) extends KafkaSupervisorCommand[Seq[Array[Byte]]]
 
   case class Subscribe(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi])

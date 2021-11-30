@@ -3,8 +3,8 @@ package compman.compsrv.logic.actors
 import cats.implicits._
 import compman.compsrv.logic.actors
 import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
+import zio.{Fiber, Queue, Ref, RIO, Task}
 import zio.interop.catz._
-import zio.{Fiber, Queue, RIO, Ref, Task}
 
 trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
   self =>
@@ -17,14 +17,14 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
   ): RIO[R, (S, A)]
 
   def init(
-            actorConfig: ActorConfig,
-            context: Context[Msg],
-            initState: S,
-            timers: Timers[R, Msg]
-          ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg[Any]], S)] = RIO((Seq.empty, Seq.empty, initState))
+    actorConfig: ActorConfig,
+    context: Context[Msg],
+    initState: S,
+    timers: Timers[R, Msg]
+  ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg[Any]], S)] = RIO((Seq.empty, Seq.empty, initState))
 
   def postStop(actorConfig: ActorConfig, context: Context[Msg], state: S, timers: Timers[R, Msg]): RIO[R, Unit] =
-    RIO(())
+    timers.cancelAll()
 
   def makeActor(
     id: String,
@@ -52,26 +52,26 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
       for {
         t <- (for {
           msg <- queue.take
-          _ <- process(context, msg, stateRef, ts).attempt
+          _   <- process(context, msg, stateRef, ts).attempt
         } yield ()).repeatUntilM(_ => queue.isShutdown).fork
-        _ <- t.join.attempt
+        _  <- t.join.attempt
         st <- stateRef.get
-        _ <- self.postStop(actorConfig, context, st, ts).attempt
+        _  <- self.postStop(actorConfig, context, st, ts).attempt
       } yield ()
     }
 
     for {
-      queue <- Queue.dropping[PendingMessage[Msg, _]](actorConfig.mailboxSize)
+      queue     <- Queue.dropping[PendingMessage[Msg, _]](actorConfig.mailboxSize)
+      timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
       actor = actors.ActorRef[Msg](queue, id)(optPostStop)
+      ts    = Timers[R, Msg](actor, timersMap)
       _ <- (for {
         stateRef <- Ref.make(initialState)
-        timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
-        ts = Timers[R, Msg](actor, timersMap)
         context = Context(children, actor, id, actorSystem)
         (_, msgs, initState) <- init(actorConfig, context, initialState, ts)
-        _ <- stateRef.set(initState)
-        _ <- msgs.traverse(m => actor ! m)
-        _ <- innerLoop(queue, stateRef, ts, context)
+        _                    <- stateRef.set(initState)
+        _                    <- msgs.traverse(m => actor ! m)
+        _                    <- innerLoop(queue, stateRef, ts, context)
       } yield ()).fork
     } yield actor
   }
