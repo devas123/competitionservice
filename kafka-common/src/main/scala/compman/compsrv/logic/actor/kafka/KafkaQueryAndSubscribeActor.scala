@@ -14,6 +14,7 @@ import zio.clock.Clock
 import zio.kafka.consumer._
 import zio.kafka.serde.Serde
 import zio.logging.Logging
+import zio.stream.ZStream
 
 import scala.util.{Failure, Success, Try}
 
@@ -141,8 +142,10 @@ private[kafka] object KafkaQueryAndSubscribeActor {
                 res1 <-
                   if (numberOfEventsToTake > 0) {
                     Consumer.subscribeAnd(Subscription.manual(off.map(_._1).toIndexedSeq: _*))
-                      .plainStream(Serde.string, Serde.byteArray).take(numberOfEventsToTake).runCollect
+                      .plainStream(Serde.string, Serde.byteArray).take(numberOfEventsToTake)
+                      .runCollect
                   } else { RIO.effect(Chunk.empty) }
+                _ <- ZStream.fromIterable(res1).map(_.offset).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
               } yield res1.toList
             } else { ZIO.effectTotal(List.empty) }
           _ <- Logging.info(s"Done collecting ${res.size} events.")

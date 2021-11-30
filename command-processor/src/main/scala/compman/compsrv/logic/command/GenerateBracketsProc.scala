@@ -3,13 +3,13 @@ package compman.compsrv.logic.command
 import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
-import compman.compsrv.logic.CompetitionState
+import compman.compsrv.logic.{assertETErr, CompetitionState}
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.fight.FightsService
 import compman.compsrv.model.{Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, GenerateBracketsCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}
-import compman.compsrv.model.Errors.{NoCategoryIdError, NoCompetitionIdError, NoPayloadError}
+import compman.compsrv.model.Errors.{BracketsAlreadyGeneratedForCategory, NoCategoryIdError, NoCompetitionIdError, NoPayloadError}
 import compman.compsrv.model.dto.brackets.{FightResultOptionDTO, StageDescriptorDTO, StageStatus, StageType}
 import compman.compsrv.model.events.payload.{BracketsGeneratedPayload, FightsAddedToStagePayload}
 
@@ -28,47 +28,43 @@ object GenerateBracketsProc {
       payload    <- EitherT.fromOption[F](command.payload, NoPayloadError())
       categoryId <- EitherT.fromOption[F](command.categoryId, NoCategoryIdError())
       _          <- EitherT.fromOption[F](command.competitionId, NoCompetitionIdError())
-      exists = state.categories.exists(_.contains(categoryId))
+      _ <- assertETErr[F](state.categories.exists(_.contains(categoryId)),Errors.CategoryDoesNotExist(
+        command.categoryId.map(Array(_)).getOrElse(Array.empty)))
+      _ <- assertETErr[F](!state.fights.exists(fightsMap => fightsMap.values.exists(_.getCategoryId == categoryId)), BracketsAlreadyGeneratedForCategory(categoryId))
+      stages = payload.getStageDescriptors.toList.sortBy(_.getStageOrder)
       events <-
-        if (!exists) {
-          EitherT.fromEither[F](Left[Errors.Error, List[EventDTO]](Errors.CategoryDoesNotExist(
-            command.categoryId.map(Array(_)).getOrElse(Array.empty)
-          )))
-        } else {
-          val stages = payload.getStageDescriptors.toList.sortBy(_.getStageOrder)
-          for {
-            stageIdtoNewId <- EitherT.liftF(stages.traverse { s => IdOperations[F].uid.map(s.getId -> _) })
-            stageIdMap = stageIdtoNewId.toMap
-            updatedStages <- validateAndEnrichStages[F](stages, stageIdMap, categoryId, state)
-            fightAddedEvents <- EitherT.liftF(
-              updatedStages.flatMap { case (stage, fights) =>
-                fights.grouped(30).map { it =>
-                  CommandEventOperations[F, EventDTO, EventType].create(
-                    EventType.FIGHTS_ADDED_TO_STAGE,
-                    command.competitionId,
-                    None,
-                    None,
-                    command.categoryId,
-                    Some(new FightsAddedToStagePayload(it.toArray, stage.getId))
-                  )
-                }
-              }.traverse(identity)
-            )
-            bracketsGeneratedPayload = {
-              val p = new BracketsGeneratedPayload()
-              p.setStages(updatedStages.mapWithIndex((a, b) => a._1.setStageOrder(b)).toArray)
-              p
-            }
-            bracketsGeneratedEvent <- EitherT
-              .liftF[F, Errors.Error, EventDTO](CommandEventOperations[F, EventDTO, EventType].create(
-                `type` = EventType.BRACKETS_GENERATED,
-                competitorId = None,
-                competitionId = command.competitionId,
-                categoryId = command.categoryId,
-                payload = Some(bracketsGeneratedPayload)
-              ))
-          } yield fightAddedEvents :+ bracketsGeneratedEvent
-        }
+        for {
+          stageIdtoNewId <- EitherT.liftF(stages.traverse { s => IdOperations[F].uid.map(s.getId -> _) })
+          stageIdMap = stageIdtoNewId.toMap
+          updatedStages <- validateAndEnrichStages[F](stages, stageIdMap, categoryId, state)
+          fightAddedEvents <- EitherT.liftF(
+            updatedStages.flatMap { case (stage, fights) =>
+              fights.grouped(30).map { it =>
+                CommandEventOperations[F, EventDTO, EventType].create(
+                  EventType.FIGHTS_ADDED_TO_STAGE,
+                  command.competitionId,
+                  None,
+                  None,
+                  command.categoryId,
+                  Some(new FightsAddedToStagePayload(it.toArray, stage.getId))
+                )
+              }
+            }.traverse(identity)
+          )
+          bracketsGeneratedPayload = {
+            val p = new BracketsGeneratedPayload()
+            p.setStages(updatedStages.mapWithIndex((a, b) => a._1.setStageOrder(b)).toArray)
+            p
+          }
+          bracketsGeneratedEvent <- EitherT
+            .liftF[F, Errors.Error, EventDTO](CommandEventOperations[F, EventDTO, EventType].create(
+              `type` = EventType.BRACKETS_GENERATED,
+              competitorId = None,
+              competitionId = command.competitionId,
+              categoryId = command.categoryId,
+              payload = Some(bracketsGeneratedPayload)
+            ))
+        } yield fightAddedEvents :+ bracketsGeneratedEvent
     } yield events
     eventT.value
   }

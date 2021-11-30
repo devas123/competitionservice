@@ -28,7 +28,6 @@ object GenerateScheduleProc {
     def updateMatId(mat: MatDescriptionDTO) = {
       IdOperations[F].uid.map(id => mat.setId(Option(mat.getId).getOrElse(id)))
     }
-
     val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
       payload       <- EitherT.fromOption[F](command.payload, NoPayloadError())
       competitionId <- EitherT.fromOption[F](command.competitionId, Errors.NoCompetitionIdError())
@@ -41,6 +40,7 @@ object GenerateScheduleProc {
       mats <- EitherT.liftF(payload.getMats.toList.traverse(mat => updateMatId(mat)))
       categories        = periods.flatMap(p => Option(p.getScheduleRequirements).getOrElse(Array.empty)).flatMap(e => Option(e.getCategoryIds).getOrElse(Array.empty)).toSet
       unknownCategories = state.categories.map(_.keySet).map(c => categories.diff(c)).getOrElse(Set.empty)
+      _ <- assertET[F](!state.schedule.exists(s => s.getPeriods != null && s.getPeriods.nonEmpty), Some("Schedule generated"))
       _ <- assertET[F](!state.competitionProperties.exists(_.getSchedulePublished), Some("Schedule already published"))
       _ <- assertET[F](unknownCategories.isEmpty, Some(s"Categories $unknownCategories are unknown"))
       stageGraph <- EitherT.fromEither[F](getStageGraph(state))

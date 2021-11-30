@@ -125,6 +125,7 @@ object CompetitionEventListener {
                   for {
                     event  <- ZIO.effect(mapper.readValue(record.value, classOf[EventDTO]))
                     mapped <- EventMapping.mapEventDto[LIO](event)
+                    _      <- Logging.info(s"Received event: $mapped")
                     _      <- EventProcessors.applyEvent[LIO, Payload](mapped)
                     _      <- notifyEventListenerSupervisor(topic, event, mapped)
                     _      <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork

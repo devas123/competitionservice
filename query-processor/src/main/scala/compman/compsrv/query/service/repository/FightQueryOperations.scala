@@ -159,8 +159,15 @@ object FightQueryOperations {
       override def getFightsByScheduleEntries(competitionId: String): LIO[List[FightByScheduleEntry]] = {
         for {
           collection <- fightCollection
-          statement = collection
-            .find(and(equal("competitionId", competitionId), not(equal("periodId", null)), not(equal("scheduleEntryId", null))))
+          periodId = "periodId"
+          scheduleEntryId = "scheduleEntryId"
+          statement = collection.find(and(
+            equal("competitionId", competitionId),
+            not(equal(periodId, null)),
+            exists(periodId),
+            exists(scheduleEntryId),
+            not(equal(scheduleEntryId, null))
+          ))
           res <- RIO.fromFuture(_ => statement.toFuture()).map(
             _.filter(_.scheduleEntryId.isDefined).map(f =>
               FightByScheduleEntry(
