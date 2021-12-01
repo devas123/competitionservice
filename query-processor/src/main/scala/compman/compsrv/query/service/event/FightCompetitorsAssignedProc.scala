@@ -18,7 +18,7 @@ object FightCompetitorsAssignedProc {
     for {
       payload       <- OptionT.fromOption[F](event.payload)
       competitionId <- OptionT.fromOption[F](event.competitionId)
-      categoryId <- OptionT.fromOption[F](event.categoryId)
+      categoryId    <- OptionT.fromOption[F](event.categoryId)
       assignments   <- OptionT.fromOption[F](Option(payload.getAssignments))
       fightIds = assignments.toList.flatMap(ass => (ass.getToFightId, ass.getFromFightId).toList).filter(_ != null)
         .toSet
@@ -31,14 +31,18 @@ object FightCompetitorsAssignedProc {
         } yield (ass, fromFight, toFight)
       ).mapFilter { case (ass, fromFight, toFight) =>
         for {
-          scores <- Option(toFight.scores)
-          score  <- scores.find(_.parentFightId.contains(fromFight.id))
+          scores              <- Option(toFight.scores)
+          score               <- scores.find(_.parentFightId.contains(fromFight.id))
           parentReferenceType <- score.parentReferenceType.orElse(Option(ass.getReferenceType))
-          newScore  = score.copy(competitorId = Option(ass.getCompetitorId), parentReferenceType = Option(parentReferenceType))
+          newScore = score
+            .copy(competitorId = Option(ass.getCompetitorId), parentReferenceType = Option(parentReferenceType))
           newScores = scores.filter(_.competitorId != newScore.competitorId) :+ newScore
         } yield toFight.copy(scores = newScores)
       }
-      _ <- OptionT.liftF(FightUpdateOperations[F].updateFightScores(updates))
+
+      _ <-
+        if (updates.nonEmpty) OptionT.liftF(FightUpdateOperations[F].updateFightScores(updates))
+        else OptionT.liftF(Monad[F].unit)
     } yield ()
   }.value.map(_ => ())
 }

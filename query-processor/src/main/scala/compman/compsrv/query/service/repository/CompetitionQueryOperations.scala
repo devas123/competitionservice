@@ -234,7 +234,7 @@ object CompetitionQueryOperations {
     override def getCompetitorById(competitionId: String)(id: String): LIO[Option[Competitor]] = {
       for {
         collection <- competitorCollection
-        select = collection.find(and(equal("competitionId", competitionId), equal(idField, id)))
+        select = collection.find(and(equal(competitionIdField, competitionId), equal(idField, id)))
         res <- RIO.fromFuture(_ => select.headOption())
       } yield res
     }
@@ -256,7 +256,7 @@ object CompetitionQueryOperations {
     ): LIO[(List[Competitor], Pagination)] = {
       val drop   = pagination.map(_.offset).getOrElse(0)
       val take   = pagination.map(_.maxResults).getOrElse(0)
-      val filter = and(equal("competitionId", competitionId), equal("categories", categoryId))
+      val filter = and(equal(competitionIdField, competitionId), equal("categories", categoryId))
       for {
         collection <- competitorCollection
         select = collection.find(filter).skip(drop).limit(take)
@@ -273,8 +273,8 @@ object CompetitionQueryOperations {
       val take = pagination.map(_.maxResults).getOrElse(0)
       for {
         collection <- competitorCollection
-        select = collection.find(equal("competitionId", competitionId)).skip(drop).limit(take)
-        total  = collection.countDocuments(equal("competitionId", competitionId)).toFuture()
+        select = collection.find(equal(competitionIdField, competitionId)).skip(drop).limit(take)
+        total  = collection.countDocuments(equal(competitionIdField, competitionId)).toFuture()
         res <- selectWithPagination(select, pagination, total)
       } yield res
     }
@@ -288,9 +288,9 @@ object CompetitionQueryOperations {
       val take = pagination.map(_.maxResults).getOrElse(0)
       for {
         collection <- competitorCollection
-        select = collection.find(and(equal("competitionId", competitionId), equal("academy.id", academyId))).skip(drop)
+        select = collection.find(and(equal(competitionIdField, competitionId), equal("academy.id", academyId))).skip(drop)
           .limit(take)
-        total = collection.countDocuments(equal("competitionId", competitionId)).toFuture()
+        total = collection.countDocuments(equal(competitionIdField, competitionId)).toFuture()
         res <- selectWithPagination(select, pagination, total)
       } yield res
     }
@@ -379,7 +379,7 @@ object CompetitionQueryOperations {
     override def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): LIO[Int] = {
       for {
         collection <- competitorCollection
-        select = collection.countDocuments(and(equal("competitionId", competitionId), equal("categories", categoryId)))
+        select = collection.countDocuments(and(equal(competitionIdField, competitionId), equal("categories", categoryId)))
         res <- RIO.fromFuture(_ => select.toFuture()).map(_.toInt)
       } yield res
     }

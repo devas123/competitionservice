@@ -298,7 +298,7 @@ object CompetitionUpdateOperations {
     override def removeCompetitorsForCompetition(competitionId: String): LIO[Unit] = {
       for {
         collection <- competitorCollection
-        statement = collection.deleteMany(equal("competitionId", competitionId))
+        statement = collection.deleteMany(equal(competitionIdField, competitionId))
         res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
       } yield res
     }

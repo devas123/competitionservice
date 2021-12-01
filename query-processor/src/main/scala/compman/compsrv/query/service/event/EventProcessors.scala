@@ -11,6 +11,7 @@ object EventProcessors {
   FightQueryOperations: FightUpdateOperations, P <: Payload](
     event: Events.Event[P]
   ): F[Unit] = List(
+    FightResultSetProc(),
     CompetitionDeletedProc(),
     CompetitorCategoryChangesProc(),
     BracketsDroppedProc(),

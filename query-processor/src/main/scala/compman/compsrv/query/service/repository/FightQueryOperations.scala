@@ -5,6 +5,8 @@ import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model._
 import org.mongodb.scala.MongoClient
+import org.mongodb.scala.bson.BsonNull
+import org.mongodb.scala.model.Filters.{and, equal, not}
 import zio.{Ref, RIO, Task}
 import zio.interop.catz._
 
@@ -81,7 +83,10 @@ object FightQueryOperations {
   }
 
   def live(mongo: MongoClient, name: String)(implicit log: CompetitionLogging.Service[LIO]): FightQueryOperations[LIO] =
-    new FightQueryOperations[LIO] with CommonLiveOperations {
+    new FightQueryOperations[LIO] with CommonLiveOperations with FightFieldsAndFilters {
+
+      private def activeFights(competitionId: String) =
+        and(equal(competitionIdField, competitionId), statusCheck, not(equal("scores.competitorId", BsonNull())))
 
       override def mongoClient: MongoClient = mongo
 
@@ -94,7 +99,7 @@ object FightQueryOperations {
       override def getFightsByMat(competitionId: String)(matId: String, limit: Int): LIO[List[Fight]] = {
         for {
           collection <- fightCollection
-          statement = collection.find(and(equal("competitionId", competitionId), equal("matId", matId))).limit(limit)
+          statement = collection.find(and(activeFights(competitionId), equal("matId", matId))).limit(limit)
           res <- RIO.fromFuture(_ => statement.toFuture()).map(_.toList)
         } yield res
       }
@@ -103,7 +108,7 @@ object FightQueryOperations {
         for {
           collection <- fightCollection
           statement = collection.find(
-            and(equal("competitionId", competitionId), equal("stageId", stageId), equal("categoryId", categoryId))
+            and(equal(competitionIdField, competitionId), equal("stageId", stageId), equal(categoryIdField, categoryId))
           )
 
           res <- RIO.fromFuture(_ => statement.toFuture()).map(_.toList)
@@ -115,25 +120,21 @@ object FightQueryOperations {
         for {
           collection <- fightCollection
           statement = collection
-            .find(and(equal("competitionId", competitionId), equal(idField, id), equal("categoryId", categoryId)))
+            .find(and(equal(competitionIdField, competitionId), equal(idField, id), equal(categoryIdField, categoryId)))
           res <- RIO.fromFuture(_ => statement.headOption())
         } yield res
       }
 
       override def getFightsByIds(competitionId: String)(categoryId: String, ids: Set[String]): LIO[List[Fight]] = {
-        for {
-          collection <- fightCollection
-          statement = collection.find(in(idField, ids))
-          res <- RIO.fromFuture(_ => statement.toFuture()).map(_.toList)
-
-        } yield res
+        import cats.implicits._
+        import zio.interop.catz._
+        ids.toList.traverse(id => getFightById(competitionId)(categoryId, id).map(_.get))
       }
-
       override def getNumberOfFightsForCategory(competitionId: String)(categoryId: String): LIO[Int] = {
         for {
           collection <- fightCollection
           statement = collection
-            .countDocuments(and(equal("competitionId", competitionId), equal("categoryId", categoryId)))
+            .countDocuments(and(equal(competitionIdField, competitionId), equal(categoryIdField, categoryId)))
           res <- RIO.fromFuture(_ => statement.toFuture()).map(_.toInt)
         } yield res
       }
@@ -141,7 +142,7 @@ object FightQueryOperations {
       override def getNumberOfFightsForMat(competitionId: String)(matId: String): LIO[Int] = {
         for {
           collection <- fightCollection
-          statement = collection.countDocuments(and(equal("competitionId", competitionId), equal("matId", matId)))
+          statement = collection.countDocuments(and(equal(competitionIdField, competitionId), equal("matId", matId)))
           res <- RIO.fromFuture(_ => statement.toFuture()).map(_.toInt)
         } yield res
       }
@@ -149,9 +150,11 @@ object FightQueryOperations {
       override def getFightIdsByCategoryIds(competitionId: String): LIO[Map[String, List[String]]] = {
         for {
           collection <- fightCollection
-          statement = collection.find(equal("competitionId", competitionId))
+          statement = collection.find(activeFights(competitionId))
           res <- RIO.fromFuture(_ => statement.toFuture())
-            .map(_.groupMap(_.categoryId)(_.id).map(e => e._1 -> e._2.toList))
+            .map(_.filter(_.scores.forall(_.competitorId.isDefined)).groupMap(_.categoryId)(_.id).map(e =>
+              e._1 -> e._2.toList
+            ))
 
         } yield res
       }
@@ -159,10 +162,10 @@ object FightQueryOperations {
       override def getFightsByScheduleEntries(competitionId: String): LIO[List[FightByScheduleEntry]] = {
         for {
           collection <- fightCollection
-          periodId = "periodId"
+          periodId        = "periodId"
           scheduleEntryId = "scheduleEntryId"
           statement = collection.find(and(
-            equal("competitionId", competitionId),
+            equal(competitionIdField, competitionId),
             not(equal(periodId, null)),
             exists(periodId),
             exists(scheduleEntryId),

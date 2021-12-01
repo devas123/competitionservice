@@ -2,12 +2,7 @@ package compman.compsrv.query.service.repository
 
 import com.mongodb.client.model.IndexOptions
 import compman.compsrv.model.dto.brackets._
-import compman.compsrv.model.dto.competition.{
-  CategoryRestrictionType,
-  CompetitionStatus,
-  CompetitorRegistrationStatus,
-  FightStatus
-}
+import compman.compsrv.model.dto.competition.{CategoryRestrictionType, CompetitionStatus, CompetitorRegistrationStatus, FightStatus}
 import compman.compsrv.model.dto.schedule.{ScheduleEntryType, ScheduleRequirementType}
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
@@ -21,10 +16,11 @@ import zio.{Task, ZIO}
 import scala.reflect.ClassTag
 
 trait CommonLiveOperations {
+
+  val competitionIdField = "competitionId"
+  val categoryIdField = "categoryId"
   private final val competitionStateCollectionName = "competition_state"
-
   private final val competitorsCollectionName = "competitor"
-
   private final val fightsCollectionName             = "fight"
   private final val managedCompetitionCollectionName = "managed_competition"
 

@@ -243,7 +243,7 @@ object DtoMapping {
     )
   }
 
-  private def mapFightResult(d: FightResultDTO) = {
+  def mapFightResult(d: FightResultDTO): FightResult = {
     FightResult(Option(d.getWinnerId), Option(d.getResultTypeId), Option(d.getReason))
   }
 
