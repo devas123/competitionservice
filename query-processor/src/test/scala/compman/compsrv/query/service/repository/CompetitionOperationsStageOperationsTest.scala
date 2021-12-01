@@ -16,5 +16,5 @@ class CompetitionOperationsStageOperationsTest extends DefaultRunnableSpec with 
   override def spec: ZSpec[Any, Throwable] = suite("competition operations")(testM("should save stage") {
     (for { _ <- CompetitionUpdateOperations[LIO].addStage(stageDescriptor) } yield assert(Some(()))(isSome))
       .provideLayer(layers)
-  }) @@ sequential @@ aroundAll(ZIO.effect(startEmbeddedMongo()))(tuple => URIO(tuple._1.stop()))
+  }) @@ aroundAll(ZIO.effect(startEmbeddedMongo()))(tuple => URIO(tuple._1.stop()))
 }

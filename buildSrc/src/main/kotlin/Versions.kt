@@ -16,7 +16,7 @@ object Versions {
     const val rocksdb: String = "6.13.3"
     const val http4s: String = "1.0.0-M27"
     const val mongodb: String = "4.3.3"
-    const val embeddedMongodb: String = "3.1.4"
+    const val embeddedMongodb: String = "3.2.0"
     const val monocle: String = "3.1.0"
 }
 

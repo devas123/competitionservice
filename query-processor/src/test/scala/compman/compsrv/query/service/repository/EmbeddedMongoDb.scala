@@ -5,23 +5,28 @@ import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.config.MongodbConfig
 import de.flapdoodle.embed.mongo.config.Net
 import org.mongodb.scala.MongoClient
+import zio.{Task, URIO}
 
 trait EmbeddedMongoDb {
 
-  import de.flapdoodle.embed.mongo.{MongodExecutable, MongodProcess, MongodStarter}
+  import de.flapdoodle.embed.mongo.{MongodExecutable, MongodStarter}
   import de.flapdoodle.embed.mongo.config.MongodConfig
   import de.flapdoodle.embed.mongo.distribution.Version
   import de.flapdoodle.embed.process.runtime.Network
 
-  def startEmbeddedMongo(): (MongodProcess, Int) = {
+  def startEmbeddedMongo(): (MongodExecutable, Int) = {
     val starter: MongodStarter = MongodStarter.getDefaultInstance
-
     val mongodConfig: MongodConfig = MongodConfig.builder.version(Version.Main.PRODUCTION)
       .net(new Net(EmbeddedMongoDb.port, Network.localhostIsIPv6)).build
 
     var mongodExecutable: MongodExecutable = null
     mongodExecutable = starter.prepare(mongodConfig)
-    (mongodExecutable.start, EmbeddedMongoDb.port)
+    mongodExecutable.start
+    (mongodExecutable, EmbeddedMongoDb.port)
+  }
+
+  def stopServer(mongodProcess: MongodExecutable): Task[Unit] = {
+    URIO(println("\n\n\nStopping server")) *> URIO(mongodProcess.stop())
   }
 }
 

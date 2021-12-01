@@ -15,16 +15,20 @@ class ManagedCompetitionsOperationsTest extends DefaultRunnableSpec with Embedde
 
   import EmbeddedMongoDb._
   override def spec
-    : ZSpec[Any, Throwable] = suite("managed competitions operations suite")(testM("should save managed competition") {
-    {
-        implicit val quillEnvironment: ManagedCompetitionsOperations.ManagedCompetitionService[LIO] =
-          ManagedCompetitionsOperations.live(mongoClient, mongodbConfig.queryDatabaseName)
-        for {
-          _             <- ManagedCompetitionsOperations.addManagedCompetition[LIO](managedCompetition)
-          competitions  <- ManagedCompetitionsOperations.getActiveCompetitions[LIO]
-          _             <- ManagedCompetitionsOperations.deleteManagedCompetition[LIO](managedCompetition.id)
-          shouldBeEmpty <- ManagedCompetitionsOperations.getActiveCompetitions[LIO]
-        } yield assert(competitions)(isNonEmpty) && assert(shouldBeEmpty)(isEmpty)
-      }.provideLayer(layers)
-  }) @@ aroundAll(ZIO.effect(startEmbeddedMongo()))(_ => URIO(()))
+    : ZSpec[Any, Throwable] = suite("managed competitions operations suite")(
+    suite("Witho mongodb")(
+      testM("should save managed competition") {
+        {
+          implicit val quillEnvironment: ManagedCompetitionsOperations.ManagedCompetitionService[LIO] =
+            ManagedCompetitionsOperations.live(mongoClient, mongodbConfig.queryDatabaseName)
+          for {
+            _             <- ManagedCompetitionsOperations.addManagedCompetition[LIO](managedCompetition)
+            competitions  <- ManagedCompetitionsOperations.getActiveCompetitions[LIO]
+            _             <- ManagedCompetitionsOperations.deleteManagedCompetition[LIO](managedCompetition.id)
+            shouldBeEmpty <- ManagedCompetitionsOperations.getActiveCompetitions[LIO]
+          } yield assert(competitions)(isNonEmpty) && assert(shouldBeEmpty)(isEmpty)
+        }.provideLayer(layers)
+      }
+    )
+  ) @@ aroundAll(ZIO.effect(startEmbeddedMongo()))(server => URIO(server._1.stop()))
 }
