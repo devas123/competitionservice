@@ -1,7 +1,7 @@
 package compman.compsrv.query.service.repository
 
 import compman.compsrv.model.dto.brackets._
-import compman.compsrv.model.dto.competition.{CategoryRestrictionType, CompetitionStatus}
+import compman.compsrv.model.dto.competition.{CategoryRestrictionType, CompetitionStatus, FightStatus}
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 
@@ -10,7 +10,10 @@ import java.util.Date
 
 trait TestEntities {
   private[repository] val competitionId = "managedCompetition"
+  private[repository] val stageId       = s"$competitionId-stage"
   private[repository] val categoryId    = "test-category"
+  private[repository] val matId         = "mat_id"
+  private[repository] val periodId      = "period_id"
   val managedCompetition: ManagedCompetition = ManagedCompetition(
     "competitionId",
     Option("competitionName"),
@@ -71,6 +74,59 @@ trait TestEntities {
     )),
     DistributionType.AUTOMATIC
   )
+
+  val fightId: String = "fight_id"
+
+  val fight: Fight = Fight(
+    id = fightId,
+    competitionId = competitionId,
+    stageId = stageId,
+    categoryId = categoryId,
+    matId = Some(matId),
+    matName = None,
+    matOrder = Some(0),
+    durationSeconds = 300,
+    status = Some(FightStatus.PENDING),
+    numberOnMat = Some(0),
+    periodId = Option(periodId),
+    startTime = None,
+    invalid = Option(false),
+    scheduleEntryId = Option("scheduleEntry1"),
+    priority = None,
+    bracketsInfo = None,
+    fightResult = None,
+    scores = List.empty
+  )
+
+  val fightResult: FightResult = FightResult(
+    winnerId = Option("competitor1"), resultTypeId = Option("WinByPoints"), reason = Some("For some reason")
+  )
+
+  val scores = List(CompScore(
+    placeholderId = None,
+    competitorId = Some("competitor1"),
+    competitorFirstName = Some("Vasya"),
+    competitorLastName = Some("Pupkin"),
+    competitorAcademyName = Some("Bor"),
+    score = Score(
+      points = 0, advantages = 0, penalties = 0, pointGroups = List.empty
+    ),
+    parentReferenceType = Some(FightReferenceType.WINNER),
+    parentFightId = Some("parentFight1")
+  ),
+    CompScore(
+      placeholderId = None,
+      competitorId = Some("competitor2"),
+      competitorFirstName = Some("Kolya"),
+      competitorLastName = Some("Meklinsky"),
+      competitorAcademyName = Some("Gatchina"),
+      score = Score(
+        points = 0, advantages = 1, penalties = 0, pointGroups = List.empty
+      ),
+      parentReferenceType = Some(FightReferenceType.LOSER),
+      parentFightId = Some("parentFight2")
+    ))
+
   val restriction: Restriction = Restriction(
     "restrictionId",
     CategoryRestrictionType.Range,
@@ -87,7 +143,7 @@ trait TestEntities {
     Category(categoryId, competitionId, List(restriction), Some("categoryName"), registrationOpen = true)
 
   val stageDescriptor: StageDescriptor = StageDescriptor(
-    s"$competitionId-stage",
+    stageId,
     Some("test-stage-descriptor"),
     categoryId,
     competitionId,

@@ -2,14 +2,16 @@ package compman.compsrv.query.service.repository
 
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import org.junit.runner.RunWith
 import zio.{URIO, ZIO, ZLayer}
 import zio.logging.Logging
 import zio.test._
 import zio.test.Assertion._
-import zio.test.junit.JUnitRunnableSpec
+import zio.test.junit.ZTestJUnitRunner
 import zio.test.TestAspect.{aroundAll, sequential}
 
-class CompetitionOperationsTest extends JUnitRunnableSpec with TestEntities with EmbeddedMongoDb {
+@RunWith(classOf[ZTestJUnitRunner])
+class CompetitionOperationsTest extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
   type Env = Logging
   val layers: ZLayer[Any, Throwable, Env] = CompetitionLogging.Live.loggingLayer
   import EmbeddedMongoDb._

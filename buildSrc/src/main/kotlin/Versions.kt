@@ -93,7 +93,6 @@ object Libraries {
     val logging = listOf(
         "org.apache.logging.log4j:log4j-core:${Versions.log4j}",
         "org.apache.logging.log4j:log4j-slf4j-impl:${Versions.log4j}",
-        "com.lmax:disruptor:${Versions.disruptor}"
     )
 
     val jackson = listOf(
