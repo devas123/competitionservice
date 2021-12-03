@@ -23,7 +23,7 @@ import java.io.{PrintWriter, StringWriter}
 
 object CompetitionEventListenerSupervisor {
   type SupervisorEnvironment[R] = Clock with R with Logging
-  sealed trait ActorMessages[+_]
+  sealed trait ActorMessages[+A]
   case class ReceivedNotification(notification: CommandProcessorNotification) extends ActorMessages[Unit]
   case class ActiveCompetition(managedCompetition: ManagedCompetition)        extends ActorMessages[Unit]
   case class CompetitionUpdated(update: CompetitionPropertiesUpdatedPayload, eventTopic: String)

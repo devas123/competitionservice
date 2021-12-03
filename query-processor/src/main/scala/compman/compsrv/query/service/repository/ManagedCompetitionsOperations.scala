@@ -1,6 +1,6 @@
 package compman.compsrv.query.service.repository
 
-import com.mongodb.client.model.{ReplaceOptions, UpdateOptions}
+import com.mongodb.client.model.ReplaceOptions
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.competition.CompetitionStatus
@@ -37,9 +37,7 @@ object ManagedCompetitionsOperations {
       )
     }
 
-  def live(mongo: MongoClient, name: String)(implicit
-    log: CompetitionLogging.Service[LIO]
-  ): ManagedCompetitionService[LIO] = new ManagedCompetitionService[LIO] with CommonLiveOperations {
+  def live(mongo: MongoClient, name: String): ManagedCompetitionService[LIO] = new ManagedCompetitionService[LIO] with CommonLiveOperations {
 
     override def mongoClient: MongoClient = mongo
 
@@ -74,7 +72,7 @@ object ManagedCompetitionsOperations {
       for {
         collection <- managedCompetitionCollection
         delete = collection.deleteMany(equal(idField, id))
-        res <- RIO.fromFuture(_ => delete.toFuture())
+        _ <- RIO.fromFuture(_ => delete.toFuture())
       } yield ()
     }
 
@@ -94,12 +92,12 @@ object ManagedCompetitionsOperations {
             set("status", competition.status)
           )
         )
-        res <- RIO.fromFuture(_ => update.toFuture())
+        _ <- RIO.fromFuture(_ => update.toFuture())
       } yield ()
     }
   }
 
-  private def runQuery(select: Observable[ManagedCompetition])(implicit log: CompetitionLogging.Service[LIO]) = {
+  private def runQuery(select: Observable[ManagedCompetition]) = {
     for { res <- RIO.fromFuture(_ => select.toFuture()) } yield res.toList
   }
 

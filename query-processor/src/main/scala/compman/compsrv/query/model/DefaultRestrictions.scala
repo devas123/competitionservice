@@ -7,7 +7,7 @@ import java.util.UUID
 object DefaultRestrictions {
   private val bjj: CategoryRestrictionDTO = new CategoryRestrictionDTO().setRestrictionId(UUID.randomUUID().toString).setType(CategoryRestrictionType.Value).setName("Sport").setValue("BJJ")
 
-  private def weightRestriction(alias: String = "", maxValue: String, minValue: String = "0"): CategoryRestrictionDTO = new CategoryRestrictionDTO()
+  private def weightRestriction(alias: String, maxValue: String, minValue: String = "0"): CategoryRestrictionDTO = new CategoryRestrictionDTO()
     .setRestrictionId(UUID.randomUUID().toString)
     .setType(CategoryRestrictionType.Range)
     .setName("Weight")
@@ -16,7 +16,7 @@ object DefaultRestrictions {
     .setAlias(alias)
     .setUnit("kg")
 
-  private def ageRestriction(alias: String = "", minValue: String, maxValue: Option[String] = None): CategoryRestrictionDTO = new CategoryRestrictionDTO()
+  private def ageRestriction(alias: String, minValue: String, maxValue: Option[String] = None): CategoryRestrictionDTO = new CategoryRestrictionDTO()
     .setRestrictionId(UUID.randomUUID().toString)
     .setType(CategoryRestrictionType.Range)
     .setName("Age")

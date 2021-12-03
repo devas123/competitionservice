@@ -71,7 +71,7 @@ object CompetitionApiActor {
     implicit val managedCompetitionService: ManagedCompetitionService[LIO]
   }
 
-  sealed trait ApiCommand[+_]
+  sealed trait ApiCommand[+A]
 
   final case object GetDefaultRestrictions extends ApiCommand[List[CategoryRestrictionDTO]]
   final case object GetDefaultFightResults extends ApiCommand[List[FightResultOptionDTO]]
@@ -286,7 +286,7 @@ object CompetitionApiActor {
   private def createPageResponse[R: Tag, A](competitionId: String, res: (List[Competitor], Pagination)) = {
     new PageResponse[CompetitorDTO](
       competitionId,
-      res._2.totalResults,
+      res._2.totalResults.toLong,
       Integer.signum(Integer.bitCount(res._2.maxResults)) * res._2.offset / Math.max(res._2.maxResults, 1),
       res._1.map(DtoMapping.toDtoCompetitor).toArray
     )

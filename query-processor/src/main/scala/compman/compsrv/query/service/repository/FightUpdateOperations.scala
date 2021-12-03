@@ -1,7 +1,6 @@
 package compman.compsrv.query.service.repository
 
 import cats.implicits._
-import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model.{CompScore, Fight, FightResult, FightStartTimeUpdate}
 import org.mongodb.scala.MongoClient
@@ -55,9 +54,7 @@ object FightUpdateOperations {
       update(fights)(fightId)(f => f.copy(scores = scores, fightResult = Option(fightResult)))
   }
 
-  def live(mongo: MongoClient, name: String)(implicit
-    log: CompetitionLogging.Service[LIO]
-  ): FightUpdateOperations[LIO] = new FightUpdateOperations[LIO] with CommonLiveOperations with FightFieldsAndFilters {
+  def live(mongo: MongoClient, name: String): FightUpdateOperations[LIO] = new FightUpdateOperations[LIO] with CommonLiveOperations with FightFieldsAndFilters {
 
     override def mongoClient: MongoClient = mongo
 

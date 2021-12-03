@@ -31,7 +31,7 @@ object DtoMapping {
       requirementIds = Option(dto.getRequirementIds).map(_.toSet).getOrElse(Set.empty),
       startTime = Option(dto.getStartTime).map(Date.from),
       endTime = Option(dto.getEndTime).map(Date.from),
-      numberOfFights = Option(dto.getNumberOfFights),
+      numberOfFights = Option(dto.getNumberOfFights).map(_.intValue()),
       entryDuration = Option(dto.getDuration),
       entryOrder = dto.getOrder
     )
@@ -52,7 +52,7 @@ object DtoMapping {
       Option(dto.getStartTime).map(Date.from),
       Option(dto.getEndTime).map(Date.from),
       Option(dto.getDurationSeconds),
-      Option(dto.getEntryOrder)
+      Option(dto.getEntryOrder).map(_.intValue())
     )
   }
 
@@ -221,18 +221,18 @@ object DtoMapping {
       dto.getCategoryId,
       Option(dto.getMat).flatMap(m => Option(m.getId)),
       Option(dto.getMat).flatMap(m => Option(m.getName)),
-      Option(dto.getMat).flatMap(m => Option(m.getMatOrder)),
+      Option(dto.getMat).flatMap(m => Option(m.getMatOrder).map(_.intValue())),
       Option(dto.getDuration).map(_.intValue()).getOrElse(0),
       Option(dto.getStatus),
       Option(dto.getNumberOnMat).map(_.toInt),
       Option(dto.getPeriod),
       Option(dto.getStartTime).map(Date.from),
-      Option(dto.getInvalid),
+      Option(dto.getInvalid).map(_.booleanValue()),
       Option(dto.getScheduleEntryId),
-      Option(dto.getPriority),
+      Option(dto.getPriority).map(_.intValue()),
       Some(BracketsInfo(
-        Option(dto.getRound),
-        Option(dto.getNumberInRound),
+        Option(dto.getRound).map(_.intValue()),
+        Option(dto.getNumberInRound).map(_.intValue()),
         Option(dto.getGroupId),
         Option(dto.getWinFight),
         Option(dto.getLoseFight),
@@ -305,7 +305,7 @@ object DtoMapping {
       s.getHasThirdPlaceFight,
       Option(s.getGroupDescriptors).map(_.toList)
         .map(_.map(dto => GroupDescriptor(dto.getId, Option(dto.getName), dto.getSize))).orElse(Option(List.empty)),
-      Option(s.getNumberOfFights),
+      Option(s.getNumberOfFights).map(_.intValue()),
       Option(s.getFightDuration).map(_.longValue()).orElse(Option(0L))
     )
   }
@@ -333,7 +333,7 @@ object DtoMapping {
       .setEndTime(o.endTime.map(_.toInstant).orNull)
       .setScheduleEntries(o.scheduleEntries.map(toDtopScheduleEntry(o.id)).toArray)
       .setScheduleRequirements(o.scheduleRequirements.map(toDtopScheduleRequirement).toArray).setIsActive(o.active)
-      .setRiskPercent(BigDecimal.valueOf(o.riskCoefficient)).setTimeBetweenFights(o.timeBetweenFights)
+      .setRiskPercent(BigDecimal.valueOf(o.riskCoefficient.toLong)).setTimeBetweenFights(o.timeBetweenFights)
   }
 
   def toDtopScheduleEntry(periodId: String)(o: ScheduleEntry): ScheduleEntryDTO = {

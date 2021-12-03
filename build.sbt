@@ -71,16 +71,16 @@ lazy val kafkaCommons = module("kafka-common", "kafka-common").settings(
     "dev.zio"                       %% "zio-streams"                    % zioVersion,
     "dev.zio"                       %% "zio-logging"                    % zioLogging,
     "dev.zio"                       %% "zio-logging-slf4j"              % zioLogging,
-    "dev.zio"                       %% "zio-test-sbt"                   % zioVersion     % "test",
+    "dev.zio"                       %% "zio-test-sbt"                   % zioVersion % "test",
     "com.fasterxml.jackson.core"     % "jackson-databind"               % jackson,
     "com.fasterxml.jackson.core"     % "jackson-annotations"            % jackson,
     "com.fasterxml.jackson.module"   % "jackson-module-parameter-names" % jackson,
     "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8"          % jackson,
     "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"        % jackson,
-    "dev.zio"                       %% "zio-config-magnolia"                     % zioConfigVersion,
-    "dev.zio"                       %% "zio-config-typesafe"                     % zioConfigVersion,
+    "dev.zio"                       %% "zio-config-magnolia"            % zioConfigVersion,
+    "dev.zio"                       %% "zio-config-typesafe"            % zioConfigVersion,
     "dev.zio"                       %% "zio-kafka"                      % zioKafka,
-    "io.github.embeddedkafka"       %% "embedded-kafka"                 % Versions.kafka % "test"
+    "io.github.embeddedkafka"       %% "embedded-kafka"                 % kafka      % "test"
   )
 ).dependsOn(actorSystem, commons)
 
@@ -99,40 +99,100 @@ lazy val commons = module("commons", "command-processor/commons").settings(
   testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
 ).dependsOn(competitionServiceModel)
 
-lazy val competitionService = project.in(file(".")).settings(publish / skip := true)
-  .aggregate(commandProcessor, commons)
+lazy val competitionService = project.in(file(".")).settings(publish / skip := true).aggregate(commandProcessor, queryProcessor, gatewayService)
 
 lazy val commandProcessor = module("command-processor", "command-processor").enablePlugins(BuildInfoPlugin)
   .settings(buildInfoSettings("compman.compsrv")).settings(
     libraryDependencies ++= Seq(
-      "org.typelevel"                 %% "cats-core"                      % Versions.cats,
-      "org.typelevel"                 %% "cats-free"                      % Versions.cats,
-      "org.typelevel"                 %% "cats-kernel"                    % Versions.cats,
+      "org.typelevel"                 %% "cats-core"                      % cats,
+      "org.typelevel"                 %% "cats-free"                      % cats,
+      "org.typelevel"                 %% "cats-kernel"                    % cats,
       "dev.zio"                       %% "zio"                            % zioVersion,
       "dev.zio"                       %% "zio-interop-cats"               % zioInteropCatsVersion,
       "dev.zio"                       %% "zio-streams"                    % zioVersion,
-      "dev.zio"                       %% "zio-test-sbt"                   % zioVersion     % "test",
-      "dev.zio"                       %% "zio-config-magnolia"                     % zioConfigVersion,
-      "dev.zio"                       %% "zio-config-typesafe"                     % zioConfigVersion,
-      "dev.zio"                       %% "zio-logging"                    % Versions.zioLogging,
-      "dev.zio"                       %% "zio-logging-slf4j"              % Versions.zioLogging,
-      "dev.zio"                       %% "zio-kafka"                      % Versions.zioKafka,
-      "dev.optics"                    %% "monocle-core"                   % Versions.monocle,
-      "dev.optics"                    %% "monocle-macro"                  % Versions.monocle,
-      "com.google.guava"               % "guava"                          % Versions.guava,
-      "org.apache.logging.log4j"       % "log4j-core"                     % Versions.log4j,
-      "org.apache.logging.log4j"       % "log4j-slf4j-impl"               % Versions.log4j,
-      "com.fasterxml.jackson.core"     % "jackson-databind"               % Versions.jackson,
-      "com.fasterxml.jackson.module"   % "jackson-module-parameter-names" % Versions.jackson,
-      "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8"          % Versions.jackson,
-      "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"        % Versions.jackson,
-      "org.rocksdb"                    % "rocksdbjni"                     % Versions.rocksdb,
-      "com.fasterxml.jackson.module"  %% "jackson-module-scala"           % Versions.jackson,
-      "io.github.embeddedkafka"       %% "embedded-kafka"                 % Versions.kafka % "test",
-      "org.scalatest"                 %% "scalatest"                      % "3.2.9"        % "test"
+      "dev.zio"                       %% "zio-test-sbt"                   % zioVersion % "test",
+      "dev.zio"                       %% "zio-config-magnolia"            % zioConfigVersion,
+      "dev.zio"                       %% "zio-config-typesafe"            % zioConfigVersion,
+      "dev.zio"                       %% "zio-logging"                    % zioLogging,
+      "dev.zio"                       %% "zio-logging-slf4j"              % zioLogging,
+      "dev.zio"                       %% "zio-kafka"                      % zioKafka,
+      "dev.optics"                    %% "monocle-core"                   % monocle,
+      "dev.optics"                    %% "monocle-macro"                  % monocle,
+      "com.google.guava"               % "guava"                          % guava,
+      "org.apache.logging.log4j"       % "log4j-core"                     % log4j,
+      "org.apache.logging.log4j"       % "log4j-slf4j-impl"               % log4j,
+      "com.fasterxml.jackson.core"     % "jackson-databind"               % jackson,
+      "com.fasterxml.jackson.module"   % "jackson-module-parameter-names" % jackson,
+      "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8"          % jackson,
+      "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"        % jackson,
+      "org.rocksdb"                    % "rocksdbjni"                     % rocksdb,
+      "com.fasterxml.jackson.module"  %% "jackson-module-scala"           % jackson,
+      "io.github.embeddedkafka"       %% "embedded-kafka"                 % kafka      % "test",
+      "org.scalatest"                 %% "scalatest"                      % "3.2.9"    % "test"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   ).settings(stdSettings("command-processor")).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
+
+lazy val queryProcessor = module("query-processor", "query-processor").enablePlugins(BuildInfoPlugin)
+  .settings(buildInfoSettings("compman.compsrv.logic")).settings(
+    libraryDependencies ++= Seq(
+      "org.typelevel"                 %% "cats-core"                      % cats,
+      "org.typelevel"                 %% "cats-free"                      % cats,
+      "org.typelevel"                 %% "cats-kernel"                    % cats,
+      "dev.zio"                       %% "zio"                            % zioVersion,
+      "dev.zio"                       %% "zio-interop-cats"               % zioInteropCatsVersion,
+      "dev.zio"                       %% "zio-streams"                    % zioVersion,
+      "dev.zio"                       %% "zio-test-sbt"                   % zioVersion      % "test",
+      "dev.zio"                       %% "zio-config-magnolia"            % zioConfigVersion,
+      "dev.zio"                       %% "zio-config-typesafe"            % zioConfigVersion,
+      "dev.zio"                       %% "zio-logging"                    % zioLogging,
+      "dev.zio"                       %% "zio-logging-slf4j"              % zioLogging,
+      "dev.zio"                       %% "zio-kafka"                      % zioKafka,
+      "dev.optics"                    %% "monocle-core"                   % monocle,
+      "dev.optics"                    %% "monocle-macro"                  % monocle,
+      "org.http4s"                    %% "http4s-dsl"                     % http4s,
+      "org.http4s"                    %% "http4s-blaze-server"            % http4s,
+      "org.http4s"                    %% "http4s-blaze-client"            % http4s,
+      "org.mongodb.scala"             %% "mongo-scala-driver"             % mongodb,
+      "com.fasterxml.jackson.core"     % "jackson-databind"               % jackson,
+      "com.fasterxml.jackson.module"   % "jackson-module-parameter-names" % jackson,
+      "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8"          % jackson,
+      "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"        % jackson,
+      "com.fasterxml.jackson.module"  %% "jackson-module-scala"           % jackson,
+      "io.github.embeddedkafka"       %% "embedded-kafka"                 % kafka           % "test",
+      "de.flapdoodle.embed"            % "de.flapdoodle.embed.mongo"      % embeddedMongodb % "test",
+      "org.scalatest"                 %% "scalatest"                      % "3.2.9"         % "test"
+    ),
+    testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+  ).settings(stdSettings("query-processor", Seq.empty)).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
+
+lazy val gatewayService = module("gateway-service", "gateway-service").enablePlugins(BuildInfoPlugin)
+  .settings(buildInfoSettings("compman.compsrv.logic")).settings(
+    libraryDependencies ++= Seq(
+      "org.typelevel"                 %% "cats-core"                      % cats,
+      "org.typelevel"                 %% "cats-free"                      % cats,
+      "org.typelevel"                 %% "cats-kernel"                    % cats,
+      "dev.zio"                       %% "zio"                            % zioVersion,
+      "dev.zio"                       %% "zio-interop-cats"               % zioInteropCatsVersion,
+      "dev.zio"                       %% "zio-streams"                    % zioVersion,
+      "dev.zio"                       %% "zio-test-sbt"                   % zioVersion      % "test",
+      "dev.zio"                       %% "zio-config-magnolia"            % zioConfigVersion,
+      "dev.zio"                       %% "zio-config-typesafe"            % zioConfigVersion,
+      "dev.zio"                       %% "zio-logging"                    % zioLogging,
+      "dev.zio"                       %% "zio-logging-slf4j"              % zioLogging,
+      "dev.zio"                       %% "zio-kafka"                      % zioKafka,
+      "org.http4s"                    %% "http4s-dsl"                     % http4s,
+      "org.http4s"                    %% "http4s-blaze-server"            % http4s,
+      "org.http4s"                    %% "http4s-blaze-client"            % http4s,
+      "com.fasterxml.jackson.core"     % "jackson-databind"               % jackson,
+      "com.fasterxml.jackson.module"   % "jackson-module-parameter-names" % jackson,
+      "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8"          % jackson,
+      "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"        % jackson,
+      "com.fasterxml.jackson.module"  %% "jackson-module-scala"           % jackson,
+      "org.scalatest"                 %% "scalatest"                      % "3.2.9"         % "test"
+    ),
+    testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+  ).settings(stdSettings("gateway-service")).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
 
 //lazy val examples = module("zio-actors-examples", "examples")
 //  .settings(

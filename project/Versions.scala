@@ -14,7 +14,7 @@ object Versions {
   val kafka = "3.0.0"
   val rocksdb: String = "6.25.3"
   val http4s: String = "1.0.0-M27"
-  val mongodb: String = "4.3.3"
+  val mongodb: String = "4.4.0"
   val embeddedMongodb: String = "3.2.0"
   val monocle: String = "3.1.0"
 }

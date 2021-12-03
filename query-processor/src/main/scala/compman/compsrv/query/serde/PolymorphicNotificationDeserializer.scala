@@ -16,6 +16,7 @@ class PolymorphicNotificationDeserializer extends StdDeserializer[CommandProcess
           .treeToValue(node, classOf[CompetitionProcessingStarted])
       case compman.compsrv.model.NotificationTypes.ProcessingStopped => p.getCodec
           .treeToValue(node, classOf[CompetitionProcessingStopped])
+      case _ => throw new RuntimeException("Unknown notification type")
     }
   }
 }

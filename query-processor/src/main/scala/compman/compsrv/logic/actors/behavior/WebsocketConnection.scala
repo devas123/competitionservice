@@ -10,7 +10,7 @@ import zio.logging.Logging
 
 object WebsocketConnection {
 
-  sealed trait ApiCommand[+_]
+  sealed trait ApiCommand[+A]
 
   final case class AddWebSocketConnection(clientId: String, queue: Queue[EventDTO]) extends ApiCommand[Unit]
   final case class WebSocketConnectionTerminated(clientId: String)                  extends ApiCommand[Unit]

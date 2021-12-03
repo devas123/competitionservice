@@ -1,12 +1,14 @@
 package compman.compsrv.gateway.service
 
 import compman.compsrv.gateway.GatewayServiceMain.ServiceIO
+import compman.compsrv.gateway.json.SerdeApi.byteSerializer
 import org.http4s.HttpRoutes
 import org.http4s.dsl.Http4sDsl
 import zio.{Task, ZIO}
 import zio.duration.{durationInt, Duration}
 import zio.interop.catz._
 import zio.kafka.producer.Producer
+import zio.kafka.serde.Serde
 import zio.logging.Logging
 
 object GatewayService {
@@ -35,7 +37,7 @@ object GatewayService {
         body    <- req.body.covary[ServiceIO].chunkAll.compile.toList
         command <- Task(body.flatMap(_.toList).toArray)
         _       <- Logging.info(s"Sending command for $competitionId")
-        _       <- Producer.produce[Any, String, Array[Byte]]("competition-commands", competitionId.get, command)
+        _       <- Producer.produce("competition-commands", competitionId.get, command, Serde.string, byteSerializer)
         resp    <- Ok()
       } yield resp
     }

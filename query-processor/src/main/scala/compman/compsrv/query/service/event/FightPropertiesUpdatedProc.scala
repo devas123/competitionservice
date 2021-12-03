@@ -32,7 +32,7 @@ object FightPropertiesUpdatedProc {
         matId = mat.map(_.matId),
         matName = mat.map(_.name),
         matOrder = mat.map(_.matOrder),
-        numberOnMat = Option(dto.getNumberOnMat),
+        numberOnMat = Option(dto.getNumberOnMat).map(_.intValue()),
         startTime = Option(dto.getStartTime).map(Date.from)
       )))
     } yield ()

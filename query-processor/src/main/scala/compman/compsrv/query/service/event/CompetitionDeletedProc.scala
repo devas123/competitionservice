@@ -4,9 +4,7 @@ import cats.Monad
 import cats.data.OptionT
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.Payload
-import compman.compsrv.model.dto.competition.{RegistrationGroupDTO, RegistrationPeriodDTO}
-import compman.compsrv.model.event.Events.{CompetitionCreatedEvent, CompetitionDeletedEvent, Event}
-import compman.compsrv.query.model.mapping.DtoMapping
+import compman.compsrv.model.event.Events.{CompetitionDeletedEvent, Event}
 import compman.compsrv.query.service.repository.{CompetitionUpdateOperations, FightUpdateOperations}
 
 object CompetitionDeletedProc {

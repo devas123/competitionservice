@@ -9,7 +9,7 @@ import zio.logging.Logging
 
 object WebsocketConnectionSupervisor {
 
-  sealed trait ApiCommand[+_]
+  sealed trait ApiCommand[+A]
 
   final case class WebsocketConnectionRequest(clientId: String, competitionId: String, queue: Queue[EventDTO])
     extends ApiCommand[Unit]

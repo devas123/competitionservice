@@ -1,7 +1,6 @@
 package compman.compsrv.query.service.repository
 
 import cats.implicits._
-import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model._
 import org.mongodb.scala.MongoClient
@@ -82,7 +81,7 @@ object FightQueryOperations {
 
   }
 
-  def live(mongo: MongoClient, name: String)(implicit log: CompetitionLogging.Service[LIO]): FightQueryOperations[LIO] =
+  def live(mongo: MongoClient, name: String): FightQueryOperations[LIO] =
     new FightQueryOperations[LIO] with CommonLiveOperations with FightFieldsAndFilters {
 
       private def activeFights(competitionId: String) =

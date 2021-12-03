@@ -1,7 +1,6 @@
 package compman.compsrv.query.service.repository
 
 import com.mongodb.client.model.ReplaceOptions
-import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.query.model._
@@ -149,9 +148,7 @@ object CompetitionUpdateOperations {
       .map(_.update(c => c.filter(_._2.competitionId != competitionId))).getOrElse(ZIO.unit)
   }
 
-  def live(mongo: MongoClient, name: String)(implicit
-    log: CompetitionLogging.Service[LIO]
-  ): CompetitionUpdateOperations[LIO] = new CompetitionUpdateOperations[LIO] with CommonLiveOperations {
+  def live(mongo: MongoClient, name: String): CompetitionUpdateOperations[LIO] = new CompetitionUpdateOperations[LIO] with CommonLiveOperations {
 
     override def mongoClient: MongoClient = mongo
 

@@ -19,11 +19,10 @@ object BuildHelper {
     "-Ywarn-numeric-widen",
     "-Ywarn-value-discard",
     "-unchecked",
-    "-deprecation",
-    "-Xfatal-warnings"
+    "-deprecation"
   )
 
-  private def extraOptions() = Seq.empty[String]
+  private val extraOptions = Seq("-Xfatal-warnings")
 
   def buildInfoSettings(packageName: String) =
     Seq(
@@ -32,11 +31,11 @@ object BuildHelper {
       buildInfoObject := "BuildInfo"
     )
 
-  def stdSettings(prjName: String) =
+  def stdSettings(prjName: String, extra: Seq[String] = extraOptions) =
     Seq(
       name := s"$prjName",
       ThisBuild / scalaVersion := Scala213,
-      scalacOptions := stdOptions ++ extraOptions(),
+      scalacOptions := stdOptions ++ extra,
       libraryDependencies ++=
         Seq(
           compilerPlugin("org.typelevel" % s"kind-projector_$Scala213" % "0.13.2")

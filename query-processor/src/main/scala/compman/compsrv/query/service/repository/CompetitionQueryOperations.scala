@@ -1,6 +1,5 @@
 package compman.compsrv.query.service.repository
 
-import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
@@ -171,9 +170,7 @@ object CompetitionQueryOperations {
     } yield result).getOrElse(ZIO.effectTotal(0))
   }
 
-  def live(mongo: MongoClient, name: String)(implicit
-    log: CompetitionLogging.Service[LIO]
-  ): CompetitionQueryOperations[LIO] = new CompetitionQueryOperations[LIO] with CommonLiveOperations {
+  def live(mongo: MongoClient, name: String): CompetitionQueryOperations[LIO] = new CompetitionQueryOperations[LIO] with CommonLiveOperations {
 
     override def mongoClient: MongoClient = mongo
 
@@ -385,7 +382,7 @@ object CompetitionQueryOperations {
     }
   }
 
-  private def selectOne[T](select: Observable[T])(implicit log: CompetitionLogging.Service[LIO]) = {
+  private def selectOne[T](select: Observable[T]) = {
     for { res <- RIO.fromFuture(_ => select.headOption()) } yield res
   }
 

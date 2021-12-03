@@ -34,10 +34,10 @@ object FightStartTimeUpdatedProc {
           matId = mat.map(_.matId),
           matName = mat.map(_.name),
           matOrder = mat.map(_.matOrder),
-          numberOnMat = Option(u.getNumberOnMat),
+          numberOnMat = Option(u.getNumberOnMat).map(_.intValue()),
           periodId = Option(u.getPeriodId),
           startTime = Option(u.getStartTime).map(Date.from),
-          invalid = Option(u.getInvalid),
+          invalid = Option(u.getInvalid).map(_.booleanValue()),
           competitionId = competitionId,
           categoryId = f.getFightCategoryId,
           priority = None

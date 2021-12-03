@@ -30,7 +30,7 @@ import zio.kafka.consumer.Offset
 import zio.logging.Logging
 
 object CompetitionEventListener {
-  sealed trait ApiCommand[+_]
+  sealed trait ApiCommand[+A]
   case class EventReceived(kafkaMessage: KafkaConsumerApi[Any]) extends ApiCommand[Unit]
   case class CommitOffset(offset: Offset)                       extends ApiCommand[Unit]
   case class SetQueue(queue: Queue[Offset])                     extends ApiCommand[Unit]

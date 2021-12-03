@@ -36,7 +36,10 @@ object QueryServiceMain extends zio.App {
       MongoClient(
         MongoClientSettings.builder()
           .credential(credential)
-          .applyToClusterSettings((builder: ClusterSettings.Builder) => builder.hosts(List(new ServerAddress(mongodbConfig.host)).asJava))
+          .applyToClusterSettings((builder: ClusterSettings.Builder) => {
+            builder.hosts(List(new ServerAddress(mongodbConfig.host)).asJava)
+            ()
+          })
           .build())
     )
     actorSystem <- ActorSystem("queryServiceActorSystem")
@@ -84,7 +87,7 @@ object QueryServiceMain extends zio.App {
       s"/query/$serviceVersion"    -> CompetitionHttpApiService.service(competitionApiActor),
       s"/query/$serviceVersion/ws" -> WebsocketService.wsRoutes(webSocketSupervisor)
     ).orNotFound
-    srv <- ZIO.runtime[ZEnv].flatMap { implicit rts =>
+    srv <- ZIO.runtime[ZEnv].flatMap { _ =>
       BlazeServerBuilder[ServiceIO].bindHttp(9000, "0.0.0.0").withWebSockets(true).withSocketKeepAlive(true)
         .withHttpApp(httpApp).serveWhile(signal, exitCode).compile.drain
     }
