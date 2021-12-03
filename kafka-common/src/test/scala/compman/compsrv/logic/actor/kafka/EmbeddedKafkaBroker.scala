@@ -9,16 +9,16 @@ import zio.duration.durationInt
 object EmbeddedKafkaBroker extends EmbeddedKafka {
   private val log = LoggerFactory.getLogger(this.getClass)
 
-  val port = 9092
+  val port: Int = EmbeddedKafkaConfig.defaultKafkaPort
 
-  implicit val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = port, zooKeeperPort = 5555)
+  implicit val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig()
 
   def embeddedKafkaServer: ZIO[Any, Throwable, EmbeddedK] = {
     for {
       server <- startKafkaBroker
       _      <- ZIO.effect(server.broker.awaitShutdown()).fork
       _ <- ZIO.effect {
-        while (server.broker.brokerState != BrokerState.RUNNING) {
+        while (server.broker.brokerState.get() != BrokerState.RUNNING) {
           ZIO.effect(log.info(s"Starting kafka server.")) *> ZIO.sleep(1.seconds)
         } *> ZIO.sleep(10.seconds)
       }
