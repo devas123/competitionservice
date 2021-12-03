@@ -12,7 +12,7 @@ import zio.kafka.serde.Serde
 import zio.logging.Logging
 
 object KafkaPublishActor {
-  sealed trait KafkaPublishActorCommand[+_]
+  sealed trait KafkaPublishActorCommand[+A]
 
   case object Stop extends KafkaPublishActorCommand[Unit]
 
@@ -34,13 +34,13 @@ object KafkaPublishActor {
       ): RIO[KafkaPublishActorEnvironment[R], (Unit, A)] = {
         command match {
           case PublishMessageToKafka(topic, key, message) => for {
-              _ <- Producer.produceChunk(Chunk.single(new ProducerRecord[String, Array[Byte]](topic, key, message)))
+              _ <- Producer.produceChunk(Chunk.single(new ProducerRecord[String, Array[Byte]](topic, key, message)), Serde.string, Serde.byteArray)
               _ <- Logging.info(s"Published message to $topic with key $key")
             } yield ((), ().asInstanceOf[A])
           case Stop => context.stopSelf.as(((), ().asInstanceOf[A]))
         }
       }.provideSomeLayer[KafkaSupervisorEnvironment[R]](
-        Producer.make[R, String, Array[Byte]](ProducerSettings(brokers), Serde.string, Serde.byteArray).toLayer
+        Producer.make(ProducerSettings(brokers)).toLayer
       )
     }
 }

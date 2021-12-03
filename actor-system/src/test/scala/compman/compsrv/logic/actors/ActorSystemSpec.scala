@@ -1,7 +1,6 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import org.junit.runner.RunWith
 import zio.{Fiber, RIO, ZIO}
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -12,7 +11,6 @@ import zio.test.environment.TestEnvironment
 sealed trait Msg[+A]
 object Stop extends Msg[Unit]
 
-@RunWith(classOf[zio.test.junit.ZTestJUnitRunner])
 class ActorSystemSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[TestEnvironment, Any] = suite("Actor system")(testM("Should create actor and remove actor") {
     for {

@@ -10,7 +10,7 @@ import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.producer.Producer
 import zio.logging.Logging
-import zio.{RIO, Ref, URIO, ZIO}
+import zio.{Has, Ref, RIO, URIO, ZIO}
 
 import java.time.Instant
 
@@ -56,7 +56,7 @@ trait CommandProcessorOperations[-E] {
 object CommandProcessorOperations {
 
   private type CommandProcLive = Logging
-    with Clock with Blocking with SnapshotService.Snapshot with Producer[Any, String, Array[Byte]]
+    with Clock with Blocking with SnapshotService.Snapshot with Has[Producer]
 
   def apply[E](
     commandProcessorConfig: CommandProcessorConfig

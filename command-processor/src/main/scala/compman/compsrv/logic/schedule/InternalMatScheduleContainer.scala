@@ -1,29 +1,9 @@
-package compman.compsrv.logic
+package compman.compsrv.logic.schedule
 
 import java.time.Instant
 import scala.collection.mutable.ArrayBuffer
 
-package object schedule {
-  case class InternalFightStartTime(
-    fightId: String,
-    categoryId: String,
-    matId: String,
-    fightNumber: Int,
-    startTime: Instant,
-    scheduleEntryId: String,
-    periodId: String
-  ) {
-    override def equals(obj: Any): Boolean = {
-      obj match {
-        case time: InternalFightStartTime => fightId.equals(time.fightId)
-        case _                            => false
-      }
-    }
-
-    override def hashCode(): Int = fightId.hashCode
-  }
-
-  case class InternalMatScheduleContainer(
+case class InternalMatScheduleContainer(
                                            var currentTime: Instant,
                                            name: String,
                                            matOrder: Int,
@@ -35,4 +15,3 @@ package object schedule {
   ) {
     def addFight(f: InternalFightStartTime): InternalMatScheduleContainer = this.copy(fights = this.fights :+ f)
   }
-}

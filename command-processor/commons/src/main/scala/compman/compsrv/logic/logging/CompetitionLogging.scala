@@ -70,8 +70,8 @@ object CompetitionLogging {
 
     def withContext[A](fa: LogContext => LogContext)(action: LIO[A]): LIO[A] = log.locally(fa)(action)
 
-    def live[R]: Service[({ type RLIO[+A] = RIO[R with Logging, A] })#RLIO] =
-      new Service[({ type RLIO[+A] = RIO[R with Logging, A] })#RLIO] {
+    def live[R]: Service[RIO[R with Logging, +*]] =
+      new Service[RIO[R with Logging, +*]] {
         import zio.logging._
         override def info(msg: => String): RIO[R with Logging, Unit]             = log.info(msg)
         override def info(msg: => String, args: Any*): RIO[R with Logging, Unit] = log.info(msg.format(args))

@@ -21,7 +21,7 @@ object KafkaSupervisor {
     additionalProperties: Map[String, String] = Map.empty
   )
 
-  sealed trait KafkaConsumerApi[+_]
+  sealed trait KafkaConsumerApi[+A]
 
   final case class QueryStarted() extends KafkaConsumerApi[Unit]
 
@@ -32,7 +32,7 @@ object KafkaSupervisor {
   final case class MessageReceived(topic: String, committableRecord: CommittableRecord[String, Array[Byte]])
       extends KafkaConsumerApi[Unit]
 
-  sealed trait KafkaSupervisorCommand[+_]
+  sealed trait KafkaSupervisorCommand[+A]
 
   case class QueryAndSubscribe(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi])
       extends KafkaSupervisorCommand[Unit]

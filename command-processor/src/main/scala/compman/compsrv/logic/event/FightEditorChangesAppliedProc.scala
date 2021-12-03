@@ -18,7 +18,6 @@ object FightEditorChangesAppliedProc {
     event: FightEditorChangesAppliedEvent,
     state: CompetitionState
   ): F[Option[CompetitionState]] = {
-    import compman.compsrv.model.extensions._
     val eventT = for {
       payload       <- event.payload
       updates       <- Option(payload.getUpdates).orElse(Some(Array.empty[FightDescriptionDTO]))

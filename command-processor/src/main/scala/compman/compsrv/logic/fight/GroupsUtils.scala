@@ -34,7 +34,7 @@ object GroupsUtils {
         roundType = StageRoundType.GROUP,
         numberInRound = ind,
         duration = duration,
-        fightName = "Round 0 fight $ind",
+        fightName = s"Round 0 fight $ind",
         groupId = groupId
       ).setScores(Array(
         createCompscoreForGroup(comps._1.competitorId, comps._1.placeholderId, 0),

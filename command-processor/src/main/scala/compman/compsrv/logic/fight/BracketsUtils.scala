@@ -85,12 +85,11 @@ object BracketsUtils {
                   )
                 })
               } else {
-                Left(
+                Left((
                   result ++ connectedFights.flatMap { it => List(it._1, it._2) },
                   connectedFights.map { it => it._3 },
                   currentRound + 1,
-                  totalRounds
-                )
+                  totalRounds))
               }
           } yield res
           either.fold(er => Monad[F].pure(Right(Left(er))), r => Monad[F].pure(r.map(list => Right(list))))

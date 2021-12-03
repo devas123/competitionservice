@@ -16,7 +16,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.util.Try
 
 private[schedule] object ScheduleProducer {
-  private def eightyPercentOfDurationInMillis(duration: Long): Long = duration * 8 / 10
+  private def eightyPercentOfDurationInMillis(duration: Int): Int = duration * 8 / 10
 
   private def createPauseEntry(
     pauseReq: ScheduleRequirementDTO,

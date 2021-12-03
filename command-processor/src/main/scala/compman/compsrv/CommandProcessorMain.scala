@@ -1,7 +1,7 @@
 package compman.compsrv
 
 import compman.compsrv.config.AppConfig
-import compman.compsrv.jackson.SerdeApi.{byteSerializer, commandDeserializer}
+import compman.compsrv.jackson.SerdeApi.commandDeserializer
 import compman.compsrv.logic.Operations._
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors._
@@ -52,7 +52,7 @@ object CommandProcessorMain extends zio.App {
     val adminSettings    = AdminClientSettings(appConfig.producer.brokers)
     val consumerLayer    = Consumer.make(consumerSettings).toLayer
     val producerSettings = ProducerSettings(appConfig.producer.brokers)
-    val producerLayer = Producer.make[Any, String, Array[Byte]](producerSettings, Serde.string, byteSerializer).toLayer
+    val producerLayer = Producer.make(producerSettings).toLayer
     val snapshotLayer = SnapshotService.live(appConfig.snapshotConfig.databasePath).toLayer
     val layers        = consumerLayer ++ producerLayer ++ snapshotLayer
     val adminManaged  = AdminClient.make(adminSettings)

@@ -2,19 +2,19 @@ package compman.compsrv.logic.actors
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.jackson.ObjectMapperFactory
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaSupervisorCommand, KafkaTopicConfig, PublishMessage, QuerySync}
+import compman.compsrv.logic.{CompetitionState, Operations}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
 import compman.compsrv.logic.actors.Messages._
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
-import compman.compsrv.logic.{CompetitionState, Operations}
-import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionProcessingStopped}
+import compman.compsrv.model.commands.CommandDTO
+import compman.compsrv.model.events.EventDTO
+import zio.{Fiber, Has, Promise, RIO, Task, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.consumer.Consumer
 import zio.kafka.producer.Producer
 import zio.logging.{LogAnnotation, Logging}
-import zio.{Fiber, Promise, RIO, Task, ZIO}
 
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -42,7 +42,7 @@ object CompetitionProcessorActor {
         timers: Timers[Env with Logging with Clock, Message]
       ): RIO[Env with Logging with Clock, Unit] = for {
         _ <- kafkaSupervisor ! PublishMessage(competitionNotificationsTopic, competitionId, mapper.writeValueAsBytes(CompetitionProcessingStopped(competitionId)))
-      } yield (Seq.empty, Seq.empty)
+      } yield ()
 
       override def init(
         actorConfig: ActorSystem.ActorConfig,
@@ -143,12 +143,12 @@ object CompetitionProcessorActor {
       }
     }
 
-  sealed trait Message[+_]
+  sealed trait Message[+A]
   object Stop                                     extends Message[Unit]
   final case class ProcessCommand(fa: CommandDTO) extends Message[Unit]
 
   type CompProcessorEnv = Logging with Clock with Blocking with SnapshotService.Snapshot
 
-  type LiveEnv = CompProcessorEnv with Consumer with Producer[Any, String, Array[Byte]]
+  type LiveEnv = CompProcessorEnv with Has[Consumer] with Has[Producer]
 
 }

@@ -72,7 +72,7 @@ object CompetitionProcessorSupervisorActor {
       }
     }
 
-  sealed trait Message[+_]
+  sealed trait Message[+A]
 
   final case class CommandReceived(competitionId: String, fa: CommandDTO) extends Message[Unit]
 }

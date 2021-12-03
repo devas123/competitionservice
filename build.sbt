@@ -14,10 +14,9 @@ inThisBuild(List(
   ))
 ))
 
-Global / onChangedBuildSource  := ReloadOnSourceChanges
+Global / onChangedBuildSource := ReloadOnSourceChanges
 
 Compile / logLevel := Level.Debug
-
 
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
@@ -25,34 +24,65 @@ addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck"
 lazy val competitionServiceAnnotations = module("compservice-annotations", "compservice-annotations")
 
 lazy val competitionServiceAnnotationProcessor =
-  module("compservice-annotation-processor", "compservice-annotation-processor")
-    .settings(
-      libraryDependencies ++= Seq(
-        "com.google.guava" % "guava"%  "27.1-jre",
-        "com.squareup" % "javapoet" % "1.13.0",
-        "com.google.auto.service" % "auto-service" % "1.0.1",
-      ),
-      testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
-    )
-    .dependsOn(competitionServiceAnnotations)
-
-
-lazy val competitionServiceModel = module("competition-serv-model", "competition-serv-model")
-  .settings(
+  module("compservice-annotation-processor", "compservice-annotation-processor").settings(
     libraryDependencies ++= Seq(
-      "org.projectlombok"% "lombok" % "1.18.22",
-      "com.fasterxml.jackson.core"     % "jackson-databind"               % jackson,
-      "com.fasterxml.jackson.core"     % "jackson-annotations"               % jackson,
-      "com.fasterxml.jackson.module"   % "jackson-module-parameter-names" % jackson,
-      "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8"          % jackson,
-      "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"        % jackson,
-      "com.kjetland" %% "mbknor-jackson-jsonschema"        % "1.0.39",
+      "com.google.guava"        % "guava"        % "27.1-jre",
+      "com.squareup"            % "javapoet"     % "1.13.0",
+      "com.google.auto.service" % "auto-service" % "1.0.1"
     ),
-    modelClassesPackage := "compman.compsrv.model",
-  )
-  .enablePlugins(AnnotationProcessorPlugin)
+    testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+  ).dependsOn(competitionServiceAnnotations)
+
+lazy val competitionServiceModel = module("competition-serv-model", "competition-serv-model").settings(
+  libraryDependencies ++= Seq(
+    "org.projectlombok"              % "lombok"                         % "1.18.22",
+    "com.fasterxml.jackson.core"     % "jackson-databind"               % jackson,
+    "com.fasterxml.jackson.core"     % "jackson-annotations"            % jackson,
+    "com.fasterxml.jackson.module"   % "jackson-module-parameter-names" % jackson,
+    "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8"          % jackson,
+    "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"        % jackson,
+    "com.kjetland"                  %% "mbknor-jackson-jsonschema"      % "1.0.39"
+  ),
+  modelClassesPackage := "compman.compsrv.model"
+).enablePlugins(AnnotationProcessorPlugin)
   .dependsOn(competitionServiceAnnotations, competitionServiceAnnotationProcessor)
 
+lazy val actorSystem = module("actor-system", "actor-system").settings(
+  libraryDependencies ++= Seq(
+    "org.typelevel" %% "cats-core"         % cats,
+    "org.typelevel" %% "cats-free"         % cats,
+    "org.typelevel" %% "cats-kernel"       % cats,
+    "dev.zio"       %% "zio"               % zioVersion,
+    "dev.zio"       %% "zio-interop-cats"  % zioInteropCatsVersion,
+    "dev.zio"       %% "zio-streams"       % zioVersion,
+    "dev.zio"       %% "zio-logging"       % zioLogging,
+    "dev.zio"       %% "zio-logging-slf4j" % zioLogging,
+    "dev.zio"       %% "zio-test-sbt"      % zioVersion % "test"
+  )
+)
+
+lazy val kafkaCommons = module("kafka-common", "kafka-common").settings(
+  libraryDependencies ++= Seq(
+    "org.typelevel"                 %% "cats-core"                      % cats,
+    "org.typelevel"                 %% "cats-free"                      % cats,
+    "org.typelevel"                 %% "cats-kernel"                    % cats,
+    "dev.zio"                       %% "zio"                            % zioVersion,
+    "dev.zio"                       %% "zio-interop-cats"               % zioInteropCatsVersion,
+    "dev.zio"                       %% "zio-streams"                    % zioVersion,
+    "dev.zio"                       %% "zio-logging"                    % zioLogging,
+    "dev.zio"                       %% "zio-logging-slf4j"              % zioLogging,
+    "dev.zio"                       %% "zio-test-sbt"                   % zioVersion     % "test",
+    "com.fasterxml.jackson.core"     % "jackson-databind"               % jackson,
+    "com.fasterxml.jackson.core"     % "jackson-annotations"            % jackson,
+    "com.fasterxml.jackson.module"   % "jackson-module-parameter-names" % jackson,
+    "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8"          % jackson,
+    "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"        % jackson,
+    "dev.zio"                       %% "zio-config-magnolia"                     % zioConfigVersion,
+    "dev.zio"                       %% "zio-config-typesafe"                     % zioConfigVersion,
+    "dev.zio"                       %% "zio-kafka"                      % zioKafka,
+    "io.github.embeddedkafka"       %% "embedded-kafka"                 % Versions.kafka % "test"
+  )
+).dependsOn(actorSystem, commons)
 
 lazy val commons = module("commons", "command-processor/commons").settings(
   libraryDependencies ++= Seq(
@@ -63,15 +93,16 @@ lazy val commons = module("commons", "command-processor/commons").settings(
     "dev.zio"       %% "zio-interop-cats"  % zioInteropCatsVersion,
     "dev.zio"       %% "zio-streams"       % zioVersion,
     "dev.zio"       %% "zio-logging"       % zioLogging,
-    "dev.zio"       %% "zio-logging-slf4j" % zioLogging
+    "dev.zio"       %% "zio-logging-slf4j" % zioLogging,
+    "dev.zio"       %% "zio-test-sbt"      % zioVersion % "test"
   ),
   testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
 ).dependsOn(competitionServiceModel)
 
-lazy val competitionService = project.in(file(".")).settings(publish / skip := true).aggregate(commandProcessor, commons)
+lazy val competitionService = project.in(file(".")).settings(publish / skip := true)
+  .aggregate(commandProcessor, commons)
 
-lazy val commandProcessor = module("command-processor", "command-processor")
-  .enablePlugins(BuildInfoPlugin)
+lazy val commandProcessor = module("command-processor", "command-processor").enablePlugins(BuildInfoPlugin)
   .settings(buildInfoSettings("compman.compsrv")).settings(
     libraryDependencies ++= Seq(
       "org.typelevel"                 %% "cats-core"                      % Versions.cats,
@@ -81,7 +112,8 @@ lazy val commandProcessor = module("command-processor", "command-processor")
       "dev.zio"                       %% "zio-interop-cats"               % zioInteropCatsVersion,
       "dev.zio"                       %% "zio-streams"                    % zioVersion,
       "dev.zio"                       %% "zio-test-sbt"                   % zioVersion     % "test",
-      "dev.zio"                       %% "zio-config-typesafe"            % zioConfigVersion,
+      "dev.zio"                       %% "zio-config-magnolia"                     % zioConfigVersion,
+      "dev.zio"                       %% "zio-config-typesafe"                     % zioConfigVersion,
       "dev.zio"                       %% "zio-logging"                    % Versions.zioLogging,
       "dev.zio"                       %% "zio-logging-slf4j"              % Versions.zioLogging,
       "dev.zio"                       %% "zio-kafka"                      % Versions.zioKafka,
@@ -100,9 +132,7 @@ lazy val commandProcessor = module("command-processor", "command-processor")
       "org.scalatest"                 %% "scalatest"                      % "3.2.9"        % "test"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
-  ).settings(stdSettings("command-processor"))
-  .dependsOn(commons)
-  .dependsOn(competitionServiceModel)
+  ).settings(stdSettings("command-processor")).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
 
 //lazy val examples = module("zio-actors-examples", "examples")
 //  .settings(

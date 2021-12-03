@@ -19,7 +19,7 @@ import scala.util.{Failure, Success, Try}
 
 private[kafka] object KafkaQueryAndSubscribeActor {
 
-  sealed trait KafkaQueryActorCommand[+_]
+  sealed trait KafkaQueryActorCommand[+A]
   case object Stop                                                               extends KafkaQueryActorCommand[Unit]
   case class ForwardMesage(msg: MessageReceived, to: ActorRef[KafkaConsumerApi]) extends KafkaQueryActorCommand[Unit]
 

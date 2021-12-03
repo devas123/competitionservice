@@ -9,7 +9,6 @@ import compman.compsrv.model.extensions._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.language.reflectiveCalls
 
 case class StageGraph private[schedule](
   private val fightsMap: Map[String, FightDescriptionDTO],

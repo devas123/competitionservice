@@ -4,7 +4,7 @@ import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import zio.{Ref, RIO, Task}
 import zio.clock.Clock
 
-private[actors] trait AbstractBehavior[R, S, Msg[+_]] {
+trait AbstractBehavior[R, S, Msg[+_]] {
   self =>
 
   def makeActor(

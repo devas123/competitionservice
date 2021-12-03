@@ -23,16 +23,7 @@ object BuildHelper {
     "-Xfatal-warnings"
   )
 
-  private val stdOpts213 = Seq(
-    "-Wunused:imports",
-    "-Wvalue-discard",
-    "-Wunused:patvars",
-    "-Wunused:privates",
-    "-Wunused:params",
-    "-Wvalue-discard"
-  )
-
-  private def extraOptions() = stdOpts213
+  private def extraOptions() = Seq.empty[String]
 
   def buildInfoSettings(packageName: String) =
     Seq(

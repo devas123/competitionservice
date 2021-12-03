@@ -136,7 +136,7 @@ object FightEditorApplyChangesProc {
     }
   }
 
-  private def getMinUnusedOrder(scores: Array[CompScoreDTO], index: Int = 0): Int = {
+  private def getMinUnusedOrder(scores: Array[CompScoreDTO], index: Int): Int = {
     if (scores == null || scores.isEmpty) { 0 }
     else { (0 to scores.length + index).filter(i => { !scores.exists(s => s.getOrder == i) })(index) }
   }
@@ -231,7 +231,7 @@ object FightEditorApplyChangesProc {
               StageRoundType.GROUP,
               firstFreeNumberInRound + index,
               duration,
-              "Round 0 fight ${startIndex + index}",
+              s"Round 0 fight ${firstFreeNumberInRound + index}",
               change.getGroupId
             ).setScores(Array(
               createCompscoreForGroup(Option(competitor1), Option(newPlaceholderId(competitor1)), 0),

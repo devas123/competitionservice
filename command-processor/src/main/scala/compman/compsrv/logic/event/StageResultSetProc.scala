@@ -16,7 +16,6 @@ object StageResultSetProc {
     event: StageResultSetEvent,
     state: CompetitionState
   ): F[Option[CompetitionState]] = {
-    import compman.compsrv.model.extensions._
     val eventT = for {
       payload          <- event.payload
       stages           <- state.stages
