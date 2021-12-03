@@ -5,8 +5,11 @@ import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.config.MongodbConfig
 import de.flapdoodle.embed.mongo.config.Net
 import de.flapdoodle.embed.mongo.MongodProcess
+import de.flapdoodle.embed.process.runtime.Network
 import org.mongodb.scala.MongoClient
 import zio.{Task, URIO}
+
+import java.net.InetAddress
 
 trait EmbeddedMongoDb {
 
@@ -18,7 +21,7 @@ trait EmbeddedMongoDb {
   def startEmbeddedMongo(): (MongodProcess, Int) = {
     val starter: MongodStarter = MongodStarter.getDefaultInstance
     val mongodConfig: MongodConfig = MongodConfig.builder.version(Version.Main.PRODUCTION)
-      .net(new Net(EmbeddedMongoDb.port, Network.localhostIsIPv6)).build
+      .net(new Net(Network.freeServerPort(InetAddress.getLoopbackAddress), Network.localhostIsIPv6)).build
 
     var mongodExecutable: MongodExecutable = null
     mongodExecutable = starter.prepare(mongodConfig)
@@ -35,7 +38,7 @@ trait EmbeddedMongoDb {
 object EmbeddedMongoDb {
   implicit val logging: CompetitionLogging.Service[LIO] = CompetitionLogging.Live.live[Any]
 
-  val port = 27018
+  val port: Int = Network.freeServerPort(InetAddress.getLoopbackAddress)
 
   lazy val mongoClient: MongoClient = MongoClient(s"mongodb://localhost:$port")
   val mongodbConfig: MongodbConfig  = MongodbConfig("localhost", port, "user", "password", "admin", "query_service")

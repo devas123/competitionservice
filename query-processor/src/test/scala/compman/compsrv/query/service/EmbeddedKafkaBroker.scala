@@ -7,9 +7,9 @@ import zio.{UIO, URIO, ZIO}
 object EmbeddedKafkaBroker extends EmbeddedKafka {
   private val log = LoggerFactory.getLogger(this.getClass)
 
-  val port = 9092
+  val port: Int = EmbeddedKafkaConfig.defaultKafkaPort
 
-  implicit val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig(kafkaPort = port, zooKeeperPort = 5555)
+  implicit val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig()
 
   def embeddedKafkaServer: ZIO[Any, Throwable, EmbeddedK] = {
     for {
