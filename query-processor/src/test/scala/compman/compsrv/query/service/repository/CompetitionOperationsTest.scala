@@ -8,7 +8,7 @@ import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect.{aroundAll, sequential}
 
-class CompetitionOperationsTest extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
+object CompetitionOperationsTest extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
   type Env = Logging
   val layers: ZLayer[Any, Throwable, Env] = CompetitionLogging.Live.loggingLayer
   import EmbeddedMongoDb._

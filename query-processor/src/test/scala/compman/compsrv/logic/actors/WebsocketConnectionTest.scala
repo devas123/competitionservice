@@ -15,7 +15,7 @@ import zio.test.TestAspect._
 
 import java.util.UUID
 
-class WebsocketConnectionTest extends DefaultRunnableSpec with TestEntities {
+object WebsocketConnectionTest extends DefaultRunnableSpec with TestEntities {
   override def spec: ZSpec[Any, Throwable] =
     (suite("Websocket connection actor suite")(
       testM("should handle connect and receive messages and stop") {

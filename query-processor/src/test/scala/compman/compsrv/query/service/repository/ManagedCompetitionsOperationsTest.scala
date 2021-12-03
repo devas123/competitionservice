@@ -7,7 +7,7 @@ import zio.test.Assertion._
 import zio.test.TestAspect.aroundAll
 import zio.{URIO, ZIO}
 
-class ManagedCompetitionsOperationsTest extends DefaultRunnableSpec with EmbeddedMongoDb with TestEntities {
+object ManagedCompetitionsOperationsTest extends DefaultRunnableSpec with EmbeddedMongoDb with TestEntities {
   type Env = RepoEnvironment
   private val layers    = CompetitionLogging.Live.loggingLayer
 

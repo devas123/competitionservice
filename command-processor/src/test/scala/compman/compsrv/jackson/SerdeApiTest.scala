@@ -7,7 +7,7 @@ import zio.{Task, ZIO}
 import zio.test._
 import zio.test.Assertion._
 
-class SerdeApiTest extends DefaultRunnableSpec {
+object SerdeApiTest extends DefaultRunnableSpec {
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
     suite("Command serializer")(testM("Command serializer should deserialize command") {
       for {

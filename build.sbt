@@ -29,8 +29,7 @@ lazy val competitionServiceAnnotationProcessor =
       "com.google.guava"        % "guava"        % "27.1-jre",
       "com.squareup"            % "javapoet"     % "1.13.0",
       "com.google.auto.service" % "auto-service" % "1.0.1"
-    ),
-    testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+    )
   ).dependsOn(competitionServiceAnnotations)
 
 lazy val competitionServiceModel = module("competition-serv-model", "competition-serv-model").settings(
@@ -42,8 +41,7 @@ lazy val competitionServiceModel = module("competition-serv-model", "competition
     "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8"          % jackson,
     "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"        % jackson,
     "com.kjetland"                  %% "mbknor-jackson-jsonschema"      % "1.0.39"
-  ),
-  modelClassesPackage := "compman.compsrv.model"
+  )
 ).enablePlugins(AnnotationProcessorPlugin)
   .dependsOn(competitionServiceAnnotations, competitionServiceAnnotationProcessor)
 
@@ -57,8 +55,10 @@ lazy val actorSystem = module("actor-system", "actor-system").settings(
     "dev.zio"       %% "zio-streams"       % zioVersion,
     "dev.zio"       %% "zio-logging"       % zioLogging,
     "dev.zio"       %% "zio-logging-slf4j" % zioLogging,
-    "dev.zio"       %% "zio-test-sbt"      % zioVersion % "test"
-  )
+    "dev.zio"       %% "zio-test-sbt"      % zioVersion % "test",
+    "dev.zio"       %% "zio-test"          % zioVersion % "test"
+  ),
+  testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
 )
 
 lazy val kafkaCommons = module("kafka-common", "kafka-common").settings(
@@ -81,7 +81,8 @@ lazy val kafkaCommons = module("kafka-common", "kafka-common").settings(
     "dev.zio"                       %% "zio-config-typesafe"            % zioConfigVersion,
     "dev.zio"                       %% "zio-kafka"                      % zioKafka,
     "io.github.embeddedkafka"       %% "embedded-kafka"                 % kafka      % "test"
-  )
+  ),
+  testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
 ).dependsOn(actorSystem, commons)
 
 lazy val commons = module("commons", "command-processor/commons").settings(
@@ -99,7 +100,8 @@ lazy val commons = module("commons", "command-processor/commons").settings(
   testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
 ).dependsOn(competitionServiceModel)
 
-lazy val competitionService = project.in(file(".")).settings(publish / skip := true).aggregate(commandProcessor, queryProcessor, gatewayService)
+lazy val competitionService = project.in(file(".")).settings(publish / skip := true)
+  .aggregate(commandProcessor, queryProcessor, gatewayService, kafkaCommons, actorSystem)
 
 lazy val commandProcessor = module("command-processor", "command-processor").enablePlugins(BuildInfoPlugin)
   .settings(buildInfoSettings("compman.compsrv")).settings(
@@ -130,7 +132,8 @@ lazy val commandProcessor = module("command-processor", "command-processor").ena
       "io.github.embeddedkafka"       %% "embedded-kafka"                 % kafka      % "test",
       "org.scalatest"                 %% "scalatest"                      % "3.2.9"    % "test"
     ),
-    testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+    testFrameworks :=
+      Seq(new TestFramework("zio.test.sbt.ZTestFramework"), new TestFramework("org.scalatest.tools.ScalaTestFramework"))
   ).settings(stdSettings("command-processor")).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
 
 lazy val queryProcessor = module("query-processor", "query-processor").enablePlugins(BuildInfoPlugin)
@@ -163,9 +166,11 @@ lazy val queryProcessor = module("query-processor", "query-processor").enablePlu
       "de.flapdoodle.embed"            % "de.flapdoodle.embed.mongo"      % embeddedMongodb % "test",
       "org.scalatest"                 %% "scalatest"                      % "3.2.9"         % "test"
     ),
-    dependencyOverrides :=       Seq("dev.zio"                       %% "zio-test"                   % zioVersion      % "test"),
-  testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
-  ).settings(stdSettings("query-processor", Seq.empty)).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
+    dependencyOverrides := Seq("dev.zio" %% "zio-test" % zioVersion % "test"),
+    testFrameworks :=
+      Seq(new TestFramework("zio.test.sbt.ZTestFramework"), new TestFramework("org.scalatest.tools.ScalaTestFramework"))
+  ).settings(stdSettings("query-processor", Seq.empty))
+  .dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
 
 lazy val gatewayService = module("gateway-service", "gateway-service").enablePlugins(BuildInfoPlugin)
   .settings(buildInfoSettings("compman.compsrv.logic")).settings(
@@ -176,7 +181,7 @@ lazy val gatewayService = module("gateway-service", "gateway-service").enablePlu
       "dev.zio"                       %% "zio"                            % zioVersion,
       "dev.zio"                       %% "zio-interop-cats"               % zioInteropCatsVersion,
       "dev.zio"                       %% "zio-streams"                    % zioVersion,
-      "dev.zio"                       %% "zio-test-sbt"                   % zioVersion      % "test",
+      "dev.zio"                       %% "zio-test-sbt"                   % zioVersion % "test",
       "dev.zio"                       %% "zio-config-magnolia"            % zioConfigVersion,
       "dev.zio"                       %% "zio-config-typesafe"            % zioConfigVersion,
       "dev.zio"                       %% "zio-logging"                    % zioLogging,
@@ -190,7 +195,7 @@ lazy val gatewayService = module("gateway-service", "gateway-service").enablePlu
       "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8"          % jackson,
       "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"        % jackson,
       "com.fasterxml.jackson.module"  %% "jackson-module-scala"           % jackson,
-      "org.scalatest"                 %% "scalatest"                      % "3.2.9"         % "test"
+      "org.scalatest"                 %% "scalatest"                      % "3.2.9"    % "test"
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   ).settings(stdSettings("gateway-service")).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)

@@ -21,7 +21,7 @@ import zio.test.environment.TestEnvironment
 
 import java.time.Instant
 
-class CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
+object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
   private val notificationTopic = "notifications"
   private val brokerUrl         = s"localhost:${EmbeddedKafkaBroker.port}"
   private val loggingLayer      = CompetitionLogging.Live.loggingLayer

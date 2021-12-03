@@ -4,7 +4,6 @@ import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
 import compman.compsrv.logic.actors.{ActorSystem, TestKit}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.logging.CompetitionLogging
-import org.junit.runner.RunWith
 import zio.{Has, URIO, ZLayer}
 import zio.blocking.Blocking
 import zio.clock.Clock
@@ -20,13 +19,12 @@ import zio.test.TestAspect.aroundAll
 import java.util.UUID
 import scala.util.{Random, Try}
 
-@RunWith(classOf[zio.test.junit.ZTestJUnitRunner])
-class KafkaSupervisorSpec extends DefaultRunnableSpec {
+object KafkaSupervisorSpec extends DefaultRunnableSpec {
   private val notificationTopic                     = "notifications"
   private val brokerUrl                             = s"localhost:${EmbeddedKafkaBroker.port}"
   val loggingLayer: ZLayer[Any, Throwable, Logging] = CompetitionLogging.Live.loggingLayer
 
-  val consumerLayer: ZLayer[Clock with Blocking, Throwable, Has[Consumer.Service]] = Consumer.make(
+  val consumerLayer: ZLayer[Clock with Blocking, Throwable, Has[Consumer]] = Consumer.make(
     ConsumerSettings(List(brokerUrl)).withGroupId(UUID.randomUUID().toString)
       .withOffsetRetrieval(Consumer.OffsetRetrieval.Auto(Consumer.AutoOffsetStrategy.Earliest))
   ).toLayer
@@ -54,7 +52,7 @@ class KafkaSupervisorSpec extends DefaultRunnableSpec {
 
   def getByteArrayStream(
     notificationTopic: String
-  ): ZStream[Any with Clock with Blocking with Consumer, Throwable, CommittableRecord[String, Try[Array[Byte]]]] = {
+  ): ZStream[Any with Clock with Blocking with Has[Consumer], Throwable, CommittableRecord[String, Try[Array[Byte]]]] = {
     Consumer.subscribeAnd(Subscription.topics(notificationTopic)).plainStream(Serde.string, Serde.byteArray.asTry)
   }
 

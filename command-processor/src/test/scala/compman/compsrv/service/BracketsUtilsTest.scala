@@ -10,7 +10,7 @@ import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect.sequential
 
-class BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
+object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] = suite("Brackets utils") (
     testM("Should generate brackets for 8 fighters") {
       val compsSize = 8

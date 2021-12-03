@@ -22,7 +22,7 @@ import zio.test.Assertion._
 import java.time.Instant
 import java.util.UUID
 
-class CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
+object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
   object Deps {
     val competitionId   = "test-competition-id"
     val groupId: String = UUID.randomUUID().toString

@@ -25,7 +25,7 @@ import zio.test.Assertion._
 import java.time.Instant
 import java.util.UUID
 
-class CompetitionServiceSpec extends DefaultRunnableSpec {
+object CompetitionServiceSpec extends DefaultRunnableSpec {
   object Deps {
     val competitionId   = "test-competition-id"
     val groupId: String = UUID.randomUUID().toString

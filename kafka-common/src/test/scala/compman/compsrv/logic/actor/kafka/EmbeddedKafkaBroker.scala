@@ -18,7 +18,7 @@ object EmbeddedKafkaBroker extends EmbeddedKafka {
       server <- startKafkaBroker
       _      <- ZIO.effect(server.broker.awaitShutdown()).fork
       _ <- ZIO.effect {
-        while (server.broker.brokerState.get() != BrokerState.RUNNING) {
+        while (server.broker.brokerState != BrokerState.RUNNING) {
           ZIO.effect(log.info(s"Starting kafka server.")) *> ZIO.sleep(1.seconds)
         } *> ZIO.sleep(10.seconds)
       }

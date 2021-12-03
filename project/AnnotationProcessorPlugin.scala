@@ -13,10 +13,6 @@ object AnnotationProcessorPlugin extends AutoPlugin {
 
   val CompServiceAnnotationProcessor = config("compservice-annotation-processor").hide
 
-  object autoImport {
-    val modelClassesPackage = SettingKey[String]("model-classes-package", "Package to scan.")
-  }
-
   private def compileModels(
     classpath: Classpath,
     javaSourceDirectory: File,

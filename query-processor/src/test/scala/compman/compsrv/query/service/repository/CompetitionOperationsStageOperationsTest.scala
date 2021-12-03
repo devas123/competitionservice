@@ -7,7 +7,7 @@ import zio.logging.Logging
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
-class CompetitionOperationsStageOperationsTest extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
+object CompetitionOperationsStageOperationsTest extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
   type Env = Logging
   val layers: ZLayer[Any, Throwable, Env] = CompetitionLogging.Live.loggingLayer
   import EmbeddedMongoDb._

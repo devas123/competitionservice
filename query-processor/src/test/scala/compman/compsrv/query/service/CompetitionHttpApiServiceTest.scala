@@ -20,7 +20,7 @@ import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
 
-class CompetitionHttpApiServiceTest extends DefaultRunnableSpec with TestEntities {
+object CompetitionHttpApiServiceTest extends DefaultRunnableSpec with TestEntities {
   private val mapper = ObjectMapperFactory.createObjectMapper
   override def spec: ZSpec[Any, Throwable] =
     (suite("routes suite")(

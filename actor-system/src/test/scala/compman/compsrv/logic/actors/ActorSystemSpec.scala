@@ -11,7 +11,7 @@ import zio.test.environment.TestEnvironment
 sealed trait Msg[+A]
 object Stop extends Msg[Unit]
 
-class ActorSystemSpec extends DefaultRunnableSpec {
+object ActorSystemSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[TestEnvironment, Any] = suite("Actor system")(testM("Should create actor and remove actor") {
     for {
       actorSystem <- ActorSystem("test")
