@@ -5,7 +5,6 @@ import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.events.EventDTO
 import ActorSystem.ActorConfig
 import compman.compsrv.query.service.repository.TestEntities
-import org.junit.runner.RunWith
 import zio._
 import zio.blocking.Blocking
 import zio.clock.Clock
@@ -16,7 +15,6 @@ import zio.test.TestAspect._
 
 import java.util.UUID
 
-@RunWith(classOf[zio.test.junit.ZTestJUnitRunner])
 class WebsocketConnectionTest extends DefaultRunnableSpec with TestEntities {
   override def spec: ZSpec[Any, Throwable] =
     (suite("Websocket connection actor suite")(

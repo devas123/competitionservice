@@ -163,7 +163,8 @@ lazy val queryProcessor = module("query-processor", "query-processor").enablePlu
       "de.flapdoodle.embed"            % "de.flapdoodle.embed.mongo"      % embeddedMongodb % "test",
       "org.scalatest"                 %% "scalatest"                      % "3.2.9"         % "test"
     ),
-    testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
+    dependencyOverrides :=       Seq("dev.zio"                       %% "zio-test"                   % zioVersion      % "test"),
+  testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   ).settings(stdSettings("query-processor", Seq.empty)).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
 
 lazy val gatewayService = module("gateway-service", "gateway-service").enablePlugins(BuildInfoPlugin)
@@ -193,45 +194,3 @@ lazy val gatewayService = module("gateway-service", "gateway-service").enablePlu
     ),
     testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
   ).settings(stdSettings("gateway-service")).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
-
-//lazy val examples = module("zio-actors-examples", "examples")
-//  .settings(
-//    skip in publish := true,
-//    fork := true,
-//    libraryDependencies ++= Seq(
-//      "dev.zio" %% "zio-test"     % zioVersion % "test",
-//      "dev.zio" %% "zio-test-sbt" % zioVersion % "test"
-//    ),
-//    testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
-//  )
-//  .dependsOn(zioActors, zioActorsPersistence, zioActorsPersistenceJDBC)
-
-//lazy val zioActorsAkkaInterop = module("zio-actors-akka-interop", "akka-interop")
-//  .settings(
-//    libraryDependencies ++= Seq(
-//      "dev.zio"           %% "zio-test"         % zioVersion % "test",
-//      "dev.zio"           %% "zio-test-sbt"     % zioVersion % "test",
-//      "com.typesafe.akka" %% "akka-actor-typed" % akkaActorTypedVersion
-//    ),
-//    testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
-//  )
-//  .dependsOn(zioActors)
-
-//lazy val docs = project
-//  .in(file("zio-actors-docs"))
-//  .settings(
-//    skip.in(publish) := true,
-//    moduleName := "zio-actors-docs",
-//    scalacOptions -= "-Yno-imports",
-//    scalacOptions -= "-Xfatal-warnings",
-//    libraryDependencies ++= Seq(
-//      "dev.zio" %% "zio" % zioVersion
-//    ),
-//    unidocProjectFilter in (ScalaUnidoc, unidoc) := inProjects(root),
-//    target in (ScalaUnidoc, unidoc) := (baseDirectory in LocalRootProject).value / "website" / "static" / "api",
-//    cleanFiles += (target in (ScalaUnidoc, unidoc)).value,
-//    docusaurusCreateSite := docusaurusCreateSite.dependsOn(unidoc in Compile).value,
-//    docusaurusPublishGhpages := docusaurusPublishGhpages.dependsOn(unidoc in Compile).value
-//  )
-//  .dependsOn(zioActors, zioActorsPersistence, zioActorsAkkaInterop)
-//  .enablePlugins(MdocPlugin, DocusaurusPlugin, ScalaUnidocPlugin)

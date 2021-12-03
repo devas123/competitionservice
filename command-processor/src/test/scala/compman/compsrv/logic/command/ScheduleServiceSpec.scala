@@ -12,15 +12,12 @@ import compman.compsrv.model.events.EventType
 import compman.compsrv.model.events.payload.ScheduleGeneratedPayload
 import compman.compsrv.model.Payload
 import compman.compsrv.service.TestEntities
-import org.junit.runner.RunWith
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
-import org.scalatestplus.junit.JUnitRunner
 
 import java.time.Instant
 import java.util.UUID
 
-@RunWith(classOf[JUnitRunner])
 class ScheduleServiceSpec extends AnyFunSuite with BeforeAndAfter with TestEntities {
 
   import Dependencies._

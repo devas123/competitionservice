@@ -3,12 +3,10 @@ package compman.compsrv.jackson
 import compman.compsrv.model.commands.{CommandDTO, CommandType}
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, RegistrationInfoDTO}
-import org.junit.runner.RunWith
 import zio.{Task, ZIO}
 import zio.test._
 import zio.test.Assertion._
 
-@RunWith(classOf[zio.test.junit.ZTestJUnitRunner])
 class SerdeApiTest extends DefaultRunnableSpec {
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
     suite("Command serializer")(testM("Command serializer should deserialize command") {

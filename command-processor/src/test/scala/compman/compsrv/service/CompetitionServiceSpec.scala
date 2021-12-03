@@ -3,30 +3,28 @@ package compman.compsrv.service
 import compman.compsrv.jackson.ObjectMapperFactory
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaSupervisorCommand, PublishMessage, QuerySync}
+import compman.compsrv.logic.actors._
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorActor.ProcessCommand
-import compman.compsrv.logic.actors._
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.commands.{CommandDTO, CommandType}
+import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
-import compman.compsrv.model.events.payload.CompetitionCreatedPayload
 import compman.compsrv.model.events.{EventDTO, EventType}
-import org.junit.runner.RunWith
+import compman.compsrv.model.events.payload.CompetitionCreatedPayload
+import zio.{Layer, Ref, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
 import zio.kafka.consumer.ConsumerSettings
 import zio.kafka.producer.ProducerSettings
 import zio.logging.Logging
-import zio.test.Assertion._
 import zio.test._
-import zio.{Layer, Ref, ZIO}
+import zio.test.Assertion._
 
 import java.time.Instant
 import java.util.UUID
 
-@RunWith(classOf[zio.test.junit.ZTestJUnitRunner])
 class CompetitionServiceSpec extends DefaultRunnableSpec {
   object Deps {
     val competitionId   = "test-competition-id"

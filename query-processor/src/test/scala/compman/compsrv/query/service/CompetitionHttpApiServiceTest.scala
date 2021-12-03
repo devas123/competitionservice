@@ -1,17 +1,16 @@
 package compman.compsrv.query.service
 
 import compman.compsrv.logic.actors.behavior.CompetitionApiActor
-import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import CompetitionApiActor.Test
+import compman.compsrv.logic.actors.behavior.CompetitionApiActor.Test
 import compman.compsrv.logic.actors.ActorSystem
+import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.serde.ObjectMapperFactory
 import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO
 import compman.compsrv.query.service.repository.TestEntities
 import org.http4s._
 import org.http4s.implicits._
-import org.junit.runner.RunWith
 import zio._
 import zio.blocking.Blocking
 import zio.clock.Clock
@@ -21,7 +20,6 @@ import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
 
-@RunWith(classOf[zio.test.junit.ZTestJUnitRunner])
 class CompetitionHttpApiServiceTest extends DefaultRunnableSpec with TestEntities {
   private val mapper = ObjectMapperFactory.createObjectMapper
   override def spec: ZSpec[Any, Throwable] =
