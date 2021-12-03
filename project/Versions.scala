@@ -1,7 +1,8 @@
 object Versions {
-  val zio = "1.0.9"
+  val zioVersion            = "1.0.12"
+  val zioConfigVersion      = "1.0.10"
+  val zioInteropCatsVersion = "3.1.1.0"
   val zioKafka = "0.17.1"
-  val zioConfig = "1.0.0"
   val zioLogging = "0.5.13"
   val zioCats = "3.1.1.0"
   val circe = "0.14.1"

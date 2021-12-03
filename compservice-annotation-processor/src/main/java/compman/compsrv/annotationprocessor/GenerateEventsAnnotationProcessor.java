@@ -1,6 +1,5 @@
 package compman.compsrv.annotationprocessor;
 
-import com.google.auto.service.AutoService;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.squareup.javapoet.*;
@@ -25,7 +24,6 @@ import java.util.Set;
 
 @SupportedAnnotationTypes({"compman.compsrv.annotations.EventPayload", "compman.compsrv.annotations.CommandPayload"})
 @SupportedSourceVersion(SourceVersion.RELEASE_11)
-@AutoService(Processor.class)
 public class GenerateEventsAnnotationProcessor extends AbstractProcessor {
     private Filer filer;
     private Messager messager;

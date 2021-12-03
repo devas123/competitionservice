@@ -12,7 +12,7 @@ dependencies {
     testAnnotationProcessor(project(":compservice-annotation-processor"))
     annotationProcessor(project(":compservice-annotation-processor"))
     implementation(project(":compservice-annotations"))
-    implementation("com.kjetland:mbknor-jackson-jsonschema_2.12:1.0.39")
+    implementation("com.kjetland:mbknor-jackson-jsonschema_2.13:1.0.39")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.10.0")
     implementation("com.fasterxml.jackson.module:jackson-module-parameter-names:2.10.0")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.10.0")
