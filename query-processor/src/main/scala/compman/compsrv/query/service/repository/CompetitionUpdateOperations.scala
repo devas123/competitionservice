@@ -190,7 +190,7 @@ object CompetitionUpdateOperations {
     override def removeCompetitionState(id: String): LIO[Unit] = {
       for {
         collection <- competitionStateCollection
-        statement = collection.deleteOne(equal(idField, id))
+        statement = collection.deleteMany(equal(idField, id))
         res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
       } yield res
     }

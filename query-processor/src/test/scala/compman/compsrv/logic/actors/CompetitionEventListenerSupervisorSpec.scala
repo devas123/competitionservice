@@ -1,12 +1,9 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaTopicConfig}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.logic.actors.behavior.{
-  CompetitionEventListener,
-  CompetitionEventListenerSupervisor,
-  WebsocketConnectionSupervisor
-}
+import compman.compsrv.logic.actors.behavior.{CompetitionEventListener, CompetitionEventListenerSupervisor, WebsocketConnectionSupervisor}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.CompetitionProcessingStarted
 import compman.compsrv.model.dto.competition.CompetitionStatus
@@ -14,34 +11,31 @@ import compman.compsrv.query.model._
 import compman.compsrv.query.serde.{ObjectMapperFactory, SerdeApi}
 import compman.compsrv.query.service.EmbeddedKafkaBroker
 import compman.compsrv.query.service.EmbeddedKafkaBroker.embeddedKafkaServer
-import zio.{Ref, URIO, ZIO}
+import zio._
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
 import zio.kafka.producer.{Producer, ProducerSettings}
 import zio.kafka.serde.Serde
-import zio.test._
 import zio.test.Assertion._
-import zio.test.environment.TestEnvironment
-import zio.test.TestAspect.aroundAll
+import zio.test.TestAspect._
+import zio.test._
+import zio.test.environment._
 
 import java.time.Instant
 
 object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
   private val notificationTopic = "notifications"
-  private val brokerUrl         = s"localhost:${EmbeddedKafkaBroker.port}"
-  private val loggingLayer      = CompetitionLogging.Live.loggingLayer
+  private val loggingLayer = CompetitionLogging.Live.loggingLayer
   private val mapper            = ObjectMapperFactory.createObjectMapper
-  private val producerSettings  = ProducerSettings(List(brokerUrl))
-  private val producer          = Producer.make(producerSettings).toLayer
 
   override def spec: ZSpec[TestEnvironment, Any] = suite("Competition event listener") {
-    import EmbeddedKafkaBroker._
     testM("Should subscribe to topics") {
       {
         for {
-          _ <- ZIO
-            .effect { EmbeddedKafkaBroker.createCustomTopic(notificationTopic, replicationFactor = 1, partitions = 1) }
+          brokerUrl <- ZIO.effectTotal(EmbeddedKafkaBroker.bootstrapServers.get())
+          producerSettings  = ProducerSettings(List(brokerUrl))
+          producer          = Producer.make(producerSettings)
           actorSystem           <- ActorSystem("test")
           competitions          <- Ref.make(Map.empty[String, ManagedCompetition])
           competitionProperties <- Ref.make(Map.empty[String, CompetitionProperties])
@@ -55,6 +49,7 @@ object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
           websocketSupervisor   <- TestKit[WebsocketConnectionSupervisor.ApiCommand](actorSystem)
           kafkaSupervisor <- actorSystem
             .make("kafkaSupervisor", ActorConfig(), None, KafkaSupervisor.behavior[Any](List(brokerUrl)))
+          _ <- kafkaSupervisor ! CreateTopicIfMissing(notificationTopic, KafkaTopicConfig())
           supervisorContext = CompetitionEventListenerSupervisor.Test(competitions)
           eventListenerContext = CompetitionEventListener.Test(
             Some(competitionProperties),
@@ -91,16 +86,18 @@ object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
             CompetitionStatus.CREATED
           )
           _ <- ZIO.sleep(10.seconds)
-          _ <- Producer.produce(
-            notificationTopic,
-            competitionId,
-            mapper.writeValueAsBytes(notification),
-            Serde.string,
-            SerdeApi.byteSerializer
+          _ <- producer.use(p =>
+            Producer.produce(
+              notificationTopic,
+              competitionId,
+              mapper.writeValueAsBytes(notification),
+              Serde.string,
+              SerdeApi.byteSerializer
+            ).provide(Has(p))
           )
           _ <- ZIO.sleep(10.seconds)
         } yield assert(true)(isTrue)
-      }.provideLayer(Clock.live ++ loggingLayer ++ Blocking.live ++ zio.console.Console.live ++ producer)
+      }.provideLayer(Clock.live ++ loggingLayer ++ Blocking.live ++ zio.console.Console.live)
     }
-  } @@ aroundAll(embeddedKafkaServer)(kafka => URIO(kafka.stop(true)))
+  } @@ aroundAll(embeddedKafkaServer)(kafka => URIO(kafka.stop()))
 }

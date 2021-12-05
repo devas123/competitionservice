@@ -1,29 +1,28 @@
 package compman.compsrv.query.service
 
-import io.github.embeddedkafka.{EmbeddedK, EmbeddedKafka, EmbeddedKafkaConfig}
 import org.slf4j.LoggerFactory
+import org.testcontainers.containers.KafkaContainer
+import org.testcontainers.utility.DockerImageName
 import zio.{UIO, URIO, ZIO}
 
-object EmbeddedKafkaBroker extends EmbeddedKafka {
+import java.util.concurrent.atomic.AtomicReference
+
+object EmbeddedKafkaBroker {
   private val log = LoggerFactory.getLogger(this.getClass)
 
-  val port: Int = EmbeddedKafkaConfig.defaultKafkaPort
+  val bootstrapServers: AtomicReference[String] = new AtomicReference[String]()
 
-  implicit val config: EmbeddedKafkaConfig = EmbeddedKafkaConfig()
 
-  def embeddedKafkaServer: ZIO[Any, Throwable, EmbeddedK] = {
+  def embeddedKafkaServer: ZIO[Any, Nothing, KafkaContainer] = {
     for {
-      server <- startKafkaBroker
-      _      <- ZIO.effect(server.broker.awaitShutdown()).fork
-      //      t <- ZIO.effect {
-      //        while (server.broker.brokerState.get() != BrokerState.RUNNING) { ZIO.sleep(1.seconds) } *> ZIO.sleep(10.seconds)
-      //      }.fork
-      //      _ <- t.join.timeout(300.seconds)
-      _ <- ZIO.effect(log.info(s"Kafka running: localhost:$port"))
+      server <- URIO(new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:6.2.1")))
+      _ <- URIO(server.start())
+      _ <- URIO(log.info(s"Kafka running: ${server.getFirstMappedPort}"))
+      _ <- URIO(bootstrapServers.set(s"localhost:${server.getFirstMappedPort}"))
     } yield server
   }
 
-  private def startKafkaBroker = { ZIO.effect(EmbeddedKafka.start()) }
-
-  def stopKafkaBroker(server: EmbeddedK): UIO[Unit] = { URIO(EmbeddedKafka.stop(server)) }
+  def stopKafkaBroker(server: KafkaContainer): UIO[Unit] = {
+    URIO(server.stop())
+  }
 }

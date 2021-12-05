@@ -17,18 +17,17 @@ object Libraries {
   val rocksdb: String = "6.25.3"
   val http4s: String = "1.0.0-M27"
   val mongodb: String = "4.4.0"
-  val embeddedMongodb: String = "3.2.0"
   val monocle: String = "3.1.0"
 
   val zioKafkaDependency = "dev.zio" %% "zio-kafka" % zioKafka
-
-  val embeddedKafkaDependency = "io.github.embeddedkafka" %% "embedded-kafka" % kafka % "test"
 
   val guavaDependency = "com.google.guava" % "guava" % guava
   val rocksDbDependency = "org.rocksdb" % "rocksdbjni" % rocksdb
 
   val mongoDbScalaDriver = "org.mongodb.scala" %% "mongo-scala-driver" % mongodb
-  val embeddedMongodbDependency = "de.flapdoodle.embed" % "de.flapdoodle.embed.mongo" % embeddedMongodb % "test"
+  val testContainersDependency = "org.testcontainers" % "testcontainers" % "1.16.2" % "test"
+  val testContainersMongoDependency = "org.testcontainers" % "mongodb" % "1.16.2" % "test"
+  val testContainersKafkaDependency = "org.testcontainers" % "kafka" % "1.16.2" % "test"
   val javaPoetDependency = "com.squareup" % "javapoet" % "1.13.0"
   val autoServiceDependency = "com.google.auto.service" % "auto-service" % "1.0.1"
   val lombokDependency = "org.projectlombok" % "lombok" % "1.18.22"
@@ -37,8 +36,8 @@ object Libraries {
   val disruptorDependency = "com.lmax" % "disruptor" % disruptor % "test"
 
   val catsDependencies = Seq(
-    "org.typelevel" %% "cats-core"         % cats,
-    "org.typelevel" %% "cats-free"         % cats,
+    "org.typelevel" %% "cats-core" % cats,
+    "org.typelevel" %% "cats-free" % cats,
     "org.typelevel" %% "cats-kernel"       % cats
   )
 

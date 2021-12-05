@@ -2,26 +2,29 @@ package compman.compsrv.query.service.repository
 
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import zio.{URIO, ZIO}
-import zio.test._
+import org.testcontainers.containers.MongoDBContainer
+import zio.ZManaged
 import zio.test.Assertion._
-import zio.test.TestAspect.aroundAll
+import zio.test._
 
 object ManagedCompetitionsOperationsTest extends DefaultRunnableSpec with EmbeddedMongoDb with TestEntities {
   type Env = RepoEnvironment
   private val layers = CompetitionLogging.Live.loggingLayer
+  val mongoLayer: ZManaged[Any, Nothing, MongoDBContainer] = embeddedMongo()
 
   override def spec
-    : ZSpec[Any, Throwable] = suite("managed competitions operations suite")(testM("should save managed competition") {
+  : ZSpec[Any, Throwable] = suite("managed competitions operations suite")(testM("should save managed competition") {
     {
-      val context = EmbeddedMongoDb.context
-      import context._
-      for {
-        _             <- ManagedCompetitionsOperations.addManagedCompetition[LIO](managedCompetition)
-        competitions  <- ManagedCompetitionsOperations.getActiveCompetitions[LIO]
-        _             <- ManagedCompetitionsOperations.deleteManagedCompetition[LIO](managedCompetition.id)
-        shouldBeEmpty <- ManagedCompetitionsOperations.getActiveCompetitions[LIO]
-      } yield assert(competitions)(isNonEmpty) && assert(shouldBeEmpty)(isEmpty)
-    }.provideLayer(layers)
-  }) @@ aroundAll(ZIO.effect(startEmbeddedMongo()))(server => URIO(server._1.stop()))
+      mongoLayer.use { mongo =>
+        val context = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
+        import context._
+        for {
+          _ <- ManagedCompetitionsOperations.addManagedCompetition[LIO](managedCompetition)
+          competitions <- ManagedCompetitionsOperations.getActiveCompetitions[LIO]
+          _ <- ManagedCompetitionsOperations.deleteManagedCompetition[LIO](managedCompetition.id)
+          shouldBeEmpty <- ManagedCompetitionsOperations.getActiveCompetitions[LIO]
+        } yield assert(competitions)(isNonEmpty) && assert(shouldBeEmpty)(isEmpty)
+      }.provideLayer(layers)
+    }
+  })
 }

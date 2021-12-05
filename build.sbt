@@ -43,7 +43,7 @@ lazy val actorSystem = module("actor-system", "actor-system").settings(
 lazy val kafkaCommons = module("kafka-common", "kafka-common").settings(
   libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioLoggingDependencies ++ zioTestDependencies ++
     jacksonDependencies ++ zioConfigDependencies ++
-    Seq(zioKafkaDependency, embeddedKafkaDependency, disruptorDependency),
+    Seq(zioKafkaDependency, disruptorDependency, testContainersKafkaDependency),
   testFrameworks := Seq(zTestFramework)
 ).dependsOn(actorSystem, commons)
 
@@ -62,7 +62,6 @@ lazy val commandProcessor = module("command-processor", "command-processor").ena
         zioKafkaDependency,
         guavaDependency,
         rocksDbDependency,
-        embeddedKafkaDependency,
         disruptorDependency,
         scalaTestDependency
       ),
@@ -73,13 +72,14 @@ lazy val queryProcessor = module("query-processor", "query-processor").enablePlu
   .settings(buildInfoSettings("compman.compsrv.logic")).settings(
     libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
       zioLoggingDependencies ++ monocleDependencies ++ http4sDependencies ++ jacksonDependencies ++ Seq(
-        zioKafkaDependency,
-        mongoDbScalaDriver,
-        embeddedKafkaDependency,
-        disruptorDependency,
-        embeddedMongodbDependency,
-        scalaTestDependency
-      ),
+      zioKafkaDependency,
+      mongoDbScalaDriver,
+      disruptorDependency,
+      testContainersKafkaDependency,
+      testContainersDependency,
+      testContainersMongoDependency,
+      scalaTestDependency
+    ),
     dependencyOverrides := Seq("dev.zio" %% "zio-test" % zioVersion % "test"),
     testFrameworks      := Seq(zTestFramework, TestFrameworks.ScalaTest),
     Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-h", "target/report/scalatest"),

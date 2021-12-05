@@ -86,7 +86,8 @@ private[kafka] object KafkaQueryAndSubscribeActor {
               } else { ZIO.unit }
             _ <- Logging.info("Stopping the subscription.")
             _ <- context.self ! Stop
-          } yield ()).onError(err => Logging.error(err.prettyPrint)).fork
+          } yield ())
+            .fork.onInterrupt(Logging.info("Kafka query/subscription fiber is interrupted."))
         } yield (Seq(fiber), Seq.empty, ())
       }
 
@@ -94,6 +95,7 @@ private[kafka] object KafkaQueryAndSubscribeActor {
         for {
           _      <- replyTo ! QueryStarted()
           result <- retrieveEvents(topic, startOffset).fold(e => QueryError(e), _ => QueryFinished())
+          _ <- Logging.info(s"Done collecting events: $result")
           _      <- replyTo ! result
         } yield ()
       }
@@ -142,13 +144,11 @@ private[kafka] object KafkaQueryAndSubscribeActor {
                   } else { RIO.effect(Chunk.empty) }
               } yield ()
             } else { ZIO.unit }
-          _ <- Logging.info(s"Done collecting events.")
         } yield res
       }.onError(err => CompetitionLogging.logError(err.squashTrace)).provideSomeLayer[Clock with Blocking with Logging](
         Consumer.make(ConsumerSettings(brokers).withGroupId(groupId).withOffsetRetrieval(Consumer.OffsetRetrieval.Auto(
           Consumer.AutoOffsetStrategy.Earliest
         ))).toLayer
       )
-
     }
 }

@@ -3,58 +3,43 @@ package compman.compsrv.query.service.repository
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.config.MongodbConfig
-import de.flapdoodle.embed.mongo.config.Net
-import de.flapdoodle.embed.mongo.MongodProcess
 import org.mongodb.scala.MongoClient
-import zio.{Task, ZIO}
+import org.testcontainers.containers.MongoDBContainer
+import org.testcontainers.utility.DockerImageName
 import zio.test.DefaultRunnableSpec
+import zio.{ZIO, ZManaged}
 
-import java.net.InetAddress
-import java.util.concurrent.atomic.AtomicReference
-import scala.util.Using
+import java.io.IOException
+import java.net.{InetAddress, ServerSocket}
+import java.time.Duration
 
 trait EmbeddedMongoDb {
   self: DefaultRunnableSpec =>
-  import de.flapdoodle.embed.mongo.{MongodExecutable, MongodStarter}
-  import de.flapdoodle.embed.mongo.config.MongodConfig
-  import de.flapdoodle.embed.mongo.distribution.Version
-  import de.flapdoodle.embed.process.runtime.Network
 
-  def startEmbeddedMongo(): (MongodProcess, Int) = {
-    EmbeddedMongoDb.mongoProcess.updateAndGet(pair =>
-      if (pair == null) {
-        val starter: MongodStarter = MongodStarter.getDefaultInstance
-        val freePort               = Network.freeServerPort(InetAddress.getLoopbackAddress)
-        val mongodConfig: MongodConfig = MongodConfig.builder.version(Version.Main.PRODUCTION)
-          .net(new Net(freePort, Network.localhostIsIPv6)).build
-
-        var mongodExecutable: MongodExecutable = null
-        mongodExecutable = starter.prepare(mongodConfig)
-        val start = mongodExecutable.start
-        while (!start.isProcessRunning) { Thread.sleep(100) }
-
-        Using(MongoClient(s"mongo://localhost:$freePort")) { mongo =>
-          mongo.getDatabase("query_service").drop().subscribe(_ => (), _ => ())
-        }
-        (start, freePort)
-      } else pair
-    )
+  @throws[IOException]
+  def freeServerPort(hostAddress: InetAddress): Int = {
+    val socket = new ServerSocket(0, 0, hostAddress)
+    try socket.getLocalPort
+    finally if (socket != null) socket.close()
   }
 
-  def stopServer(): Task[Unit] = {
-    ZIO.effect {
-      EmbeddedMongoDb.mongoProcess.updateAndGet { process =>
-        process._1.stop()
-        null
-      }
-    }.as(())
+  def embeddedMongo(): ZManaged[Any, Nothing, MongoDBContainer] = {
+    ZManaged.make(ZIO.effectTotal {
+      val mongoPort = 27017
+      val container = new MongoDBContainer(DockerImageName.parse("mongo:latest")).withExposedPorts(mongoPort)
+        .withStartupTimeout(Duration.ofSeconds(30))
+      container.start()
+      Runtime.getRuntime.addShutdownHook(new Thread(() => {
+        container.stop()
+        ()
+      }))
+      container
+    })(container => ZIO.effectTotal(container.stop()))
   }
 }
 
 object EmbeddedMongoDb {
   implicit val logging: CompetitionLogging.Service[LIO] = CompetitionLogging.Live.live[Any]
-
-  private val mongoProcess = new AtomicReference[(MongodProcess, Int)]()
 
   class EmbeddedMongoContext(port: Int) {
     lazy val mongoClient: MongoClient = MongoClient(s"mongodb://localhost:$port")
@@ -72,5 +57,5 @@ object EmbeddedMongoDb {
       ManagedCompetitionsOperations.live(mongoClient, mongodbConfig.queryDatabaseName)
   }
 
-  def context = new EmbeddedMongoContext(mongoProcess.get()._2)
+  def context(port: Int) = new EmbeddedMongoContext(port)
 }
