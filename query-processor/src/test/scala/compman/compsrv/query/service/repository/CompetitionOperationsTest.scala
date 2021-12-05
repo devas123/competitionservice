@@ -2,34 +2,40 @@ package compman.compsrv.query.service.repository
 
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import zio.{URIO, ZIO, ZLayer}
+import de.flapdoodle.embed.mongo.MongodProcess
+import zio.{Has, ULayer, URIO, ZLayer, ZManaged}
 import zio.logging.Logging
 import zio.test._
 import zio.test.Assertion._
-import zio.test.TestAspect.{aroundAll, sequential}
 
 object CompetitionOperationsTest extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
   type Env = Logging
+  val mongoLayer: ULayer[Has[(MongodProcess, Int)]] = ZLayer.fromManaged(ZManaged.make(URIO(startEmbeddedMongo()))(_ => URIO(stopServer())))
   val layers: ZLayer[Any, Throwable, Env] = CompetitionLogging.Live.loggingLayer
-  import EmbeddedMongoDb._
-  override def spec: ZSpec[Any, Throwable] = suite("competition operations")(
+  override def spec: ZSpec[Environment, Failure] = suite("competition operations")(
     testM("query should return none when there are no competitions") {
+      val context = EmbeddedMongoDb.context
+      import context._
       (for {
-        _     <- CompetitionUpdateOperations[LIO].removeCompetitionState("managedCompetition")
-        props <- CompetitionQueryOperations.getCompetitionProperties("managedCompetition")
+        _     <- CompetitionUpdateOperations[LIO].removeCompetitionState(competitionId)
+        props <- CompetitionQueryOperations.getCompetitionProperties(competitionId)
       } yield assert(props)(isNone)).provideLayer(layers)
     },
     testM("should save competition") {
+      val context = EmbeddedMongoDb.context
+      import context._
       (for {
         _     <- CompetitionUpdateOperations[LIO].addCompetitionProperties(competitionProperties)
         props <- CompetitionQueryOperations.getCompetitionProperties(competitionId)
       } yield assert(props)(isSome)).provideLayer(layers)
     },
     testM("should save category") {
+      val context = EmbeddedMongoDb.context
+      import context._
       (for {
         _        <- CompetitionUpdateOperations[LIO].addCategory(category)
         category <- CompetitionQueryOperations.getCategoryById(competitionId)(categoryId)
       } yield assert(category)(isSome)).provideLayer(layers)
     }
-  ) @@ sequential @@ aroundAll(ZIO.effect(startEmbeddedMongo()))(server => URIO(stopServer(server._1)))
+  ).provideCustomLayerShared(mongoLayer)
 }

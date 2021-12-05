@@ -85,9 +85,7 @@ object AnnotationProcessorPlugin extends AutoPlugin {
     streams: TaskStreams
   ) => {
     compileModels(dependencyClassPath, javaSourceDirectory, compilers, generatedDir, streams)
-    val files = (generatedDir ** "*.java").get.map(_.getAbsoluteFile)
-    streams.log("AnnotationProcessorPlugin").info(s"Adding files $files to sources")
-    files
+    (generatedDir ** "*.java").get.map(_.getAbsoluteFile)
   }
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq[Def.Setting[_]](

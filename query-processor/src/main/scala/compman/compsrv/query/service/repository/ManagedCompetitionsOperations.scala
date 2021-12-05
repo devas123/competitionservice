@@ -1,7 +1,6 @@
 package compman.compsrv.query.service.repository
 
 import com.mongodb.client.model.ReplaceOptions
-import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.query.model.ManagedCompetition
@@ -113,16 +112,16 @@ object ManagedCompetitionsOperations {
     def apply[F[+_]](implicit F: ManagedCompetitionService[F]): ManagedCompetitionService[F] = F
   }
 
-  def getManagedCompetitions[F[+_]: CompetitionLogging.Service: ManagedCompetitionService]
+  def getManagedCompetitions[F[+_]: ManagedCompetitionService]
     : F[List[ManagedCompetition]] = ManagedCompetitionService[F].getManagedCompetitions
-  def getActiveCompetitions[F[+_]: CompetitionLogging.Service: ManagedCompetitionService]: F[List[ManagedCompetition]] =
+  def getActiveCompetitions[F[+_]: ManagedCompetitionService]: F[List[ManagedCompetition]] =
     ManagedCompetitionService[F].getActiveCompetitions
-  def addManagedCompetition[F[+_]: CompetitionLogging.Service: ManagedCompetitionService](
+  def addManagedCompetition[F[+_]: ManagedCompetitionService](
     competition: ManagedCompetition
   ): F[Unit] = ManagedCompetitionService[F].addManagedCompetition(competition)
-  def updateManagedCompetition[F[+_]: CompetitionLogging.Service: ManagedCompetitionService](
+  def updateManagedCompetition[F[+_]: ManagedCompetitionService](
     c: ManagedCompetition
   ): F[Unit] = ManagedCompetitionService[F].updateManagedCompetition(c)
-  def deleteManagedCompetition[F[+_]: CompetitionLogging.Service: ManagedCompetitionService](id: String): F[Unit] =
+  def deleteManagedCompetition[F[+_]: ManagedCompetitionService](id: String): F[Unit] =
     ManagedCompetitionService[F].deleteManagedCompetition(id)
 }

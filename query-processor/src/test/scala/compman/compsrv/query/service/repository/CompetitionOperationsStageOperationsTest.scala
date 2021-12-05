@@ -10,8 +10,9 @@ import zio.test.TestAspect._
 object CompetitionOperationsStageOperationsTest extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
   type Env = Logging
   val layers: ZLayer[Any, Throwable, Env] = CompetitionLogging.Live.loggingLayer
-  import EmbeddedMongoDb._
   override def spec: ZSpec[Any, Throwable] = suite("competition operations")(testM("should save stage") {
+    val context = EmbeddedMongoDb.context
+    import context._
     (for { _ <- CompetitionUpdateOperations[LIO].addStage(stageDescriptor) } yield assert(Some(()))(isSome))
       .provideLayer(layers)
   }) @@ aroundAll(ZIO.effect(startEmbeddedMongo()))(tuple => URIO(tuple._1.stop()))
