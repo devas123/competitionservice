@@ -1,12 +1,12 @@
 import BuildHelper._
 import CommonProjects._
 import Libraries._
-import sbt.{Test, Tests}
+import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport.Docker
 
 inThisBuild(List(
   organization := "compman.compsrv",
-  homepage     := Some(url("https://github.com/devas123/competitionservice")),
-  licenses     := List("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")),
+  homepage := Some(url("https://github.com/devas123/competitionservice")),
+  licenses := List("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")),
   developers :=
     List(Developer("devas123", "Grigorii Grigorev", "grigorii.grigorev@gmail.com", url("https://github.com/devas123"))),
   scmInfo := Some(ScmInfo(
@@ -55,7 +55,8 @@ lazy val commons = module("commons", "command-processor/commons").settings(
 lazy val competitionService = project.in(file(".")).settings(publish / skip := true)
   .aggregate(commandProcessor, queryProcessor, gatewayService, kafkaCommons, actorSystem)
 
-lazy val commandProcessor = module("command-processor", "command-processor").enablePlugins(BuildInfoPlugin)
+lazy val commandProcessor = module("command-processor", "command-processor")
+  .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging)
   .settings(buildInfoSettings("compman.compsrv")).settings(
     libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
       zioLoggingDependencies ++ monocleDependencies ++ jacksonDependencies ++ Seq(
@@ -65,32 +66,35 @@ lazy val commandProcessor = module("command-processor", "command-processor").ena
         disruptorDependency,
         scalaTestDependency
       ),
-    testFrameworks := Seq(zTestFramework, TestFrameworks.ScalaTest)
-  ).settings(stdSettings("command-processor")).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
+    testFrameworks := Seq(zTestFramework, TestFrameworks.ScalaTest),
+    Docker / packageName := "command-processor"
+).settings(stdSettings("command-processor")).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
 
-lazy val queryProcessor = module("query-processor", "query-processor").enablePlugins(BuildInfoPlugin)
+lazy val queryProcessor = module("query-processor", "query-processor")
+  .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging)
   .settings(buildInfoSettings("compman.compsrv.logic")).settings(
-    libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
-      zioLoggingDependencies ++ monocleDependencies ++ http4sDependencies ++ jacksonDependencies ++ Seq(
-      zioKafkaDependency,
-      mongoDbScalaDriver,
-      disruptorDependency,
-      testContainersKafkaDependency,
-      testContainersDependency,
-      testContainersMongoDependency,
-      scalaTestDependency
-    ),
-    dependencyOverrides := Seq("dev.zio" %% "zio-test" % zioVersion % "test"),
-    testFrameworks      := Seq(zTestFramework, TestFrameworks.ScalaTest),
-    Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-h", "target/report/scalatest"),
-    Test / testOptions += Tests.Argument(zTestFramework, "-h", "target/report/ziotest")
-  ).settings(stdSettings("query-processor", Seq.empty))
+  libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
+    zioLoggingDependencies ++ monocleDependencies ++ http4sDependencies ++ jacksonDependencies ++ Seq(
+    zioKafkaDependency,
+    mongoDbScalaDriver,
+    disruptorDependency,
+    testContainersKafkaDependency,
+    testContainersDependency,
+    testContainersMongoDependency,
+    scalaTestDependency
+  ),
+  dependencyOverrides := Seq("dev.zio" %% "zio-test" % zioVersion % "test"),
+  testFrameworks := Seq(zTestFramework, TestFrameworks.ScalaTest),
+  Docker / packageName := "query-processor"
+).settings(stdSettings("query-processor", Seq.empty))
   .dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
 
-lazy val gatewayService = module("gateway-service", "gateway-service").enablePlugins(BuildInfoPlugin)
+lazy val gatewayService = module("gateway-service", "gateway-service")
+  .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging)
   .settings(buildInfoSettings("compman.compsrv.gateway")).settings(
     libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
       zioLoggingDependencies ++ http4sDependencies ++ jacksonDependencies ++
       Seq(zioKafkaDependency, scalaTestDependency),
-    testFrameworks := Seq(zTestFramework)
-  ).settings(stdSettings("gateway-service")).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
+    testFrameworks := Seq(zTestFramework),
+  Docker / packageName := "gateway-service"
+).settings(stdSettings("gateway-service")).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)

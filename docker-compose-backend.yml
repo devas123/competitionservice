@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   query_service:
-    image: query-processor:latest
+    image: query-processor:${APPLICATION_VERSION:-latest}
     environment:
       - KAFKA_BROKERS=broker:29092
       - MONGO_DB_HOST=mongo
@@ -23,7 +23,7 @@ services:
 
 
   gateway_service:
-    image: gateway-service:latest
+    image: gateway-service:${APPLICATION_VERSION:-latest}
     environment:
       - KAFKA_BROKERS=broker:29092
     networks:
@@ -35,12 +35,12 @@ services:
 
 
   command_processor:
-    image: command-processor:latest
+    image: command-processor:${APPLICATION_VERSION:-latest}
     environment:
-      - DATABASE_PATH=/app/app-db/command-processor
+      - DATABASE_PATH=app-db/command-processor
       - KAFKA_BROKERS=broker:29092
     volumes:
-      - command_processor_db:/app/app-db/command-processor
+      - command_processor_db:${WORKDIR}/app-db/command-processor
     networks:
       compsrv_backend:
     deploy:

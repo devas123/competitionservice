@@ -33,7 +33,7 @@ object Libraries {
   val lombokDependency = "org.projectlombok" % "lombok" % "1.18.22"
   val jsonSchemaGeneratorDependency = "com.kjetland" %% "mbknor-jackson-jsonschema" % "1.0.39"
 
-  val disruptorDependency = "com.lmax" % "disruptor" % disruptor % "test"
+  val disruptorDependency = "com.lmax" % "disruptor" % disruptor
 
   val catsDependencies = Seq(
     "org.typelevel" %% "cats-core" % cats,
