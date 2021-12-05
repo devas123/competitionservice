@@ -54,7 +54,8 @@ object FightUpdateOperations {
       update(fights)(fightId)(f => f.copy(scores = scores, fightResult = Option(fightResult)))
   }
 
-  def live(mongo: MongoClient, name: String): FightUpdateOperations[LIO] = new FightUpdateOperations[LIO] with CommonLiveOperations with FightFieldsAndFilters {
+  def live(mongo: MongoClient, name: String): FightUpdateOperations[LIO] = new FightUpdateOperations[LIO]
+    with CommonLiveOperations with FightFieldsAndFilters {
 
     override def mongoClient: MongoClient = mongo
 
@@ -93,7 +94,12 @@ object FightUpdateOperations {
       for {
         collection <- fightCollection
         statement = collection.bulkWrite(fights.map(f =>
-          UpdateOneModel(equal(idField, f.id), combine(set("scores", f.scores), set("status", f.status)))
+          UpdateOneModel(
+            equal(idField, f.id),
+            combine(
+              Array(Option(set("scores", f.scores)), f.status.map(set("status", _))).filter(_.isDefined).map(_.get): _*
+            )
+          )
         ))
         res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
       } yield res
@@ -118,7 +124,8 @@ object FightUpdateOperations {
     override def removeFightsForCategory(competitionId: String)(categoryId: String): LIO[Unit] = {
       for {
         collection <- fightCollection
-        statement = collection.deleteMany(and(equal("categoryId", categoryId), equal(competitionIdField, competitionId)))
+        statement = collection
+          .deleteMany(and(equal("categoryId", categoryId), equal(competitionIdField, competitionId)))
         res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
       } yield res
     }
@@ -161,8 +168,10 @@ object FightUpdateOperations {
     )(fightId: String, scores: List[CompScore], fightResult: FightResult): LIO[Unit] = {
       for {
         collection <- fightCollection
-        statement = collection
-          .updateOne(and(equal(idField, fightId), equal(competitionIdField, competitionId)), Seq(set(this.scores, scores), set(this.fightResult, fightResult)))
+        statement = collection.updateOne(
+          and(equal(idField, fightId), equal(competitionIdField, competitionId)),
+          Seq(set(this.scores, scores), set(this.fightResult, fightResult))
+        )
         res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
       } yield res
     }

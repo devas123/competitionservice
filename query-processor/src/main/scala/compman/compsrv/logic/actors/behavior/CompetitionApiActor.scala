@@ -121,7 +121,7 @@ object CompetitionApiActor {
   final case class GetPeriodFightsByMats(competitionId: String, periodId: String, limit: Int)
       extends ApiCommand[Map[String, List[String]]]
 
-  final case class GetFightResulOptions(competitionId: String, categoryId: String, stageId: String) extends ApiCommand[List[FightResult]]
+  final case class GetFightResulOptions(competitionId: String, categoryId: String, stageId: String) extends ApiCommand[List[FightResultOptionDTO]]
 
   final case class GetStagesForCategory(competitionId: String, categoryId: String)
       extends ApiCommand[List[StageDescriptor]]
@@ -267,7 +267,7 @@ object CompetitionApiActor {
               } yield (state, fights.asInstanceOf[A])
             case GetFightResulOptions(competitionId, categoryId, stageId) => for {
                 stage <- CompetitionQueryOperations[LIO].getStageById(competitionId)(categoryId, stageId)
-                fightResultOptions = stage.flatMap(_.stageResultDescriptor).map(_.fightResultOptions)
+                fightResultOptions = stage.flatMap(_.stageResultDescriptor).map(_.fightResultOptions.map(DtoMapping.toDtoFightResultOption))
                   .getOrElse(List.empty)
               } yield (state, fightResultOptions.asInstanceOf[A])
             case GetStagesForCategory(competitionId, categoryId) => CompetitionQueryOperations[LIO]

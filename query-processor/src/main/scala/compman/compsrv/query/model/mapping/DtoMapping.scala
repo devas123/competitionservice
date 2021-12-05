@@ -16,6 +16,18 @@ object DtoMapping {
   def createEmptyScore: ScoreDTO = new ScoreDTO().setAdvantages(0).setPenalties(0).setPoints(0)
     .setPointGroups(Array.empty)
 
+  def toDtoFightResultOption(fightResultOption: FightResultOption): FightResultOptionDTO = {
+    new FightResultOptionDTO()
+    .setId(fightResultOption.optionId)
+    .setDescription(fightResultOption.description)
+    .setShortName(fightResultOption.shortName)
+    .setDraw(fightResultOption.draw)
+    .setWinnerPoints(fightResultOption.winnerPoints)
+    .setWinnerAdditionalPoints(fightResultOption.winnerAdditionalPoints)
+    .setLoserPoints(fightResultOption.loserPoints)
+    .setLoserAdditionalPoints(fightResultOption.loserAdditionalPoints)
+  }
+
   def mapScheduleEntry(competitionId: String)(dto: ScheduleEntryDTO): ScheduleEntry = {
     ScheduleEntry(
       entryId = dto.getId,

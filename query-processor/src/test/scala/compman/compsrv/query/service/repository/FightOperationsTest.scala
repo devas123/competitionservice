@@ -9,6 +9,8 @@ import zio.test.TestAspect.sequential
 import zio.test._
 import zio.{ZLayer, ZManaged}
 
+import java.util.UUID
+
 object FightOperationsTest extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
   type Env = Logging
   val mongoLayer: ZManaged[Any, Nothing, MongoDBContainer] = embeddedMongo()
@@ -40,6 +42,20 @@ object FightOperationsTest extends DefaultRunnableSpec with TestEntities with Em
           assert(loadedFight.get.fightResult.get.winnerId)(equalTo(fightResult.winnerId)) &&
           assert(loadedFight.get.fightResult.get.resultTypeId)(equalTo(fightResult.resultTypeId))
           )
+          .provideLayer(layers)
+      }
+    },
+    testM("Should get fights by ids") {
+      mongoLayer.use { mongo =>
+        val context = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
+        import context._
+        (for {
+          _ <- FightUpdateOperations[LIO].addFight(fight)
+          fight2Id = UUID.randomUUID().toString
+          _ <- FightUpdateOperations[LIO].addFight(fight.copy(id = fight2Id))
+          loadedFight <- FightQueryOperations[LIO].getFightsByIds(competitionId)(categoryId, Set(fightId, fight2Id))
+          _ <- FightUpdateOperations[LIO].removeFightsForCompetition(competitionId)
+        } yield assert(loadedFight)(hasSize(equalTo(2))))
           .provideLayer(layers)
       }
     }

@@ -20,7 +20,9 @@ object FightCompetitorsAssignedProc {
       competitionId <- OptionT.fromOption[F](event.competitionId)
       categoryId    <- OptionT.fromOption[F](event.categoryId)
       assignments   <- OptionT.fromOption[F](Option(payload.getAssignments))
-      fightIds = assignments.toList.flatMap(ass => (ass.getToFightId, ass.getFromFightId).toList).filter(_ != null)
+      value = assignments.toList.flatMap(ass => List(ass.getToFightId, ass.getFromFightId))
+      fightIds = value
+        .filter(f => f != null)
         .toSet
       fightsList <- OptionT.liftF(FightQueryOperations[F].getFightsByIds(competitionId)(categoryId, fightIds))
       fights = Utils.groupById(fightsList)(_.id)
@@ -36,7 +38,7 @@ object FightCompetitorsAssignedProc {
           parentReferenceType <- score.parentReferenceType.orElse(Option(ass.getReferenceType))
           newScore = score
             .copy(competitorId = Option(ass.getCompetitorId), parentReferenceType = Option(parentReferenceType))
-          newScores = scores.filter(_.competitorId != newScore.competitorId) :+ newScore
+          newScores = scores.filter(_.parentFightId != newScore.parentFightId) :+ newScore
         } yield toFight.copy(scores = newScores)
       }
 
