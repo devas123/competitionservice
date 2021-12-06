@@ -60,12 +60,13 @@ object SetFightResultProc {
       stageFights <- EitherT
         .fromOption[F](state.fights.map(_.filter(_._2.getStageId == stageId)), Errors.InternalError())
       fightUpdates <- EitherT.liftF(updates[F](command, payload, winnerId, fight, stageFights))
+      status = Option(payload.getStatus).getOrElse(FightStatus.FINISHED)
       dashboardFightResultSetEvent <- EitherT.liftF(CommandEventOperations[F, EventDTO, EventType].create(
         `type` = EventType.DASHBOARD_FIGHT_RESULT_SET,
         competitorId = command.competitorId,
         competitionId = command.competitionId,
         categoryId = command.categoryId,
-        payload = Some(payload)
+        payload = Some(payload.setStatus(status))
       ))
       allStageFightsFinished =
         checkIfAllStageFightsFinished(state, Some(stageId), Option(fightId).map(Set(_)).getOrElse(Set.empty))

@@ -7,6 +7,7 @@ import compman.compsrv.model.Payload;
 import compman.compsrv.model.commands.CommandType;
 import compman.compsrv.model.dto.competition.CompScoreDTO;
 import compman.compsrv.model.dto.competition.FightResultDTO;
+import compman.compsrv.model.dto.competition.FightStatus;
 import compman.compsrv.model.events.EventType;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -23,4 +24,5 @@ public class SetFightResultPayload implements Serializable, Payload {
     private String fightId;
     private FightResultDTO fightResult;
     private CompScoreDTO[] scores;
+    private FightStatus status;
 }

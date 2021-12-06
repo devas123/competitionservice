@@ -2,19 +2,20 @@ package compman.compsrv.query.service.repository
 
 import cats.implicits._
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.query.model.{CompScore, Fight, FightResult, FightStartTimeUpdate}
 import org.mongodb.scala.MongoClient
 import org.mongodb.scala.model.UpdateOneModel
-import zio.{Ref, RIO, ZIO}
+import zio.{RIO, Ref, ZIO}
 import zio.interop.catz._
 
 trait FightUpdateOperations[F[+_]] {
   def addFight(fight: Fight): F[Unit]
   def addFights(fights: List[Fight]): F[Unit]
   def updateFight(fight: Fight): F[Unit]
-  def updateFightScoresAndResult(
+  def updateFightScoresAndResultAndStatus(
     competitionId: String
-  )(fightId: String, scores: List[CompScore], fightResult: FightResult): F[Unit]
+  )(fightId: String, scores: List[CompScore], fightResult: FightResult, status: FightStatus): F[Unit]
   def updateFightScores(fights: List[Fight]): F[Unit]
   def updateFightStartTime(fights: List[FightStartTimeUpdate]): F[Unit]
   def removeFight(competitionId: String)(id: String): F[Unit]
@@ -48,10 +49,10 @@ object FightUpdateOperations {
     override def removeFightsForCompetition(competitionId: String): LIO[Unit] = fights
       .map(_.update(_.filter(_._2.competitionId != competitionId))).getOrElse(ZIO.unit)
 
-    override def updateFightScoresAndResult(
+    override def updateFightScoresAndResultAndStatus(
       competitionId: String
-    )(fightId: String, scores: List[CompScore], fightResult: FightResult): LIO[Unit] =
-      update(fights)(fightId)(f => f.copy(scores = scores, fightResult = Option(fightResult)))
+    )(fightId: String, scores: List[CompScore], fightResult: FightResult, status: FightStatus): LIO[Unit] =
+      update(fights)(fightId)(f => f.copy(scores = scores, fightResult = Option(fightResult), status = Option(status)))
   }
 
   def live(mongo: MongoClient, name: String): FightUpdateOperations[LIO] = new FightUpdateOperations[LIO]
@@ -163,14 +164,14 @@ object FightUpdateOperations {
       } yield res
     }
 
-    override def updateFightScoresAndResult(
+    override def updateFightScoresAndResultAndStatus(
       competitionId: String
-    )(fightId: String, scores: List[CompScore], fightResult: FightResult): LIO[Unit] = {
+    )(fightId: String, scores: List[CompScore], fightResult: FightResult, status: FightStatus): LIO[Unit] = {
       for {
         collection <- fightCollection
         statement = collection.updateOne(
           and(equal(idField, fightId), equal(competitionIdField, competitionId)),
-          Seq(set(this.scores, scores), set(this.fightResult, fightResult))
+          Seq(set(this.scores, scores), set(this.fightResult, fightResult), set(this.status, status))
         )
         res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
       } yield res

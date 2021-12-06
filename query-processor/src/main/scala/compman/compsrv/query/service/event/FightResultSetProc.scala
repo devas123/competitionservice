@@ -20,6 +20,7 @@ object FightResultSetProc {
       fightId        <- OptionT.fromOption[F](Option(payload.getFightId))
       competitionId  <- OptionT.fromOption[F](event.competitionId)
       fightResultDto <- OptionT.fromOption[F](Option(payload.getFightResult))
+      fightStatus <- OptionT.fromOption[F](Option(payload.getStatus))
       scoresDto      <- OptionT.fromOption[F](Option(payload.getScores))
       competitorIds = scoresDto.map(_.getCompetitorId).filter(_ != null)
       competitors <- competitorIds.toList
@@ -34,7 +35,7 @@ object FightResultSetProc {
         )
       )
       fightResult = DtoMapping.mapFightResult(fightResultDto)
-      _ <- OptionT.liftF(FightUpdateOperations[F].updateFightScoresAndResult(competitionId)(fightId, scores.toList, fightResult))
+      _ <- OptionT.liftF(FightUpdateOperations[F].updateFightScoresAndResultAndStatus(competitionId)(fightId, scores.toList, fightResult, fightStatus))
     } yield ()
   }.value.map(_ => ())
 }

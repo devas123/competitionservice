@@ -3,10 +3,13 @@
     <Appenders>
         <Console name="console" target="SYSTEM_OUT">
             <PatternLayout
-                    pattern="[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{10} - %msg%n" />
+                    pattern="[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{7}- %msg%n" />
         </Console>
     </Appenders>
     <Loggers>
+        <logger name="compman.compsrv.query.QueryServiceMain" level="info" />
+        <logger name="org.mongodb.driver.cluster" level="ERROR" />
+        <logger name="org.apache.kafka" level="ERROR" />
         <AsyncRoot level="info" additivity="false">
             <AppenderRef ref="console" />
         </AsyncRoot>

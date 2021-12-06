@@ -2,6 +2,7 @@ package compman.compsrv.query.service.repository
 
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import compman.compsrv.model.dto.competition.FightStatus
 import org.testcontainers.containers.MongoDBContainer
 import zio.logging.Logging
 import zio.test.Assertion._
@@ -33,13 +34,14 @@ object FightOperationsTest extends DefaultRunnableSpec with TestEntities with Em
         import context._
         (for {
           _ <- FightUpdateOperations[LIO].addFight(fight)
-          _ <- FightUpdateOperations[LIO].updateFightScoresAndResult(competitionId)(fightId, scores, fightResult)
+          _ <- FightUpdateOperations[LIO].updateFightScoresAndResultAndStatus(competitionId)(fightId, scores, fightResult, FightStatus.FINISHED)
           loadedFight <- FightQueryOperations[LIO].getFightById(competitionId)(categoryId, fightId)
           _ <- FightUpdateOperations[LIO].removeFightsForCompetition(competitionId)
         } yield assert(loadedFight)(isSome) && assert(loadedFight.get.scores)(isNonEmpty) &&
           assert(loadedFight.get.scores.size)(equalTo(2)) && assert(loadedFight.get.fightResult)(isSome) &&
           assert(loadedFight.get.fightResult.get.reason)(equalTo(fightResult.reason)) &&
           assert(loadedFight.get.fightResult.get.winnerId)(equalTo(fightResult.winnerId)) &&
+          assert(loadedFight.get.status.get)(equalTo(FightStatus.FINISHED)) &&
           assert(loadedFight.get.fightResult.get.resultTypeId)(equalTo(fightResult.resultTypeId))
           )
           .provideLayer(layers)

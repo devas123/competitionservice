@@ -17,4 +17,6 @@ app-data/
 compservice.db
 
 .bloop
+.bloop/
 .bsp
+.bsp/
