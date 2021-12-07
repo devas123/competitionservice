@@ -138,11 +138,11 @@ object FightUtils {
       uncompletableFights <- Monad[F].pure(markedFights.filter(e => e._2.getStatus == FightStatus.UNCOMPLETABLE))
       uncompletableFightsScores = getUncompletableFightScores(uncompletableFights)
       mapped <- uncompletableFightsScores
-        .foldM((uncompletableFights, List.empty[CompetitorAssignmentDescriptor]))((acc, elem) =>
-          advanceFighterToSiblingFights[F](elem._1, elem._2, FightReferenceType.WINNER, acc._1).map(p => {
-            val assignments = acc._2 ++ p._2
-            (p._1, assignments)
-          })
+        .foldM((markedFights, List.empty[CompetitorAssignmentDescriptor]))((acc, elem) =>
+          for {
+            p <- advanceFighterToSiblingFights[F](elem._1, elem._2, FightReferenceType.WINNER, acc._1)
+            assignments = acc._2 ++ p._2
+          } yield (p._1, assignments)
         )
     } yield mapped._1
   }

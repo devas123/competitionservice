@@ -64,7 +64,8 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
           f.getScores.map(_.getCompetitorId).toSet.size == 2
         ))(isTrue)
     },
-    testM("should process uncompletable fights") {
+
+    testM("should process uncompletable fights and advance competitors") {
       val compsSize = 10
       for {
         fights <- BracketsUtils.generateEmptyWinnerRoundsForCategory[Task](
@@ -88,6 +89,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
         assert(marked.count(_._2.getRound == 0))(equalTo(8)) &&
         assert(marked.count(e => e._2.getRound == 0 && e._2.getStatus == FightStatus.UNCOMPLETABLE))(equalTo(6)) &&
         assert(marked.count(e => e._2.getRound != 0 && e._2.getStatus == FightStatus.UNCOMPLETABLE))(equalTo(0)) &&
+        assert(marked.count(e => e._2.getRound == 1 && e._2.getScores != null && e._2.getScores.count(_.getCompetitorId != null) == 2))(isGreaterThanEqualTo(2)) &&
         assert(marked.count(_._2.getRound == 1))(equalTo(4)) &&
         assert(marked.count(_._2.getRound == 2))(equalTo(2)) &&
         assert(marked.count(_._2.getRound == 3))(equalTo(1))

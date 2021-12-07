@@ -37,13 +37,13 @@ object FightsService {
   }
 
   def bracketsGenerator[F[+_]: Monad](
-    competitionId: String,
-    categoryId: String,
-    stage: StageDescriptorDTO,
-    compssize: Int,
-    duration: BigDecimal,
-    competitors: List[CompetitorDTO],
-    outputSize: Int
+                                       competitionId: String,
+                                       categoryId: String,
+                                       stage: StageDescriptorDTO,
+                                       targetCompetitorsSize: Int,
+                                       duration: BigDecimal,
+                                       competitorsToDistribute: List[CompetitorDTO],
+                                       outputSize: Int
   ): PartialFunction[BracketType, F[CanFail[List[FightDescriptionDTO]]]] = {
 
     import BracketsUtils._
@@ -52,7 +52,7 @@ object FightsService {
       val fights = groupById(generated)(_.getId)
       val lifted: EitherT[F, Errors.Error, List[FightDescriptionDTO]] = for {
         assignedFights <- stage.getStageOrder.toInt match {
-          case 0 => EitherT.fromEither[F](BracketsUtils.distributeCompetitors(competitors, fights))
+          case 0 => EitherT.fromEither[F](BracketsUtils.distributeCompetitors(competitorsToDistribute, fights))
           case _ => EitherT.fromEither[F](Right(fights))
         }
         markedUncompletableFights <- EitherT.liftF[F, Errors.Error, Map[String, FightDescriptionDTO]](
@@ -77,7 +77,7 @@ object FightsService {
             if (stage.getHasThirdPlaceFight) {
               for {
                 fights <- EitherT(
-                  generateEmptyWinnerRoundsForCategory[F](competitionId, categoryId, stage.getId, compssize, duration)
+                  generateEmptyWinnerRoundsForCategory[F](competitionId, categoryId, stage.getId, targetCompetitorsSize, duration)
                 )
                 res <- EitherT.fromEither[F](
                   generateThirdPlaceFightForOlympicSystem(competitionId, categoryId, stage.getId, fights)
@@ -86,7 +86,7 @@ object FightsService {
             } else {
               for {
                 res <- EitherT(
-                  generateEmptyWinnerRoundsForCategory[F](competitionId, categoryId, stage.getId, compssize, duration)
+                  generateEmptyWinnerRoundsForCategory[F](competitionId, categoryId, stage.getId, targetCompetitorsSize, duration)
                 )
               } yield res
             }
@@ -94,11 +94,11 @@ object FightsService {
         } yield res).value
       case BracketType.DOUBLE_ELIMINATION => (for {
           generated <-
-            EitherT(generateDoubleEliminationBracket[F](competitionId, categoryId, stage.getId, compssize, duration))
+            EitherT(generateDoubleEliminationBracket[F](competitionId, categoryId, stage.getId, targetCompetitorsSize, duration))
           res <- if (stage.getStageOrder == 0) postProcessFights(generated) else EitherT.pure[F, Errors.Error](generated)
         } yield res).value
       case BracketType.GROUP => (for {
-          generated <- EitherT(generateStageFights(competitionId, categoryId, stage, duration, competitors))
+          generated <- EitherT(generateStageFights(competitionId, categoryId, stage, duration, competitorsToDistribute))
         } yield generated).value
     }
   }

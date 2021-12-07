@@ -79,7 +79,7 @@ object FightUpdateOperations {
       for {
         collection <- fightCollection
         statement = collection.insertMany(fights)
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- if (fights.nonEmpty) RIO.fromFuture(_ => statement.toFuture()).map(_ => ()) else RIO.unit
       } yield res
     }
 
@@ -102,7 +102,7 @@ object FightUpdateOperations {
             )
           )
         ))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- if (fights.nonEmpty) RIO.fromFuture(_ => statement.toFuture()).map(_ => ()) else RIO.unit
       } yield res
     }
 
