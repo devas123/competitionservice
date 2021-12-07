@@ -6,7 +6,7 @@ import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.query.model.{CompScore, Fight, FightResult, FightStartTimeUpdate}
 import org.mongodb.scala.MongoClient
 import org.mongodb.scala.model.UpdateOneModel
-import zio.{RIO, Ref, ZIO}
+import zio.{Ref, RIO, ZIO}
 import zio.interop.catz._
 
 trait FightUpdateOperations[F[+_]] {
@@ -62,8 +62,6 @@ object FightUpdateOperations {
 
     override def dbName: String = name
 
-    override def idField: String = "id"
-
     import org.mongodb.scala.model.Filters._
     import org.mongodb.scala.model.Updates._
 
@@ -78,8 +76,8 @@ object FightUpdateOperations {
     override def addFights(fights: List[Fight]): LIO[Unit] = {
       for {
         collection <- fightCollection
-        statement = collection.insertMany(fights)
-        res <- if (fights.nonEmpty) RIO.fromFuture(_ => statement.toFuture()).map(_ => ()) else RIO.unit
+        res <-
+          if (fights.nonEmpty) RIO.fromFuture(_ => collection.insertMany(fights).toFuture()).map(_ => ()) else RIO.unit
       } yield res
     }
 
@@ -94,15 +92,17 @@ object FightUpdateOperations {
     override def updateFightScores(fights: List[Fight]): LIO[Unit] = {
       for {
         collection <- fightCollection
-        statement = collection.bulkWrite(fights.map(f =>
-          UpdateOneModel(
-            equal(idField, f.id),
-            combine(
-              Array(Option(set("scores", f.scores)), f.status.map(set("status", _))).filter(_.isDefined).map(_.get): _*
+        statement = () =>
+          collection.bulkWrite(fights.map(f =>
+            UpdateOneModel(
+              equal(idField, f.id),
+              combine(
+                Array(Option(set("scores", f.scores)), f.status.map(set("status", _))).filter(_.isDefined)
+                  .map(_.get): _*
+              )
             )
-          )
-        ))
-        res <- if (fights.nonEmpty) RIO.fromFuture(_ => statement.toFuture()).map(_ => ()) else RIO.unit
+          ))
+        res <- if (fights.nonEmpty) RIO.fromFuture(_ => statement().toFuture()).map(_ => ()) else RIO.unit
       } yield res
     }
 
@@ -134,24 +134,25 @@ object FightUpdateOperations {
     override def updateFightStartTime(fights: List[FightStartTimeUpdate]): LIO[Unit] = {
       for {
         collection <- fightCollection
-        writes = fights.map(f =>
-          UpdateOneModel(
-            equal(idField, f.id),
-            combine(
-              set("matId", f.matId.orNull),
-              set("matName", f.matName.orNull),
-              set("matOrder", f.matOrder.getOrElse(-1)),
-              set("numberOnMat", f.numberOnMat.getOrElse(-1)),
-              set("periodId", f.periodId.orNull),
-              set("startTime", f.startTime.orNull),
-              set("invalid", f.invalid.getOrElse(false)),
-              set("scheduleEntryId", f.scheduleEntryId.orNull)
+        writes = () =>
+          fights.map(f =>
+            UpdateOneModel(
+              equal(idField, f.id),
+              combine(
+                set("matId", f.matId.orNull),
+                set("matName", f.matName.orNull),
+                set("matOrder", f.matOrder.getOrElse(-1)),
+                set("numberOnMat", f.numberOnMat.getOrElse(-1)),
+                set("periodId", f.periodId.orNull),
+                set("startTime", f.startTime.orNull),
+                set("invalid", f.invalid.getOrElse(false)),
+                set("scheduleEntryId", f.scheduleEntryId.orNull)
+              )
             )
           )
-        )
 
         res <-
-          if (writes.nonEmpty) { RIO.fromFuture(_ => collection.bulkWrite(writes).toFuture()).map(_ => ()) }
+          if (fights.nonEmpty) { RIO.fromFuture(_ => collection.bulkWrite(writes()).toFuture()).map(_ => ()) }
           else { ZIO.unit }
       } yield res
     }

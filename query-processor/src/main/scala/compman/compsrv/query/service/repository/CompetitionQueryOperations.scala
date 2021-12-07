@@ -176,8 +176,6 @@ object CompetitionQueryOperations {
 
     override def dbName: String = name
 
-    override def idField: String = "id"
-
     override def getCompetitionProperties(id: String): LIO[Option[CompetitionProperties]] = {
       for {
         collection <- competitionStateCollection

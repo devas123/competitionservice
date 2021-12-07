@@ -34,10 +34,16 @@ object FightCompetitorsAssignedProc {
       ).mapFilter { case (ass, fromFight, toFight) =>
         for {
           scores              <- Option(toFight.scores)
+          compId <- Option(ass.getCompetitorId)
+          fromFightScore <- fromFight.scores.find(_.competitorId.contains(compId))
           score               <- scores.find(_.parentFightId.contains(fromFight.id))
           parentReferenceType <- score.parentReferenceType.orElse(Option(ass.getReferenceType))
           newScore = score
-            .copy(competitorId = Option(ass.getCompetitorId), parentReferenceType = Option(parentReferenceType))
+            .copy(competitorId = Option(compId),
+              competitorFirstName = fromFightScore.competitorFirstName,
+              competitorLastName = fromFightScore.competitorLastName,
+              competitorAcademyName = fromFightScore.competitorAcademyName,
+              parentReferenceType = Option(parentReferenceType))
           newScores = scores.filter(_.parentFightId != newScore.parentFightId) :+ newScore
         } yield toFight.copy(scores = newScores)
       }

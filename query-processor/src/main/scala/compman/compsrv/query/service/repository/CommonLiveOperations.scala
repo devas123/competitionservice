@@ -15,12 +15,10 @@ import zio.{Task, ZIO}
 
 import scala.reflect.ClassTag
 
-trait CommonLiveOperations {
+trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
 
-  val competitionIdField = "competitionId"
-  val categoryIdField = "categoryId"
-  private final val competitionStateCollectionName = "competition_state"
-  private final val competitorsCollectionName = "competitor"
+  private final val competitionStateCollectionName   = "competition_state"
+  private final val competitorsCollectionName        = "competitor"
   private final val fightsCollectionName             = "fight"
   private final val managedCompetitionCollectionName = "managed_competition"
 
@@ -108,7 +106,6 @@ trait CommonLiveOperations {
 
   def mongoClient: MongoClient
   def dbName: String
-  def idField: String
 
   private def createCollection[T: ClassTag](name: String, id: String) = {
     (for {
@@ -122,7 +119,11 @@ trait CommonLiveOperations {
   val competitionStateCollection: Task[MongoCollection[CompetitionState]] =
     createCollection(competitionStateCollectionName, idField)
   val competitorCollection: Task[MongoCollection[Competitor]] = createCollection(competitorsCollectionName, idField)
-  val fightCollection: Task[MongoCollection[Fight]]           = createCollection(fightsCollectionName, idField)
+  val fightCollection: Task[MongoCollection[Fight]]           = for {
+    coll <- createCollection[Fight](fightsCollectionName, idField)
+    _ <- ZIO
+      .fromFuture(_ => coll.createIndex(fightsCollectionIndex).toFuture())
+  } yield coll
   val managedCompetitionCollection: Task[MongoCollection[ManagedCompetition]] =
     createCollection(managedCompetitionCollectionName, idField)
 }

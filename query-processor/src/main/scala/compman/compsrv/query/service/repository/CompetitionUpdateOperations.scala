@@ -154,7 +154,6 @@ object CompetitionUpdateOperations {
 
     override def dbName: String = name
 
-    override def idField: String = "id"
     import org.mongodb.scala.model.Filters._
     import org.mongodb.scala.model.Updates._
     override def updateRegistrationOpen(competitionId: String)(isOpen: Boolean): LIO[Unit] = {

@@ -39,6 +39,8 @@ object FightOperationsTest extends DefaultRunnableSpec with TestEntities with Em
           _ <- FightUpdateOperations[LIO].removeFightsForCompetition(competitionId)
         } yield assert(loadedFight)(isSome) && assert(loadedFight.get.scores)(isNonEmpty) &&
           assert(loadedFight.get.scores.size)(equalTo(2)) && assert(loadedFight.get.fightResult)(isSome) &&
+          assert(loadedFight.get.scores.forall(s => s.competitorFirstName.isDefined && s.competitorLastName.isDefined))(isTrue) &&
+          assert(loadedFight.get.fightResult)(isSome) &&
           assert(loadedFight.get.fightResult.get.reason)(equalTo(fightResult.reason)) &&
           assert(loadedFight.get.fightResult.get.winnerId)(equalTo(fightResult.winnerId)) &&
           assert(loadedFight.get.status.get)(equalTo(FightStatus.FINISHED)) &&

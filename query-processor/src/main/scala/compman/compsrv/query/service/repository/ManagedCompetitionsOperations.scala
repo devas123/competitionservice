@@ -42,8 +42,6 @@ object ManagedCompetitionsOperations {
 
     override def dbName: String = name
 
-    override def idField: String = "id"
-
     override def getManagedCompetitions: LIO[List[ManagedCompetition]] = {
       for {
         collection <- managedCompetitionCollection

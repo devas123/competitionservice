@@ -92,8 +92,6 @@ object FightQueryOperations {
 
     override def dbName: String = name
 
-    override def idField: String = "id"
-
     import org.mongodb.scala.model.Filters._
 
     override def getFightsByMat(competitionId: String)(matId: String, limit: Int): LIO[List[Fight]] = {
