@@ -3,8 +3,11 @@ package compman.compsrv.logic.actors
 import cats.implicits._
 import compman.compsrv.logic.actors
 import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
-import zio.{Fiber, Queue, Ref, RIO, Task}
+import compman.compsrv.logic.actors.dungeon.SystemMessage
+import zio.{Fiber, Queue, RIO, Ref, Task}
 import zio.interop.catz._
+
+import scala.annotation.nowarn
 
 trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
   self =>
@@ -23,15 +26,16 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
     timers: Timers[R, Msg]
   ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg[Any]], S)] = RIO((Seq.empty, Seq.empty, initState))
 
+  @nowarn
   def postStop(actorConfig: ActorConfig, context: Context[Msg], state: S, timers: Timers[R, Msg]): RIO[R, Unit] =
     timers.cancelAll()
 
   def makeActor(
-    id: String,
-    actorConfig: ActorConfig,
-    initialState: S,
-    actorSystem: ActorSystem,
-    children: Ref[Set[ActorRef[Any]]]
+                 actorPath: ActorPath,
+                 actorConfig: ActorConfig,
+                 initialState: S,
+                 actorSystem: ActorSystem,
+                 children: Ref[Set[ActorRef[Any]]]
   )(optPostStop: () => Task[Unit]): RIO[R, ActorRef[Msg]] = {
     def process[A](
       context: Context[Msg],
@@ -62,12 +66,16 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] {
 
     for {
       queue     <- Queue.dropping[PendingMessage[Msg, _]](actorConfig.mailboxSize)
+      systemMessages     <- Queue.unbounded[PendingMessage[SystemMessage, _]]
+      watching     <- Ref.make(Map.empty[ActorRef[_], Option[Any]])
+      watchedBy     <- Ref.make(Set.empty[ActorRef[_]])
+      terminatedQueued     <- Ref.make(Map.empty[ActorRef[_], Option[Any]])
       timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
-      actor = actors.ActorRef[Msg](queue, id)(optPostStop)
+      actor = actors.ActorRef[Msg](queue, actorPath)(systemMessages, optPostStop, watching, watchedBy, terminatedQueued)
       ts    = Timers[R, Msg](actor, timersMap)
       _ <- (for {
         stateRef <- Ref.make(initialState)
-        context = Context(children, actor, id, actorSystem)
+        context = Context(children, actor, actorPath, actorSystem)
         (_, msgs, initState) <- init(actorConfig, context, initialState, ts)
         _                    <- stateRef.set(initState)
         _                    <- msgs.traverse(m => actor ! m)

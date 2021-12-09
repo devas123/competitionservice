@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.jackson.ObjectMapperFactory
 import compman.compsrv.logic.{CompetitionState, Operations}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
-import compman.compsrv.logic.actors.Messages._
+import compman.compsrv.logic.actors.EventSourcedMessages._
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
 import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionProcessingStopped}
 import compman.compsrv.model.commands.CommandDTO

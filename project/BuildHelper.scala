@@ -19,7 +19,8 @@ object BuildHelper {
     "-Ywarn-numeric-widen",
     "-Ywarn-value-discard",
     "-unchecked",
-    "-deprecation"
+    "-deprecation",
+    "-Xlint:unused"
   )
 
   private val extraOptions = Seq("-Xfatal-warnings")

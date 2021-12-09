@@ -1,6 +1,6 @@
 package compman.compsrv.logic.actors
 
-object Messages {
+object EventSourcedMessages {
   sealed trait Command[+Ev] extends Product
 
   object Command {

@@ -15,6 +15,7 @@ import zio.kafka.consumer._
 import zio.kafka.serde.Serde
 import zio.logging.Logging
 
+import java.util.UUID
 import scala.util.{Failure, Success, Try}
 
 private[kafka] object KafkaQueryAndSubscribeActor {
@@ -140,7 +141,7 @@ private[kafka] object KafkaQueryAndSubscribeActor {
                     Consumer.subscribeAnd(Subscription.manual(off.map(_._1).toIndexedSeq: _*))
                       .plainStream(Serde.string, Serde.byteArray).take(numberOfEventsToTake)
                       .mapM(e => (replyTo ! MessageReceived(topic = topic, committableRecord = e)).as(e))
-                      .map(_.offset).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
+                      .runDrain
                   } else { RIO.effect(Chunk.empty) }
               } yield ()
             } else { ZIO.unit }

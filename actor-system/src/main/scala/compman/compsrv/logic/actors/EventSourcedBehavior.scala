@@ -2,7 +2,7 @@ package compman.compsrv.logic.actors
 
 import cats.implicits._
 import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
-import compman.compsrv.logic.actors.Messages.Command
+import compman.compsrv.logic.actors.EventSourcedMessages.Command
 import zio.clock.Clock
 import zio.interop.catz._
 import zio.{Fiber, Queue, RIO, Ref, Task, ZIO}
@@ -33,11 +33,11 @@ abstract class EventSourcedBehavior[R, S, Msg[+_], Ev](persistenceId: String) ex
   ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg[Any]])] = RIO((Seq.empty, Seq.empty))
 
   override final def makeActor(
-    id: String,
-    actorConfig: ActorConfig,
-    initialState: S,
-    actorSystem: ActorSystem,
-    children: Ref[Set[ActorRef[Any]]]
+                                actorPath: ActorPath,
+                                actorConfig: ActorConfig,
+                                initialState: S,
+                                actorSystem: ActorSystem,
+                                children: Ref[Set[ActorRef[Any]]]
   )(optPostStop: () => Task[Unit]): RIO[R with Clock, ActorRef[Msg]] = {
 
     def applyEvents(events: Seq[Ev], state: S): RIO[R, S] = events.foldLeftM(state)(sourceEvent)
@@ -85,14 +85,14 @@ abstract class EventSourcedBehavior[R, S, Msg[+_], Ev](persistenceId: String) ex
 
     for {
       queue <- Queue.bounded[PendingMessage[Msg, _]](actorConfig.mailboxSize)
-      actor <- ZIO.effectTotal(ActorRef[Msg](queue, id)(optPostStop))
+      actor <- ZIO.effectTotal(ActorRef[Msg](queue, actorPath)(optPostStop))
       _ <- (for {
         events <- getEvents(persistenceId, initialState)
         sourcedState <- applyEvents(events, initialState)
         state <- Ref.make(sourcedState)
         timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
         ts = Timers[R, Msg](actor, timersMap)
-        context = Context(children, actor, id, actorSystem)
+        context = Context(children, actor, actorPath, actorSystem)
         (_, msgs) <- init(actorConfig, context, sourcedState, ts)
         _ <- msgs.traverse(m => actor ! m)
         _ <- innerLoop(state, queue, ts, context)

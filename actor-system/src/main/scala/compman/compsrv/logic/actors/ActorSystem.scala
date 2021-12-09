@@ -1,20 +1,20 @@
 package compman.compsrv.logic.actors
 
-import ActorSystem.ActorConfig
-import zio.{IO, Promise, Ref, RIO, Task, UIO, ZIO}
+import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import zio.clock.Clock
+import zio.{IO, Promise, RIO, Ref, Task, UIO, ZIO}
 
 final class ActorSystem(
-  val actorSystemName: String,
-  private val refActorMap: Ref[Map[String, Any]],
-  private val parentActor: Option[String]
-) {
+                         val actorSystemName: String,
+                         private val refActorMap: Ref[Map[ActorPath, Any]],
+                         private val parentActor: Option[ActorPath]
+                       ) {
   private val RegexName = "[\\w+|\\d+|(\\-_.*$+:@&=,!~';.)|\\/]+".r
 
-  private def buildFinalName(parentActorName: String, actorName: String): Task[String] = actorName match {
-    case ""            => IO.fail(new Exception("Actor actor must not be empty"))
-    case null          => IO.fail(new Exception("Actor actor must not be null"))
-    case RegexName(_*) => UIO.effectTotal(parentActorName + "/" + actorName)
+  private def buildFinalName(parentActorPath: ActorPath, actorName: String): Task[ActorPath] = actorName match {
+    case "" => IO.fail(new Exception("Actor actor must not be empty"))
+    case null => IO.fail(new Exception("Actor actor must not be null"))
+    case RegexName(_*) => UIO.effectTotal(parentActorPath / actorName)
     case _ => IO.fail(new Exception(s"Invalid actor name provided $actorName. Valid symbols are -_.*$$+:@&=,!~';"))
   }
 
@@ -39,31 +39,31 @@ final class ActorSystem(
     init: S,
     behavior: => AbstractBehavior[R, S, F]
   ): RIO[R with Clock, ActorRef[F]] = for {
-    map       <- refActorMap.get
-    finalName <- buildFinalName(parentActor.getOrElse(""), actorName)
-    _         <- if (map.contains(finalName)) IO.fail(new Exception(s"Actor $finalName already exists")) else IO.unit
-    derivedSystem = new ActorSystem(actorSystemName, refActorMap, Some(finalName))
+    map <- refActorMap.get
+    path <- buildFinalName(parentActor.getOrElse(ActorPath.emptyActorPath), actorName)
+    _ <- if (map.contains(path)) IO.fail(new Exception(s"Actor $path already exists")) else IO.unit
+    derivedSystem = new ActorSystem(actorSystemName, refActorMap, Some(path))
     childrenSet <- Ref.make(Set.empty[ActorRef[Any]])
-    actor <- behavior.makeActor(finalName, actorConfig, init, derivedSystem, childrenSet)(() =>
-      dropFromActorMap(finalName, childrenSet)
+    actor <- behavior.makeActor(path, actorConfig, init, derivedSystem, childrenSet)(() =>
+      dropFromActorMap(path, childrenSet)
     )
-    _ <- refActorMap.set(map + (finalName -> actor))
+    _ <- refActorMap.set(map + (path -> actor))
   } yield actor
 
-  private[actors] def dropFromActorMap(path: String, childrenRef: Ref[Set[ActorRef[Any]]]): Task[Unit] = for {
-    _        <- refActorMap.update(_ - path)
+  private[actors] def dropFromActorMap(path: ActorPath, childrenRef: Ref[Set[ActorRef[Any]]]): Task[Unit] = for {
+    _ <- refActorMap.update(_ - path)
     children <- childrenRef.get
-    _        <- ZIO.foreach_(children)(_.stop)
-    _        <- childrenRef.set(Set.empty)
+    _ <- ZIO.foreach_(children)(_.stop)
+    _ <- childrenRef.set(Set.empty)
   } yield ()
 
   def select[F[+_]](path: String): Task[ActorRef[F]] = {
     for {
-      actorMap  <- refActorMap.get
-      finalName <- if (path.startsWith("/")) IO.effectTotal(path) else buildFinalName(parentActor.getOrElse(""), path)
+      actorMap <- refActorMap.get
+      finalName <- if (path.startsWith("/")) IO.effectTotal(ActorPath.fromString(path)) else buildFinalName(parentActor.getOrElse(ActorPath.emptyActorPath), path)
       actorRef <- actorMap.get(finalName) match {
-        case Some(value) => for { actor <- IO.effectTotal(value.asInstanceOf[ActorRef[F]]) } yield actor
-        case None        => IO.fail(new Exception(s"No such actor $path in local ActorSystem."))
+        case Some(value) => for {actor <- IO.effectTotal(value.asInstanceOf[ActorRef[F]])} yield actor
+        case None => IO.fail(new Exception(s"No such actor $path in local ActorSystem."))
       }
     } yield actorRef
 
@@ -84,8 +84,8 @@ object ActorSystem {
     *   instantiated actor system
     */
   def apply(sysName: String): Task[ActorSystem] = for {
-    initActorRefMap <- Ref.make(Map.empty[String, Any])
-    actorSystem     <- IO.effect(new ActorSystem(sysName, initActorRefMap, parentActor = None))
+    initActorRefMap <- Ref.make(Map.empty[ActorPath, Any])
+    actorSystem <- IO.effect(new ActorSystem(sysName, initActorRefMap, parentActor = None))
   } yield actorSystem
 
 }

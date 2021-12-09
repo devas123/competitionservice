@@ -7,9 +7,13 @@ import zio.{RIO, Ref, Task, ZIO}
 
 import java.util.UUID
 
-case class Context[F[+_]](children: Ref[Set[ActorRef[Any]]], self: ActorRef[F], id: String, actorSystem: ActorSystem) {
+case class Context[F[+_]](children: Ref[Set[ActorRef[Any]]], self: ActorRef[F], actorPath: ActorPath, actorSystem: ActorSystem) {
 
   def stopSelf: Task[List[_]] = self.stop
+
+  def watchWith[F1[+_]](msg: F, actorRef: ActorRef[F1]): Task[Unit] = {
+
+  }
 
   def messageAdapter[In[+_]](mapping: In ~> F): ZIO[Any with Clock, Throwable, ActorRef[In]] = make[Any, Unit, In](
     UUID.randomUUID().toString,
