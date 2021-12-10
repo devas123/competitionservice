@@ -1,7 +1,5 @@
 package compman.compsrv.logic.actors
 
-import scala.annotation.nowarn
-
 /**
   * An object designed to generate well-distributed non-cryptographic
   *  hashes.  It is designed to hash a collection of integers; along with
@@ -109,7 +107,6 @@ object MurmurHash {
     *  where the order of appearance of elements does not matter.
     *  This is useful for hashing sets, for example.
     */
-  @nowarn("msg=deprecated")
   def symmetricHash[T](xs: IterableOnce[T], seed: Int): Int = {
     var a, b, n = 0
     var c = 1

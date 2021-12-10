@@ -4,11 +4,13 @@ import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.dungeon.SystemMessage
 import zio.{IO, Promise, Ref, RIO, Task, UIO, ZIO}
 import zio.clock.Clock
+import zio.internal.Hub
 
 final class ActorSystem(
   val actorSystemName: String,
   private val refActorMap: Ref[Map[ActorPath, Any]],
-  private val parentActor: Option[ActorPath]
+  private val parentActor: Option[ActorPath],
+  val eventStream: Hub[Any]
 ) {
   private val RegexName = "[\\w+|\\d+|(\\-_.*$+:@&=,!~';.)|\\/]+".r
 
@@ -43,7 +45,7 @@ final class ActorSystem(
     map  <- refActorMap.get
     path <- buildFinalName(parentActor.getOrElse(RootActorPath()), actorName)
     _    <- if (map.contains(path)) IO.fail(new Exception(s"Actor $path already exists")) else IO.unit
-    derivedSystem = new ActorSystem(actorSystemName, refActorMap, Some(path))
+    derivedSystem = new ActorSystem(actorSystemName, refActorMap, Some(path), eventStream)
     childrenSet <- Ref.make(Set.empty[ActorRef[Any]])
     actor <- behavior
       .makeActor(path, actorConfig, init, derivedSystem, childrenSet)(() => dropFromActorMap(path, childrenSet))
@@ -86,8 +88,8 @@ object ActorSystem {
     *   instantiated actor system
     */
   def apply(sysName: String): Task[ActorSystem] = for {
+    eventStream <- IO.effectTotal(Hub.unbounded[Any])
     initActorRefMap <- Ref.make(Map.empty[ActorPath, Any])
-    actorSystem     <- IO.effect(new ActorSystem(sysName, initActorRefMap, parentActor = None))
+    actorSystem     <- IO.effect(new ActorSystem(sysName, initActorRefMap, parentActor = None, eventStream))
   } yield actorSystem
-
 }
