@@ -54,7 +54,7 @@ object MurmurHash {
     * @return          the updated hash value
     */
   def extendHash(hash: Int, value: Int, magicA: Int, magicB: Int): Int =
-    (hash ^ rotl(value * magicA, 11) * magicB) * 3 + visibleMixer
+    (hash ^ Integer.rotateLeft(value * magicA, 11) * magicB) * 3 + visibleMixer
 
   /** Given a magic integer from the first stream, compute the next */
   def nextMagicA(magicA: Int): Int = magicA * 5 + hiddenMixerA
@@ -64,7 +64,7 @@ object MurmurHash {
 
   /** Once all hashes have been incorporated, this performs a final mixing */
   def finalizeHash(hash: Int): Int = {
-    var i = (hash ^ (hash >>> 16))
+    var i = hash ^ (hash >>> 16)
     i *= finalMixer1
     i ^= (i >>> 13)
     i *= finalMixer2
@@ -100,7 +100,7 @@ object MurmurHash {
       k = nextMagicB(k)
       j += 2
     }
-    if (j < s.length) h = extendHash(h, s.charAt(j), c, k)
+    if (j < s.length) h = extendHash(h, s.charAt(j).toInt, c, k)
     finalizeHash(h)
   }
 
@@ -113,7 +113,7 @@ object MurmurHash {
   def symmetricHash[T](xs: IterableOnce[T], seed: Int): Int = {
     var a, b, n = 0
     var c = 1
-    xs.foreach(i => {
+    xs.iterator.foreach(i => {
       val h = i.##
       a += h
       b ^= h

@@ -10,36 +10,13 @@ import scala.annotation.nowarn
 
 object ActorPaths {
 
-  /**
-    * Parse string as actor path; throws java.net.MalformedURLException if unable to do so.
-    */
   def fromString(s: String): ActorPath = ActorPath.fromString(s)
 
-  /**
-    * Validates the given actor path element and throws an [[InvalidActorNameException]] if invalid.
-    * See [[#isValidPathElement]] for a non-throwing version.
-    *
-    * @param element actor path element to be validated
-    */
   final def validatePathElement(element: String): Unit = ActorPath.validatePathElement(element)
 
-  /**
-    * Validates the given actor path element and throws an [[InvalidActorNameException]] if invalid.
-    * See [[#isValidPathElement]] for a non-throwing version.
-    *
-    * @param element  actor path element to be validated
-    * @param fullPath optional fullPath element that may be included for better error messages; null if not given
-    */
   final def validatePathElement(element: String, fullPath: String): Unit =
     ActorPath.validatePathElement(element, fullPath)
 
-  /**
-    * This method is used to validate a path element (Actor Name).
-    * Since Actors form a tree, it is addressable using an URL, therefore an Actor Name has to conform to:
-    * <a href="https://www.ietf.org/rfc/rfc2396.txt">RFC-2396</a>.
-    *
-    * User defined Actor names may not start from a `$` sign - these are reserved for system names.
-    */
   final def isValidPathElement(s: String): Boolean = ActorPath.isValidPathElement(s)
 
 }
@@ -66,7 +43,7 @@ object ActorPathExtractor extends PathUtils {
     }
 }
 
-private trait PathUtils {
+trait PathUtils {
   protected def split(s: String, fragment: String): List[String] = {
     @tailrec
     def rec(pos: Int, acc: List[String]): List[String] = {
@@ -84,9 +61,6 @@ private trait PathUtils {
 
 object ActorPath {
 
-  /**
-    * Parse string as actor path; throws java.net.MalformedURLException if unable to do so.
-    */
   def fromString(s: String): ActorPath = s match {
     case ActorPathExtractor(elems) => RootActorPath() / elems
     case _ => throw new MalformedURLException("cannot parse as ActorPath: " + s)
@@ -97,27 +71,14 @@ object ActorPath {
   private final val ValidPathCode = -1
   private final val EmptyPathCode = -2
 
-  /**
-    * Validates the given actor path element and throws an [[InvalidActorNameException]] if invalid.
-    * See [[#isValidPathElement]] for a non-throwing version.
-    *
-    * @param element actor path element to be validated
-    */
   final def validatePathElement(element: String): Unit = validatePathElement(element, fullPath = null)
 
-  /**
-    * Validates the given actor path element and throws an [[InvalidActorNameException]] if invalid.
-    * See [[#isValidPathElement]] for a non-throwing version.
-    *
-    * @param element  actor path element to be validated
-    * @param fullPath optional fullPath element that may be included for better error messages; null if not given
-    */
   final def validatePathElement(element: String, fullPath: String): Unit = {
     def fullPathMsg = if (fullPath ne null) s""" (in path [$fullPath])""" else ""
 
     // If the number of cases increase remember to add a `@switch` annotation e.g.:
     // (findInvalidPathElementCharPosition(element): @switch) match {
-    (findInvalidPathElementCharPosition(element)) match {
+    findInvalidPathElementCharPosition(element) match {
       case ValidPathCode =>
       // valid
       case EmptyPathCode =>
@@ -148,7 +109,7 @@ object ActorPath {
     if (s.isEmpty) EmptyPathCode
     else {
       def isValidChar(c: Char): Boolean =
-        (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || (ValidSymbols.indexOf(c) != -1)
+        (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || (ValidSymbols.indexOf(c.toInt) != -1)
 
       def isHexChar(c: Char): Boolean =
         (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') || (c >= '0' && c <= '9')
@@ -298,7 +259,7 @@ final case class RootActorPath(name: String = "/") extends ActorPath {
     */
   override private[actors] def withUid(uid: Int): ActorPath =
     if (uid == undefinedUid) this
-    else throw new IllegalStateException(s"RootActorPath must have undefinedUid, [$uid != ${undefinedUid}")
+    else throw new IllegalStateException(s"RootActorPath must have undefinedUid, [$uid != $undefinedUid")
 
 }
 

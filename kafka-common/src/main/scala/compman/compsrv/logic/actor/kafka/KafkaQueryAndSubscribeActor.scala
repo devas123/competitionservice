@@ -15,7 +15,6 @@ import zio.kafka.consumer._
 import zio.kafka.serde.Serde
 import zio.logging.Logging
 
-import java.util.UUID
 import scala.util.{Failure, Success, Try}
 
 private[kafka] object KafkaQueryAndSubscribeActor {
