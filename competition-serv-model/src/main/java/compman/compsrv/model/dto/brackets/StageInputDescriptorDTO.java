@@ -10,7 +10,6 @@ import lombok.experimental.Accessors;
 @NoArgsConstructor
 @Accessors(chain = true)
 public class StageInputDescriptorDTO {
-    private String id;
     private Integer numberOfCompetitors;
     private CompetitorSelectorDTO[] selectors;
     private DistributionType distributionType;

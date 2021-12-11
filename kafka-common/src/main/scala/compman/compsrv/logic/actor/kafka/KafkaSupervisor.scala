@@ -21,40 +21,40 @@ object KafkaSupervisor {
     additionalProperties: Map[String, String] = Map.empty
   )
 
-  sealed trait KafkaConsumerApi[+A]
+  sealed trait KafkaConsumerApi
 
-  final case class QueryStarted() extends KafkaConsumerApi[Unit]
+  final case class QueryStarted() extends KafkaConsumerApi
 
-  final case class QueryFinished() extends KafkaConsumerApi[Unit]
+  final case class QueryFinished() extends KafkaConsumerApi
 
-  final case class QueryError(error: Throwable) extends KafkaConsumerApi[Unit]
+  final case class QueryError(error: Throwable) extends KafkaConsumerApi
 
   final case class MessageReceived(topic: String, committableRecord: CommittableRecord[String, Array[Byte]])
-      extends KafkaConsumerApi[Unit]
+      extends KafkaConsumerApi
 
-  sealed trait KafkaSupervisorCommand[+A]
+  sealed trait KafkaSupervisorCommand
 
   case class QueryAndSubscribe(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi])
-      extends KafkaSupervisorCommand[Unit]
+      extends KafkaSupervisorCommand
 
-  case class CreateTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig) extends KafkaSupervisorCommand[Unit]
+  case class CreateTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig) extends KafkaSupervisorCommand
 
   case class QueryAsync(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi])
-      extends KafkaSupervisorCommand[Unit]
+      extends KafkaSupervisorCommand
 
   case class QuerySync(
     topic: String,
     groupId: String,
     promise: Promise[Throwable, Seq[Array[Byte]]],
     timeout: Duration = 10.seconds
-  ) extends KafkaSupervisorCommand[Seq[Array[Byte]]]
+  ) extends KafkaSupervisorCommand
 
   case class Subscribe(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi])
-      extends KafkaSupervisorCommand[Unit]
+      extends KafkaSupervisorCommand
 
-  case class PublishMessage(topic: String, key: String, message: Array[Byte]) extends KafkaSupervisorCommand[Unit]
+  case class PublishMessage(topic: String, key: String, message: Array[Byte]) extends KafkaSupervisorCommand
 
-  case object Stop extends KafkaSupervisorCommand[Unit]
+  case object Stop extends KafkaSupervisorCommand
 
   type KafkaSupervisorEnvironment[R] = R with Logging with Clock with Blocking
 
@@ -63,20 +63,20 @@ object KafkaSupervisor {
   ], KafkaSupervisorCommand] = new ActorBehavior[KafkaSupervisorEnvironment[R], Option[
     ActorRef[KafkaPublishActor.KafkaPublishActorCommand]
   ], KafkaSupervisorCommand] {
-    override def receive[A](
-      context: Context[KafkaSupervisorCommand],
-      actorConfig: ActorConfig,
-      state: Option[ActorRef[KafkaPublishActor.KafkaPublishActorCommand]],
-      command: KafkaSupervisorCommand[A],
-      timers: Timers[KafkaSupervisorEnvironment[R], KafkaSupervisorCommand]
-    ): RIO[KafkaSupervisorEnvironment[R], (Option[ActorRef[KafkaPublishActor.KafkaPublishActorCommand]], A)] =
+    override def receive(
+                          context: Context[KafkaSupervisorCommand],
+                          actorConfig: ActorConfig,
+                          state: Option[ActorRef[KafkaPublishActor.KafkaPublishActorCommand]],
+                          command: KafkaSupervisorCommand,
+                          timers: Timers[KafkaSupervisorEnvironment[R], KafkaSupervisorCommand]
+    ): RIO[KafkaSupervisorEnvironment[R], Option[ActorRef[KafkaPublishActor.KafkaPublishActorCommand]]] =
       command match {
         case QueryAndSubscribe(topic, groupId, replyTo) => context.make(
             UUID.randomUUID().toString,
             ActorConfig(),
             (),
             KafkaQueryAndSubscribeActor.behavior(topic, groupId, replyTo, brokers, subscribe = true, query = true)
-          ).as((state, ().asInstanceOf[A]))
+          ).as(state)
         case QuerySync(topic, groupId, promise, timeout) => for {
             queryReceiver <- context.make(
               UUID.randomUUID().toString,
@@ -91,37 +91,37 @@ object KafkaSupervisor {
               KafkaQueryAndSubscribeActor
                 .behavior(topic, groupId, queryReceiver, brokers, subscribe = false, query = true)
             )
-          } yield (state, ().asInstanceOf[A])
+          } yield state
 
         case QueryAsync(topic, groupId, replyTo) => context.make(
             UUID.randomUUID().toString,
             ActorConfig(),
             (),
             KafkaQueryAndSubscribeActor.behavior(topic, groupId, replyTo, brokers, subscribe = false, query = true)
-          ).as((state, ().asInstanceOf[A]))
+          ).as(state)
         case Subscribe(topic, groupId, replyTo) => context.make(
             UUID.randomUUID().toString,
             ActorConfig(),
             (),
             KafkaQueryAndSubscribeActor.behavior(topic, groupId, replyTo, brokers, subscribe = true, query = false)
-          ).as((state, ().asInstanceOf[A]))
-        case Stop => context.stopSelf.as((state, ().asInstanceOf[A]))
+          ).as(state)
+        case Stop => context.stopSelf.as(state)
         case PublishMessage(topic, key, message) => state.fold(Task(()))(_ ! PublishMessageToKafka(topic, key, message))
-            .as((state, ().asInstanceOf[A]))
+            .as(state)
         case CreateTopicIfMissing(topic, topicConfig) => AdminClient.make(AdminClientSettings(brokers))
             .use(_.createTopic(AdminClient.NewTopic(topic, topicConfig.numPartitions, topicConfig.replicationFactor)))
-            .as((state, ().asInstanceOf[A]))
+            .as(state)
 
       }
 
     override def init(
-      actorConfig: ActorConfig,
-      context: Context[KafkaSupervisorCommand],
-      initState: Option[ActorRef[KafkaPublishActor.KafkaPublishActorCommand]],
-      timers: Timers[KafkaSupervisorEnvironment[R], KafkaSupervisorCommand]
+                       actorConfig: ActorConfig,
+                       context: Context[KafkaSupervisorCommand],
+                       initState: Option[ActorRef[KafkaPublishActor.KafkaPublishActorCommand]],
+                       timers: Timers[KafkaSupervisorEnvironment[R], KafkaSupervisorCommand]
     ): RIO[KafkaSupervisorEnvironment[
       R
-    ], (Seq[Fiber[Throwable, Unit]], Seq[KafkaSupervisorCommand[Any]], Option[ActorRef[KafkaPublishActor.KafkaPublishActorCommand]])] =
+    ], (Seq[Fiber[Throwable, Unit]], Seq[KafkaSupervisorCommand], Option[ActorRef[KafkaPublishActor.KafkaPublishActorCommand]])] =
       for {
         publishActor <- initState.map(RIO(_))
           .getOrElse(context.make("KafkaPublishActor", ActorConfig(), (), KafkaPublishActor.behavior[R](brokers)))

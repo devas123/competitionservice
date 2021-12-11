@@ -4,7 +4,7 @@ import compman.compsrv.logic.actor.kafka.KafkaSupervisor.KafkaSupervisorEnvironm
 import compman.compsrv.logic.actors.{ActorBehavior, Context, Timers}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import org.apache.kafka.clients.producer.ProducerRecord
-import zio.{Chunk, RIO, Tag}
+import zio.{Chunk, Tag}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.producer.{Producer, ProducerSettings}
@@ -12,35 +12,27 @@ import zio.kafka.serde.Serde
 import zio.logging.Logging
 
 object KafkaPublishActor {
-  sealed trait KafkaPublishActorCommand[+A]
+  sealed trait KafkaPublishActorCommand
 
-  case object Stop extends KafkaPublishActorCommand[Unit]
+  case object Stop extends KafkaPublishActorCommand
 
   private[kafka] case class PublishMessageToKafka(topic: String, key: String, message: Array[Byte])
-      extends KafkaPublishActorCommand[Unit]
+      extends KafkaPublishActorCommand
 
   type KafkaPublishActorEnvironment[R] = R with Logging with Clock with Blocking
 
   def behavior[R: Tag](
     brokers: List[String]
   ): ActorBehavior[KafkaPublishActorEnvironment[R], Unit, KafkaPublishActorCommand] =
-    new ActorBehavior[KafkaPublishActorEnvironment[R], Unit, KafkaPublishActorCommand] {
-      override def receive[A](
-        context: Context[KafkaPublishActorCommand],
-        actorConfig: ActorConfig,
-        state: Unit,
-        command: KafkaPublishActorCommand[A],
-        timers: Timers[KafkaPublishActorEnvironment[R], KafkaPublishActorCommand]
-      ): RIO[KafkaPublishActorEnvironment[R], (Unit, A)] = {
-        command match {
-          case PublishMessageToKafka(topic, key, message) => for {
-              _ <- Producer.produceChunk(Chunk.single(new ProducerRecord[String, Array[Byte]](topic, key, message)), Serde.string, Serde.byteArray)
-              _ <- Logging.info(s"Published message to $topic with key $key")
-            } yield ((), ().asInstanceOf[A])
-          case Stop => context.stopSelf.as(((), ().asInstanceOf[A]))
-        }
-      }.provideSomeLayer[KafkaSupervisorEnvironment[R]](
-        Producer.make(ProducerSettings(brokers)).toLayer
-      )
-    }
+    (context: Context[KafkaPublishActorCommand], _: ActorConfig, _: Unit, command: KafkaPublishActorCommand, _: Timers[KafkaPublishActorEnvironment[R], KafkaPublishActorCommand]) => {
+      command match {
+        case PublishMessageToKafka(topic, key, message) => for {
+          _ <- Producer.produceChunk(Chunk.single(new ProducerRecord[String, Array[Byte]](topic, key, message)), Serde.string, Serde.byteArray)
+          _ <- Logging.info(s"Published message to $topic with key $key")
+        } yield ()
+        case Stop => context.stopSelf.unit
+      }
+    }.provideSomeLayer[KafkaSupervisorEnvironment[R]](
+      Producer.make(ProducerSettings(brokers)).toLayer
+    )
 }

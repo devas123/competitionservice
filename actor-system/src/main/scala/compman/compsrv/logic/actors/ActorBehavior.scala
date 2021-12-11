@@ -1,7 +1,6 @@
 package compman.compsrv.logic.actors
 
 import cats.implicits._
-import compman.compsrv.logic.actors
 import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
 import compman.compsrv.logic.actors.dungeon.{DeathWatch, DeathWatchNotification, Signal}
 import zio.{Fiber, Queue, Ref, RIO, Task}
@@ -9,31 +8,31 @@ import zio.interop.catz._
 
 import scala.annotation.nowarn
 
-trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] with DeathWatch[Msg] {
+trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWatch[Msg] {
   self =>
-  def receive[A](
+  def receive(
     context: Context[Msg],
     actorConfig: ActorConfig = ActorConfig(),
     state: S,
-    command: Msg[A],
+    command: Msg,
     timers: Timers[R, Msg]
-  ): RIO[R, (S, A)]
+  ): RIO[R, S]
 
   @nowarn
-  def receiveSignal[A](
+  def receiveSignal(
     context: Context[Msg],
     actorConfig: ActorConfig = ActorConfig(),
     state: S,
     command: Signal,
     timers: Timers[R, Msg]
-  ): RIO[R, (S, A)] = RIO.unit.as((state, ().asInstanceOf[A]))
+  ): RIO[R, S] = RIO.unit.as(state)
 
   def init(
     actorConfig: ActorConfig,
     context: Context[Msg],
     initState: S,
     timers: Timers[R, Msg]
-  ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg[Any]], S)] = RIO((Seq.empty, Seq.empty, initState))
+  ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg], S)] = RIO((Seq.empty, Seq.empty, initState))
 
   def postStop(actorConfig: ActorConfig, context: Context[Msg], state: S, timers: Timers[R, Msg]): RIO[R, Unit] =
     timers.cancelAll()
@@ -45,31 +44,31 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] with Deat
     actorSystem: ActorSystem,
     children: Ref[Set[ActorRef[Any]]]
   )(optPostStop: () => Task[Unit]): RIO[R, ActorRef[Msg]] = {
-    def process[A](
-      watching: Ref[Map[Any, Option[Any]]],
-      watchedBy: Ref[Set[Any]],
-      terminatedQueued: Ref[Map[Any, Option[Any]]]
-    )(context: Context[Msg], msg: PendingMessage[Msg, A], stateRef: Ref[S], ts: Timers[R, Msg]): RIO[R, Unit] = {
+    def process(
+      watching: Ref[Map[ActorRef[Any], Option[Any]]],
+      watchedBy: Ref[Set[ActorRef[Any]]],
+      terminatedQueued: Ref[Map[ActorRef[Any], Option[Any]]]
+    )(context: Context[Msg], msg: PendingMessage[Msg], stateRef: Ref[S], ts: Timers[R, Msg]): RIO[R, Unit] = {
       for {
         state <- stateRef.get
         (command, promise) = msg
         receiver = command match {
           case Left(value) => value match {
               case signal: Signal => receiveSignal(context, actorConfig, state, signal, ts)
-              case _ => processSystemMessage(context, watching, watchedBy)(value).as((state, ().asInstanceOf[A]))
+              case _              => processSystemMessage(context, watching, watchedBy)(value).as(state)
             }
           case Right(value) => receive(context, actorConfig, state, value, ts)
         }
-        completer = ((s: S, a: A) => stateRef.set(s) *> promise.succeed(a)).tupled
+        completer = (s: S) => stateRef.set(s) *> promise.succeed(())
         _ <- receiver.foldM(promise.fail, completer)
       } yield ()
     }
 
     def innerLoop(
-      watching: Ref[Map[Any, Option[Any]]],
-      watchedBy: Ref[Set[Any]],
-      terminatedQueued: Ref[Map[Any, Option[Any]]]
-    )(queue: Queue[PendingMessage[Msg, _]], stateRef: Ref[S], ts: Timers[R, Msg], context: Context[Msg]) = {
+      watching: Ref[Map[ActorRef[Any], Option[Any]]],
+      watchedBy: Ref[Set[ActorRef[Any]]],
+      terminatedQueued: Ref[Map[ActorRef[Any], Option[Any]]]
+    )(queue: Queue[PendingMessage[Msg]], stateRef: Ref[S], ts: Timers[R, Msg], context: Context[Msg]) = {
       for {
         t <- (for {
           msg <- queue.take
@@ -85,12 +84,12 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] with Deat
     }
 
     for {
-      queue            <- Queue.dropping[PendingMessage[Msg, _]](actorConfig.mailboxSize)
-      watching         <- Ref.make(Map.empty[Any, Option[Any]])
-      watchedBy        <- Ref.make(Set.empty[Any])
-      terminatedQueued <- Ref.make(Map.empty[Any, Option[Any]])
+      queue            <- Queue.dropping[PendingMessage[Msg]](actorConfig.mailboxSize)
+      watching         <- Ref.make(Map.empty[ActorRef[Any], Option[Any]])
+      watchedBy        <- Ref.make(Set.empty[ActorRef[Any]])
+      terminatedQueued <- Ref.make(Map.empty[ActorRef[Any], Option[Any]])
       timersMap        <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
-      actor = actors.ActorRef[Msg](queue, actorPath)(optPostStop)
+      actor = LocalActorRef[Msg](queue, actorPath)(optPostStop)
       ts    = Timers[R, Msg](actor, timersMap)
       _ <- (for {
         stateRef <- Ref.make(initialState)
@@ -102,5 +101,4 @@ trait ActorBehavior[R, S, Msg[+_]] extends AbstractBehavior[R, S, Msg] with Deat
       } yield ()).fork
     } yield actor
   }
-
 }

@@ -1,37 +1,36 @@
 package compman.compsrv.logic.actors
 
-import cats.~>
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.dungeon.Watch
-import zio.clock.Clock
 import zio.{Ref, RIO, Task, ZIO}
+import zio.clock.Clock
 
 import java.util.UUID
 
-case class Context[F[+_]](children: Ref[Set[ActorRef[Any]]], self: ActorRef[F], actorPath: ActorPath, actorSystem: ActorSystem) {
+case class Context[F](children: Ref[Set[ActorRef[Any]]], self: ActorRef[F], actorPath: ActorPath, actorSystem: ActorSystem) {
 
   def stopSelf: Task[List[_]] = self.stop
 
-  def watchWith[F1[+_]](msg: F[_], actorRef: ActorRef[F1]): Task[Unit] = {
+  def watchWith[F1](msg: F, actorRef: ActorRef[F1]): Task[Unit] = {
     self sendSystemMessage Watch(actorRef, self, Option(msg))
   }
 
-  def messageAdapter[In[+_]](mapping: In ~> F): ZIO[Any with Clock, Throwable, ActorRef[In]] = make[Any, Unit, In](
+  def messageAdapter[In](mapping: In => F): ZIO[Any with Clock, Throwable, ActorRef[In]] = make[Any, Unit, In](
     UUID.randomUUID().toString,
     ActorConfig(),
     (),
     new ActorBehavior[Any, Unit, In] {
-      override def receive[A](
+      override def receive(
         context: Context[In],
         actorConfig: ActorConfig,
         state: Unit,
-        command: In[A],
+        command: In,
         timers: Timers[Any, In]
-      ): RIO[Any, (Unit, A)] = for { _ <- self ! mapping.apply(command) } yield ((), ().asInstanceOf[A])
+      ): RIO[Any, Unit] = for { _ <- self ! mapping.apply(command) } yield ()
     }
   )
 
-  def findChild[F1[+_]](name: String): Task[Option[ActorRef[F1]]] = {
+  def findChild[F1](name: String): Task[Option[ActorRef[F1]]] = {
     actorSystem.select[F1](name).fold(_ => None, Option(_))
   }
 
@@ -50,7 +49,7 @@ case class Context[F[+_]](children: Ref[Set[ActorRef[Any]]], self: ActorRef[F], 
     * @return
     *   reference to the created actor in effect that can't fail
     */
-  def make[R, S, F1[+_]](
+  def make[R, S, F1](
     actorName: String,
     actorConfig: ActorConfig,
     init: S,
@@ -60,7 +59,7 @@ case class Context[F[+_]](children: Ref[Set[ActorRef[Any]]], self: ActorRef[F], 
     actorRef <- actorSystem.make(actorName, actorConfig, init, behavior)
     _        <- children.set(ch + actorRef.asInstanceOf[ActorRef[Any]])
   } yield actorRef
-  def select[F1[+_]](path: String): Task[ActorRef[F1]] = actorSystem.select(path)
+  def select[F1](path: String): Task[ActorRef[F1]] = actorSystem.select(path)
 
   /* INTERNAL API */
 

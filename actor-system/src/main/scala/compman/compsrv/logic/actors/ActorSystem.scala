@@ -36,7 +36,7 @@ final class ActorSystem(
     * @return
     *   reference to the created actor in effect that can't fail
     */
-  def make[R, S, F[+_]](
+  def make[R, S, F](
     actorName: String,
     actorConfig: ActorConfig,
     init: S,
@@ -59,25 +59,37 @@ final class ActorSystem(
     _        <- childrenRef.set(Set.empty)
   } yield ()
 
-  def select[F[+_]](path: String): Task[ActorRef[F]] = {
+  def select[F](path: String): Task[ActorRef[F]] = {
     for {
       actorMap <- refActorMap.get
       finalName <-
         if (path.startsWith("/")) IO.effectTotal(ActorPath.fromString(path))
         else buildFinalName(parentActor.getOrElse(RootActorPath()), path)
-      actorRef <- actorMap.get(finalName) match {
-        case Some(value) => for { actor <- IO.effectTotal(value.asInstanceOf[ActorRef[F]]) } yield actor
-        case None        => IO.fail(new Exception(s"No such actor $path in local ActorSystem."))
-      }
+      actorRef <- selectByActorPath[F](finalName, actorMap)
     } yield actorRef
 
   }
 
+  def select[F](finalName: ActorPath): Task[ActorRef[F]] = {
+    for {
+      actorMap <- refActorMap.get
+      actorRef <- selectByActorPath[F](finalName, actorMap)
+    } yield actorRef
+
+  }
+
+
+  private def selectByActorPath[F](finalName: ActorPath, actorMap: Map[ActorPath, Any]) = {
+    actorMap.get(finalName) match {
+      case Some(value) => for {actor <- IO.effectTotal(value.asInstanceOf[ActorRef[F]])} yield actor
+      case None => IO.fail(new Exception(s"No such actor $finalName in local ActorSystem."))
+    }
+  }
 }
 object ActorSystem {
   private val DefaultActorMailboxSize: Int = 100
   case class ActorConfig(mailboxSize: Int = DefaultActorMailboxSize)
-  private[actors] type PendingMessage[F[_], A] = (Either[SystemMessage[_], F[A]], Promise[Throwable, A])
+  private[actors] type PendingMessage[F] = (Either[SystemMessage, F], Promise[Throwable, Unit])
 
   /** Constructor for Actor System
     *

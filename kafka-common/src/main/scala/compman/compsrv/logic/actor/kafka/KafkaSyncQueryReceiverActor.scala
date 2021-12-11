@@ -18,21 +18,21 @@ object KafkaSyncQueryReceiverActor {
                         timeout: Duration
                       ): ActorBehavior[Logging with Clock with Blocking, Seq[Array[Byte]], KafkaConsumerApi] =
     new ActorBehavior[Logging with Clock with Blocking, Seq[Array[Byte]], KafkaConsumerApi] {
-      override def receive[A](
+      override def receive(
                                context: Context[KafkaConsumerApi],
                                actorConfig: ActorConfig,
                                state: Seq[Array[Byte]],
-                               command: KafkaConsumerApi[A],
+                               command: KafkaConsumerApi,
                                timers: Timers[Logging with Clock with Blocking, KafkaConsumerApi]
-                             ): RIO[Logging with Clock with Blocking, (Seq[Array[Byte]], A)] =
+                             ): RIO[Logging with Clock with Blocking, Seq[Array[Byte]]] =
         command match {
-          case QueryStarted() => RIO((state, ().asInstanceOf[A]))
-          case QueryFinished() => Logging.error(s"Successfully finished the query. Stopping.") *> promise.succeed(state) *> context.stopSelf *> RIO((state, ().asInstanceOf[A]))
-          case QueryError(error) => Logging.error(s"Error during kafka query: $error") *> promise.succeed(state) *> context.stopSelf *> RIO((state, ().asInstanceOf[A]))
-          case MessageReceived(_, committableRecord) => RIO((state :+ committableRecord.value, ().asInstanceOf[A]))
+          case QueryStarted() => RIO(state)
+          case QueryFinished() => Logging.error(s"Successfully finished the query. Stopping.") *> promise.succeed(state) *> context.stopSelf *> RIO(state)
+          case QueryError(error) => Logging.error(s"Error during kafka query: $error") *> promise.succeed(state) *> context.stopSelf *> RIO(state)
+          case MessageReceived(_, committableRecord) => RIO(state :+ committableRecord.value)
         }
 
-      override def init(actorConfig: ActorConfig, context: Context[KafkaConsumerApi], initState: Seq[Array[Byte]], timers: Timers[Logging with Clock with Blocking, KafkaConsumerApi]): RIO[Logging with Clock with Blocking, (Seq[Fiber[Throwable, Unit]], Seq[KafkaConsumerApi[Any]], Seq[Array[Byte]])] =
+      override def init(actorConfig: ActorConfig, context: Context[KafkaConsumerApi], initState: Seq[Array[Byte]], timers: Timers[Logging with Clock with Blocking, KafkaConsumerApi]): RIO[Logging with Clock with Blocking, (Seq[Fiber[Throwable, Unit]], Seq[KafkaConsumerApi], Seq[Array[Byte]])] =
         timers.startSingleTimer("timeout", timeout, QueryError(new TimeoutException(s"Query timeout: $timeout")))
           .as((Seq.empty, Seq.empty, initState))
     }

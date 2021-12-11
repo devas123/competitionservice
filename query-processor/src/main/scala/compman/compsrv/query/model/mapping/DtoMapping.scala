@@ -13,19 +13,68 @@ import java.math.BigDecimal
 import java.util.Date
 
 object DtoMapping {
+  def toDtoAdditionalGroupSortingDescriptor(
+    o: AdditionalGroupSortingDescriptor
+  ): AdditionalGroupSortingDescriptorDTO = {
+    new AdditionalGroupSortingDescriptorDTO().setGroupSortDirection(o.groupSortDirection)
+      .setGroupSortSpecifier(o.groupSortSpecifier)
+  }
+
+  def toDtoCompetitorResult(o: CompetitorStageResult): CompetitorStageResultDTO = {
+    new CompetitorStageResultDTO().setCompetitorId(o.competitorId).setPoints(o.points).setRound(o.round)
+      .setRoundType(o.roundType).setPlace(o.place).setStageId(o.stageId).setGroupId(o.groupId)
+      .setConflicting(o.conflicting)
+  }
+
   def createEmptyScore: ScoreDTO = new ScoreDTO().setAdvantages(0).setPenalties(0).setPoints(0)
     .setPointGroups(Array.empty)
 
   def toDtoFightResultOption(fightResultOption: FightResultOption): FightResultOptionDTO = {
-    new FightResultOptionDTO()
-    .setId(fightResultOption.optionId)
-    .setDescription(fightResultOption.description)
-    .setShortName(fightResultOption.shortName)
-    .setDraw(fightResultOption.draw)
-    .setWinnerPoints(fightResultOption.winnerPoints)
-    .setWinnerAdditionalPoints(fightResultOption.winnerAdditionalPoints)
-    .setLoserPoints(fightResultOption.loserPoints)
-    .setLoserAdditionalPoints(fightResultOption.loserAdditionalPoints)
+    new FightResultOptionDTO().setId(fightResultOption.optionId).setDescription(fightResultOption.description)
+      .setShortName(fightResultOption.shortName).setDraw(fightResultOption.draw)
+      .setWinnerPoints(fightResultOption.winnerPoints)
+      .setWinnerAdditionalPoints(fightResultOption.winnerAdditionalPoints).setLoserPoints(fightResultOption.loserPoints)
+      .setLoserAdditionalPoints(fightResultOption.loserAdditionalPoints)
+  }
+
+  def toDtoStageResultDescriptor(o: StageResultDescriptor): StageResultDescriptorDTO = {
+    new StageResultDescriptorDTO().setName(o.name.orNull).setForceManualAssignment(o.forceManualAssignment)
+      .setOutputSize(o.outputSize)
+      .setFightResultOptions(o.fightResultOptions.map(DtoMapping.toDtoFightResultOption).toArray)
+      .setCompetitorResults(o.competitorResults.map(DtoMapping.toDtoCompetitorResult).toArray)
+      .setAdditionalGroupSortingDescriptors(
+        o.additionalGroupSortingDescriptors.map(DtoMapping.toDtoAdditionalGroupSortingDescriptor).toArray
+      )
+  }
+
+  def toDtoCompetitorSelector(o: CompetitorSelector): CompetitorSelectorDTO = {
+    new CompetitorSelectorDTO().setApplyToStageId(o.applyToStageId).setLogicalOperator(o.logicalOperator)
+      .setClassifier(o.classifier).setOperator(o.operator).setSelectorValue(o.selectorValue.toArray)
+  }
+
+  def toDtoStageInputDescriptor(o: StageInputDescriptor): StageInputDescriptorDTO = {
+    new StageInputDescriptorDTO().setNumberOfCompetitors(o.numberOfCompetitors)
+      .setSelectors(o.selectors.map(toDtoCompetitorSelector).toArray).setDistributionType(o.distributionType)
+  }
+
+  def toDtoGroupDescriptor(o: GroupDescriptor): GroupDescriptorDTO = {
+    new GroupDescriptorDTO()
+    .setId(o.groupId)
+    .setName(o.name.orNull)
+    .setSize(o.size)
+  }
+
+  def toDtoStageDescriptor(stageDescriptor: StageDescriptor): StageDescriptorDTO = {
+    new StageDescriptorDTO().setId(stageDescriptor.id).setName(stageDescriptor.name.orNull)
+      .setCategoryId(stageDescriptor.categoryId).setCompetitionId(stageDescriptor.competitionId)
+      .setBracketType(stageDescriptor.bracketType).setStageType(stageDescriptor.stageType)
+      .setStageStatus(stageDescriptor.stageStatus)
+      .setStageResultDescriptor(stageDescriptor.stageResultDescriptor.map(toDtoStageResultDescriptor).orNull)
+      .setInputDescriptor(stageDescriptor.inputDescriptor.map(toDtoStageInputDescriptor).orNull)
+      .setStageOrder(stageDescriptor.stageOrder).setWaitForPrevious(stageDescriptor.waitForPrevious)
+      .setHasThirdPlaceFight(stageDescriptor.hasThirdPlaceFight)
+      .setGroupDescriptors(stageDescriptor.groupDescriptors.map(_.map(toDtoGroupDescriptor).toArray).getOrElse(Array.empty))
+      .setNumberOfFights(stageDescriptor.numberOfFights.orElse(Option(0)).map(_.intValue).get).setFightDuration(stageDescriptor.fightDuration.map(BigDecimal.valueOf).getOrElse(BigDecimal.ZERO))
   }
 
   def mapScheduleEntry(competitionId: String)(dto: ScheduleEntryDTO): ScheduleEntry = {
@@ -67,8 +116,6 @@ object DtoMapping {
       Option(dto.getEntryOrder).map(_.intValue())
     )
   }
-
-
 
   def mapCompScore(o: CompScoreDTO, cd: Option[CompetitorDisplayInfo]): CompScore = {
     CompScore(
@@ -156,7 +203,8 @@ object DtoMapping {
   }
   def toDtoCompetitor(competitorDisplayInfo: CompetitorDisplayInfo): CompetitorDTO = {
     new CompetitorDTO().setId(competitorDisplayInfo.competitorId)
-      .setFirstName(competitorDisplayInfo.competitorFirstName.orNull).setLastName(competitorDisplayInfo.competitorLastName.orNull)
+      .setFirstName(competitorDisplayInfo.competitorFirstName.orNull)
+      .setLastName(competitorDisplayInfo.competitorLastName.orNull)
       .setAcademy(new AcademyDTO().setName(competitorDisplayInfo.competitorAcademyName.orNull))
   }
 
@@ -177,10 +225,11 @@ object DtoMapping {
       .setStaffIds(competitionProperties.staffIds.getOrElse(Set.empty).toArray).setEmailNotificationsEnabled(false)
       .setCompetitionName(competitionProperties.competitionName)
       .setEmailTemplate(new String(competitionProperties.infoTemplate.template)).setPromoCodes(Array.empty)
-      .setStartDate(competitionProperties.startDate.toInstant).setSchedulePublished(competitionProperties.schedulePublished)
-      .setBracketsPublished(competitionProperties.bracketsPublished).setEndDate(competitionProperties.endDate.map(_.toInstant).orNull)
-      .setTimeZone(competitionProperties.timeZone).setCreationTimestamp(competitionProperties.creationTimestamp.toInstant)
-      .setStatus(competitionProperties.status)
+      .setStartDate(competitionProperties.startDate.toInstant)
+      .setSchedulePublished(competitionProperties.schedulePublished)
+      .setBracketsPublished(competitionProperties.bracketsPublished)
+      .setEndDate(competitionProperties.endDate.map(_.toInstant).orNull).setTimeZone(competitionProperties.timeZone)
+      .setCreationTimestamp(competitionProperties.creationTimestamp.toInstant).setStatus(competitionProperties.status)
   }
 
   def mapMat(dto: MatDescriptionDTO): Mat = { Mat(dto.getId, dto.getName, dto.getMatOrder) }
@@ -251,7 +300,8 @@ object DtoMapping {
         dto.getRoundType
       )),
       Option(dto.getFightResult).map(mapFightResult),
-      Option(dto.getScores).map(_.toList).map(_.map(cs => mapCompScore(cs, coms.get(cs.getCompetitorId)))).getOrElse(List.empty)
+      Option(dto.getScores).map(_.toList).map(_.map(cs => mapCompScore(cs, coms.get(cs.getCompetitorId))))
+        .getOrElse(List.empty)
     )
   }
 

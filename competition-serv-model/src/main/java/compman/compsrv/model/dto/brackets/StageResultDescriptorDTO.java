@@ -10,7 +10,6 @@ import lombok.experimental.Accessors;
 @NoArgsConstructor
 @Accessors(chain = true)
 public class StageResultDescriptorDTO {
-    private String id;
     private String name;
     private boolean forceManualAssignment;
     private Integer outputSize;

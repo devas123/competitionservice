@@ -3,8 +3,11 @@ package compman.compsrv.query.service
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.logic.actors.behavior.CompetitionApiActor._
 import compman.compsrv.logic.actors.ActorRef
+import compman.compsrv.model.commands.payload.AdjacencyList
+import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CategoryRestrictionDTO}
 import compman.compsrv.query.serde.ObjectMapperFactory
 import compman.compsrv.query.service.repository.Pagination
+import compman.compsrv.query.service.CompetitionHttpApiService.Requests.GenerateCategoriesFromRestrictionsRequest
 import org.http4s.{HttpRoutes, Response}
 import org.http4s.dsl.Http4sDsl
 import zio.blocking.Blocking
@@ -15,6 +18,14 @@ import zio.RIO
 import zio.logging.Logging
 
 object CompetitionHttpApiService {
+
+  object Requests {
+    final case class GenerateCategoriesFromRestrictionsRequest(
+      restrictions: List[CategoryRestrictionDTO],
+      idTrees: List[AdjacencyList],
+      restrictionNames: List[String]
+    )
+  }
 
   object QueryParameters {
 
@@ -40,10 +51,15 @@ object CompetitionHttpApiService {
   def service(apiActor: ActorRef[ApiCommand]): HttpRoutes[ServiceIO] = HttpRoutes.of[ServiceIO] {
     case req @ POST -> Root / "generatecategories" / _ => for {
         body <- req.body.covary[ServiceIO].chunkAll.compile.toList
-        bytes = body.flatMap(_.toList).toArray
-        res <- sendApiCommandAndReturnResponse(
+        bytes   = body.flatMap(_.toList).toArray
+        request = decoder.readValue(bytes, classOf[GenerateCategoriesFromRestrictionsRequest])
+        res <- sendApiCommandAndReturnResponse[List[CategoryDescriptorDTO]](
           apiActor,
-          decoder.readValue(bytes, classOf[GenerateCategoriesFromRestrictions])
+          replyTo => GenerateCategoriesFromRestrictions(
+            restrictions = request.restrictions,
+            idTrees = request.idTrees,
+            restrictionNames = request.restrictionNames
+          )(replyTo)
         )
       } yield res
     case GET -> Root / "defaultfightresults" => sendApiCommandAndReturnResponse(apiActor, GetDefaultFightResults)
@@ -52,7 +68,7 @@ object CompetitionHttpApiService {
     case GET -> Root / "competition" / id    => sendApiCommandAndReturnResponse(apiActor, GetCompetitionProperties(id))
     case GET -> Root / "competition" / id / "fight" =>
       sendApiCommandAndReturnResponse(apiActor, GetFightIdsByCategoryIds(id))
-    case GET -> Root / "competition" / id / "category" / categoryId /"fight" / fightId =>
+    case GET -> Root / "competition" / id / "category" / categoryId / "fight" / fightId =>
       sendApiCommandAndReturnResponse(apiActor, GetFightById(id, categoryId, fightId))
     case GET -> Root / "competition" / id / "infotemplate" =>
       sendApiCommandAndReturnResponse(apiActor, GetCompetitionInfoTemplate(id))
@@ -94,10 +110,11 @@ object CompetitionHttpApiService {
       sendApiCommandAndReturnResponse(apiActor, GetCompetitor(id, competitorId))
   }
 
-  private def sendApiCommandAndReturnResponse[T](
+  private def sendApiCommandAndReturnResponse[Resp](
     apiActor: ActorRef[ApiCommand],
-    apiCommand: ApiCommand[T]
+    apiCommand: ActorRef[Resp] => ApiCommand
   ): ServiceIO[Response[ServiceIO]] = {
+    import compman.compsrv.logic.actors.patterns.Patterns._
     for {
       response <- (apiActor ? apiCommand).onError(err => Logging.error(s"Error while getting response: $err"))
       bytes = decoder.writeValueAsBytes(response)

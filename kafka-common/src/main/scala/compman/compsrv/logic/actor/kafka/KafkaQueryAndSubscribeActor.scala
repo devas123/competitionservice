@@ -19,29 +19,29 @@ import scala.util.{Failure, Success, Try}
 
 private[kafka] object KafkaQueryAndSubscribeActor {
 
-  sealed trait KafkaQueryActorCommand[+A]
-  case object Stop                                                               extends KafkaQueryActorCommand[Unit]
-  case class ForwardMesage(msg: MessageReceived, to: ActorRef[KafkaConsumerApi]) extends KafkaQueryActorCommand[Unit]
+  sealed trait KafkaQueryActorCommand
+  case object Stop                                                               extends KafkaQueryActorCommand
+  case class ForwardMesage(msg: MessageReceived, to: ActorRef[KafkaConsumerApi]) extends KafkaQueryActorCommand
 
   def behavior(
-    topic: String,
-    groupId: String,
-    replyTo: ActorRef[KafkaConsumerApi],
-    brokers: List[String],
-    subscribe: Boolean,
-    query: Boolean,
-    startOffset: Long = 0L
+                topic: String,
+                groupId: String,
+                replyTo: ActorRef[KafkaConsumerApi],
+                brokers: List[String],
+                subscribe: Boolean,
+                query: Boolean,
+                startOffset: Long = 0L
   ): ActorBehavior[Logging with Clock with Blocking, Unit, KafkaQueryActorCommand] =
     new ActorBehavior[Logging with Clock with Blocking, Unit, KafkaQueryActorCommand] {
-      override def receive[A](
+      override def receive(
         context: Context[KafkaQueryActorCommand],
         actorConfig: ActorConfig,
         state: Unit,
-        command: KafkaQueryActorCommand[A],
+        command: KafkaQueryActorCommand,
         timers: Timers[Logging with Clock with Blocking, KafkaQueryActorCommand]
-      ): RIO[Logging with Clock with Blocking, (Unit, A)] = command match {
-        case ForwardMesage(msg, to) => (to ! msg).as(((), ().asInstanceOf[A]))
-        case Stop                   => context.stopSelf.as(((), ().asInstanceOf[A]))
+      ): RIO[Logging with Clock with Blocking, Unit] = command match {
+        case ForwardMesage(msg, to) => (to ! msg).unit
+        case Stop                   => context.stopSelf.unit
       }
       override def init(
         actorConfig: ActorConfig,
@@ -50,7 +50,7 @@ private[kafka] object KafkaQueryAndSubscribeActor {
         timers: Timers[Logging with Clock with Blocking, KafkaQueryActorCommand]
       ): RIO[
         Logging with Clock with Blocking,
-        (Seq[Fiber[Throwable, Unit]], Seq[KafkaQueryActorCommand[Any]], Unit)
+        (Seq[Fiber[Throwable, Unit]], Seq[KafkaQueryActorCommand], Unit)
       ] = {
         for {
           _ <- super.init(actorConfig, context, initState, timers)

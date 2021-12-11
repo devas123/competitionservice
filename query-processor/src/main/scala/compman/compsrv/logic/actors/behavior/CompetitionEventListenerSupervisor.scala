@@ -1,6 +1,5 @@
 package compman.compsrv.logic.actors.behavior
 
-import cats.arrow.FunctionK
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, QueryAndSubscribe}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Context, Timers}
@@ -23,14 +22,12 @@ import java.io.{PrintWriter, StringWriter}
 
 object CompetitionEventListenerSupervisor {
   type SupervisorEnvironment[R] = Clock with R with Logging
-  sealed trait ActorMessages[+A]
-  case class ReceivedNotification(notification: CommandProcessorNotification) extends ActorMessages[Unit]
-  case class ActiveCompetition(managedCompetition: ManagedCompetition)        extends ActorMessages[Unit]
-  case class CompetitionUpdated(update: CompetitionPropertiesUpdatedPayload, eventTopic: String)
-      extends ActorMessages[Unit]
-  case class CompetitionDeletedMessage(competitionId: String)
-      extends ActorMessages[Unit]
-  case class KafkaNotification(msg: String) extends ActorMessages[Unit]
+  sealed trait ActorMessages
+  case class ReceivedNotification(notification: CommandProcessorNotification)                    extends ActorMessages
+  case class ActiveCompetition(managedCompetition: ManagedCompetition)                           extends ActorMessages
+  case class CompetitionUpdated(update: CompetitionPropertiesUpdatedPayload, eventTopic: String) extends ActorMessages
+  case class CompetitionDeletedMessage(competitionId: String)                                    extends ActorMessages
+  case class KafkaNotification(msg: String)                                                      extends ActorMessages
 
   trait ActorContext {
     implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO]
@@ -52,25 +49,25 @@ object CompetitionEventListenerSupervisor {
   }
 
   def behavior[R: Tag](
-    notificationStopic: String,
-    context: ActorContext,
-    kafkaSupervisorActor: ActorRef[KafkaSupervisorCommand],
-    eventListenerContext: CompetitionEventListener.ActorContext,
-    websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
+                        notificationStopic: String,
+                        context: ActorContext,
+                        kafkaSupervisorActor: ActorRef[KafkaSupervisorCommand],
+                        eventListenerContext: CompetitionEventListener.ActorContext,
+                        websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
   ): ActorBehavior[SupervisorEnvironment[R], Unit, ActorMessages] =
     new ActorBehavior[SupervisorEnvironment[R], Unit, ActorMessages] {
       import context._
-      override def receive[A](
+      override def receive(
         context: Context[ActorMessages],
         actorConfig: ActorConfig,
         state: Unit,
-        command: ActorMessages[A],
+        command: ActorMessages,
         timers: Timers[SupervisorEnvironment[R], ActorMessages]
-      ): RIO[SupervisorEnvironment[R], (Unit, A)] = {
+      ): RIO[SupervisorEnvironment[R], Unit] = {
         command match {
-          case KafkaNotification(msg) => Logging.info(msg).as(((), ().asInstanceOf[A]))
-          case CompetitionDeletedMessage(competitionId) =>
-            ManagedCompetitionsOperations.deleteManagedCompetition[LIO](competitionId).as(((), ().asInstanceOf[A]))
+          case KafkaNotification(msg) => Logging.info(msg).unit
+          case CompetitionDeletedMessage(competitionId) => ManagedCompetitionsOperations
+              .deleteManagedCompetition[LIO](competitionId).unit
           case CompetitionUpdated(update, eventTopic) => for {
               props <- ZIO.effect(update.getProperties)
               _ <- ManagedCompetitionsOperations.updateManagedCompetition[LIO](ManagedCompetition(
@@ -85,7 +82,7 @@ object CompetitionEventListenerSupervisor {
                 props.getStatus
               ))
               _ <- Logging.info(s"Competition properties updated $update")
-            } yield ((), ().asInstanceOf[A])
+            } yield ()
           case ActiveCompetition(competition) => for {
               res <- context
                 .make[
@@ -108,7 +105,7 @@ object CompetitionEventListenerSupervisor {
                 ).foldM(
                   _ => Logging.debug(s"Actor already exists with id ${competition.id}"),
                   _ => Logging.info(s"Created actor to process the competition ${competition.id}")
-                ).map(_ => ((), ().asInstanceOf[A]))
+                ).unit
             } yield res
           case ReceivedNotification(notification) => notification match {
               case CompetitionProcessingStarted(
@@ -162,7 +159,7 @@ object CompetitionEventListenerSupervisor {
                     ).foldM(
                       _ => Logging.info(s"Actor already exists with id $id"),
                       _ => Logging.info(s"Created actor to process the competition $id")
-                    ).map(_ => ((), ().asInstanceOf[A]))
+                    ).map(_ => ())
                 } yield res // start new actor if not started
               case CompetitionProcessingStopped(id) => for {
                   child <- context.findChild[Any](id)
@@ -170,7 +167,7 @@ object CompetitionEventListenerSupervisor {
                     case Some(value) => value ! Stop
                     case None        => Task.unit
                   }
-                } yield ((), ().asInstanceOf[A])
+                } yield ()
             }
         }
       }.onError(cause => logError(cause.squashTrace))
@@ -180,21 +177,17 @@ object CompetitionEventListenerSupervisor {
         context: Context[ActorMessages],
         initState: Unit,
         timers: Timers[SupervisorEnvironment[R], ActorMessages]
-      ): RIO[SupervisorEnvironment[R], (Seq[Fiber.Runtime[Throwable, Unit]], Seq[ActorMessages[Any]], Unit)] = {
+      ): RIO[SupervisorEnvironment[R], (Seq[Fiber.Runtime[Throwable, Unit]], Seq[ActorMessages], Unit)] = {
         for {
           mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
-          adapter <- context.messageAdapter(new FunctionK[KafkaConsumerApi, ActorMessages] {
-            override def apply[A](fa: KafkaConsumerApi[A]): ActorMessages[A] = {
-              fa match {
-                case KafkaSupervisor.QueryStarted()    => KafkaNotification("Query started.")
-                case KafkaSupervisor.QueryFinished()   => KafkaNotification("Query finished.")
-                case KafkaSupervisor.QueryError(error) => KafkaNotification(s"Query error. $error")
-                case KafkaSupervisor.MessageReceived(_, record) =>
-                  val notif = mapper.readValue(record.value, classOf[CommandProcessorNotification])
-                  ReceivedNotification(notif)
-              }
-            }.asInstanceOf[ActorMessages[A]]
-          })
+          adapter <- context.messageAdapter[KafkaConsumerApi] {
+            case KafkaSupervisor.QueryStarted()    => KafkaNotification("Query started.")
+            case KafkaSupervisor.QueryFinished()   => KafkaNotification("Query finished.")
+            case KafkaSupervisor.QueryError(error) => KafkaNotification(s"Query error. $error")
+            case KafkaSupervisor.MessageReceived(_, record) =>
+              val notif = mapper.readValue(record.value, classOf[CommandProcessorNotification])
+              ReceivedNotification(notif)
+          }
           activeCompetitions <- ManagedCompetitionsOperations.getActiveCompetitions[LIO].foldM(
             err => logError(err) *> ZIO.effectTotal(List.empty),
             competitions =>

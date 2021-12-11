@@ -28,10 +28,8 @@ object WebsocketService {
   import zio.interop.catz._
   import zio.stream.interop.fs2z._
 
-  def wsRoutes(
-    websocketConnectionHandler: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
-  ): HttpRoutes[ServiceIO] = HttpRoutes
-    .of[ServiceIO] { case GET -> Root / "events" / competitionId =>
+  def wsRoutes(websocketConnectionHandler: ActorRef[WebsocketConnectionSupervisor.ApiCommand]): HttpRoutes[ServiceIO] =
+    HttpRoutes.of[ServiceIO] { case GET -> Root / "events" / competitionId =>
       for {
         clientId <- ZIO.effect(UUID.randomUUID().toString)
         queue    <- Queue.unbounded[EventDTO]
@@ -46,12 +44,11 @@ object WebsocketService {
                     WebsocketConnectionSupervisor
                       .WebsocketConnectionClosed(clientId = clientId, competitionId = competitionId))
               case WebSocketFrame.Text(text, _) => Logging.info(s"Received a message $text")
-              case x@_ => Logging.debug(s"Msg: $x")
+              case x @ _                        => Logging.debug(s"Msg: $x")
             }).onFinalize(
               websocketConnectionHandler !
                 WebsocketConnectionSupervisor
                   .WebsocketConnectionClosed(clientId = clientId, competitionId = competitionId)
-
             ).timeout(5.minutes)
         )
         _ <- websocketConnectionHandler !

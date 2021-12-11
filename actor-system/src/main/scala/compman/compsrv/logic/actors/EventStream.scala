@@ -1,24 +1,30 @@
 package compman.compsrv.logic.actors
 
-import compman.compsrv.logic.actors.dungeon.SystemMessage
-import zio.{Hub, ZIO}
+import zio.{Ref, Task, UIO}
 
-sealed trait EventStreamMessage[+A]
-case class SystemEvent(systemEvent: SystemMessage[Any]) extends EventStreamMessage[Unit]
-case class DeadLetter(message: Any) extends EventStreamMessage[Unit]
-case class CustomMessage(message: Any) extends EventStreamMessage[Unit]
+import scala.reflect.ClassTag
 
-case class EventStream(private val hub: Hub[EventStreamMessage[Any]]) {
-  def publish(msg: EventStreamMessage[Any]): ZIO[Any, Nothing, Boolean]               = hub.publish(msg)
-  def publishAll(msgs: Iterable[EventStreamMessage[Any]]): ZIO[Any, Nothing, Boolean] = hub.publishAll(msgs)
-//  def subscribe[Classifier[_]](subscriber: ActorRef)(implicit transform: A ~> Option[Classifier]) : ZManaged[Any, Nothing, ZStream[Any, Nothing, Classifier[Any]]] = {
-//    import zio.stream._
-//    hub.subscribe.map(_.filterOutput { m =>
-//      transform(m) match {
-//        case Some(value) => ???
-//        case None => ???
-//      }
-//    }.map(_.asInstanceOf[Classifier[Any]]))
-//      .map(ZStream.fromQueue(_))
-//  }
+case class EventStream(private val subscriptions: Ref[Map[Class[_], Set[ActorRef[Any]]]]) {
+  import cats.implicits._
+  import zio.interop.catz._
+  def publish(msg: Any): Task[Unit] = for {
+    subs <- subscriptions.get
+    _    <- subs.get(msg.getClass).map(_.toList.traverse(_ ! msg)).getOrElse(UIO.unit)
+  } yield ()
+  def subscribe[Classifier: ClassTag](subscriber: ActorRef[Classifier]): Task[Unit] = {
+    for {
+      _ <- subscriptions.update(_.updatedWith(implicitly[ClassTag[Classifier]].runtimeClass)(p => {
+        val unsafeSubscriber = subscriber.asInstanceOf[ActorRef[Any]]
+        p.map(s => s + unsafeSubscriber).orElse(Option(Set(unsafeSubscriber)))
+      }))
+    } yield ()
+  }
+  def unsubscribe[Classifier: ClassTag](subscriber: ActorRef[Classifier]): Task[Unit] = {
+    for {
+      _ <- subscriptions.update(_.updatedWith(implicitly[ClassTag[Classifier]].runtimeClass)(p => {
+        val unsafeSubscriber = subscriber.asInstanceOf[ActorRef[Any]]
+        p.map(s => s - unsafeSubscriber)
+      }))
+    } yield ()
+  }
 }

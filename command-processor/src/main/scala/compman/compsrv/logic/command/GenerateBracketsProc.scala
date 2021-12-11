@@ -97,7 +97,7 @@ object GenerateBracketsProc {
     groupDescr <- EitherT.liftF(stage.getGroupDescriptors.toList.traverse { it =>
       IdOperations[F].uid.map(id => it.setId(id))
     })
-    inputDescriptor = stage.getInputDescriptor.setId(stageId)
+    inputDescriptor = stage.getInputDescriptor
       .setSelectors(stage.getInputDescriptor.getSelectors.zipWithIndex.map { case (sel, index) =>
         sel.setId(s"$stageId-s-$index").setApplyToStageId(stageIdMap(sel.getApplyToStageId))
       })
@@ -110,7 +110,7 @@ object GenerateBracketsProc {
           .setWinnerPoints(Option(it.getWinnerPoints).getOrElse(0))
       }.traverse { it => IdOperations[F].uid.map(id => it.setId(Option(it.getId).getOrElse(id))) }
     )
-    resultDescriptor = stage.getStageResultDescriptor.setId(stageId)
+    resultDescriptor = stage.getStageResultDescriptor
       .setFightResultOptions(enrichedOptionsWithIds.distinctBy { _.getId }.toArray)
     status = if (stage.getStageOrder == 0) StageStatus.WAITING_FOR_APPROVAL else StageStatus.WAITING_FOR_COMPETITORS
     stageWithIds = stage.setCategoryId(categoryId).setId(stageId).setStageStatus(status).setCompetitionId(state.id)

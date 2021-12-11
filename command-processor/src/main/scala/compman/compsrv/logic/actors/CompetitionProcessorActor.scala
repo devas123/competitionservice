@@ -26,12 +26,12 @@ object CompetitionProcessorActor {
   private val DefaultTimerKey = "stopTimer"
 
   def behavior[Env](
-                     competitionId: String,
-                     eventTopic: String,
-                     kafkaSupervisor: ActorRef[KafkaSupervisorCommand],
-                     competitionNotificationsTopic: String,
-                     mapper: ObjectMapper =  ObjectMapperFactory.createObjectMapper,
-                     actorIdleTimeoutMillis: Long = 300000
+    competitionId: String,
+    eventTopic: String,
+    kafkaSupervisor: ActorRef[KafkaSupervisorCommand],
+    competitionNotificationsTopic: String,
+    mapper: ObjectMapper = ObjectMapperFactory.createObjectMapper,
+    actorIdleTimeoutMillis: Long = 300000
   ): EventSourcedBehavior[Env with Logging with Clock, CompetitionState, Message, EventDTO] =
     new EventSourcedBehavior[Env with Logging with Clock, CompetitionState, Message, EventDTO](competitionId) {
 
@@ -41,7 +41,11 @@ object CompetitionProcessorActor {
         state: CompetitionState,
         timers: Timers[Env with Logging with Clock, Message]
       ): RIO[Env with Logging with Clock, Unit] = for {
-        _ <- kafkaSupervisor ! PublishMessage(competitionNotificationsTopic, competitionId, mapper.writeValueAsBytes(CompetitionProcessingStopped(competitionId)))
+        _ <- kafkaSupervisor ! PublishMessage(
+          competitionNotificationsTopic,
+          competitionId,
+          mapper.writeValueAsBytes(CompetitionProcessingStopped(competitionId))
+        )
       } yield ()
 
       override def init(
@@ -49,7 +53,7 @@ object CompetitionProcessorActor {
         context: Context[Message],
         initState: CompetitionState,
         timers: Timers[Env with Logging with Clock, Message]
-      ): RIO[Env with Logging with Clock, (Seq[Fiber[Throwable, Unit]], Seq[Message[Any]])] = for {
+      ): RIO[Env with Logging with Clock, (Seq[Fiber[Throwable, Unit]], Seq[Message])] = for {
         _ <-
           if (initState.competitionProperties.isEmpty) Task
             .fail(new RuntimeException(s"Competition properties are missing: $initState"))
@@ -67,22 +71,20 @@ object CompetitionProcessorActor {
           props.getStatus
         )
         _ <- Logging.info(s"Sending notification: $started")
-        _ <- kafkaSupervisor ! PublishMessage(competitionNotificationsTopic, competitionId, mapper.writeValueAsBytes(started))
-        _ <- timers.startSingleTimer(
-                 DefaultTimerKey,
-                 zio.duration.Duration(actorIdleTimeoutMillis, TimeUnit.MILLISECONDS),
-                 Stop
-        )
+        _ <- kafkaSupervisor !
+          PublishMessage(competitionNotificationsTopic, competitionId, mapper.writeValueAsBytes(started))
+        _ <- timers
+          .startSingleTimer(DefaultTimerKey, zio.duration.Duration(actorIdleTimeoutMillis, TimeUnit.MILLISECONDS), Stop)
       } yield (Seq.empty, Seq.empty)
 
-      override def receive[A](
+      override def receive(
         context: Context[Message],
         actorConfig: ActorSystem.ActorConfig,
         state: CompetitionState,
-        command: Message[A],
+        command: Message,
         timers: Timers[Env with Logging with Clock, Message]
-      ): RIO[Env with Logging with Clock, (Command[EventDTO], CompetitionState => A)] = {
-        val unit: CompetitionState => A = _ => ().asInstanceOf[A]
+      ): RIO[Env with Logging with Clock, (Command[EventDTO], CompetitionState => Unit)] = {
+        val unit: CompetitionState => Unit = _ => ()
         for {
           _ <- info(s"Received a command $command")
           res <- command match {
@@ -93,7 +95,8 @@ object CompetitionProcessorActor {
               ) *> {
                 for {
                   _ <-
-                    if (cmd.getId == null) info(s"Command $cmd has no ID") *> RIO.fail(new IllegalArgumentException(s"Command $cmd has no ID"))
+                    if (cmd.getId == null) info(s"Command $cmd has no ID") *>
+                      RIO.fail(new IllegalArgumentException(s"Command $cmd has no ID"))
                     else RIO.unit
                   _ <- info(s"Processing command $command")
                   processResult <- Live.withContext(
@@ -128,27 +131,27 @@ object CompetitionProcessorActor {
         state: CompetitionState
       ): RIO[Env with Logging with Clock, Seq[EventDTO]] = for {
         promise <- Promise.make[Throwable, Seq[Array[Byte]]]
-        _ <- kafkaSupervisor ! CreateTopicIfMissing(eventTopic, KafkaTopicConfig())
-        _ <- kafkaSupervisor ! QuerySync(eventTopic, UUID.randomUUID().toString, promise)
-        _ <- Logging.info(s"Getting events from topic: $eventTopic, starting from ${state.revision}")
+        _       <- kafkaSupervisor ! CreateTopicIfMissing(eventTopic, KafkaTopicConfig())
+        _       <- kafkaSupervisor ! QuerySync(eventTopic, UUID.randomUUID().toString, promise)
+        _       <- Logging.info(s"Getting events from topic: $eventTopic, starting from ${state.revision}")
         events <- promise.await.map(_.map(e => mapper.readValue(e, classOf[EventDTO])))
-          .onError(e => Logging.info(e.prettyPrint))
-          .foldM(_ => RIO(Seq.empty), RIO(_))
+          .onError(e => Logging.info(e.prettyPrint)).foldM(_ => RIO(Seq.empty), RIO(_))
         _ <- Logging.info(s"Done getting events! ${events.size} events were received.")
       } yield events
 
-      override def persistEvents(persistenceId: String, events: Seq[EventDTO]): RIO[Env with Logging with Clock, Unit] = {
+      override def persistEvents(
+        persistenceId: String,
+        events: Seq[EventDTO]
+      ): RIO[Env with Logging with Clock, Unit] = {
         import cats.implicits._
-        events.traverse(e => kafkaSupervisor ! PublishMessage(eventTopic, competitionId, mapper.writeValueAsBytes(e))).as(())
+        events.traverse(e => kafkaSupervisor ! PublishMessage(eventTopic, competitionId, mapper.writeValueAsBytes(e)))
+          .as(())
       }
     }
 
-  sealed trait Message[+A]
-  object Stop                                     extends Message[Unit]
-  final case class ProcessCommand(fa: CommandDTO) extends Message[Unit]
-
+  sealed trait Message
+  object Stop                                     extends Message
+  final case class ProcessCommand(fa: CommandDTO) extends Message
   type CompProcessorEnv = Logging with Clock with Blocking with SnapshotService.Snapshot
-
-  type LiveEnv = CompProcessorEnv with Has[Consumer] with Has[Producer]
-
+  type LiveEnv          = CompProcessorEnv with Has[Consumer] with Has[Producer]
 }

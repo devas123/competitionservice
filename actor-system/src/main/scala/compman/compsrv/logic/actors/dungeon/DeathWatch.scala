@@ -3,12 +3,12 @@ package compman.compsrv.logic.actors.dungeon
 import compman.compsrv.logic.actors.ActorRef
 import zio.{Ref, Task}
 
-trait DeathWatch[Msg[+_]] {
-  final def watchWith[F[+_]](self: ActorRef[Msg])(
-    watching: Ref[Map[Any, Option[Any]]],
-    watchedBy: Ref[Set[Any]]
-  )(subject: ActorRef[F], message: Option[Any]): Task[ActorRef[F]] = {
-    watching.modify { w =>
+trait DeathWatch[Msg] {
+  final def watchWith(self: ActorRef[Msg])(
+    watching: Ref[Map[ActorRef[Any], Option[Any]]],
+    watchedBy: Ref[Set[ActorRef[Any]]]
+  )(subject: ActorRef[Any], message: Option[Any]): Task[Unit] = {
+    watching.update { w =>
       val updated =
         if (subject != self) {
           if (!w.contains(subject)) { w + (subject -> message) }
@@ -23,30 +23,30 @@ trait DeathWatch[Msg[+_]] {
             w
           }
         } else { w }
-      (subject, updated)
+      updated
     }
   }
 
-  final def unwatch[F[+_]](
+  final def unwatch[F](
     self: ActorRef[Msg]
-  )(watching: Ref[Map[Any, Option[Any]]])(subject: ActorRef[F]): Task[ActorRef[F]] = {
-    watching.modify { w =>
+  )(watching: Ref[Map[ActorRef[Any], Option[Any]]])(subject: ActorRef[Any]): Task[Unit] = {
+    watching.update { w =>
       val updated =
         if (subject != self) { w - subject }
         else { w }
-      (subject, updated)
+      updated
     }
   }
 
-  final def watch[F[+_]](
+  final def watch(
     self: ActorRef[Msg]
-  )(watching: Ref[Map[Any, Option[Any]]], watchedBy: Ref[Set[Any]])(
-    subject: ActorRef[F]
-  ): Task[ActorRef[F]] = watchWith(self)(watching, watchedBy)(subject, None)
+  )(watching: Ref[Map[ActorRef[Any], Option[Any]]], watchedBy: Ref[Set[ActorRef[Any]]])(
+    subject: ActorRef[Any]
+  ): Task[Unit] = watchWith(self)(watching, watchedBy)(subject, None)
 
-  private[actors] def terminatedQueuedFor[F[+_]](
-    terminatedQueued: Ref[Map[Any, Option[Any]]]
-  )(subject: ActorRef[F], customMessage: Option[Any]): Task[Unit] = {
+  private[actors] def terminatedQueuedFor(
+    terminatedQueued: Ref[Map[ActorRef[Any], Option[Any]]]
+  )(subject: ActorRef[Any], customMessage: Option[Any]): Task[Unit] = {
     terminatedQueued.update { tq => if (!tq.contains(subject)) tq + (subject -> customMessage) else tq }
   }
 }
