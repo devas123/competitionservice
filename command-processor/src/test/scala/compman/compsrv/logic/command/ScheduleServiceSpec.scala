@@ -24,7 +24,7 @@ class ScheduleServiceSpec extends AnyFunSuite with BeforeAndAfter with TestEntit
 
   val stage: StageDescriptorDTO = new StageDescriptorDTO().setId(stageId).setCategoryId(categoryId)
     .setStageType(StageType.FINAL).setBracketType(BracketType.SINGLE_ELIMINATION).setStageOrder(0).setInputDescriptor(
-      new StageInputDescriptorDTO().setId(stageId).setSelectors(Array.empty)
+      new StageInputDescriptorDTO().setSelectors(Array.empty)
         .setDistributionType(DistributionType.AUTOMATIC).setNumberOfCompetitors(competitors.size)
     )
 

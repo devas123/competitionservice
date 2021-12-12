@@ -4,10 +4,10 @@ import compman.compsrv.logic.actors.ActorRef
 
 private[actors] sealed trait SystemMessage
 private[actors] sealed trait Signal
-private[actors] final case class Watch[F1, F2](watchee: ActorRef[F1], watcher: ActorRef[F2], msg: Option[Any])
+private[actors] final case class Watch(watchee: ActorRef[Nothing], watcher: ActorRef[Nothing], msg: Option[Any])
     extends SystemMessage // sent to establish a DeathWatch
-private[actors] final case class Unwatch[F1, F2](watchee: ActorRef[F1], watcher: ActorRef[F2])
+private[actors] final case class Unwatch(watchee: ActorRef[Nothing], watcher: ActorRef[Nothing])
     extends SystemMessage // sent to establish a DeathWatch
-private[actors] final case class DeathWatchNotification[F1](actor: ActorRef[F1]) extends SystemMessage
-
-final case class Terminated[F](ref: ActorRef[F]) extends SystemMessage with Signal
+private[actors] final case class DeathWatchNotification(actor: ActorRef[Nothing]) extends SystemMessage
+final case class DeadLetter(message: Any, sender: Option[ActorRef[Nothing]], receiver: ActorRef[Nothing]) extends SystemMessage
+final case class Terminated(ref: ActorRef[Nothing]) extends SystemMessage with Signal

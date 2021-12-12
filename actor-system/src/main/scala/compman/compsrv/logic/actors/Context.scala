@@ -1,13 +1,13 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.logic.actors.dungeon.Watch
-import zio.{Ref, RIO, Task, ZIO}
+import compman.compsrv.logic.actors.dungeon.{DeadLetter, Watch}
 import zio.clock.Clock
+import zio.{RIO, Ref, Task, ZIO}
 
 import java.util.UUID
 
-case class Context[F](children: Ref[Set[ActorRef[Any]]], self: ActorRef[F], actorPath: ActorPath, actorSystem: ActorSystem) {
+case class Context[-F](children: Ref[Set[ActorRef[Nothing]]], self: ActorRef[F], actorPath: ActorPath, actorSystem: ActorSystem) extends ActorRefProvider {
 
   def stopSelf: Task[List[_]] = self.stop
 
@@ -47,22 +47,27 @@ case class Context[F](children: Ref[Set[ActorRef[Any]]], self: ActorRef[F], acto
     * @tparam F1
     *   - DSL type
     * @return
-    *   reference to the created actor in effect that can't fail
+    * reference to the created actor in effect that can't fail
     */
-  def make[R, S, F1](
-    actorName: String,
-    actorConfig: ActorConfig,
-    init: S,
-    behavior: => AbstractBehavior[R, S, F1]
-  ): ZIO[R with Clock, Throwable, ActorRef[F1]] = for {
-    ch       <- children.get
+  override def make[R, S, F1](
+                               actorName: String,
+                               actorConfig: ActorConfig,
+                               init: S,
+                               behavior: => AbstractBehavior[R, S, F1]
+                             ): ZIO[R with Clock, Throwable, ActorRef[F1]] = for {
+    ch <- children.get
     actorRef <- actorSystem.make(actorName, actorConfig, init, behavior)
-    _        <- children.set(ch + actorRef.asInstanceOf[ActorRef[Any]])
+    _ <- children.set(ch + actorRef.asInstanceOf[ActorRef[Any]])
   } yield actorRef
-  def select[F1](path: String): Task[ActorRef[F1]] = actorSystem.select(path)
+
+
+  override def select[F1](path: String): Task[ActorRef[F1]] = actorSystem.select(path)
 
   /* INTERNAL API */
 
   private[actors] def actorSystemName = actorSystem.actorSystemName
 
+  override def deadLetters: ActorRef[DeadLetter] = actorSystem.deadLetters
+
+  override def selectOption[F1](path: String): Task[Option[ActorRef[F1]]] = actorSystem.selectOption(path)
 }

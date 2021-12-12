@@ -31,10 +31,10 @@ trait TestEntities {
 
   val totalNumberOfCompetitors: Int = groupRange.map(_ + startingCompetitorsSizeForGroup).sum
 
-  val inputDescriptor: StageInputDescriptorDTO = new StageInputDescriptorDTO().setId(stageId).setSelectors(Array.empty)
+  val inputDescriptor: StageInputDescriptorDTO = new StageInputDescriptorDTO().setSelectors(Array.empty)
     .setNumberOfCompetitors(totalNumberOfCompetitors).setDistributionType(DistributionType.AUTOMATIC)
 
-  val resultRescriptor: StageResultDescriptorDTO = new StageResultDescriptorDTO().setId(stageId).setName(stageId)
+  val resultRescriptor: StageResultDescriptorDTO = new StageResultDescriptorDTO().setName(stageId)
     .setCompetitorResults(Array.empty).setFightResultOptions(FightResultOptionDTO.values.asScala.toArray)
     .setOutputSize(1).setAdditionalGroupSortingDescriptors(Array.empty).setForceManualAssignment(false)
 

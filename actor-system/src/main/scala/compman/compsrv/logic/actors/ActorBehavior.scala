@@ -8,7 +8,7 @@ import zio.interop.catz._
 
 import scala.annotation.nowarn
 
-trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWatch[Msg] {
+trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWatch {
   self =>
   def receive(
     context: Context[Msg],
@@ -42,12 +42,12 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
     actorConfig: ActorConfig,
     initialState: S,
     actorSystem: ActorSystem,
-    children: Ref[Set[ActorRef[Any]]]
+    children: Ref[Set[ActorRef[Nothing]]]
   )(optPostStop: () => Task[Unit]): RIO[R, ActorRef[Msg]] = {
     def process(
-      watching: Ref[Map[ActorRef[Any], Option[Any]]],
-      watchedBy: Ref[Set[ActorRef[Any]]],
-      terminatedQueued: Ref[Map[ActorRef[Any], Option[Any]]]
+      watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
+      watchedBy: Ref[Set[ActorRef[Nothing]]],
+      terminatedQueued: Ref[Map[ActorRef[Nothing], Option[Any]]]
     )(context: Context[Msg], msg: PendingMessage[Msg], stateRef: Ref[S], ts: Timers[R, Msg]): RIO[R, Unit] = {
       for {
         state <- stateRef.get
@@ -65,9 +65,9 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
     }
 
     def innerLoop(
-      watching: Ref[Map[ActorRef[Any], Option[Any]]],
-      watchedBy: Ref[Set[ActorRef[Any]]],
-      terminatedQueued: Ref[Map[ActorRef[Any], Option[Any]]]
+      watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
+      watchedBy: Ref[Set[ActorRef[Nothing]]],
+      terminatedQueued: Ref[Map[ActorRef[Nothing], Option[Any]]]
     )(queue: Queue[PendingMessage[Msg]], stateRef: Ref[S], ts: Timers[R, Msg], context: Context[Msg]) = {
       for {
         t <- (for {
@@ -85,11 +85,11 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
 
     for {
       queue            <- Queue.dropping[PendingMessage[Msg]](actorConfig.mailboxSize)
-      watching         <- Ref.make(Map.empty[ActorRef[Any], Option[Any]])
-      watchedBy        <- Ref.make(Set.empty[ActorRef[Any]])
-      terminatedQueued <- Ref.make(Map.empty[ActorRef[Any], Option[Any]])
+      watching         <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
+      watchedBy        <- Ref.make(Set.empty[ActorRef[Nothing]])
+      terminatedQueued <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
       timersMap        <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
-      actor = LocalActorRef[Msg](queue, actorPath)(optPostStop)
+      actor = LocalActorRef[Msg](queue, actorPath)(optPostStop, actorSystem)
       ts    = Timers[R, Msg](actor, timersMap)
       _ <- (for {
         stateRef <- Ref.make(initialState)

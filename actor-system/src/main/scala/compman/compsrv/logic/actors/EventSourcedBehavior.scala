@@ -4,12 +4,12 @@ import cats.implicits._
 import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
 import compman.compsrv.logic.actors.EventSourcedMessages.Command
 import compman.compsrv.logic.actors.dungeon.{DeathWatch, DeathWatchNotification}
-import zio.{Fiber, Queue, Ref, RIO, Task}
 import zio.clock.Clock
 import zio.interop.catz._
+import zio.{Fiber, Queue, RIO, Ref, Task}
 
 abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
-    extends AbstractBehavior[R, S, Msg] with DeathWatch[Msg] {
+    extends AbstractBehavior[R, S, Msg] with DeathWatch {
   self =>
 
   def postStop(actorConfig: ActorConfig, context: Context[Msg], state: S, timers: Timers[R, Msg]): RIO[R, Unit] =
@@ -39,15 +39,15 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
     actorConfig: ActorConfig,
     initialState: S,
     actorSystem: ActorSystem,
-    children: Ref[Set[ActorRef[Any]]]
+    children: Ref[Set[ActorRef[Nothing]]]
   )(optPostStop: () => Task[Unit]): RIO[R with Clock, ActorRef[Msg]] = {
 
     def applyEvents(events: Seq[Ev], state: S): RIO[R, S] = events.foldLeftM(state)(sourceEvent)
 
     def process(
-                 watching: Ref[Map[ActorRef[Any], Option[Any]]],
-                 watchedBy: Ref[Set[ActorRef[Any]]],
-                 terminatedQueued: Ref[Map[ActorRef[Any], Option[Any]]]
+                 watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
+                 watchedBy: Ref[Set[ActorRef[Nothing]]],
+                 terminatedQueued: Ref[Map[ActorRef[Nothing], Option[Any]]]
     )(msg: PendingMessage[Msg], state: Ref[S], context: Context[Msg], timers: Timers[R, Msg]): RIO[R with Clock, Unit] =
       for {
         s <- state.get
@@ -78,9 +78,9 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
       } yield ()
 
     def innerLoop(
-                   watching: Ref[Map[ActorRef[Any], Option[Any]]],
-                   watchedBy: Ref[Set[ActorRef[Any]]],
-                   terminatedQueued: Ref[Map[ActorRef[Any], Option[Any]]]
+                   watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
+                   watchedBy: Ref[Set[ActorRef[Nothing]]],
+                   terminatedQueued: Ref[Map[ActorRef[Nothing], Option[Any]]]
     )(state: Ref[S], queue: Queue[PendingMessage[Msg]], ts: Timers[R, Msg], context: Context[Msg]) = {
       import cats.implicits._
       import zio.interop.catz._
@@ -100,10 +100,10 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
 
     for {
       queue            <- Queue.bounded[PendingMessage[Msg]](actorConfig.mailboxSize)
-      watching         <- Ref.make(Map.empty[ActorRef[Any], Option[Any]])
-      watchedBy        <- Ref.make(Set.empty[ActorRef[Any]])
-      terminatedQueued <- Ref.make(Map.empty[ActorRef[Any], Option[Any]])
-      actor = LocalActorRef[Msg](queue, actorPath)(optPostStop)
+      watching         <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
+      watchedBy        <- Ref.make(Set.empty[ActorRef[Nothing]])
+      terminatedQueued <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
+      actor = LocalActorRef[Msg](queue, actorPath)(optPostStop, actorSystem)
       _ <- (for {
         events       <- getEvents(persistenceId, initialState)
         sourcedState <- applyEvents(events, initialState)

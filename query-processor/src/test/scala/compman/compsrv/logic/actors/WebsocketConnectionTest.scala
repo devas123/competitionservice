@@ -1,21 +1,22 @@
 package compman.compsrv.logic.actors
 
+import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.behavior.WebsocketConnection
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.events.EventDTO
-import ActorSystem.ActorConfig
 import compman.compsrv.query.service.repository.TestEntities
 import zio._
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.logging.Logging
-import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
+import zio.test._
 
 import java.util.UUID
 
 object WebsocketConnectionTest extends DefaultRunnableSpec with TestEntities {
+  import compman.compsrv.logic.actors.patterns.Patterns._
   override def spec: ZSpec[Any, Throwable] =
     (suite("Websocket connection actor suite")(
       testM("should handle connect and receive messages and stop") {
@@ -31,7 +32,7 @@ object WebsocketConnectionTest extends DefaultRunnableSpec with TestEntities {
             _   <- Logging.info(msg.mkString("\n"))
           } yield ()).fork
           _ <- wsActor ! WebsocketConnection.ReceivedEvent(new EventDTO())
-          _        <- wsActor ? WebsocketConnection.Stop
+          _        <- wsActor ? ((actor: ActorRef[Boolean]) => WebsocketConnection.Stop(Some(actor)))
           _ <- test.join
           shutdown <- queue.isShutdown
         } yield assert(shutdown)(isTrue)
