@@ -1,9 +1,9 @@
 package compman.compsrv.logic.actor.kafka
 
 import compman.compsrv.logic.actor.kafka.KafkaPublishActor.PublishMessageToKafka
-import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Context, Timers}
+import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Behaviors}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import zio.{Fiber, Promise, RIO, Tag, Task}
+import zio.{Promise, RIO, Tag, Task}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.{durationInt, Duration}
@@ -58,18 +58,13 @@ object KafkaSupervisor {
 
   type KafkaSupervisorEnvironment[R] = R with Logging with Clock with Blocking
 
+  import Behaviors._
   def behavior[R: Tag](brokers: List[String]): ActorBehavior[KafkaSupervisorEnvironment[R], Option[
     ActorRef[KafkaPublishActor.KafkaPublishActorCommand]
-  ], KafkaSupervisorCommand] = new ActorBehavior[KafkaSupervisorEnvironment[R], Option[
-    ActorRef[KafkaPublishActor.KafkaPublishActorCommand]
-  ], KafkaSupervisorCommand] {
-    override def receive(
-                          context: Context[KafkaSupervisorCommand],
-                          actorConfig: ActorConfig,
-                          state: Option[ActorRef[KafkaPublishActor.KafkaPublishActorCommand]],
-                          command: KafkaSupervisorCommand,
-                          timers: Timers[KafkaSupervisorEnvironment[R], KafkaSupervisorCommand]
-    ): RIO[KafkaSupervisorEnvironment[R], Option[ActorRef[KafkaPublishActor.KafkaPublishActorCommand]]] =
+  ], KafkaSupervisorCommand] = Behaviors
+    .behavior[KafkaSupervisorEnvironment[R], Option[
+      ActorRef[KafkaPublishActor.KafkaPublishActorCommand]
+    ], KafkaSupervisorCommand].withReceive { (context, _, state, command, _) =>
       command match {
         case QueryAndSubscribe(topic, groupId, replyTo) => context.make(
             UUID.randomUUID().toString,
@@ -113,18 +108,10 @@ object KafkaSupervisor {
             .as(state)
 
       }
-
-    override def init(
-                       actorConfig: ActorConfig,
-                       context: Context[KafkaSupervisorCommand],
-                       initState: Option[ActorRef[KafkaPublishActor.KafkaPublishActorCommand]],
-                       timers: Timers[KafkaSupervisorEnvironment[R], KafkaSupervisorCommand]
-    ): RIO[KafkaSupervisorEnvironment[
-      R
-    ], (Seq[Fiber[Throwable, Unit]], Seq[KafkaSupervisorCommand], Option[ActorRef[KafkaPublishActor.KafkaPublishActorCommand]])] =
+    }.withInit { (_, context, initState, _) =>
       for {
         publishActor <- initState.map(RIO(_))
           .getOrElse(context.make("KafkaPublishActor", ActorConfig(), (), KafkaPublishActor.behavior[R](brokers)))
       } yield (Seq.empty, Seq.empty, Some(publishActor))
-  }
+    }
 }

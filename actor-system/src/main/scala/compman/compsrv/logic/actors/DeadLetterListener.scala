@@ -5,7 +5,7 @@ import zio.RIO
 import zio.clock.Clock
 import zio.logging.Logging
 
-case class DeadLetterListener() extends ActorBehavior[Logging, Int, DeadLetter] {
+case class DeadLetterListener() extends MinimalBehavior[Logging, Int, DeadLetter] {
   override def receive(context: Context[DeadLetter], actorConfig: ActorSystem.ActorConfig, state: Int, command: DeadLetter, timers: Timers[Logging, DeadLetter]): RIO[Logging, Int] =
     command match {
       case DeadLetter(message, sender, receiver) =>

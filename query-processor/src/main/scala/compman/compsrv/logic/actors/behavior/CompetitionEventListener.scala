@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, MessageReceived}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors._
-import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{CompetitionDeletedMessage, CompetitionUpdated}
+import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{
+  CompetitionDeletedMessage,
+  CompetitionUpdated
+}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model
@@ -20,7 +22,7 @@ import compman.compsrv.query.model._
 import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.repository._
 import org.mongodb.scala.MongoClient
-import zio.{Cause, Fiber, Queue, Ref, RIO, Tag, ZIO}
+import zio.{Cause, Queue, Ref, RIO, Tag, ZIO}
 import zio.clock.Clock
 import zio.kafka.consumer.Offset
 import zio.logging.Logging
@@ -28,9 +30,9 @@ import zio.logging.Logging
 object CompetitionEventListener {
   sealed trait ApiCommand
   case class EventReceived(kafkaMessage: KafkaConsumerApi) extends ApiCommand
-  case class CommitOffset(offset: Offset)                       extends ApiCommand
-  case class SetQueue(queue: Queue[Offset])                     extends ApiCommand
-  case object Stop                                              extends ApiCommand
+  case class CommitOffset(offset: Offset)                  extends ApiCommand
+  case class SetQueue(queue: Queue[Offset])                extends ApiCommand
+  case object Stop                                         extends ApiCommand
 
   trait ActorContext {
     implicit val eventMapping: Mapping.EventMapping[LIO]
@@ -81,13 +83,13 @@ object CompetitionEventListener {
   val initialState: ActorState = ActorState()
 
   def behavior[R: Tag](
-                        mapper: ObjectMapper,
-                        competitionId: String,
-                        topic: String,
-                        context: ActorContext,
-                        kafkaSupervisorActor: ActorRef[KafkaSupervisorCommand],
-                        competitionEventListenerSupervisor: ActorRef[CompetitionEventListenerSupervisor.ActorMessages],
-                        websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
+    mapper: ObjectMapper,
+    competitionId: String,
+    topic: String,
+    context: ActorContext,
+    kafkaSupervisorActor: ActorRef[KafkaSupervisorCommand],
+    competitionEventListenerSupervisor: ActorRef[CompetitionEventListenerSupervisor.ActorMessages],
+    websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
   ): ActorBehavior[R with Logging with Clock, ActorState, ApiCommand] = {
     def notifyEventListenerSupervisor[A](topic: String, event: EventDTO, mapped: Events.Event[Payload]) = {
       mapped match {
@@ -99,52 +101,40 @@ object CompetitionEventListener {
       }
     }
 
-    new ActorBehavior[R with Logging with Clock, ActorState, ApiCommand] {
-      import context._
-      import zio.interop.catz._
-      override def receive(
-        context: Context[ApiCommand],
-        actorConfig: ActorConfig,
-        state: ActorState,
-        command: ApiCommand,
-        timers: Timers[R with Logging with Clock, ApiCommand]
-      ): RIO[R with Logging with Clock, ActorState] = {
-        command match {
-          case EventReceived(kafkaMessage) => kafkaMessage match {
-              case KafkaSupervisor.QueryStarted() => Logging.info("Kafka query started.")
-                  .as(state)
-              case KafkaSupervisor.QueryFinished() => Logging.info("Kafka query finished.")
-                  .as(state)
-              case KafkaSupervisor.QueryError(error) => Logging.error("Error during kafka query: ", Cause.fail(error))
-                  .as(state)
-              case MessageReceived(topic, record) => {
-                  for {
-                    event  <- ZIO.effect(mapper.readValue(record.value, classOf[EventDTO]))
-                    mapped <- EventMapping.mapEventDto[LIO](event)
-                    _      <- Logging.info(s"Received event: $mapped")
-                    _      <- EventProcessors.applyEvent[LIO, Payload](mapped)
-                    _      <- notifyEventListenerSupervisor(topic, event, mapped)
-                    _      <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork
-                    _      <- context.self ! CommitOffset(record.offset)
-                  } yield state
-                }.onError(cause => logError(cause.squash))
-            }
+    import Behaviors._
+    import context._
+    import zio.interop.catz._
 
-          case Stop => context.stopSelf.map(_ => state)
-          case CommitOffset(offset) => state.queue.map(_.offer(offset)).getOrElse(RIO.unit)
-              .map(_ => state)
-          case SetQueue(queue) => Logging.info("Setting queue.") *>
-              ZIO.effectTotal(state.copy(queue = Some(queue)))
+    Behaviors.behavior[R with Logging with Clock, ActorState, ApiCommand].withReceive {
+      (context, _, state, command, _) =>
+        {
+          command match {
+            case EventReceived(kafkaMessage) => kafkaMessage match {
+                case KafkaSupervisor.QueryStarted()  => Logging.info("Kafka query started.").as(state)
+                case KafkaSupervisor.QueryFinished() => Logging.info("Kafka query finished.").as(state)
+                case KafkaSupervisor.QueryError(error) => Logging.error("Error during kafka query: ", Cause.fail(error))
+                    .as(state)
+                case MessageReceived(topic, record) => {
+                    for {
+                      event  <- ZIO.effect(mapper.readValue(record.value, classOf[EventDTO]))
+                      mapped <- EventMapping.mapEventDto[LIO](event)
+                      _      <- Logging.info(s"Received event: $mapped")
+                      _      <- EventProcessors.applyEvent[LIO, Payload](mapped)
+                      _      <- notifyEventListenerSupervisor(topic, event, mapped)
+                      _ <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork
+                      _ <- context.self ! CommitOffset(record.offset)
+                    } yield state
+                  }.onError(cause => logError(cause.squash))
+              }
+
+            case Stop                 => context.stopSelf.map(_ => state)
+            case CommitOffset(offset) => state.queue.map(_.offer(offset)).getOrElse(RIO.unit).map(_ => state)
+            case SetQueue(queue) => Logging.info("Setting queue.") *> ZIO.effectTotal(state.copy(queue = Some(queue)))
+          }
         }
-      }
-
-      override def init(
-        actorConfig: ActorConfig,
-        context: Context[ApiCommand],
-        initState: ActorState,
-        timers: Timers[R with Logging with Clock, ApiCommand]
-      ): RIO[R with Logging with Clock, (Seq[Fiber[Throwable, Unit]], Seq[ApiCommand], ActorState)] = for {
-        adapter <- context.messageAdapter[KafkaConsumerApi]( fa => EventReceived(fa))
+    }.withInit { (_, context, initState, _) =>
+      for {
+        adapter <- context.messageAdapter[KafkaConsumerApi](fa => EventReceived(fa))
         groupId = s"query-service-$competitionId"
         _ <- kafkaSupervisorActor ! KafkaSupervisor.QueryAndSubscribe(topic, groupId, adapter)
       } yield (Seq(), Seq.empty[ApiCommand], initState)

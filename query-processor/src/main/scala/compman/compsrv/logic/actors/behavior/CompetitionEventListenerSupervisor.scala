@@ -2,7 +2,7 @@ package compman.compsrv.logic.actors.behavior
 
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, QueryAndSubscribe}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
-import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Context, Timers}
+import compman.compsrv.logic.actors.{ActorBehavior, ActorRef}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.behavior.CompetitionEventListener.Stop
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
@@ -14,7 +14,7 @@ import compman.compsrv.query.serde.ObjectMapperFactory
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
 import org.mongodb.scala.MongoClient
-import zio.{Fiber, Ref, RIO, Tag, Task, ZIO}
+import zio.{Ref, Tag, Task, ZIO}
 import zio.clock.Clock
 import zio.logging.Logging
 
@@ -49,21 +49,17 @@ object CompetitionEventListenerSupervisor {
   }
 
   def behavior[R: Tag](
-                        notificationStopic: String,
-                        context: ActorContext,
-                        kafkaSupervisorActor: ActorRef[KafkaSupervisorCommand],
-                        eventListenerContext: CompetitionEventListener.ActorContext,
-                        websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
-  ): ActorBehavior[SupervisorEnvironment[R], Unit, ActorMessages] =
-    new ActorBehavior[SupervisorEnvironment[R], Unit, ActorMessages] {
-      import context._
-      override def receive(
-        context: Context[ActorMessages],
-        actorConfig: ActorConfig,
-        state: Unit,
-        command: ActorMessages,
-        timers: Timers[SupervisorEnvironment[R], ActorMessages]
-      ): RIO[SupervisorEnvironment[R], Unit] = {
+    notificationStopic: String,
+    context: ActorContext,
+    kafkaSupervisorActor: ActorRef[KafkaSupervisorCommand],
+    eventListenerContext: CompetitionEventListener.ActorContext,
+    websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
+  ): ActorBehavior[SupervisorEnvironment[R], Unit, ActorMessages] = {
+    import compman.compsrv.logic.actors.Behaviors
+    import context._
+    import Behaviors._
+    Behaviors.behavior[SupervisorEnvironment[R], Unit, ActorMessages].withReceive { (context, _, _, command, _) =>
+      {
         command match {
           case KafkaNotification(msg) => Logging.info(msg).unit
           case CompetitionDeletedMessage(competitionId) => ManagedCompetitionsOperations
@@ -171,13 +167,8 @@ object CompetitionEventListenerSupervisor {
             }
         }
       }.onError(cause => logError(cause.squashTrace))
-
-      override def init(
-        actorConfig: ActorConfig,
-        context: Context[ActorMessages],
-        initState: Unit,
-        timers: Timers[SupervisorEnvironment[R], ActorMessages]
-      ): RIO[SupervisorEnvironment[R], (Seq[Fiber.Runtime[Throwable, Unit]], Seq[ActorMessages], Unit)] = {
+    }.withInit { (_, context, _, _) =>
+      {
         for {
           mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
           adapter <- context.messageAdapter[KafkaConsumerApi] {
@@ -199,4 +190,5 @@ object CompetitionEventListenerSupervisor {
         } yield (Seq(), events, ())
       }
     }
+  }
 }

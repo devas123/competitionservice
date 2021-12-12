@@ -3,10 +3,8 @@ package compman.compsrv.logic.actors
 import cats.implicits._
 import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
 import compman.compsrv.logic.actors.dungeon.{DeathWatch, DeathWatchNotification, Signal}
-import zio.{Fiber, Queue, Ref, RIO, Task}
+import zio.{Fiber, Queue, Ref, RIO, Task, ZIO}
 import zio.interop.catz._
-
-import scala.annotation.nowarn
 
 trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWatch {
   self =>
@@ -18,14 +16,13 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
     timers: Timers[R, Msg]
   ): RIO[R, S]
 
-  @nowarn
   def receiveSignal(
     context: Context[Msg],
     actorConfig: ActorConfig = ActorConfig(),
     state: S,
     command: Signal,
     timers: Timers[R, Msg]
-  ): RIO[R, S] = RIO.unit.as(state)
+  ): RIO[R, S]
 
   def init(
     actorConfig: ActorConfig,
@@ -55,7 +52,8 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
         receiver = command match {
           case Left(value) => value match {
               case signal: Signal => receiveSignal(context, actorConfig, state, signal, ts)
-              case _              => processSystemMessage(context, watching, watchedBy)(value).as(state)
+              case _              =>
+                processSystemMessage(context, watching, watchedBy)(value).as(state)
             }
           case Right(value) => receive(context, actorConfig, state, value, ts)
         }
@@ -77,6 +75,7 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
         _            <- t.join.attempt
         st           <- stateRef.get
         _            <- self.postStop(actorConfig, context, st, ts).attempt
+        _ <- ZIO.effectTotal(println(s"Stopped actor ${context.self}"))
         iAmWatchedBy <- watchedBy.get
         _ <- iAmWatchedBy.toList
           .traverse(actor => actor.asInstanceOf[ActorRef[Msg]].sendSystemMessage(DeathWatchNotification(context.self)))

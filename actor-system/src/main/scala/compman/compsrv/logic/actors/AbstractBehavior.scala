@@ -2,7 +2,7 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.dungeon._
-import zio.{RIO, Ref, Task, ZIO}
+import zio.{Ref, RIO, Task, ZIO}
 import zio.clock.Clock
 
 trait AbstractBehavior[R, S, Msg] {
@@ -17,9 +17,9 @@ trait AbstractBehavior[R, S, Msg] {
   )(postStop: () => Task[Unit]): RIO[R with Clock, ActorRef[Msg]]
 
   private[actors] def processSystemMessage(
-                                            context: Context[Msg],
-                                            watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
-                                            watchedBy: Ref[Set[ActorRef[Nothing]]]
+    context: Context[Msg],
+    watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
+    watchedBy: Ref[Set[ActorRef[Nothing]]]
   )(systemMessage: SystemMessage): RIO[R, Unit] = systemMessage match {
     case Watch(watchee, watcher, msg) =>
       if (watcher == context.self) self.watchWith(context.self)(watching)(watchee, msg).unit
@@ -32,15 +32,15 @@ trait AbstractBehavior[R, S, Msg] {
         iAmWatching <- watching.get
         _ <- iAmWatching.get(actor) match {
           case Some(value) => value match {
-            case Some(value) => context.self ! value.asInstanceOf[Msg]
-            case None => context.self sendSystemMessage Terminated(actor)
-          }
-          case None        => ZIO.unit
+              case Some(value) => context.self ! value.asInstanceOf[Msg]
+              case None        => context.self sendSystemMessage Terminated(actor)
+            }
+          case None => ZIO.unit
         }
         _ <- watching.set(iAmWatching - actor)
         _ <- watchedBy.update(_ - actor)
       } yield ()
+    case PoisonPill => context.stopSelf.unit
     case _ => RIO.unit
   }
-
 }

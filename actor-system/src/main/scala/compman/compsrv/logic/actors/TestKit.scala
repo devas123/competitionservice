@@ -16,6 +16,7 @@ trait TestKit[F] {
 }
 
 object TestKit {
+  import Behaviors._
   def apply[F](actorSystem: ActorSystem): ZIO[Any with Clock, Throwable, TestKit[F]] =
     for {
       queue <- Queue.unbounded[F]
@@ -23,15 +24,10 @@ object TestKit {
         UUID.randomUUID().toString,
         ActorConfig(),
         (),
-        new ActorBehavior[Any, Unit, F] {
-          override def receive(
-            context: Context[F],
-            actorConfig: ActorConfig,
-            state: Unit,
-            command: F,
-            timers: Timers[Any, F]
-          ): RIO[Any, Unit] = { for { _ <- queue.offer(command) } yield () }
-        }
+        Behaviors.behavior[Any, Unit, F]
+          .withReceive { (_: Context[F], _: ActorConfig, _: Unit, command: F, _: Timers[Any, F]) =>
+            { for { _ <- queue.offer(command) } yield () }
+          }
       )
     } yield new TestKit[F] {
       override def ref: ActorRef[F] = actor
