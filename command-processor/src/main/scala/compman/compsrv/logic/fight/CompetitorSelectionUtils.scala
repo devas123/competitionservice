@@ -1,8 +1,9 @@
 package compman.compsrv.logic.fight
 
-import cats.{Monad, MonoidK, Show, ~>}
+import cats.data.State
 import cats.free.Free
 import cats.implicits._
+import cats.{Monad, MonoidK, Show, ~>}
 import compman.compsrv.Utils.groupById
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
@@ -56,7 +57,7 @@ object CompetitorSelectionUtils {
               t <- Task(for {
                 fs <- fights(stageId)
                 filtered = fs.values.filter(_.getRoundType == roundType).filter(_.getNumberInRound == n)
-                ids      = filtered.flatMap(_.getScores.map(_.getCompetitorId))
+                ids = filtered.flatMap(_.getScores.map(_.getCompetitorId))
               } yield ids.toSeq.asInstanceOf[A])
             } yield t.getOrElse(Seq.empty)
 
@@ -65,6 +66,25 @@ object CompetitorSelectionUtils {
         }
       }
     }
+
+    type Print[_] = State[StringBuilder, _]
+
+    implicit val show: Show[CompetitorSelectA[_]] = {
+      case FirstNPlaces(stageId, n) => s"First $n places of stage $stageId"
+      case LastNPlaces(stageId, n) => s"Last $n places of stage $stageId"
+      case WinnerOfFight(stageId, id) => s"Winner of fight $id of stage $stageId"
+      case LoserOfFight(stageId, id) => s"Loser of fight $id of stage $stageId"
+      case PassedToRound(stageId, n, roundType) => s"Passed to round $n of type $roundType of stage $stageId"
+      case Return(ids) => s"Selected: ${ids.show}"
+    }
+
+
+    def log: CompetitorSelectA ~> Print = new (CompetitorSelectA ~> Print) {
+      override def apply[A](fa: CompetitorSelectA[A]): Print[A] = {
+        State(s => (s.append(Show(show).show(fa)), ()))
+      }
+    }
+
   }
 
   private [fight] sealed trait CompetitorSelectA[A]
@@ -88,19 +108,4 @@ object CompetitorSelectionUtils {
     l <- a
     r <- b
   } yield MonoidK[F].combineK(l, r)
-
-  private [fight] def log: CompetitorSelectA ~> Show = new (CompetitorSelectA ~> Show) {
-    override def apply[A](fa: CompetitorSelectA[A]): Show[A] = {
-      fa match {
-        case FirstNPlaces(stageId, n)   => Show.show(_ => s"First $n places of stage $stageId")
-        case LastNPlaces(stageId, n)    => Show.show(_ => s"Last $n places of stage $stageId")
-        case WinnerOfFight(stageId, id) => Show.show(_ => s"Winner of fight $id of stage $stageId")
-        case LoserOfFight(stageId, id)  => Show.show(_ => s"Loser of fight $id of stage $stageId")
-        case PassedToRound(stageId, n, roundType) => Show
-            .show(_ => s"Passed to round $n of type $roundType of stage $stageId")
-        case Return(ids) => Show.show(_ => s"Selected: ${ids.show}")
-      }
-    }
-  }
-
 }
