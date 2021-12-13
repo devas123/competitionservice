@@ -6,7 +6,7 @@ import compman.compsrv.logic.actors.EventSourcedMessages.Command
 import compman.compsrv.logic.actors.dungeon.{DeathWatch, DeathWatchNotification}
 import zio.clock.Clock
 import zio.interop.catz._
-import zio.{Fiber, Queue, RIO, Ref, Task}
+import zio.{Fiber, Queue, RIO, Ref, Task, ZIO}
 
 abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
     extends AbstractBehavior[R, S, Msg] with DeathWatch {
@@ -51,14 +51,14 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
     )(msg: PendingMessage[Msg], state: Ref[S], context: Context[Msg], timers: Timers[R, Msg]): RIO[R with Clock, Unit] =
       for {
         s <- state.get
-        (fa, promise) = msg
+        fa = msg
         receiver = fa match {
           case Left(value) => processSystemMessage(context, watching, watchedBy)(value)
-              .as((Command.Ignore, (_: S) => ()))
+            .as((Command.Ignore, (_: S) => ()))
           case Right(value) => receive(context, actorConfig, s, value, timers)
         }
-        effectfulCompleter  = (s: S) => state.set(s) *> promise.succeed(())
-        idempotentCompleter = () => promise.succeed(())
+        effectfulCompleter = (s: S) => state.set(s)
+        idempotentCompleter = () => RIO.unit
         fullCompleter = (
           (
             ev: Command[Ev],
@@ -67,14 +67,14 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
             ev match {
               case Command.Ignore => sa(s); idempotentCompleter()
               case Command.Persist(ev) => for {
-                  _            <- persistEvents(persistenceId, ev)
-                  updatedState <- applyEvents(ev, s)
+                _ <- persistEvents(persistenceId, ev)
+                updatedState <- applyEvents(ev, s)
                   _            <- RIO(sa(updatedState))
                   res          <- effectfulCompleter(updatedState)
                 } yield res
             }
         ).tupled
-        _ <- receiver.foldM(e => promise.fail(e), fullCompleter)
+        _ <- receiver.foldM(e => ZIO.fail(e), fullCompleter)
       } yield ()
 
     def innerLoop(

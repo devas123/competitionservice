@@ -19,7 +19,7 @@ object Behaviors {
       }
     }
     def withReceiveSignal(
-      handler: (Context[Msg], ActorSystem.ActorConfig, S, Signal, Timers[R, Msg]) => RIO[R, S]
+      handler: (Context[Msg], ActorSystem.ActorConfig, S, Signal, Timers[R, Msg]) => PartialFunction[Signal, RIO[R, S]]
     ): ActorBehavior[R, S, Msg] = {
       new DelegatingBehavior(behavior) {
         override def receiveSignal(
@@ -28,7 +28,9 @@ object Behaviors {
           state: S,
           command: Signal,
           timers: Timers[R, Msg]
-        ): RIO[R, S] = handler(context, actorConfig, state, command, timers)
+        ): RIO[R, S] = handler(context, actorConfig, state, command, timers).orElse[Signal, RIO[R, S]] {
+          case _ => behavior.receiveSignal(context, actorConfig, state, command, timers)
+        }.apply(command)
       }
     }
     def withInit(
@@ -38,14 +40,28 @@ object Behaviors {
         S,
         Timers[R, Msg]
       ) => RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg], S)]
-    ): ActorBehavior[R, S, Msg] = {
+                ): ActorBehavior[R, S, Msg] = {
       new DelegatingBehavior(behavior) {
         override def init(
-          actorConfig: ActorSystem.ActorConfig,
-          context: Context[Msg],
-          initState: S,
-          timers: Timers[R, Msg]
-        ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg], S)] = handler(actorConfig, context, initState, timers)
+                           actorConfig: ActorSystem.ActorConfig,
+                           context: Context[Msg],
+                           initState: S,
+                           timers: Timers[R, Msg]
+                         ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg], S)] = handler(actorConfig, context, initState, timers)
+      }
+    }
+
+    def withPostStop(
+                      handler: (
+                        ActorSystem.ActorConfig,
+                          Context[Msg],
+                          S,
+                          Timers[R, Msg]
+                        ) => RIO[R, Unit]
+                    ): ActorBehavior[R, S, Msg] = {
+      new DelegatingBehavior(behavior) {
+        override def postStop(actorConfig: ActorSystem.ActorConfig, context: Context[Msg], state: S, timers: Timers[R, Msg]): RIO[R, Unit] =
+          handler(actorConfig, context, state, timers)
       }
     }
   }

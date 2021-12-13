@@ -4,7 +4,7 @@ import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.dungeon.{DeadLetter, SystemMessage}
 import zio.clock.Clock
 import zio.logging.Logging
-import zio.{IO, Promise, RIO, Ref, Task, UIO, ZIO}
+import zio.{IO, RIO, Ref, Task, UIO, ZIO}
 
 final class ActorSystem(
                          val actorSystemName: String,
@@ -104,7 +104,7 @@ final class ActorSystem(
 object ActorSystem {
   private val DefaultActorMailboxSize: Int = 100
   case class ActorConfig(mailboxSize: Int = DefaultActorMailboxSize)
-  private[actors] type PendingMessage[F] = (Either[SystemMessage, F], Promise[Throwable, Unit])
+  private[actors] type PendingMessage[F] = Either[SystemMessage, F]
 
   /** Constructor for Actor System
     *

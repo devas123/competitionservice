@@ -2,7 +2,7 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.PendingMessage
 import compman.compsrv.logic.actors.dungeon.{DeadLetter, SystemMessage}
-import zio.{Promise, Queue, Task}
+import zio.{Queue, Task}
 
 import scala.annotation.unchecked.uncheckedVariance
 
@@ -36,15 +36,13 @@ private[actors] case class LocalActorRef[Msg](private val queue: Queue[PendingMe
   }
 
   override private[actors] def sendSystemMessage(systemMessage: SystemMessage): Task[Unit] = for {
-    promise <- Promise.make[Throwable, Unit]
     shutdown <- queue.isShutdown
-    _ <- if (shutdown) provider.deadLetters ! DeadLetter(systemMessage, None, this.narrow[Nothing]) else queue.offer((Left(systemMessage), promise))
+    _ <- if (shutdown) provider.deadLetters ! DeadLetter(systemMessage, None, this.narrow[Nothing]) else queue.offer(Left(systemMessage))
   } yield ()
 
   override def !(message: Msg): Task[Unit] = for {
-    promise <- Promise.make[Throwable, Unit]
     shutdown <- queue.isShutdown
-    _ <- if (shutdown) provider.deadLetters ! DeadLetter(message, None, this.narrow[Nothing]) else queue.offer((Right(message), promise))
+    _ <- if (shutdown) provider.deadLetters ! DeadLetter(message, None, this.narrow[Nothing]) else queue.offer(Right(message))
   } yield ()
 
   override private[actors] val stop: Task[List[_]] = for {

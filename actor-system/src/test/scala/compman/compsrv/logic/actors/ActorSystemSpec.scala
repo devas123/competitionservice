@@ -31,11 +31,25 @@ object ActorSystemSpec extends DefaultRunnableSpec {
         actor <- createTestActor(actorSystem, testActor)
         exists <- actorSystem.select[Msg]("/" + testActor).fold(_ => None, Some(_))
         _ <- ZIO.sleep(3.seconds)
+        _ <- actor ! Test
+        _ <- actor ! Test
+        _ <- actor ! Test
+        _ <- actor ! Test
         exists2 <- actorSystem.select[Msg](testActor).fold(_ => None, Some(_))
-        _ <- actor ! Test
-        _ <- actor ! Test
-        _ <- actor ! Test
-        _ <- actor ! Test
+        _ <- ZIO.sleep(1.seconds)
       } yield assert(exists)(isSome) && assert(exists2)(isNone)
-    }).provideSomeLayerShared[TestEnvironment](Clock.live ++ logging)
+    },
+    testM("Should restart actor if it fails.") {
+      for {
+        actorSystem <- ActorSystem("test")
+        actor <- createFailingActor(actorSystem, testActor)
+        exists <- actorSystem.select[Msg]("/" + testActor).fold(_ => None, Some(_))
+        _ <- actor ! Test
+        _ <- actor ! Test
+        _ <- actor ! Fail
+        _ <- ZIO.sleep(1.seconds)
+        exists2 <- actorSystem.select[Msg](testActor).fold(_ => None, Some(_))
+      } yield assert(exists)(isSome) && assert(exists2)(isSome)
+    }
+  ).provideSomeLayerShared[TestEnvironment](Clock.live ++ logging)
 }

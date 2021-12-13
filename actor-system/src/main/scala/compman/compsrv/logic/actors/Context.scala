@@ -1,8 +1,8 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.logic.actors.dungeon.{DeadLetter, Watch}
-import zio.{Ref, RIO, Task, ZIO}
+import compman.compsrv.logic.actors.dungeon.{DeadLetter, Unwatch, Watch}
+import zio.{RIO, Ref, Task, ZIO}
 import zio.clock.Clock
 
 import java.util.UUID
@@ -21,6 +21,7 @@ case class Context[-F](
   }
 
   def watch[F1](actorRef: ActorRef[F1]): Task[Unit] = { self sendSystemMessage Watch(actorRef, self, None) }
+  def unwatch[F1](actorRef: ActorRef[F1]): Task[Unit] = { self sendSystemMessage Unwatch(actorRef, self) }
 
   def messageAdapter[In](mapping: In => F): ZIO[Any with Clock, Throwable, ActorRef[In]] = make[Any, Unit, In](
     UUID.randomUUID().toString,

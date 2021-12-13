@@ -40,7 +40,6 @@ trait AbstractBehavior[R, S, Msg] {
         _ <- watching.set(iAmWatching - actor)
         _ <- watchedBy.update(_ - actor)
       } yield ()
-    case PoisonPill => context.stopSelf.unit
     case _ => RIO.unit
   }
 }

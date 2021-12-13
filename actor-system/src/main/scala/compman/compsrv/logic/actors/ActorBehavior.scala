@@ -3,8 +3,8 @@ package compman.compsrv.logic.actors
 import cats.implicits._
 import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
 import compman.compsrv.logic.actors.dungeon.{DeathWatch, DeathWatchNotification, Signal}
-import zio.{Fiber, Queue, Ref, RIO, Task, ZIO}
 import zio.interop.catz._
+import zio.{Fiber, Queue, RIO, Ref, Task}
 
 trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWatch {
   self =>
@@ -48,55 +48,72 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
     )(context: Context[Msg], msg: PendingMessage[Msg], stateRef: Ref[S], ts: Timers[R, Msg]): RIO[R, Unit] = {
       for {
         state <- stateRef.get
-        (command, promise) = msg
+        command = msg
         receiver = command match {
           case Left(value) => value match {
-              case signal: Signal => receiveSignal(context, actorConfig, state, signal, ts)
-              case _              =>
-                processSystemMessage(context, watching, watchedBy)(value).as(state)
-            }
+            case signal: Signal => receiveSignal(context, actorConfig, state, signal, ts)
+            case _ =>
+              processSystemMessage(context, watching, watchedBy)(value).as(state)
+          }
           case Right(value) => receive(context, actorConfig, state, value, ts)
         }
-        completer = (s: S) => stateRef.set(s) *> promise.succeed(())
-        _ <- receiver.foldM(promise.fail, completer)
+        completer = (s: S) => stateRef.set(s)
+        _ <- receiver.foldM(e => RIO.fail(e).unit, completer)
       } yield ()
     }
 
     def innerLoop(
-      watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
-      watchedBy: Ref[Set[ActorRef[Nothing]]],
-      terminatedQueued: Ref[Map[ActorRef[Nothing], Option[Any]]]
-    )(queue: Queue[PendingMessage[Msg]], stateRef: Ref[S], ts: Timers[R, Msg], context: Context[Msg]) = {
+                   watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
+                   watchedBy: Ref[Set[ActorRef[Nothing]]],
+                   terminatedQueued: Ref[Map[ActorRef[Nothing], Option[Any]]]
+                 )(queue: Queue[PendingMessage[Msg]], stateRef: Ref[S], ts: Timers[R, Msg], context: Context[Msg]) = {
       for {
         t <- (for {
           msg <- queue.take
-          _   <- process(watching, watchedBy, terminatedQueued)(context, msg, stateRef, ts).attempt
+          result <- process(watching, watchedBy, terminatedQueued)(context, msg, stateRef, ts)
         } yield ()).repeatUntilM(_ => queue.isShutdown).fork
-        _            <- t.join.attempt
-        st           <- stateRef.get
-        _            <- self.postStop(actorConfig, context, st, ts).attempt
-        _ <- ZIO.effectTotal(println(s"Stopped actor ${context.self}"))
-        iAmWatchedBy <- watchedBy.get
-        _ <- iAmWatchedBy.toList
-          .traverse(actor => actor.asInstanceOf[ActorRef[Msg]].sendSystemMessage(DeathWatchNotification(context.self)))
+        res <- t.join.attempt
+      } yield res
+    }
+
+    def restartOne(
+                    watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
+                    watchedBy: Ref[Set[ActorRef[Nothing]]],
+                    terminatedQueued: Ref[Map[ActorRef[Nothing], Option[Any]]]
+                  )(queue: Queue[PendingMessage[Msg]], stateRef: Ref[S], ts: Timers[R, Msg], context: Context[Msg]): RIO[R, Unit] = {
+      for {
+        res <- innerLoop(watching, watchedBy, terminatedQueued)(queue, stateRef, ts, context)
+        _ <- res match {
+          case Left(_) => for {
+            shutdown <- queue.isShutdown
+            _ <- if (shutdown) Task.unit else restartOne(watching, watchedBy, terminatedQueued)(queue, stateRef, ts, context)
+          } yield ()
+          case Right(_) => Task.unit
+        }
       } yield ()
     }
 
     for {
-      queue            <- Queue.dropping[PendingMessage[Msg]](actorConfig.mailboxSize)
-      watching         <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
-      watchedBy        <- Ref.make(Set.empty[ActorRef[Nothing]])
+      queue <- Queue.dropping[PendingMessage[Msg]](actorConfig.mailboxSize)
+      watching <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
+      watchedBy <- Ref.make(Set.empty[ActorRef[Nothing]])
       terminatedQueued <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
-      timersMap        <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
+      timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
       actor = LocalActorRef[Msg](queue, actorPath)(optPostStop, actorSystem)
-      ts    = Timers[R, Msg](actor, timersMap)
+      ts = Timers[R, Msg](actor, timersMap)
+      stateRef <- Ref.make(initialState)
+      context = Context(children, actor, actorPath, actorSystem)
       _ <- (for {
-        stateRef <- Ref.make(initialState)
-        context = Context(children, actor, actorPath, actorSystem)
-        (_, msgs, initState) <- init(actorConfig, context, initialState, ts)
-        _                    <- stateRef.set(initState)
-        _                    <- msgs.traverse(m => actor ! m)
-        _                    <- innerLoop(watching, watchedBy, terminatedQueued)(queue, stateRef, ts, context)
+        state <- stateRef.get
+        (_, msgs, initState) <- init(actorConfig, context, state, ts)
+        _ <- stateRef.set(initState)
+        _ <- msgs.traverse(m => actor ! m)
+        _ <- restartOne(watching, watchedBy, terminatedQueued)(queue, stateRef, ts, context)
+        st <- stateRef.get
+        _ <- self.postStop(actorConfig, context, st, ts).attempt
+        iAmWatchedBy <- watchedBy.get
+        _ <- iAmWatchedBy.toList
+          .traverse(actor => actor.asInstanceOf[ActorRef[Msg]].sendSystemMessage(DeathWatchNotification(context.self)))
       } yield ()).fork
     } yield actor
   }

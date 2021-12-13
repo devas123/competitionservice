@@ -4,13 +4,14 @@ import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import zio.console.putStrLn
 import zio.duration.durationInt
 import zio.test.environment.TestEnvironment
-import zio.RIO
+import zio.{RIO, ZIO}
 import zio.clock.Clock
 
 object Utils {
 
   sealed trait Msg
   object Test extends Msg
+  object Fail extends Msg
   object Stop extends Msg
   import Behaviors._
 
@@ -23,8 +24,25 @@ object Utils {
       command match {
         case Stop => putStrLn("Stopping").unit *> context.stopSelf.unit
         case Test => putStrLn("Test").unit
+        case Fail => putStrLn("Fail").unit
       }
     }
+
+  def failingActorBehavior(): ActorBehavior[TestEnvironment, Unit, Msg] = Behaviors
+    .behavior[TestEnvironment, Unit, Msg].withReceive { (context, _, _, command, _) =>
+      command match {
+        case Stop => putStrLn("Stopping").unit *> context.stopSelf.unit
+        case Test => putStrLn("Failing") *> ZIO.fail(new RuntimeException("Test exception"))
+        case Fail => putStrLn("Interrupting") *> ZIO.interrupt
+      }
+    }
+
+  def createFailingActor(
+                       actorSystem: ActorSystem,
+                       name: String
+                     ): RIO[TestEnvironment with Clock, ActorRef[Msg]] = actorSystem
+    .make(name, ActorConfig(), (), failingActorBehavior())
+
 
   def createTestActor(
     actorSystem: ActorSystem,
