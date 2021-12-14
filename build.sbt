@@ -52,7 +52,7 @@ lazy val commons = module("commons", "command-processor/commons").settings(
   testFrameworks := Seq(zTestFramework)
 ).dependsOn(competitionServiceModel)
 
-lazy val competitionService = project.in(file(".")).settings(publish / skip := true)
+lazy val competitionservice = project.in(file(".")).settings(publish / skip := true)
   .aggregate(commandProcessor, queryProcessor, gatewayService, kafkaCommons, actorSystem)
 
 lazy val commandProcessor = module("command-processor", "command-processor")
