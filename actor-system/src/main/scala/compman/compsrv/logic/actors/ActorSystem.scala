@@ -45,7 +45,7 @@ final class ActorSystem(
                             ): RIO[R with Clock, ActorRef[F]] = for {
     map <- refActorMap.get
     path <- buildFinalName(parentActor.getOrElse(RootActorPath()), actorName)
-    _ <- if (map.contains(path)) IO.fail(new Exception(s"Actor $path already exists")) else IO.unit
+    _ <- IO.fail(new Exception(s"Actor $path already exists")).when(map.contains(path))
     derivedSystem = new ActorSystem(actorSystemName, refActorMap, Some(path), eventStream, deadLetters)
     childrenSet <- Ref.make(Set.empty[ActorRef[Nothing]])
     actor <- behavior

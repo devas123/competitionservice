@@ -24,7 +24,7 @@ case class Context[-F](
   def unwatch[F1](actorRef: ActorRef[F1]): Task[Unit] = { self sendSystemMessage Unwatch(actorRef, self) }
 
   def messageAdapter[In](mapping: In => F): ZIO[Any with Clock, Throwable, ActorRef[In]] = make[Any, Unit, In](
-    UUID.randomUUID().toString,
+    s"message-adapter-${UUID.randomUUID()}",
     ActorConfig(),
     (),
     new MinimalBehavior[Any, Unit, In] {
@@ -65,7 +65,7 @@ case class Context[-F](
   ): ZIO[R with Clock, Throwable, ActorRef[F1]] = for {
     ch       <- children.get
     actorRef <- actorSystem.make(actorName, actorConfig, init, behavior)
-    _        <- children.set(ch + actorRef.asInstanceOf[ActorRef[Any]])
+    _        <- children.set(ch + actorRef)
   } yield actorRef
 
   override def select[F1](path: String): Task[ActorRef[F1]] = actorSystem.select(path)

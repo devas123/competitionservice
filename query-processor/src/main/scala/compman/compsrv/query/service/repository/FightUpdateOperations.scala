@@ -35,16 +35,16 @@ object FightUpdateOperations {
     override def updateFightStartTime(fights: List[FightStartTimeUpdate]): LIO[Unit] = updateFightScores(List.empty)
     override def addFight(fight: Fight): LIO[Unit] = add(fights)(fight.id)(Some(fight))
 
-    override def addFights(fights: List[Fight]): LIO[Unit] = fights.traverse(addFight).map(_ => ())
+    override def addFights(fights: List[Fight]): LIO[Unit] = fights.traverse(addFight).unit
 
     override def updateFight(fight: Fight): LIO[Unit] = update(fights)(fight.id)(_ => fight)
 
-    override def updateFightScores(fights: List[Fight]): LIO[Unit] = fights.traverse(updateFight).map(_ => ())
+    override def updateFightScores(fights: List[Fight]): LIO[Unit] = fights.traverse(updateFight).unit
 
     override def removeFight(competitionId: String)(id: String): LIO[Unit] = remove(fights)(id)
 
     override def removeFights(competitionId: String)(ids: List[String]): LIO[Unit] = ids
-      .traverse(removeFight(competitionId)).map(_ => ())
+      .traverse(removeFight(competitionId)).unit
 
     override def removeFightsForCompetition(competitionId: String): LIO[Unit] = fights
       .map(_.update(_.filter(_._2.competitionId != competitionId))).getOrElse(ZIO.unit)
@@ -69,7 +69,7 @@ object FightUpdateOperations {
       for {
         collection <- fightCollection
         statement = collection.insertOne(fight)
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -77,7 +77,7 @@ object FightUpdateOperations {
       for {
         collection <- fightCollection
         res <-
-          if (fights.nonEmpty) RIO.fromFuture(_ => collection.insertMany(fights).toFuture()).map(_ => ()) else RIO.unit
+          RIO.fromFuture(_ => collection.insertMany(fights).toFuture()).unit.when(fights.nonEmpty)
       } yield res
     }
 
@@ -85,7 +85,7 @@ object FightUpdateOperations {
       for {
         collection <- fightCollection
         statement = collection.replaceOne(equal(idField, fight.id), fight)
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -102,7 +102,7 @@ object FightUpdateOperations {
               )
             )
           ))
-        res <- if (fights.nonEmpty) RIO.fromFuture(_ => statement().toFuture()).map(_ => ()) else RIO.unit
+        res <- RIO.fromFuture(_ => statement().toFuture()).unit.when(fights.nonEmpty)
       } yield res
     }
 
@@ -110,7 +110,7 @@ object FightUpdateOperations {
       for {
         collection <- fightCollection
         statement = collection.deleteOne(and(equal(competitionIdField, competitionId), equal(idField, id)))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -118,7 +118,7 @@ object FightUpdateOperations {
       for {
         collection <- fightCollection
         statement = collection.deleteMany(and(in(idField, ids), equal(competitionIdField, competitionId)))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -127,7 +127,7 @@ object FightUpdateOperations {
         collection <- fightCollection
         statement = collection
           .deleteMany(and(equal("categoryId", categoryId), equal(competitionIdField, competitionId)))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -152,8 +152,7 @@ object FightUpdateOperations {
           )
 
         res <-
-          if (fights.nonEmpty) { RIO.fromFuture(_ => collection.bulkWrite(writes()).toFuture()).map(_ => ()) }
-          else { ZIO.unit }
+          RIO.fromFuture(_ => collection.bulkWrite(writes()).toFuture()).unit.when(fights.nonEmpty)
       } yield res
     }
 
@@ -161,7 +160,7 @@ object FightUpdateOperations {
       for {
         collection <- fightCollection
         statement = collection.deleteMany(equal(competitionIdField, competitionId))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -174,7 +173,7 @@ object FightUpdateOperations {
           and(equal(idField, fightId), equal(competitionIdField, competitionId)),
           Seq(set(this.scores, scores), set(this.fightResult, fightResult), set(this.status, status))
         )
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
   }

@@ -127,8 +127,8 @@ object CompetitionEventListener {
                   }.onError(cause => logError(cause.squash))
               }
 
-            case Stop                 => context.stopSelf.map(_ => state)
-            case CommitOffset(offset) => state.queue.map(_.offer(offset)).getOrElse(RIO.unit).map(_ => state)
+            case Stop                 => Logging.info("Received stop command. Stopping...") *> context.stopSelf.as(state)
+            case CommitOffset(offset) => state.queue.map(_.offer(offset)).getOrElse(RIO.unit).as(state)
             case SetQueue(queue) => Logging.info("Setting queue.") *> ZIO.effectTotal(state.copy(queue = Some(queue)))
           }
         }

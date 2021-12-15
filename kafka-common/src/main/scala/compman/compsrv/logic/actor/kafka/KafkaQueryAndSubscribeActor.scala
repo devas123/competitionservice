@@ -62,26 +62,22 @@ private[kafka] object KafkaQueryAndSubscribeActor {
         offset          <- Consumer.committed(endOffsets.keySet)
         filteredOffsets <- RIO(endOffsets.filter(_._2 > 0))
         _ <- Logging.info(s"Getting events from topic $topic, endOffsets: $endOffsets, start from $offset")
-        res <-
-          if (filteredOffsets.nonEmpty) {
-            for {
-              _ <- Logging.info(s"Filtered offsets: $filteredOffsets")
-              off = filteredOffsets.keySet.map(tp => {
-                val partition = tp
-                val committedOffset = offset.get(partition).flatten.getOrElse(new consumer.OffsetAndMetadata(0))
-                  .offset()
-                ((tp.topic(), tp.partition()), endOffsets(partition) - committedOffset)
-              }).filter(o => o._2 > 0)
-              numberOfEventsToTake = off.foldLeft(0L)((acc, el) => acc + el._2) - startOffset
-              _ <- Logging.info(s"Effective offsets to retrieve: $off, number of events: $numberOfEventsToTake")
-              _ <-
-                if (numberOfEventsToTake > 0) {
-                  Consumer.subscribeAnd(Subscription.manual(off.map(_._1).toIndexedSeq: _*))
-                    .plainStream(Serde.string, Serde.byteArray).take(numberOfEventsToTake)
-                    .mapM(e => (replyTo ! MessageReceived(topic = topic, committableRecord = e)).as(e)).runDrain
-                } else { RIO.effect(Chunk.empty) }
-            } yield ()
-          } else { ZIO.unit }
+        res <- (for {
+          _ <- Logging.info(s"Filtered offsets: $filteredOffsets")
+          off = filteredOffsets.keySet.map(tp => {
+            val partition       = tp
+            val committedOffset = offset.get(partition).flatten.getOrElse(new consumer.OffsetAndMetadata(0)).offset()
+            ((tp.topic(), tp.partition()), endOffsets(partition) - committedOffset)
+          }).filter(o => o._2 > 0)
+          numberOfEventsToTake = off.foldLeft(0L)((acc, el) => acc + el._2) - startOffset
+          _ <- Logging.info(s"Effective offsets to retrieve: $off, number of events: $numberOfEventsToTake")
+          _ <-
+            if (numberOfEventsToTake > 0) {
+              Consumer.subscribeAnd(Subscription.manual(off.map(_._1).toIndexedSeq: _*))
+                .plainStream(Serde.string, Serde.byteArray).take(numberOfEventsToTake)
+                .mapM(e => (replyTo ! MessageReceived(topic = topic, committableRecord = e)).as(e)).runDrain
+            } else { RIO.effect(Chunk.empty) }
+        } yield ()).when(filteredOffsets.nonEmpty)
       } yield res
     }.onError(err => CompetitionLogging.logError(err.squashTrace)).provideSomeLayer[Clock with Blocking with Logging](
       Consumer.make(ConsumerSettings(brokers).withGroupId(groupId).withOffsetRetrieval(Consumer.OffsetRetrieval.Auto(
@@ -92,43 +88,37 @@ private[kafka] object KafkaQueryAndSubscribeActor {
     Behaviors.behavior[Logging with Clock with Blocking, Unit, KafkaQueryActorCommand].withReceive {
       (context, _, _, command, _) =>
         command match {
-          case ForwardMesage(msg, to) => (to ! msg).unit
+          case ForwardMesage(msg, to) => Logging.info(s"Forwarding message to actor: $to") *> (to ! msg).unit
           case Stop                   => context.stopSelf.unit
         }
-    }.withInit { (_, context, _, _) =>
+    }.withPostStop { (_, _, _, _) => Logging.info(s"Stopping.") }.withInit { (_, context, _, _) =>
       {
         for {
-          _ <-
-            if (query) { queryAndSendEvents() }
-            else { ZIO.unit }
+          _ <- context.watchWith(Stop, replyTo)
+          _ <- queryAndSendEvents().when(query)
           fiber <- (for {
-            _ <-
-              if (subscribe) {
-                getByteArrayStream(
-                  topic,
-                  { record =>
-                    val tryValue: Try[Array[Byte]] = record.record.value()
-                    tryValue match {
-                      case Failure(exception) => for {
-                          _ <- Logging.error("Error during deserialization")
-                          _ <- logError(exception)
-                        } yield ()
-                      case Success(value) =>
-                        val newConsumerRecord = new ConsumerRecord[String, Array[Byte]](
-                          topic,
-                          record.partition,
-                          record.offset.offset,
-                          record.key,
-                          value
-                        )
-                        Logging.info(s"Forwarding message to actor: $replyTo") *>
-                          (context.self !
-                            ForwardMesage(MessageReceived(topic, record.copy(record = newConsumerRecord)), replyTo))
-                    }
-                  }
-                )
-              } else { ZIO.unit }
-            _ <- Logging.info("Stopping the subscription.")
+            _ <- getByteArrayStream(
+              topic,
+              { record =>
+                val tryValue: Try[Array[Byte]] = record.record.value()
+                tryValue match {
+                  case Failure(exception) => for {
+                      _ <- Logging.error("Error during deserialization")
+                      _ <- logError(exception)
+                    } yield ()
+                  case Success(value) =>
+                    val newConsumerRecord = new ConsumerRecord[String, Array[Byte]](
+                      topic,
+                      record.partition,
+                      record.offset.offset,
+                      record.key,
+                      value
+                    )
+                    context.self !
+                      ForwardMesage(MessageReceived(topic, record.copy(record = newConsumerRecord)), replyTo)
+                }
+              }
+            ).when(subscribe)
             _ <- context.self ! Stop
           } yield ()).fork.onInterrupt(Logging.info("Kafka query/subscription fiber is interrupted."))
         } yield (Seq(fiber), Seq.empty, ())

@@ -49,7 +49,7 @@ object WebsocketConnection {
                     case None        => ZIO.unit
                   }
                   newQueues <- ZIO.effect(state.queues - clientId)
-                  _ <- if (newQueues.isEmpty) timers.startSingleTimer(stopTimerKey, 10.seconds, Stop()) else ZIO.unit
+                  _ <- timers.startSingleTimer(stopTimerKey, 10.seconds, Stop()).when(newQueues.isEmpty)
                 } yield state.copy(queues = state.queues - clientId)
               case Stop(replyTo) =>
                 import cats.implicits._

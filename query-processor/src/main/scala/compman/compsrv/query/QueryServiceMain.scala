@@ -77,7 +77,7 @@ object QueryServiceMain extends zio.App {
     )
     signal <- SignallingRef[ServiceIO, Boolean](false)
     _ <- (for {
-      _ <- args.headOption.map(f => if (Files.exists(Path.of(f))) ZIO.unit else signal.set(true)).getOrElse(ZIO.unit)
+      _ <- args.headOption.map(f => signal.set(true).unless(Files.exists(Path.of(f)))).getOrElse(ZIO.unit)
       _ <- ZIO.sleep(5.seconds)
     } yield ()).forever.fork
     _        <- Logging.debug("Starting server...")
@@ -87,12 +87,11 @@ object QueryServiceMain extends zio.App {
       s"/query/$serviceVersion"    -> CompetitionHttpApiService.service(competitionApiActor),
       s"/query/$serviceVersion/ws" -> WebsocketService.wsRoutes(webSocketSupervisor)
     ).orNotFound
-    srv <- ZIO.runtime[ZEnv].flatMap { _ =>
+    srv <- ZIO.runtime[ZEnv] *> {
       BlazeServerBuilder[ServiceIO].bindHttp(9000, "0.0.0.0").withWebSockets(true).withSocketKeepAlive(true)
         .withHttpApp(httpApp).serveWhile(signal, exitCode).compile.drain
     }
   } yield srv
 
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = server(args).tapError(logError)
-    .fold(_ => ExitCode.failure, _ => ExitCode.success).provideLayer(CompetitionLogging.Live.loggingLayer ++ ZEnv.live)
+  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = server(args).tapError(logError).exitCode.provideLayer(CompetitionLogging.Live.loggingLayer ++ ZEnv.live)
 }

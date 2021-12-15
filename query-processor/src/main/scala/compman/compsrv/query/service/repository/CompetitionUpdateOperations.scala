@@ -1,13 +1,15 @@
 package compman.compsrv.query.service.repository
 
-import com.mongodb.client.model.ReplaceOptions
+import com.mongodb.client.model.{ReplaceOptions, UpdateOptions}
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import org.mongodb.scala.{Document, MongoClient}
-import org.mongodb.scala.model.Filters
+import org.mongodb.scala.model.{Filters, Updates}
 import zio.{Ref, RIO, ZIO}
+
+import scala.jdk.CollectionConverters._
 
 trait CompetitionUpdateOperations[F[+_]] {
   def updateRegistrationOpen(competitionId: String)(isOpen: Boolean): F[Unit]
@@ -27,6 +29,7 @@ trait CompetitionUpdateOperations[F[+_]] {
   def updateCompetitor(competitor: Competitor): F[Unit]
   def removeCompetitor(competitionId: String)(id: String): F[Unit]
   def removeCompetitorsForCompetition(competitionId: String): F[Unit]
+  def removeCompetitorsForCategory(competitionId: String)(categoryId: String): F[Unit]
   def addRegistrationGroup(group: RegistrationGroup): F[Unit]
   def addRegistrationGroups(groups: List[RegistrationGroup]): F[Unit]
   def updateRegistrationGroup(group: RegistrationGroup): F[Unit]
@@ -107,13 +110,13 @@ object CompetitionUpdateOperations {
       add(registrationGroups)(group.id)(Some(group))
 
     override def addRegistrationGroups(groups: List[RegistrationGroup]): LIO[Unit] = groups
-      .traverse(addRegistrationGroup).map(_ => ())
+      .traverse(addRegistrationGroup).unit
 
     override def updateRegistrationGroup(group: RegistrationGroup): LIO[Unit] =
       update(registrationGroups)(group.id)(_ => group)
 
     override def updateRegistrationGroups(groups: List[RegistrationGroup]): LIO[Unit] = groups
-      .traverse(updateRegistrationGroup).map(_ => ())
+      .traverse(updateRegistrationGroup).unit
 
     override def removeRegistrationGroup(competitionId: String)(id: String): LIO[Unit] = remove(registrationGroups)(id)
 
@@ -124,17 +127,17 @@ object CompetitionUpdateOperations {
       update(registrationPeriods)(period.id)(_ => period)
 
     override def updateRegistrationPeriods(periods: List[RegistrationPeriod]): LIO[Unit] = periods
-      .traverse(updateRegistrationPeriod).map(_ => ())
+      .traverse(updateRegistrationPeriod).unit
 
     override def removeRegistrationPeriod(competitionId: String)(id: String): LIO[Unit] =
       remove(registrationPeriods)(id)
 
     override def addPeriod(entry: Period): LIO[Unit] = add(periods)(entry.id)(Some(entry))
 
-    override def addPeriods(entries: List[Period]): LIO[Unit] = entries.traverse(addPeriod).map(_ => ())
+    override def addPeriods(entries: List[Period]): LIO[Unit] = entries.traverse(addPeriod).unit
 
     override def updatePeriods(entries: List[Period]): LIO[Unit] = entries.traverse(e => update(periods)(e.id)(_ => e))
-      .map(_ => ())
+      .unit
 
     override def removePeriod(competitionId: String)(id: String): LIO[Unit] = remove(periods)(id)
 
@@ -146,9 +149,13 @@ object CompetitionUpdateOperations {
 
     override def removeCompetitorsForCompetition(competitionId: String): LIO[Unit] = competitors
       .map(_.update(c => c.filter(_._2.competitionId != competitionId))).getOrElse(ZIO.unit)
+
+    override def removeCompetitorsForCategory(competitionId: String)(categoryId: String): LIO[Unit] = competitors
+      .map(_.update(c => c.map(e => (e._1, e._2.copy(categories = e._2.categories - categoryId))))).getOrElse(ZIO.unit)
   }
 
-  def live(mongo: MongoClient, name: String): CompetitionUpdateOperations[LIO] = new CompetitionUpdateOperations[LIO] with CommonLiveOperations {
+  def live(mongo: MongoClient, name: String): CompetitionUpdateOperations[LIO] = new CompetitionUpdateOperations[LIO]
+    with CommonLiveOperations {
 
     override def mongoClient: MongoClient = mongo
 
@@ -161,7 +168,7 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         statement = collection
           .findOneAndUpdate(equal(idField, competitionId), set("properties.registrationOpen", isOpen))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -173,7 +180,7 @@ object CompetitionUpdateOperations {
           CompetitionState(competitionProperties.id, competitionProperties, Map.empty, Map.empty, Map.empty, None),
           new ReplaceOptions().upsert(true)
         )
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -182,7 +189,7 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         statement = collection
           .findOneAndUpdate(equal(idField, competitionProperties.id), set("properties", competitionProperties))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -190,7 +197,7 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitionStateCollection
         statement = collection.deleteMany(equal(idField, id))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -201,7 +208,7 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         statement = collection
           .findOneAndUpdate(equal(idField, competitionId), set("properties.infoTemplate", competitionInfoTemplate))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -215,7 +222,7 @@ object CompetitionUpdateOperations {
           equal(idField, stageDescriptor.competitionId),
           set(s"stages.${stageDescriptor.id}", stageDescriptor)
         )
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -225,7 +232,7 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitionStateCollection
         statement = collection.findOneAndUpdate(equal(idField, competition), set(s"stages", Document()))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -236,7 +243,7 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         statement = collection
           .findOneAndUpdate(equal(idField, competitionId), set(s"stages.$stageId.stageStatus", newStatus))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -245,7 +252,7 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         statement = collection
           .findOneAndUpdate(equal(idField, category.competitionId), set(s"categories.${category.id}", category))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -254,7 +261,7 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         statement = collection
           .findOneAndUpdate(equal(idField, competitionId), set(s"categories.$id.registrationOpen", newStatus))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -262,7 +269,7 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitionStateCollection
         statement = collection.findOneAndUpdate(equal(idField, competitionId), unset(s"categories.$id"))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -271,7 +278,7 @@ object CompetitionUpdateOperations {
         collection <- competitorCollection
         statement = collection
           .replaceOne(Filters.eq(idField, competitor.id), competitor, new ReplaceOptions().upsert(true))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -279,7 +286,7 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitorCollection
         statement = collection.replaceOne(equal(idField, competitor.id), competitor)
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -287,7 +294,7 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitorCollection
         statement = collection.deleteOne(equal(idField, id))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -295,7 +302,19 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitorCollection
         statement = collection.deleteMany(equal(competitionIdField, competitionId))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
+      } yield res
+    }
+
+    override def removeCompetitorsForCategory(competitionId: String)(categoryId: String): LIO[Unit] = {
+      for {
+        collection <- competitorCollection
+        statement = collection.updateMany(
+          and(equal(competitionIdField, competitionId), equal("categories", categoryId)),
+          Updates.unset("categories.$[element]"),
+          new UpdateOptions().arrayFilters(List(Document("element" -> Document("$eq" -> categoryId))).asJava)
+        )
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -306,7 +325,7 @@ object CompetitionUpdateOperations {
           equal(idField, group.competitionId),
           set(s"registrationInfo.registrationGroups.${group.id}", group)
         )
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -315,7 +334,7 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         updates   = groups.map(group => set(s"registrationInfo.registrationGroups.${group.id}", group))
         statement = collection.findOneAndUpdate(equal(idField, groups.head.competitionId), combine(updates: _*))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -327,7 +346,7 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         statement = collection
           .findOneAndUpdate(equal(idField, competitionId), unset(s"registrationInfo.registrationGroups.$id"))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -338,7 +357,7 @@ object CompetitionUpdateOperations {
           equal(idField, period.competitionId),
           set(s"registrationInfo.registrationPeriods.${period.id}", period)
         )
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -348,7 +367,7 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         updates   = periods.map(period => set(s"registrationInfo.registrationPeriods.${period.id}", period))
         statement = collection.findOneAndUpdate(equal(idField, periods.head.competitionId), combine(updates: _*))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -357,7 +376,7 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         statement = collection
           .findOneAndUpdate(equal(idField, competitionId), unset(s"registrationInfo.registrationPeriods.$id"))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -365,7 +384,7 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitionStateCollection
         statement = collection.findOneAndUpdate(equal(idField, entry.competitionId), set(s"periods.${entry.id}", entry))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -374,7 +393,7 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         updates   = entries.map(period => set(s"periods.${period.id}", period))
         statement = collection.findOneAndUpdate(equal(idField, entries.head.competitionId), combine(updates: _*))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -384,7 +403,7 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitionStateCollection
         statement = collection.findOneAndUpdate(equal(idField, competitionId), unset(s"periods.$id"))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
 
@@ -392,7 +411,7 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitionStateCollection
         statement = collection.findOneAndUpdate(equal(idField, competitionId), set(s"periods", Document()))
-        res <- RIO.fromFuture(_ => statement.toFuture()).map(_ => ())
+        res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
   }

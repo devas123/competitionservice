@@ -153,12 +153,13 @@ object CompetitionEventListenerSupervisor {
                         websocketConnectionSupervisor
                       )
                     ).foldM(
-                      _ => Logging.info(s"Actor already exists with id $id"),
-                      _ => Logging.info(s"Created actor to process the competition $id")
-                    ).map(_ => ())
+                    _ => Logging.info(s"Actor already exists with id $id"),
+                    _ => Logging.info(s"Created actor to process the competition $id")
+                  ).unit
                 } yield res // start new actor if not started
               case CompetitionProcessingStopped(id) => for {
-                  child <- context.findChild[Any](id)
+                _ <- Logging.info(s"Stopping competition listener with id $id because competition processing stopped.")
+                  child <- context.findChild[CompetitionEventListener.ApiCommand](id)
                   _ <- child match {
                     case Some(value) => value ! Stop
                     case None        => Task.unit

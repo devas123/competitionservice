@@ -300,7 +300,6 @@ object CompetitionQueryOperations {
 
     override def getRegistrationGroups(competitionId: String): LIO[List[RegistrationGroup]] = {
       for {
-        collection <- competitorCollection
         res <- getStateById(competitionId)
           .map(_.flatMap(_.registrationInfo).map(_.registrationGroups.values.toList).getOrElse(List.empty))
       } yield res

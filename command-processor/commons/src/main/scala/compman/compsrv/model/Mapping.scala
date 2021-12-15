@@ -82,7 +82,7 @@ object Mapping {
               competitionId = Option(commandDTO.getCompetitionId),
               categoryId = Option(commandDTO.getCategoryId)
             )
-          case DELETE_CATEGORY_COMMAND => Commands.DeleteCategory(
+          case DELETE_CATEGORY_COMMAND => Commands.DeleteCategoryCommand(
               competitionId = Option(commandDTO.getCompetitionId),
               categoryId = Option(commandDTO.getCategoryId)
             )

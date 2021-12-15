@@ -31,7 +31,7 @@ object CompetitionProcessorActor {
     kafkaSupervisor: ActorRef[KafkaSupervisorCommand],
     competitionNotificationsTopic: String,
     mapper: ObjectMapper = ObjectMapperFactory.createObjectMapper,
-    actorIdleTimeoutMillis: Long = 300000
+    actorIdleTimeoutMillis: Long = 10000
   ): EventSourcedBehavior[Env with Logging with Clock, CompetitionState, Message, EventDTO] =
     new EventSourcedBehavior[Env with Logging with Clock, CompetitionState, Message, EventDTO](competitionId) {
 
@@ -55,9 +55,8 @@ object CompetitionProcessorActor {
         timers: Timers[Env with Logging with Clock, Message]
       ): RIO[Env with Logging with Clock, (Seq[Fiber[Throwable, Unit]], Seq[Message])] = for {
         _ <-
-          if (initState.competitionProperties.isEmpty) Task
-            .fail(new RuntimeException(s"Competition properties are missing: $initState"))
-          else Task.unit
+          Task
+            .fail(new RuntimeException(s"Competition properties are missing: $initState")).when(initState.competitionProperties.isEmpty)
         props = initState.competitionProperties.get
         started = CompetitionProcessingStarted(
           competitionId,
@@ -95,9 +94,8 @@ object CompetitionProcessorActor {
               ) *> {
                 for {
                   _ <-
-                    if (cmd.getId == null) info(s"Command $cmd has no ID") *>
-                      RIO.fail(new IllegalArgumentException(s"Command $cmd has no ID"))
-                    else RIO.unit
+                    (info(s"Command $cmd has no ID") *>
+                      RIO.fail(new IllegalArgumentException(s"Command $cmd has no ID"))).when(cmd.getId == null)
                   _ <- info(s"Processing command $command")
                   processResult <- Live.withContext(
                     _.annotate(LogAnnotation.CorrelationId, Option(cmd.getId).map(UUID.fromString))
@@ -144,8 +142,7 @@ object CompetitionProcessorActor {
         events: Seq[EventDTO]
       ): RIO[Env with Logging with Clock, Unit] = {
         import cats.implicits._
-        events.traverse(e => kafkaSupervisor ! PublishMessage(eventTopic, competitionId, mapper.writeValueAsBytes(e)))
-          .as(())
+        events.traverse(e => kafkaSupervisor ! PublishMessage(eventTopic, competitionId, mapper.writeValueAsBytes(e))).unit
       }
     }
 

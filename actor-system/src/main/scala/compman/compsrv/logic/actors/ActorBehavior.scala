@@ -86,7 +86,7 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
         _ <- res match {
           case Left(_) => for {
             shutdown <- queue.isShutdown
-            _ <- if (shutdown) Task.unit else restartOne(watching, watchedBy, terminatedQueued)(queue, stateRef, ts, context)
+            _ <- restartOne(watching, watchedBy, terminatedQueued)(queue, stateRef, ts, context).unless(shutdown)
           } yield ()
           case Right(_) => Task.unit
         }
