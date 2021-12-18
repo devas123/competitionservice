@@ -2,8 +2,9 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.dungeon.{DeadLetter, SystemMessage}
-import zio.{IO, Ref, RIO, Task, UIO, ZIO}
+import zio.{Fiber, IO, Ref, RIO, Task, UIO, ZIO}
 import zio.clock.Clock
+import zio.duration.durationInt
 import zio.logging.Logging
 
 final class ActorSystem(
@@ -43,14 +44,17 @@ final class ActorSystem(
     init: S,
     behavior: => AbstractBehavior[R, S, F]
   ): RIO[R with Clock, ActorRef[F]] = for {
-    map  <- refActorMap.get
     path <- buildFinalName(parentActor.getOrElse(RootActorPath()), actorName)
-    _    <- IO.fail(new Exception(s"Actor $path already exists")).when(map.contains(path))
+    updated <- refActorMap.modify(refMap =>
+      if (refMap.contains(path)) { (false, refMap) }
+      else { (true, refMap + (path -> InternalActorCell(new MinimalActorRef[F] {}, Fiber.unit))) }
+    )
+    _ <- IO.fail(new Exception(s"Actor $path already exists")).unless(updated)
     derivedSystem = new ActorSystem(actorSystemName, refActorMap, Some(path), eventStream, deadLetters)
     childrenSet <- Ref.make(Set.empty[InternalActorCell[Nothing]])
     actor <- behavior
       .makeActor(path, actorConfig, init, derivedSystem, childrenSet)(() => dropFromActorMap(path, childrenSet))
-    _ <- refActorMap.set(map + (path -> actor))
+    _ <- refActorMap.update(refMap => refMap + (path -> actor))
   } yield actor
 
   private[actors] def dropFromActorMap(path: ActorPath, childrenRef: Ref[Set[InternalActorCell[Nothing]]]): Task[Unit] =
@@ -113,10 +117,15 @@ object ActorSystem {
     * @return
     *   instantiated actor system
     */
-  def apply(sysName: String): ZIO[Logging with Clock, Throwable, ActorSystem] = {
+  def apply(sysName: String, debugActors: Boolean = false): ZIO[Logging with Clock, Throwable, ActorSystem] = {
     for {
       initActorRefMap <- Ref.make(Map.empty[ActorPath, InternalActorCell[Nothing]])
       subscriptions   <- Ref.make(Map.empty[Class[_], Set[ActorRef[Nothing]]])
+      _ <- (for {
+        actorMap <- initActorRefMap.get
+        _ <- Logging.info(s"Currently have ${actorMap.size} actors: \n${actorMap.values.map(_.actor).mkString("\n")}")
+        _ <- ZIO.sleep(3.seconds)
+      } yield ()).forever.fork.when(debugActors)
       eventStream = EventStream(subscriptions)
       deadLetters = DeadLetterActorRef(eventStream)
       actorSystem <- IO.effect(new ActorSystem(sysName, initActorRefMap, parentActor = None, eventStream, deadLetters))

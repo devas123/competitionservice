@@ -91,12 +91,12 @@ private[kafka] object KafkaQueryAndSubscribeActor {
           case ForwardMesage(msg, to) => Logging.info(s"Forwarding message to actor: $to") *> (to ! msg).unit
           case Stop                   => context.stopSelf.unit
         }
-    }.withPostStop { (_, _, _, _) => Logging.info(s"Stopping.") }.withInit { (_, context, _, _) =>
+    }.withPostStop { (_, context, _, _) => Logging.info(s"Stopping ${context.self}.") }.withInit { (_, context, _, _) =>
       {
         for {
-          _ <- context.watchWith(Stop, replyTo)
+          _            <- context.watchWith(Stop, replyTo)
           executeQuery <- queryAndSendEvents().when(query).fork
-          _ <- executeQuery.join
+          _            <- executeQuery.join
           fiber <- (for {
             _ <- getByteArrayStream(
               topic,
@@ -121,7 +121,7 @@ private[kafka] object KafkaQueryAndSubscribeActor {
               }
             ).when(subscribe)
             _ <- context.self ! Stop
-          } yield ()).fork.onInterrupt(Logging.info("Kafka query/subscription fiber is interrupted."))
+          } yield ()).onExit(exit => Logging.info(s"Kafka query/subscription actor ${context.self} fiber exit $exit.")).fork
         } yield (Seq(fiber), Seq.empty, ())
       }
     }

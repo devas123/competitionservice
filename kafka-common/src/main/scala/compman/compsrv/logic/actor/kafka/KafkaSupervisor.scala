@@ -66,12 +66,16 @@ object KafkaSupervisor {
       ActorRef[KafkaPublishActor.KafkaPublishActorCommand]
     ], KafkaSupervisorCommand].withReceive { (context, _, state, command, _) =>
       command match {
-        case QueryAndSubscribe(topic, groupId, replyTo) => context.make(
-            UUID.randomUUID().toString,
-            ActorConfig(),
-            (),
-            KafkaQueryAndSubscribeActor.behavior(topic, groupId, replyTo, brokers, subscribe = true, query = true)
-          ).as(state)
+        case QueryAndSubscribe(topic, groupId, replyTo) => for {
+            actorId <- RIO.effectTotal(UUID.randomUUID().toString)
+            state <- context.make(
+              actorId,
+              ActorConfig(),
+              (),
+              KafkaQueryAndSubscribeActor.behavior(topic, groupId, replyTo, brokers, subscribe = true, query = true)
+            ).as(state)
+            _ <- Logging.info(s"Created actor with id $actorId to process query and subscribe request.")
+          } yield state
         case QuerySync(topic, groupId, promise, timeout) => for {
             queryReceiver <- context.make(
               UUID.randomUUID().toString,

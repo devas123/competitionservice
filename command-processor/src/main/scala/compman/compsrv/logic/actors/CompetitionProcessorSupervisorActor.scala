@@ -53,7 +53,7 @@ object CompetitionProcessorSupervisorActor {
                         kafkaSupervisor,
                         commandProcessorConfig.competitionNotificationsTopic,
                         mapper,
-                        commandProcessorConfig.actorIdleTimeoutMillis.getOrElse(300000)
+                        commandProcessorConfig.actorIdleTimeoutMillis.getOrElse(30 * 60000)
                       )
                     )
                   } yield a)

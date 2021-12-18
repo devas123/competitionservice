@@ -54,7 +54,7 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
         processor <- actorSystem.make( s"CompetitionProcessor-$competitionId",
                  ActorConfig(),
                  initialState,
-                 CompetitionProcessorActor.behavior[Clock with Blocking with Logging](competitionId, "test-events", kafkaSupervisor.ref, "test-notifications"))
+                 CompetitionProcessorActor.behavior[Clock with Blocking with Logging](competitionId, "test-events", kafkaSupervisor.ref, "test-notifications", actorIdleTimeoutMillis = 10000L))
         _ <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[CreateTopicIfMissing])
         msg <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[QuerySync])
         unwrapped = msg.get
