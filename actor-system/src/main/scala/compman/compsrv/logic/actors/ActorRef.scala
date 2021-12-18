@@ -46,13 +46,13 @@ private[actors] case class LocalActorRef[Msg](
       else queue.offer(Left(systemMessage))
   } yield ()
 
-  private[actors] def handleSpecial(systemMessage: SystemMessage): Task[Boolean] = Task.debug(s"Special handle $systemMessage") *> (systemMessage match {
+  private[actors] def handleSpecial(systemMessage: SystemMessage): Task[Boolean] = systemMessage match {
     case Watch(watchee, watcher, _) =>
       if (watchee == this) { watcher.sendSystemMessage(DeathWatchNotification(watchee)).as(true) }
       else { Task.effectTotal(false) }
     case _ => Task.effectTotal(false)
   }
-)
+
   override def !(message: Msg): Task[Unit] = for {
     shutdown <- queue.isShutdown
     _ <-

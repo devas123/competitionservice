@@ -20,7 +20,6 @@ import java.util.UUID
 import scala.util.{Random, Try}
 
 object KafkaSupervisorSpec extends DefaultRunnableSpec {
-  private val notificationTopic                                           = "notifications"
   val loggingLayer: ZLayer[Any, Throwable, Logging]                       = CompetitionLogging.Live.loggingLayer
   val layers: ZLayer[Any, Throwable, Clock with Blocking]                 = Clock.live ++ Blocking.live
   val allLayers: ZLayer[Any, Throwable, Clock with Blocking with Logging] = Clock.live ++ Blocking.live ++ loggingLayer
@@ -34,6 +33,7 @@ object KafkaSupervisorSpec extends DefaultRunnableSpec {
         (for {
           actorSystem <- ActorSystem("test")
           brokerUrl   <- ZIO.effectTotal(EmbeddedKafkaBroker.bootstrapServers.get())
+          notificationTopic = UUID.randomUUID().toString
           kafkaSupervisor <- actorSystem
             .make("kafkaSupervisor", ActorConfig(), None, KafkaSupervisor.behavior[Any](List(brokerUrl)))
           messageReceiver <- TestKit[KafkaConsumerApi](actorSystem)
@@ -138,7 +138,7 @@ object KafkaSupervisorSpec extends DefaultRunnableSpec {
           } yield assert(msgs)(hasSize(equalTo(messagesCount)))
           ).provideLayer(allLayers)
       }
-    ) @@ aroundAll(EmbeddedKafkaBroker.embeddedKafkaServer)(server => URIO(server.stop()))
+    ) @@ sequential @@ aroundAll(EmbeddedKafkaBroker.embeddedKafkaServer)(server => URIO(server.stop()))
 
   def getByteArrayStream(notificationTopic: String): ZStream[Any with Clock with Blocking with Has[
     Consumer
