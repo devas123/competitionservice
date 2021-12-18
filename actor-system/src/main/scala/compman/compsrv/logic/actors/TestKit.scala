@@ -1,7 +1,8 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import zio.{Queue, RIO, ZIO}
+import compman.compsrv.logic.actors.dungeon.Watch
+import zio.{Queue, RIO, Task, ZIO}
 import zio.clock.Clock
 import zio.duration.Duration
 
@@ -11,8 +12,10 @@ trait TestKit[F] {
   def ref: ActorRef[F]
 
   def expectMessage(timeout: Duration): RIO[Any with Clock, Option[F]]
+  def watchWith[F1](msg: F, actorRef: ActorRef[F1]): Task[Unit]
 
   def expectMessageClass[C](timeout: Duration, expectedMsgClass: Class[C]): RIO[Any with Clock, Option[C]]
+  def expectOneOf(timeout: Duration, expectedMsgClass: Class[_]*): RIO[Any with Clock, Option[Any]]
 }
 
 object TestKit {
@@ -45,10 +48,26 @@ object TestKit {
               RIO(nextMsg.map(n => expectedMsgClass.cast(n)))
             } else {
               RIO.fail(new RuntimeException(
-                s"Expected class ${expectedMsgClass.getName} but received ${nextMsg.map(_.getClass.getName)}"
+                s"Expected class Some(${expectedMsgClass.getName}), but received ${nextMsg.map(_.getClass.getName)}"
               ))
             }
         } yield msg
       }
+
+      override def watchWith[F1](msg: F, actorRef: ActorRef[F1]): Task[Unit] = {
+        actor sendSystemMessage Watch(actorRef, actor, Option(msg))
+      }
+
+      override def expectOneOf(timeout: Duration, expectedMsgClass: Class[_]*): RIO[Any with Clock, Option[Any]] =         for {
+        nextMsg <- queue.take.timeout(timeout)
+        msg <-
+          expectedMsgClass.find(c => nextMsg.exists(n => c.isAssignableFrom(n.getClass))) match {
+            case Some(value) => RIO(nextMsg.map(n => value.cast(n)))
+            case None => RIO.fail(new RuntimeException(
+              s"Expected class Some(${expectedMsgClass.map(_.getName).mkString(", ")}), but received ${nextMsg.map(_.getClass.getName)}"
+            ))
+          }
+      } yield msg
+
     }
 }

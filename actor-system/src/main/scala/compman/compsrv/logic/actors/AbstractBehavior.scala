@@ -8,13 +8,13 @@ import zio.clock.Clock
 trait AbstractBehavior[R, S, Msg] {
   self: DeathWatch =>
 
-  def makeActor(
+  private[actors] def makeActor(
     actorPath: ActorPath,
     actorConfig: ActorConfig,
     initialState: S,
     actorSystem: ActorSystem,
-    children: Ref[Set[ActorRef[Nothing]]]
-  )(postStop: () => Task[Unit]): RIO[R with Clock, ActorRef[Msg]]
+    children: Ref[Set[InternalActorCell[Nothing]]]
+  )(postStop: () => Task[Unit]): RIO[R with Clock, InternalActorCell[Msg]]
 
   private[actors] def processSystemMessage(
     context: Context[Msg],
@@ -40,6 +40,6 @@ trait AbstractBehavior[R, S, Msg] {
         _ <- watching.set(iAmWatching - actor)
         _ <- watchedBy.update(_ - actor)
       } yield ()
-    case _ => RIO.unit
+    case x => RIO.debug(s"Unknown system message $x")
   }
 }

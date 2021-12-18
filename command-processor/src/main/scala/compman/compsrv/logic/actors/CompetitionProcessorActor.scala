@@ -31,7 +31,7 @@ object CompetitionProcessorActor {
     kafkaSupervisor: ActorRef[KafkaSupervisorCommand],
     competitionNotificationsTopic: String,
     mapper: ObjectMapper = ObjectMapperFactory.createObjectMapper,
-    actorIdleTimeoutMillis: Long = 10000
+    actorIdleTimeoutMillis: Long = 30 * 60000
   ): EventSourcedBehavior[Env with Logging with Clock, CompetitionState, Message, EventDTO] =
     new EventSourcedBehavior[Env with Logging with Clock, CompetitionState, Message, EventDTO](competitionId) {
 

@@ -95,7 +95,8 @@ private[kafka] object KafkaQueryAndSubscribeActor {
       {
         for {
           _ <- context.watchWith(Stop, replyTo)
-          _ <- queryAndSendEvents().when(query)
+          executeQuery <- queryAndSendEvents().when(query).fork
+          _ <- executeQuery.join
           fiber <- (for {
             _ <- getByteArrayStream(
               topic,

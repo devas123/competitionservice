@@ -14,7 +14,7 @@ import zio.logging.Logging
 import zio.stream.ZStream
 import zio.test._
 import zio.test.Assertion._
-import zio.test.TestAspect.aroundAll
+import zio.test.TestAspect._
 
 import java.util.UUID
 import scala.util.{Random, Try}
@@ -61,12 +61,12 @@ object KafkaSupervisorSpec extends DefaultRunnableSpec {
           _ <- kafkaSupervisor ! PublishMessage(topic, competitionId, notification)
           _ <- kafkaSupervisor ! PublishMessage(topic, competitionId, notification)
           _ <- kafkaSupervisor ! QueryAndSubscribe(topic, UUID.randomUUID().toString, messageReceiver.ref)
-          _ <- (0 until messagesCount - 2).toList
-            .traverse(_ => kafkaSupervisor ! PublishMessage(topic, competitionId, notification))
           _ <- messageReceiver.expectMessageClass(15.seconds, classOf[QueryStarted])
           _ <- messageReceiver.expectMessageClass(15.seconds, classOf[MessageReceived])
           _ <- messageReceiver.expectMessageClass(15.seconds, classOf[MessageReceived])
           _ <- messageReceiver.expectMessageClass(15.seconds, classOf[QueryFinished])
+          _ <- (0 until messagesCount - 2).toList
+            .traverse(_ => kafkaSupervisor ! PublishMessage(topic, competitionId, notification))
           msgs <- (0 until messagesCount).toList
             .traverse(_ => messageReceiver.expectMessageClass(15.seconds, classOf[MessageReceived]).map(_.isDefined))
         } yield assert(msgs.filter(a => a))(hasSize(equalTo(messagesCount)))).provideLayer(allLayers)

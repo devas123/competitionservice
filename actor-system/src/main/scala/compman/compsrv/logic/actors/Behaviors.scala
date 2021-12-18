@@ -2,6 +2,7 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.dungeon.Signal
 import zio.{Fiber, RIO}
+import zio.clock.Clock
 
 object Behaviors {
   implicit class BehaviorOps[R, S, Msg](behavior: ActorBehavior[R, S, Msg]) {
@@ -39,7 +40,7 @@ object Behaviors {
         Context[Msg],
         S,
         Timers[R, Msg]
-      ) => RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg], S)]
+      ) => RIO[R with Clock, (Seq[Fiber[Throwable, Unit]], Seq[Msg], S)]
                 ): ActorBehavior[R, S, Msg] = {
       new DelegatingBehavior(behavior) {
         override def init(
@@ -47,7 +48,7 @@ object Behaviors {
                            context: Context[Msg],
                            initState: S,
                            timers: Timers[R, Msg]
-                         ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg], S)] = handler(actorConfig, context, initState, timers)
+                         ): RIO[R with Clock, (Seq[Fiber[Throwable, Unit]], Seq[Msg], S)] = handler(actorConfig, context, initState, timers)
       }
     }
 

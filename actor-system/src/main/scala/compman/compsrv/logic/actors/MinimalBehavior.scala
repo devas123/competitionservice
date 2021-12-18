@@ -1,6 +1,7 @@
 package compman.compsrv.logic.actors
 import compman.compsrv.logic.actors.dungeon.Signal
 import zio.{Fiber, RIO}
+import zio.clock.Clock
 
 private[actors] class MinimalBehavior[R, S, Msg]() extends ActorBehavior[R, S, Msg] {
   override def receive(
@@ -41,7 +42,7 @@ class DelegatingBehavior[R, S, Msg](behavior: ActorBehavior[R, S, Msg]) extends 
     context: Context[Msg],
     initState: S,
     timers: Timers[R, Msg]
-  ): RIO[R, (Seq[Fiber[Throwable, Unit]], Seq[Msg], S)] = behavior.init(actorConfig, context, initState, timers)
+  ): RIO[R with Clock, (Seq[Fiber[Throwable, Unit]], Seq[Msg], S)] = behavior.init(actorConfig, context, initState, timers)
 
   override def postStop(
     actorConfig: ActorSystem.ActorConfig,

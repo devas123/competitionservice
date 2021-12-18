@@ -8,7 +8,7 @@ import zio.clock.Clock
 import java.util.UUID
 
 case class Context[-F](
-  children: Ref[Set[ActorRef[Nothing]]],
+  private[actors] val children: Ref[Set[InternalActorCell[Nothing]]],
   self: ActorRef[F],
   actorPath: ActorPath,
   actorSystem: ActorSystem
@@ -64,7 +64,7 @@ case class Context[-F](
     behavior: => AbstractBehavior[R, S, F1]
   ): ZIO[R with Clock, Throwable, ActorRef[F1]] = for {
     ch       <- children.get
-    actorRef <- actorSystem.make(actorName, actorConfig, init, behavior)
+    actorRef <- actorSystem.make(actorName, actorConfig, init, behavior).map(_.asInstanceOf[InternalActorCell[F1]])
     _        <- children.set(ch + actorRef)
   } yield actorRef
 

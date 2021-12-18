@@ -1,11 +1,12 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
+import compman.compsrv.logic.actors.EventSourcedMessages.Command
+import zio.{Fiber, RIO, ZIO}
+import zio.clock.Clock
 import zio.console.putStrLn
 import zio.duration.durationInt
 import zio.test.environment.TestEnvironment
-import zio.{RIO, ZIO}
-import zio.clock.Clock
 
 object Utils {
 
@@ -22,14 +23,14 @@ object Utils {
       } yield (Seq.empty, Seq.empty, ())
     }.withReceive { (context, _, _, command, _) =>
       command match {
-        case Stop => putStrLn("Stopping").unit *> context.stopSelf.unit
-        case Test => putStrLn("Test").unit
-        case Fail => putStrLn("Fail").unit
+        case Stop => putStrLn(s"Stopping ${context.self}").unit *> context.stopSelf.unit
+        case Test => putStrLn(s"Test ${context.self}").unit
+        case Fail => putStrLn(s"Fail ${context.self}").unit
       }
     }
 
-  def failingActorBehavior(): ActorBehavior[TestEnvironment, Unit, Msg] = Behaviors
-    .behavior[TestEnvironment, Unit, Msg].withReceive { (context, _, _, command, _) =>
+  def failingActorBehavior(): ActorBehavior[TestEnvironment, Unit, Msg] = Behaviors.behavior[TestEnvironment, Unit, Msg]
+    .withReceive { (context, _, _, command, _) =>
       command match {
         case Stop => putStrLn("Stopping").unit *> context.stopSelf.unit
         case Test => putStrLn("Failing") *> ZIO.fail(new RuntimeException("Test exception"))
@@ -37,12 +38,74 @@ object Utils {
       }
     }
 
-  def createFailingActor(
-                       actorSystem: ActorSystem,
-                       name: String
-                     ): RIO[TestEnvironment with Clock, ActorRef[Msg]] = actorSystem
-    .make(name, ActorConfig(), (), failingActorBehavior())
+  def mainActorBehavior(): ActorBehavior[TestEnvironment, Unit, Msg] = Behaviors.behavior[TestEnvironment, Unit, Msg]
+    .withReceive { (context, _, _, command, _) =>
+      command match {
+        case Stop => putStrLn("Main Stopping").unit *> context.stopSelf.unit
+        case Test => putStrLn("Main Failing") *> ZIO.fail(new RuntimeException("Test exception"))
+        case Fail => putStrLn("Main Interrupting") *> ZIO.interrupt
+      }
+    }.withInit { (_, context, _, _) =>
+      context.make("child", ActorConfig(), (), childActorBehavior(true)).as((Seq.empty, Seq.empty, ()))
+    }
 
+  sealed trait Events
+  final case object MockEvent extends Events
+
+  def mainActorBehaviorEventSourced(): EventSourcedBehavior[TestEnvironment, Unit, Msg, Events] =
+    new EventSourcedBehavior[TestEnvironment, Unit, Msg, Events]("123") {
+      private val u: (EventSourcedMessages.Command[Events], Unit => Unit) = (Command.ignore, _ => ())
+      override def receive(
+        context: Context[Msg],
+        actorConfig: ActorConfig,
+        state: Unit,
+        command: Msg,
+        timers: Timers[TestEnvironment, Msg]
+      ): RIO[TestEnvironment, (EventSourcedMessages.Command[Events], Unit => Unit)] = command match {
+        case Stop => (putStrLn("Main Stopping").unit *> context.stopSelf.unit).as(u)
+        case Test => putStrLn("Main Failing") *> ZIO.fail(new RuntimeException("Test exception"))
+        case Fail => putStrLn("Main Interrupting") *> ZIO.interrupt
+      }
+
+      override def sourceEvent(state: Unit, event: Events): RIO[TestEnvironment, Unit] = RIO.unit
+
+      override def getEvents(persistenceId: String, state: Unit): RIO[TestEnvironment, Seq[Events]] = RIO
+        .effectTotal(Seq.empty)
+
+      override def persistEvents(persistenceId: String, events: Seq[Events]): RIO[TestEnvironment, Unit] = RIO.unit
+
+      override def init(
+        actorConfig: ActorConfig,
+        context: Context[Msg],
+        initState: Unit,
+        timers: Timers[TestEnvironment, Msg]
+      ): RIO[TestEnvironment, (Seq[Fiber[Throwable, Unit]], Seq[Msg])] = context
+        .make("child", ActorConfig(), (), childActorBehavior(true))
+        .as((Seq.empty, Seq.empty))
+    }
+
+  def childActorBehavior(createInner: Boolean): ActorBehavior[TestEnvironment, Unit, Msg] = Behaviors
+    .behavior[TestEnvironment, Unit, Msg].withReceive { (context, _, _, command, _) =>
+      command match {
+        case Stop => putStrLn(s"Child Stopping ${context.self}").unit *> context.stopSelf.unit
+        case Test => putStrLn(s"Child Failing ${context.self}") *> ZIO.fail(new RuntimeException("Test exception"))
+        case Fail => putStrLn(s"Child Interrupting ${context.self}") *> ZIO.interrupt
+      }
+    }.withPostStop { (_, ctx, _, _) =>
+      ctx.actorSystem.eventStream.publish(Test) *> putStrLn(s"Child Stopped! ${ctx.self}")
+    }.withInit { (_, context, _, _) =>
+      context.make("innerChild", ActorConfig(), (), childActorBehavior(false)).when(createInner)
+        .as((Seq.empty, Seq.empty, ()))
+    }
+
+  def createFailingActor(actorSystem: ActorSystem, name: String): RIO[TestEnvironment with Clock, ActorRef[Msg]] =
+    actorSystem.make(name, ActorConfig(), (), failingActorBehavior())
+
+  def createMainActor(actorSystem: ActorSystem, name: String): RIO[TestEnvironment with Clock, ActorRef[Msg]] =
+    actorSystem.make(name, ActorConfig(), (), mainActorBehavior())
+
+  def createMainActorEventSourced(actorSystem: ActorSystem, name: String): RIO[TestEnvironment with Clock, ActorRef[Msg]] =
+    actorSystem.make(name, ActorConfig(), (), mainActorBehaviorEventSourced())
 
   def createTestActor(
     actorSystem: ActorSystem,
