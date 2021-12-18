@@ -103,8 +103,8 @@ object FightUpdateOperations {
             UpdateOneModel(
               equal(idField, f.id),
               combine(
-                Array(Option(set("scores", f.scores)), f.status.map(set("status", _))).filter(_.isDefined)
-                  .map(_.get).toIndexedSeq : _*
+                Array(Option(set("scores", f.scores)), f.status.map(set("status", _))).filter(_.isDefined).map(_.get)
+                  .toIndexedSeq: _*
               )
             )
           ))
@@ -147,12 +147,11 @@ object FightUpdateOperations {
                 set("matId", f.fightOrderUpdate.getMatId),
                 set("numberOnMat", f.fightOrderUpdate.getNumberOnMat),
                 set("matOrder", f.newMat.matOrder),
-                set("numberOnMat", f.fightOrderUpdate.getNumberOnMat),
+                set("matName", f.newMat.name),
                 set("startTime", Date.from(f.fightOrderUpdate.getStartTime))
               )
             )
           )
-
         res <- RIO.fromFuture(_ => collection.bulkWrite(writes()).toFuture()).unit.when(updates.nonEmpty)
       } yield res
     }
