@@ -2,8 +2,11 @@ package compman.compsrv.query.model
 
 import compman.compsrv.model.dto.brackets.{FightReferenceType, StageRoundType}
 import compman.compsrv.model.dto.competition.FightStatus
+import compman.compsrv.model.events.payload.FightOrderUpdate
 
 import java.util.Date
+
+case class FightOrderUpdateExtended(fightOrderUpdate: FightOrderUpdate, newMat: Mat)
 
 case class FightStartTimeUpdate(
   id: String,
@@ -17,7 +20,7 @@ case class FightStartTimeUpdate(
   invalid: Option[Boolean],
   scheduleEntryId: Option[String],
   periodId: Option[String],
-  priority: Option[Int],
+  priority: Option[Int]
 )
 
 case class Fight(
@@ -50,14 +53,14 @@ case class BracketsInfo(
   roundType: StageRoundType
 )
 case class CompScore(
-                      placeholderId: Option[String],
-                      competitorId: Option[String],
-                      competitorFirstName: Option[String],
-                      competitorLastName: Option[String],
-                      competitorAcademyName: Option[String],
-                      score: Score,
-                      parentReferenceType: Option[FightReferenceType],
-                      parentFightId: Option[String]
+  placeholderId: Option[String],
+  competitorId: Option[String],
+  competitorFirstName: Option[String],
+  competitorLastName: Option[String],
+  competitorAcademyName: Option[String],
+  score: Score,
+  parentReferenceType: Option[FightReferenceType],
+  parentFightId: Option[String]
 )
 
 case class Score(points: Int, advantages: Int, penalties: Int, pointGroups: List[PointGroup])

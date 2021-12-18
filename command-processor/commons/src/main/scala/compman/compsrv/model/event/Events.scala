@@ -1,7 +1,7 @@
 package compman.compsrv.model.event
 
 import compman.compsrv.model.Payload
-import compman.compsrv.model.commands.payload.{CategoryRegistrationStatusChangePayload, ChangeCompetitorCategoryPayload, CompetitorCategoryAddedPayload, SetFightResultPayload}
+import compman.compsrv.model.commands.payload.{CategoryRegistrationStatusChangePayload, ChangeCompetitorCategoryPayload, ChangeFightOrderPayload, CompetitorCategoryAddedPayload, SetFightResultPayload}
 import compman.compsrv.model.events.payload._
 
 object Events {
@@ -179,12 +179,12 @@ object Events {
   final case class ScheduleDropped(competitionId: Option[String], sequenceNumber: Long)
       extends PayloadlessEvent
 
-  final case class FightPropertiesUpdatedEvent(
-      payload: Option[FightPropertiesUpdatedPayload],
+  final case class FightOrderChangedEvent(
+      payload: Option[ChangeFightOrderPayload],
       competitionId: Option[String],
       categoryId: Option[String],
       sequenceNumber: Long
-  ) extends Event[FightPropertiesUpdatedPayload] {
+  ) extends Event[ChangeFightOrderPayload] {
     override val competitorId: Option[String] = None
     override val fightId: Option[String]      = None
   }

@@ -4,14 +4,14 @@ import cats.Monad
 import cats.data.EitherT
 import compman.compsrv.Utils.groupById
 import compman.compsrv.logic.CompetitionState
-import compman.compsrv.model.extensions._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.fight.{FightUtils, FightsService}
+import compman.compsrv.logic.fight.{FightsService, FightUtils}
 import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.model.{Errors, Payload}
 import compman.compsrv.model.command.Commands.{Command, PropagateCompetitorsCommand}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.events.payload.{CompetitorAssignmentDescriptor, CompetitorsPropagatedToStagePayload}
+import compman.compsrv.model.extensions._
 import compman.compsrv.model.Errors.{InternalError, NoPayloadError}
 import compman.compsrv.model.commands.payload.PropagateCompetitorsPayload
 import compman.compsrv.model.dto.brackets.StageDescriptorDTO

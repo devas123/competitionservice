@@ -3,11 +3,13 @@ package compman.compsrv.query.service.repository
 import cats.implicits._
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.competition.FightStatus
-import compman.compsrv.query.model.{CompScore, Fight, FightResult, FightStartTimeUpdate}
+import compman.compsrv.query.model._
 import org.mongodb.scala.MongoClient
 import org.mongodb.scala.model.UpdateOneModel
 import zio.{Ref, RIO, ZIO}
 import zio.interop.catz._
+
+import java.util.Date
 
 trait FightUpdateOperations[F[+_]] {
   def addFight(fight: Fight): F[Unit]
@@ -18,6 +20,7 @@ trait FightUpdateOperations[F[+_]] {
   )(fightId: String, scores: List[CompScore], fightResult: FightResult, status: FightStatus): F[Unit]
   def updateFightScores(fights: List[Fight]): F[Unit]
   def updateFightStartTime(fights: List[FightStartTimeUpdate]): F[Unit]
+  def updateFightOrderAndMat(updates: List[FightOrderUpdateExtended]): F[Unit]
   def removeFight(competitionId: String)(id: String): F[Unit]
   def removeFights(competitionId: String)(ids: List[String]): F[Unit]
   def removeFightsForCategory(competitionId: String)(categoryId: String): F[Unit]
@@ -53,6 +56,10 @@ object FightUpdateOperations {
       competitionId: String
     )(fightId: String, scores: List[CompScore], fightResult: FightResult, status: FightStatus): LIO[Unit] =
       update(fights)(fightId)(f => f.copy(scores = scores, fightResult = Option(fightResult), status = Option(status)))
+
+    override def updateFightOrderAndMat(updates: List[FightOrderUpdateExtended]): LIO[Unit] =
+      updateFightScores(List.empty)
+
   }
 
   def live(mongo: MongoClient, name: String): FightUpdateOperations[LIO] = new FightUpdateOperations[LIO]
@@ -76,8 +83,7 @@ object FightUpdateOperations {
     override def addFights(fights: List[Fight]): LIO[Unit] = {
       for {
         collection <- fightCollection
-        res <-
-          RIO.fromFuture(_ => collection.insertMany(fights).toFuture()).unit.when(fights.nonEmpty)
+        res        <- RIO.fromFuture(_ => collection.insertMany(fights).toFuture()).unit.when(fights.nonEmpty)
       } yield res
     }
 
@@ -98,7 +104,7 @@ object FightUpdateOperations {
               equal(idField, f.id),
               combine(
                 Array(Option(set("scores", f.scores)), f.status.map(set("status", _))).filter(_.isDefined)
-                  .map(_.get): _*
+                  .map(_.get).toIndexedSeq : _*
               )
             )
           ))
@@ -130,6 +136,26 @@ object FightUpdateOperations {
         res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }
+    override def updateFightOrderAndMat(updates: List[FightOrderUpdateExtended]): LIO[Unit] = {
+      for {
+        collection <- fightCollection
+        writes = () =>
+          updates.map(f =>
+            UpdateOneModel(
+              equal(idField, f.fightOrderUpdate.getFightId),
+              combine(
+                set("matId", f.fightOrderUpdate.getMatId),
+                set("numberOnMat", f.fightOrderUpdate.getNumberOnMat),
+                set("matOrder", f.newMat.matOrder),
+                set("numberOnMat", f.fightOrderUpdate.getNumberOnMat),
+                set("startTime", Date.from(f.fightOrderUpdate.getStartTime))
+              )
+            )
+          )
+
+        res <- RIO.fromFuture(_ => collection.bulkWrite(writes()).toFuture()).unit.when(updates.nonEmpty)
+      } yield res
+    }
 
     override def updateFightStartTime(fights: List[FightStartTimeUpdate]): LIO[Unit] = {
       for {
@@ -151,8 +177,7 @@ object FightUpdateOperations {
             )
           )
 
-        res <-
-          RIO.fromFuture(_ => collection.bulkWrite(writes()).toFuture()).unit.when(fights.nonEmpty)
+        res <- RIO.fromFuture(_ => collection.bulkWrite(writes()).toFuture()).unit.when(fights.nonEmpty)
       } yield res
     }
 

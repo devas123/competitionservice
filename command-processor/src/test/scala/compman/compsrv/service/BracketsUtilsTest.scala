@@ -29,7 +29,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
         ))
         res         = fights.fold(_ => List.empty, identity)
         distributed = BracketsUtils.distributeCompetitors(fighters, Utils.groupById(res)(_.getId))
-        distribRes <- ZIO.effectTotal(distributed).flatMap(_.fold(err => ZIO.fail(err), ZIO.effectTotal(_)))
+        distribRes <- ZIO.fromEither(distributed)
           .onError(err => URIO(println(err.toString)))
       } yield assert(res.size)(equalTo(7)) && assert(distribRes.size)(equalTo(7)) &&
         assert(distribRes.values.filter(_.getRound == 0).forall(f =>
@@ -56,7 +56,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
         ))
         res         = fights.fold(_ => List.empty, identity)
         distributed = BracketsUtils.distributeCompetitors(fighters, Utils.groupById(res)(_.getId))
-        distribRes <- ZIO.effectTotal(distributed).flatMap(_.fold(err => ZIO.fail(err), ZIO.effectTotal(_)))
+        distribRes <- ZIO.fromEither(distributed)
           .onError(err => URIO(println(err.toString)))
       } yield assert(res.size)(equalTo(15)) && assert(distribRes.size)(equalTo(15)) &&
         assert(distribRes.values.count(_.getRound == 0))(equalTo(8)) &&
@@ -82,7 +82,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
         ))
         res         = fights.fold(_ => List.empty, identity)
         distributed = BracketsUtils.distributeCompetitors(fighters, Utils.groupById(res)(_.getId))
-        distribRes <- ZIO.effectTotal(distributed).flatMap(_.fold(err => ZIO.fail(err), ZIO.effectTotal(_)))
+        distribRes <- ZIO.fromEither(distributed)
           .onError(err => URIO(println(err.toString)))
         marked <- FightUtils.markAndProcessUncompletableFights[Task](distribRes)
       } yield assert(marked.size)(equalTo(15)) &&

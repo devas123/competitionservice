@@ -19,4 +19,6 @@ private[actors] case class InternalActorCell[-F](actor: ActorRef[F], actorFiber:
     case x: ActorRef[_]          => actor.equals(x)
     case _                       => false
   }
+
+  override def toString: String = actor.toString
 }

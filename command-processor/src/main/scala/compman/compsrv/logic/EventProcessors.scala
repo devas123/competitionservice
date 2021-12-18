@@ -14,6 +14,7 @@ object EventProcessors {
     state: CompetitionState
   ): F[CompetitionState] = Monad[F].map(
     List(
+      FightOrderChangedProc(state),
       CategoryDeletedProc(state),
       FightResultSetProc(state),
       CompetitionDeletedProc(state),
@@ -33,7 +34,6 @@ object EventProcessors {
       CompetitorUpdatedProc(state),
       FightCompetitorsAssignedProc(state),
       FightEditorChangesAppliedProc(state),
-      FightPropertiesUpdatedProc(state),
       FightsAddedToStageProc(state),
       FightStartTimeUpdatedProc(state),
       MatsUpdatedProc(state),

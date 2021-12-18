@@ -186,6 +186,12 @@ object Mapping {
     val live: EventMapping[LIO] = (eventDto: EventDTO) =>
       Task {
         eventDto.getType match {
+          case FIGHT_ORDER_CHANGED => FightOrderChangedEvent(
+              Try { eventDto.getPayload.asInstanceOf[ChangeFightOrderPayload] }.toOption,
+              Option(eventDto.getCompetitionId),
+              Option(eventDto.getCategoryId),
+              eventDto.getLocalEventNumber
+            )
           case BRACKETS_GENERATED => BracketsGeneratedEvent(
               Try { eventDto.getPayload.asInstanceOf[BracketsGeneratedPayload] }.toOption,
               Option(eventDto.getCompetitionId),
@@ -297,13 +303,6 @@ object Mapping {
 
           case FIGHTS_START_TIME_UPDATED => FightStartTimeUpdatedEvent(
               Try { eventDto.getPayload.asInstanceOf[FightStartTimeUpdatedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
-            )
-
-          case FIGHT_PROPERTIES_UPDATED => FightPropertiesUpdatedEvent(
-              Try { eventDto.getPayload.asInstanceOf[FightPropertiesUpdatedPayload] }.toOption,
               Option(eventDto.getCompetitionId),
               Option(eventDto.getCategoryId),
               eventDto.getLocalEventNumber
