@@ -3,24 +3,24 @@ package compman.compsrv.service
 import compman.compsrv.jackson.ObjectMapperFactory
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaSupervisorCommand, PublishMessage, QuerySync}
-import compman.compsrv.logic.actors._
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorActor.ProcessCommand
+import compman.compsrv.logic.actors._
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.commands.{CommandDTO, CommandType}
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
+import compman.compsrv.model.commands.{CommandDTO, CommandType}
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
-import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.events.payload.CompetitionCreatedPayload
-import zio.{Layer, Ref, ZIO}
+import compman.compsrv.model.events.{EventDTO, EventType}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
 import zio.kafka.consumer.ConsumerSettings
 import zio.kafka.producer.ProducerSettings
 import zio.logging.Logging
-import zio.test._
 import zio.test.Assertion._
+import zio.test._
+import zio.{Layer, Ref, ZIO}
 
 import java.time.Instant
 import java.util.UUID
@@ -45,49 +45,50 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
 
   def spec: Spec[TestEnvironment, TestFailure[Throwable], TestSuccess] =
     suite("The Competition Processor should")(testM("Accept commands") {
-      for {
-        snapshotsRef <- Ref.make(Map.empty[String, CompetitionState])
-        actorSystem <- ActorSystem("Test")
-        processorOperations <- ZIO.effect(CommandProcessorOperations.test(snapshotsRef))
-        initialState <- processorOperations.getStateSnapshot(competitionId).flatMap(p => ZIO.effect(p.fold(processorOperations.createInitialState(competitionId, None))(identity)))
-        kafkaSupervisor <- TestKit[KafkaSupervisorCommand](actorSystem)
-        processor <- actorSystem.make( s"CompetitionProcessor-$competitionId",
-                 ActorConfig(),
-                 initialState,
-                 CompetitionProcessorActor.behavior[Clock with Blocking with Logging](competitionId, "test-events", kafkaSupervisor.ref, "test-notifications", actorIdleTimeoutMillis = 10000L))
-        _ <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[CreateTopicIfMissing])
-        msg <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[QuerySync])
-        unwrapped = msg.get
-        promise = unwrapped.promise
-        _ <- promise.succeed(Seq.empty)
-        command = {
-          val cmd = new CommandDTO()
-          cmd.setId(UUID.randomUUID().toString)
-          cmd.setType(CommandType.CREATE_COMPETITION_COMMAND)
-          cmd.setCompetitionId(competitionId)
-          cmd.setPayload(
-          new CreateCompetitionPayload().setReginfo(
-          new RegistrationInfoDTO().setId(competitionId).setRegistrationGroups(Array.empty)
-            .setRegistrationPeriods(Array.empty).setRegistrationOpen(true)
-          ).setProperties(
-          new CompetitionPropertiesDTO().setId(competitionId).setCompetitionName("Test competition")
-            .setStatus(CompetitionStatus.CREATED).setTimeZone("UTC").setStartDate(Instant.now())
-            .setEndDate(Instant.now())
-          ))
-          cmd
-        }
-        _ <- processor ! ProcessCommand(command)
-        notificationOpt <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[PublishMessage])
-        notification = notificationOpt.get.message
-        eventOpt <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[PublishMessage])
-        eventBytes = eventOpt.get.message
-        mapper = ObjectMapperFactory.createObjectMapper
-        event = mapper.readValue(eventBytes, classOf[EventDTO])
-      } yield assert(notification)(not(isNull)) &&
-        assert(event.getType)(equalTo(EventType.COMPETITION_CREATED)) &&
-        assert(event.getPayload)(not(isNull)) &&
-        assert(event.getPayload)(isSubtype[CompetitionCreatedPayload](anything)) &&
-        assert(event.getCorrelationId)(equalTo(command.getId)) &&
-        assert(event.getLocalEventNumber.toLong)(equalTo(0L))
+      ActorSystem("Test").use { actorSystem =>
+        for {
+          snapshotsRef <- Ref.make(Map.empty[String, CompetitionState])
+          processorOperations <- ZIO.effect(CommandProcessorOperations.test(snapshotsRef))
+          initialState <- processorOperations.getStateSnapshot(competitionId).flatMap(p => ZIO.effect(p.fold(processorOperations.createInitialState(competitionId, None))(identity)))
+          kafkaSupervisor <- TestKit[KafkaSupervisorCommand](actorSystem)
+          processor <- actorSystem.make(s"CompetitionProcessor-$competitionId",
+            ActorConfig(),
+            initialState,
+            CompetitionProcessorActor.behavior[Clock with Blocking with Logging](competitionId, "test-events", kafkaSupervisor.ref, "test-notifications", actorIdleTimeoutMillis = 10000L))
+          _ <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[CreateTopicIfMissing])
+          msg <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[QuerySync])
+          unwrapped = msg.get
+          promise = unwrapped.promise
+          _ <- promise.succeed(Seq.empty)
+          command = {
+            val cmd = new CommandDTO()
+            cmd.setId(UUID.randomUUID().toString)
+            cmd.setType(CommandType.CREATE_COMPETITION_COMMAND)
+            cmd.setCompetitionId(competitionId)
+            cmd.setPayload(
+              new CreateCompetitionPayload().setReginfo(
+                new RegistrationInfoDTO().setId(competitionId).setRegistrationGroups(Array.empty)
+                  .setRegistrationPeriods(Array.empty).setRegistrationOpen(true)
+              ).setProperties(
+                new CompetitionPropertiesDTO().setId(competitionId).setCompetitionName("Test competition")
+                  .setStatus(CompetitionStatus.CREATED).setTimeZone("UTC").setStartDate(Instant.now())
+                  .setEndDate(Instant.now())
+              ))
+            cmd
+          }
+          _ <- processor ! ProcessCommand(command)
+          notificationOpt <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[PublishMessage])
+          notification = notificationOpt.get.message
+          eventOpt <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[PublishMessage])
+          eventBytes = eventOpt.get.message
+          mapper = ObjectMapperFactory.createObjectMapper
+          event = mapper.readValue(eventBytes, classOf[EventDTO])
+        } yield assertTrue(!(notification == null)) &&
+          assertTrue(event.getType == EventType.COMPETITION_CREATED) &&
+          assertTrue(event.getPayload != null) &&
+          assert(event.getPayload)(isSubtype[CompetitionCreatedPayload](anything)) &&
+          assertTrue(event.getCorrelationId == command.getId) &&
+          assertTrue(event.getLocalEventNumber.toLong == 0L)
+      }
     }).provideLayer(loggingLayer ++ snapshotLayer ++ Clock.live ++ Blocking.live)
 }

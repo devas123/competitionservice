@@ -27,29 +27,30 @@ object QueryServiceMain extends zio.App {
   import org.mongodb.scala._
 
 
-  def server(args: List[String]): ZIO[zio.ZEnv with Clock with Logging, Throwable, Unit] = for {
-    (config, mongodbConfig) <- AppConfig.load()
-    credential <- ZIO.effect(
-      MongoCredential.createCredential(mongodbConfig.username, mongodbConfig.authenticationDb, mongodbConfig.password.toCharArray)
-    )
-    mongoDbSession <- ZIO.effect(
-      MongoClient(
-        MongoClientSettings.builder()
-          .credential(credential)
-          .applyToClusterSettings((builder: ClusterSettings.Builder) => {
-            builder.hosts(List(new ServerAddress(mongodbConfig.host)).asJava)
+  def server(args: List[String]): ZIO[zio.ZEnv with Clock with Logging, Throwable, Unit] =
+    ActorSystem("queryServiceActorSystem").use { actorSystem =>
+      for {
+        (config, mongodbConfig) <- AppConfig.load()
+        credential <- ZIO.effect(
+          MongoCredential.createCredential(mongodbConfig.username, mongodbConfig.authenticationDb, mongodbConfig.password.toCharArray)
+        )
+        mongoDbSession <- ZIO.effect(
+          MongoClient(
+            MongoClientSettings.builder()
+              .credential(credential)
+              .applyToClusterSettings((builder: ClusterSettings.Builder) => {
+                builder.hosts(List(new ServerAddress(mongodbConfig.host)).asJava)
             ()
           })
           .build())
     )
-    actorSystem <- ActorSystem("queryServiceActorSystem")
-    webSocketSupervisor <- actorSystem.make(
+        webSocketSupervisor <- actorSystem.make(
       "webSocketSupervisor",
       ActorConfig(),
       WebsocketConnectionSupervisor.initialState,
       WebsocketConnectionSupervisor.behavior[ZEnv]
     )
-    kafkaSupervisor <- actorSystem.make(
+        kafkaSupervisor <- actorSystem.make(
       "kafkaSupervisor",
       ActorConfig(),
       None,
@@ -57,7 +58,7 @@ object QueryServiceMain extends zio.App {
         config.consumer.brokers
       )
     )
-    _ <- actorSystem.make(
+        _ <- actorSystem.make(
       "competitionEventListenerSupervisor",
       ActorConfig(),
       (),
@@ -69,29 +70,30 @@ object QueryServiceMain extends zio.App {
         webSocketSupervisor
       )
     )
-    competitionApiActor <- actorSystem.make(
+        competitionApiActor <- actorSystem.make(
       "queryApiActor",
       ActorConfig(),
       CompetitionApiActor.initialState,
       CompetitionApiActor.behavior[ZEnv](CompetitionApiActor.Live(mongoDbSession, mongodbConfig))
     )
-    signal <- SignallingRef[ServiceIO, Boolean](false)
-    _ <- (for {
-      _ <- args.headOption.map(f => signal.set(true).unless(Files.exists(Path.of(f)))).getOrElse(ZIO.unit)
-      _ <- ZIO.sleep(5.seconds)
-    } yield ()).forever.fork
-    _        <- Logging.debug("Starting server...")
-    exitCode <- effect.Ref.of[ServiceIO, effect.ExitCode](effect.ExitCode.Success)
-    serviceVersion = "v1"
-    httpApp = Router[ServiceIO](
-      s"/query/$serviceVersion"    -> CompetitionHttpApiService.service(competitionApiActor),
-      s"/query/$serviceVersion/ws" -> WebsocketService.wsRoutes(webSocketSupervisor)
-    ).orNotFound
-    srv <- ZIO.runtime[ZEnv] *> {
+        signal <- SignallingRef[ServiceIO, Boolean](false)
+        _ <- (for {
+          _ <- args.headOption.map(f => signal.set(true).unless(Files.exists(Path.of(f)))).getOrElse(ZIO.unit)
+          _ <- ZIO.sleep(5.seconds)
+        } yield ()).forever.fork
+        _ <- Logging.debug("Starting server...")
+        exitCode <- effect.Ref.of[ServiceIO, effect.ExitCode](effect.ExitCode.Success)
+        serviceVersion = "v1"
+        httpApp = Router[ServiceIO](
+          s"/query/$serviceVersion" -> CompetitionHttpApiService.service(competitionApiActor),
+          s"/query/$serviceVersion/ws" -> WebsocketService.wsRoutes(webSocketSupervisor)
+        ).orNotFound
+        srv <- ZIO.runtime[ZEnv] *> {
       BlazeServerBuilder[ServiceIO].bindHttp(9000, "0.0.0.0").withWebSockets(true).withSocketKeepAlive(true)
         .withHttpApp(httpApp).serveWhile(signal, exitCode).compile.drain
     }
   } yield srv
+    }
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = server(args).tapError(logError).exitCode.provideLayer(CompetitionLogging.Live.loggingLayer ++ ZEnv.live)
 }

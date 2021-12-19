@@ -73,7 +73,8 @@ private[actors] case class DeadLetterActorRef(eventStream: EventStream) extends 
   override def !(fa: Any): Task[Unit] = {
     fa match {
       case d: DeadLetter => eventStream.publish(d)
-      case _             => eventStream.publish(DeadLetter(fa, None, this))
+      case _ => eventStream.publish(DeadLetter(fa, None, this))
     }
   }
 }
+

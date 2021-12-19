@@ -9,7 +9,6 @@ import zio._
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.logging.Logging
-import zio.test.Assertion._
 import zio.test.TestAspect._
 import zio.test._
 
@@ -20,22 +19,23 @@ object WebsocketConnectionTest extends DefaultRunnableSpec with TestEntities {
   override def spec: ZSpec[Any, Throwable] =
     (suite("Websocket connection actor suite")(
       testM("should handle connect and receive messages and stop") {
-        for {
-          actorSystem <- ActorSystem("test")
-          wsActor <- actorSystem
-            .make("WsActor", ActorConfig(), WebsocketConnection.initialState, WebsocketConnection.behavior)
-          queue    <- Queue.unbounded[EventDTO]
-          clientId <- ZIO.effect(UUID.randomUUID().toString)
-          _        <- wsActor ! WebsocketConnection.AddWebSocketConnection(clientId, queue)
-          test <- (for {
-            msg <- queue.takeN(1)
-            _   <- Logging.info(msg.mkString("\n"))
-          } yield ()).fork
-          _ <- wsActor ! WebsocketConnection.ReceivedEvent(new EventDTO())
-          _        <- wsActor ? ((actor: ActorRef[Boolean]) => WebsocketConnection.Stop(Some(actor)))
-          _ <- test.join
-          shutdown <- queue.isShutdown
-        } yield assert(shutdown)(isTrue)
+        ActorSystem("Test").use { actorSystem =>
+          for {
+            wsActor <- actorSystem
+              .make("WsActor", ActorConfig(), WebsocketConnection.initialState, WebsocketConnection.behavior)
+            queue <- Queue.unbounded[EventDTO]
+            clientId <- ZIO.effect(UUID.randomUUID().toString)
+            _ <- wsActor ! WebsocketConnection.AddWebSocketConnection(clientId, queue)
+            test <- (for {
+              msg <- queue.takeN(1)
+              _ <- Logging.info(msg.mkString("\n"))
+            } yield ()).fork
+            _ <- wsActor ! WebsocketConnection.ReceivedEvent(new EventDTO())
+            _ <- wsActor ? ((actor: ActorRef[Boolean]) => WebsocketConnection.Stop(Some(actor)))
+            _ <- test.join
+            shutdown <- queue.isShutdown
+          } yield assertTrue(shutdown)
+        }
       }
     ) @@ sequential)
       .provideLayer(Clock.live ++ CompetitionLogging.Live.loggingLayer ++ Blocking.live ++ zio.console.Console.live)

@@ -45,48 +45,52 @@ object DeathWatchSpec extends DefaultRunnableSpec {
 
   override def spec: ZSpec[TestEnvironment, Any] = suite("DeathWatch")(
     testM("Should react to actor death with custom message.") {
-      for {
-        actorSystem <- ActorSystem("test")
-        dieAfter = 1
-        watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
-        _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
-        _ <- ZIO.sleep((dieAfter + 3).seconds)
-        msg <- actorSystem.select[Any]("watcher").isFailure
-      } yield assertTrue(msg)
+      ActorSystem("test").use { actorSystem =>
+        val dieAfter = 1
+        for {
+          watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
+          _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
+          _ <- ZIO.sleep((dieAfter + 3).seconds)
+          msg <- actorSystem.select[Any]("watcher").isFailure
+        } yield assertTrue(msg)
+      }
     },
     testM("Should react to actor death with custom message when the actor is already dead.") {
-      for {
-        actorSystem <- ActorSystem("test")
-        dieAfter = 1
-        watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
-        _ <- ZIO.sleep((dieAfter + 3).seconds)
-        _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
-        _ <- ZIO.sleep(1.seconds)
-        msg <- actorSystem.select[Any]("watcher").isFailure
-      } yield assertTrue(msg)
+      ActorSystem("test").use { actorSystem =>
+        val dieAfter = 1
+        for {
+          watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
+          _ <- ZIO.sleep((dieAfter + 3).seconds)
+          _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
+          _ <- ZIO.sleep(1.seconds)
+          msg <- actorSystem.select[Any]("watcher").isFailure
+        } yield assertTrue(msg)
+      }
     }
     ,
     testM("Should handle unwatch.") {
-      for {
-        actorSystem <- ActorSystem("test")
-        dieAfter = 1
-        watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
-        watcher <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
-        _ <- ZIO.sleep((dieAfter - 1).seconds)
-        _ <- watcher ! Unwatch
-        _ <- ZIO.sleep((dieAfter + 3).seconds)
-        msg <- actorSystem.select[Any]("watcher")
-      } yield assertTrue(msg != null)
+      ActorSystem("test").use { actorSystem =>
+        val dieAfter = 1
+        for {
+          watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
+          watcher <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
+          _ <- ZIO.sleep((dieAfter - 1).seconds)
+          _ <- watcher ! Unwatch
+          _ <- ZIO.sleep((dieAfter + 3).seconds)
+          msg <- actorSystem.select[Any]("watcher")
+        } yield assertTrue(msg != null)
+      }
     },
     testM("Should react to actor death with Terminated message.") {
-      for {
-        actorSystem <- ActorSystem("test")
-        dieAfter = 1
-        watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
-        _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, None))
-        _ <- ZIO.sleep((dieAfter + 3).seconds)
-        msg <- actorSystem.select[Any]("watcher").isFailure
-      } yield assertTrue(msg)
+      ActorSystem("test").use { actorSystem =>
+        val dieAfter = 1
+        for {
+          watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
+          _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, None))
+          _ <- ZIO.sleep((dieAfter + 3).seconds)
+          msg <- actorSystem.select[Any]("watcher").isFailure
+        } yield assertTrue(msg)
+      }
     }
   ).provideSomeLayerShared[TestEnvironment](Clock.live ++ logging)
 }

@@ -2,10 +2,10 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.dungeon.{DeadLetter, SystemMessage}
-import zio.{Fiber, IO, Ref, RIO, Task, UIO, ZIO}
 import zio.clock.Clock
 import zio.duration.durationInt
 import zio.logging.Logging
+import zio.{Fiber, IO, RIO, Ref, Task, UIO, URIO, ZIO, ZManaged}
 
 final class ActorSystem(
   val actorSystemName: String,
@@ -16,9 +16,14 @@ final class ActorSystem(
 ) extends ActorRefProvider {
   private val RegexName = "[\\w+|\\d+|(\\-_.*$+:@&=,!~';.)|\\/]+".r
 
+  //TODO
+  private[actors] def shutdown(): URIO[Any, Unit] = for {
+    _ <- ZIO.unit
+  } yield ()
+
   private def buildFinalName(parentActorPath: ActorPath, actorName: String): Task[ActorPath] = actorName match {
-    case ""            => IO.fail(new Exception("Actor actor must not be empty"))
-    case null          => IO.fail(new Exception("Actor actor must not be null"))
+    case "" => IO.fail(new Exception("Actor actor must not be empty"))
+    case null => IO.fail(new Exception("Actor actor must not be null"))
     case RegexName(_*) => UIO.effectTotal(parentActorPath / actorName)
     case _ => IO.fail(new Exception(s"Invalid actor name provided $actorName. Valid symbols are -_.*$$+:@&=,!~';"))
   }
@@ -115,22 +120,23 @@ object ActorSystem {
     * @param sysName
     *   - Identifier for Actor System
     * @return
-    *   instantiated actor system
+    * instantiated actor system
     */
-  def apply(sysName: String, debugActors: Boolean = false): ZIO[Logging with Clock, Throwable, ActorSystem] = {
-    for {
-      initActorRefMap <- Ref.make(Map.empty[ActorPath, InternalActorCell[Nothing]])
-      subscriptions   <- Ref.make(Map.empty[Class[_], Set[ActorRef[Nothing]]])
-      _ <- (for {
-        actorMap <- initActorRefMap.get
-        _ <- Logging.info(s"Currently have ${actorMap.size} actors: \n${actorMap.values.map(_.actor).mkString("\n")}")
-        _ <- ZIO.sleep(3.seconds)
-      } yield ()).forever.fork.when(debugActors)
-      eventStream = EventStream(subscriptions)
-      deadLetters = DeadLetterActorRef(eventStream)
-      actorSystem <- IO.effect(new ActorSystem(sysName, initActorRefMap, parentActor = None, eventStream, deadLetters))
-      deadLetterListener <- DeadLetterListener(actorSystem)
-      _                  <- eventStream.subscribe[DeadLetter](deadLetterListener)
-    } yield actorSystem
+  def apply(sysName: String, debugActors: Boolean = false): ZManaged[Logging with Clock, Throwable, ActorSystem] = {
+    ZManaged.make(
+      for {
+        initActorRefMap <- Ref.make(Map.empty[ActorPath, InternalActorCell[Nothing]])
+        subscriptions <- Ref.make(Map.empty[Class[_], Set[ActorRef[Nothing]]])
+        _ <- (for {
+          actorMap <- initActorRefMap.get
+          _ <- Logging.info(s"Currently have ${actorMap.size} actors: \n${actorMap.values.map(_.actor).mkString("\n")}")
+          _ <- ZIO.sleep(3.seconds)
+        } yield ()).forever.fork.when(debugActors)
+        eventStream = EventStream(subscriptions)
+        deadLetters = DeadLetterActorRef(eventStream)
+        actorSystem <- IO.effect(new ActorSystem(sysName, initActorRefMap, parentActor = None, eventStream, deadLetters))
+        deadLetterListener <- DeadLetterListener(actorSystem)
+        _ <- eventStream.subscribe[DeadLetter](deadLetterListener)
+      } yield actorSystem)(_.shutdown())
   }
 }

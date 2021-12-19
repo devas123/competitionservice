@@ -59,44 +59,45 @@ object CommandProcessorMain extends zio.App {
 
     val program: ZIO[PipelineEnvironment, Any, Any] = {
       adminManaged.use { admin =>
-        for {
-          actorSystem <- ActorSystem("command-processor")
-          _ <- admin.createTopic(AdminClient.NewTopic(appConfig.commandProcessor.competitionNotificationsTopic, 1, 1))
-            .foldCause(err => Logging.error("Error while creating topic", err), _ => ZIO.unit)
-          kafkaSupervisor <- actorSystem.make(
-            "kafkaSupervisor",
-            ActorConfig(),
-            None,
-            KafkaSupervisor.behavior[PipelineEnvironment](
-              appConfig.producer.brokers
+        ActorSystem("command-processor").use { actorSystem =>
+          for {
+            _ <- admin.createTopic(AdminClient.NewTopic(appConfig.commandProcessor.competitionNotificationsTopic, 1, 1))
+              .foldCause(err => Logging.error("Error while creating topic", err), _ => ZIO.unit)
+            kafkaSupervisor <- actorSystem.make(
+              "kafkaSupervisor",
+              ActorConfig(),
+              None,
+              KafkaSupervisor.behavior[PipelineEnvironment](
+                appConfig.producer.brokers
+              )
             )
-          )
-          commandProcessorOperationsFactory = CommandProcessorOperationsFactory
-            .live(appConfig.commandProcessor)
-          suervisor <- actorSystem.make(
-            "command-processor-supervisor",
-            ActorConfig(),
-            (),
-            CompetitionProcessorSupervisorActor.behavior(commandProcessorOperationsFactory, appConfig.commandProcessor, kafkaSupervisor)
-          )
-          res <- Consumer
-            .subscribeAnd(Subscription.topics(appConfig.consumer.commandsTopic))
-            .plainStream(Serde.string, commandDeserializer.asTry)
-            .mapM(record => {
-              val tryValue: Try[CommandDTO] = record.record.value()
-              val offset: Offset            = record.offset
+            commandProcessorOperationsFactory = CommandProcessorOperationsFactory
+              .live(appConfig.commandProcessor)
+            suervisor <- actorSystem.make(
+              "command-processor-supervisor",
+              ActorConfig(),
+              (),
+              CompetitionProcessorSupervisorActor.behavior(commandProcessorOperationsFactory, appConfig.commandProcessor, kafkaSupervisor)
+            )
+            res <- Consumer
+              .subscribeAnd(Subscription.topics(appConfig.consumer.commandsTopic))
+              .plainStream(Serde.string, commandDeserializer.asTry)
+              .mapM(record => {
+                val tryValue: Try[CommandDTO] = record.record.value()
+                val offset: Offset = record.offset
 
-              Logging.info(s"Received command: $tryValue") *>
-                (tryValue match {
-                  case Failure(exception) => for {
+                Logging.info(s"Received command: $tryValue") *>
+                  (tryValue match {
+                    case Failure(exception) => for {
                       _ <- Logging.error("Error during deserialization")
                       _ <- logError(exception)
                     } yield offset
-                  case Success(value) =>
-                    (suervisor ! CompetitionProcessorSupervisorActor.CommandReceived(record.key, value)).as(offset)
-                })
-            }).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
-        } yield res
+                    case Success(value) =>
+                      (suervisor ! CompetitionProcessorSupervisorActor.CommandReceived(record.key, value)).as(offset)
+                  })
+              }).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
+          } yield res
+        }
       }
     }
     program.provideSomeLayer(Clock.live ++ Blocking.live ++ layers ++ loggingLayer)
