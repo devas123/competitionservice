@@ -60,6 +60,7 @@ object KafkaSupervisorSpec extends DefaultRunnableSpec {
           _ <- ZIO.sleep(2.seconds)
           _ <- kafkaSupervisor ! PublishMessage(topic, competitionId, notification)
           _ <- kafkaSupervisor ! PublishMessage(topic, competitionId, notification)
+          _ <- ZIO.sleep(1.seconds)
           _ <- kafkaSupervisor ! QueryAndSubscribe(topic, UUID.randomUUID().toString, messageReceiver.ref)
           _ <- messageReceiver.expectMessageClass(15.seconds, classOf[QueryStarted])
           _ <- messageReceiver.expectMessageClass(15.seconds, classOf[MessageReceived])
@@ -67,6 +68,7 @@ object KafkaSupervisorSpec extends DefaultRunnableSpec {
           _ <- messageReceiver.expectMessageClass(15.seconds, classOf[QueryFinished])
           _ <- (0 until messagesCount - 2).toList
             .traverse(_ => kafkaSupervisor ! PublishMessage(topic, competitionId, notification))
+          _ <- ZIO.sleep(1.seconds)
           msgs <- (0 until messagesCount).toList
             .traverse(_ => messageReceiver.expectMessageClass(15.seconds, classOf[MessageReceived]).map(_.isDefined))
         } yield assert(msgs.filter(a => a))(hasSize(equalTo(messagesCount)))).provideLayer(allLayers)
@@ -86,7 +88,7 @@ object KafkaSupervisorSpec extends DefaultRunnableSpec {
             notification  = Random.nextBytes(100)
             _ <- (0 until messagesCount).toList
               .traverse(_ => kafkaSupervisor ! PublishMessage(topic, competitionId, notification))
-            _ <- ZIO.sleep(10.seconds)
+            _ <- ZIO.sleep(1.seconds)
             _ <- kafkaSupervisor ! QueryAsync(topic, UUID.randomUUID().toString, messageReceiver.ref)
             _ <- messageReceiver.expectMessageClass(15.seconds, classOf[QueryStarted])
             msgs <- (0 until messagesCount).toList
@@ -110,7 +112,7 @@ object KafkaSupervisorSpec extends DefaultRunnableSpec {
             notification  = Random.nextBytes(100)
             _ <- (0 until messagesCount).toList
               .traverse(_ => kafkaSupervisor ! PublishMessage(topic, competitionId, notification))
-            _ <- ZIO.sleep(10.seconds)
+            _ <- ZIO.sleep(1.seconds)
             promise <- Promise.make[Throwable, Seq[Array[Byte]]]
             _ <- kafkaSupervisor ! QuerySync(topic, UUID.randomUUID().toString, promise, 10.seconds)
             msgs <- promise.await
@@ -128,7 +130,7 @@ object KafkaSupervisorSpec extends DefaultRunnableSpec {
             kafkaSupervisor <- actorSystem
               .make("kafkaSupervisor", ActorConfig(), None, KafkaSupervisor.behavior[Any](List(brokerUrl)))
             _               <- kafkaSupervisor ! CreateTopicIfMissing(topic, KafkaTopicConfig())
-            _ <- ZIO.sleep(10.seconds)
+            _ <- ZIO.sleep(1.seconds)
             promise <- Promise.make[Throwable, Seq[Array[Byte]]]
             _ <- kafkaSupervisor ! QuerySync(topic, UUID.randomUUID().toString, promise, 10.seconds)
             msgs <- promise.await

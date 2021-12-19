@@ -7,16 +7,20 @@ import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 
 trait TestEntities {
+  final val fight2 = "fight2"
+  final val fight1 = "fight1"
+  final val fight3 = "fight3"
+  final val mat1Id = "mat1"
+  final val mat2Id = "mat2"
+  final val competitionId = "managedCompetition"
+  final val categoryId = "test-category"
+  final val stageId = "stage-id"
+  final val matId: String = "mat-id"
+  final val periodId = "period-id"
 
-  val competitionId = "managedCompetition"
-  val categoryId    = "test-category"
-  val stageId       = "stage-id"
-  val matId: String = "mat-id"
-  val periodId = "period-id"
-
-  val groupIdFormat = "group-id-%s"
-  val groupRange: Range.Inclusive     = 0 to 3
-  val startingCompetitorsSizeForGroup = 5
+  final val groupIdFormat = "group-id-%s"
+  final val groupRange: Range.Inclusive = 0 to 3
+  final val startingCompetitorsSizeForGroup = 5
 
   val groupDescriptors: IndexedSeq[GroupDescriptorDTO] = groupRange map { groupIndex =>
     new GroupDescriptorDTO().setId(groupIdFormat.format(groupIndex)).setName(groupIdFormat.format(groupIndex))
@@ -50,12 +54,23 @@ trait TestEntities {
     new CompetitorDTO().setId("competitor3").setCategories(Array(categoryId))
   )
 
+
+  val mat1: MatDescriptionDTO = new MatDescriptionDTO()
+    .setId(mat1Id)
+    .setName("Mat 1")
+    .setMatOrder(0)
+    .setPeriodId(periodId)
+  val mat2: MatDescriptionDTO = new MatDescriptionDTO()
+    .setId(mat2Id)
+    .setName("Mat 2")
+    .setMatOrder(1)
+    .setPeriodId(periodId)
   val fights = List(
     new FightDescriptionDTO(
-      "fight1",
+      fight1,
       categoryId,
       "Semi-final",
-      "fight3",
+      fight3,
       null,
       Array(
         new CompScoreDTO(
@@ -81,11 +96,11 @@ trait TestEntities {
       StageRoundType.WINNER_BRACKETS,
       FightStatus.PENDING,
       null,
-      null,
+      mat2,
       null,
       0,
       competitionId,
-      null,
+      periodId,
       null,
       stageId,
       null,
@@ -93,10 +108,10 @@ trait TestEntities {
       1
     ),
     new FightDescriptionDTO(
-      "fight2",
+      fight2,
       categoryId,
       "Semi-final",
-      "fight3",
+      fight3,
       null,
       Array(
         new CompScoreDTO(
@@ -115,7 +130,7 @@ trait TestEntities {
       StageRoundType.WINNER_BRACKETS,
       FightStatus.UNCOMPLETABLE,
       null,
-      null,
+      mat1,
       null,
       0,
       competitionId,
@@ -127,14 +142,14 @@ trait TestEntities {
       0
     ),
     new FightDescriptionDTO(
-      "fight3",
+      fight3,
       categoryId,
       "Final",
       null,
       null,
       Array(
-        new CompScoreDTO(null, null, new ScoreDTO(0, 0, 0, Array.empty), 0, FightReferenceType.WINNER, "fight2"),
-        new CompScoreDTO(null, null, new ScoreDTO(0, 0, 0, Array.empty), 1, FightReferenceType.WINNER, "fight1")
+        new CompScoreDTO(null, null, new ScoreDTO(0, 0, 0, Array.empty), 0, FightReferenceType.WINNER, fight2),
+        new CompScoreDTO(null, null, new ScoreDTO(0, 0, 0, Array.empty), 1, FightReferenceType.WINNER, fight1)
       ),
       BigDecimal(10).bigDecimal,
       1,
@@ -142,11 +157,11 @@ trait TestEntities {
       StageRoundType.GRAND_FINAL,
       FightStatus.PENDING,
       null,
-      null,
+      mat1,
       null,
       0,
       competitionId,
-      null,
+      periodId,
       null,
       stageId,
       null,
