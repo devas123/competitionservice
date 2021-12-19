@@ -2,14 +2,13 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.dungeon.Terminated
-import zio.{ZIO, ZLayer}
 import zio.clock.Clock
 import zio.console.{Console, putStrLn}
 import zio.duration.durationInt
 import zio.logging.Logging
 import zio.test._
-import zio.test.Assertion._
 import zio.test.environment.TestEnvironment
+import zio.{ZIO, ZLayer}
 
 object DeathWatchSpec extends DefaultRunnableSpec {
 
@@ -51,10 +50,22 @@ object DeathWatchSpec extends DefaultRunnableSpec {
         dieAfter = 1
         watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
         _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
-        _ <- ZIO.sleep((dieAfter + 1).seconds)
+        _ <- ZIO.sleep((dieAfter + 3).seconds)
         msg <- actorSystem.select[Any]("watcher").isFailure
-      } yield assert(msg)(isTrue)
+      } yield assertTrue(msg)
     },
+    testM("Should react to actor death with custom message when the actor is already dead.") {
+      for {
+        actorSystem <- ActorSystem("test")
+        dieAfter = 1
+        watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
+        _ <- ZIO.sleep((dieAfter + 3).seconds)
+        _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
+        _ <- ZIO.sleep(1.seconds)
+        msg <- actorSystem.select[Any]("watcher").isFailure
+      } yield assertTrue(msg)
+    }
+    ,
     testM("Should handle unwatch.") {
       for {
         actorSystem <- ActorSystem("test")
@@ -63,9 +74,9 @@ object DeathWatchSpec extends DefaultRunnableSpec {
         watcher <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
         _ <- ZIO.sleep((dieAfter - 1).seconds)
         _ <- watcher ! Unwatch
-        _ <- ZIO.sleep((dieAfter + 1).seconds)
+        _ <- ZIO.sleep((dieAfter + 3).seconds)
         msg <- actorSystem.select[Any]("watcher")
-      } yield assert(msg)(not(isNull))
+      } yield assertTrue(msg != null)
     },
     testM("Should react to actor death with Terminated message.") {
       for {
@@ -73,9 +84,9 @@ object DeathWatchSpec extends DefaultRunnableSpec {
         dieAfter = 1
         watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
         _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, None))
-        _ <- ZIO.sleep((dieAfter + 1).seconds)
+        _ <- ZIO.sleep((dieAfter + 3).seconds)
         msg <- actorSystem.select[Any]("watcher").isFailure
-      } yield assert(msg)(isTrue)
+      } yield assertTrue(msg)
     }
   ).provideSomeLayerShared[TestEnvironment](Clock.live ++ logging)
 }

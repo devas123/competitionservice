@@ -2,20 +2,20 @@ package compman.compsrv.logic.actors
 
 import cats.implicits._
 import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
-import compman.compsrv.logic.actors.dungeon.{DeathWatch, DeathWatchNotification, Signal}
-import zio.{Exit, Fiber, Queue, Ref, RIO, Task, URIO, ZIO}
+import compman.compsrv.logic.actors.dungeon.{ActorsShutdownWatcher, DeathWatch, DeathWatchNotification, Signal}
 import zio.clock.Clock
 import zio.interop.catz._
+import zio.{Exit, Fiber, Promise, Queue, RIO, Ref, Task, URIO}
 
 trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWatch {
   self =>
   def receive(
-    context: Context[Msg],
-    actorConfig: ActorConfig = ActorConfig(),
-    state: S,
-    command: Msg,
-    timers: Timers[R, Msg]
-  ): RIO[R, S]
+               context: Context[Msg],
+               actorConfig: ActorConfig = ActorConfig(),
+               state: S,
+               command: Msg,
+               timers: Timers[R, Msg]
+             ): RIO[R, S]
 
   def receiveSignal(
     context: Context[Msg],
@@ -71,21 +71,24 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
       msg    <- thread.await
       _ <- msg match {
         case Exit.Success(value) => process(watching, watchedBy, terminatedQueued)(context, value, stateRef, ts)
-        case Exit.Failure(cause) => RIO.unit
+        case Exit.Failure(_) => RIO.unit
       }
     } yield ()).repeatUntilM(_ => queue.isShutdown)
 
     def restartOneSupervision(
-      watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
-      watchedBy: Ref[Set[ActorRef[Nothing]]],
-      terminatedQueued: Ref[Map[ActorRef[Nothing], Option[Any]]]
-    )(queue: Queue[PendingMessage[Msg]], stateRef: Ref[S], ts: Timers[R, Msg], context: Context[Msg]): RIO[R, Unit] = {
+                               watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
+                               watchedBy: Ref[Set[ActorRef[Nothing]]],
+                               terminatedQueued: Ref[Map[ActorRef[Nothing], Option[Any]]]
+                             )(queue: Queue[PendingMessage[Msg]], stateRef: Ref[S], ts: Timers[R, Msg], context: Context[Msg]): RIO[R with Clock, Unit] = {
       for {
         res <- innerLoop(watching, watchedBy, terminatedQueued)(queue, stateRef, ts, context).attempt
-        _ <- res match {
-          case Left(_)  => restartOneSupervision(watching, watchedBy, terminatedQueued)(queue, stateRef, ts, context)
-          case Right(_) => ZIO.unit
-        }
+        _ <- restartOneSupervision(watching, watchedBy, terminatedQueued)(queue, stateRef, ts, context).when(res.isLeft)
+        chldrn <- children.get
+        _ <- (for {
+          promise <- Promise.make[Throwable, Unit]
+          _ <- ActorsShutdownWatcher[R](actorSystem, chldrn.map(_.actor), promise)
+          _ <- promise.await
+        } yield ()).when(chldrn.nonEmpty)
       } yield ()
     }
 
@@ -100,15 +103,15 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
       stateRef <- Ref.make(initialState)
       context = Context(children, actor, actorPath, actorSystem)
       actorLoop <- (for {
-        state                <- stateRef.get
+        state <- stateRef.get
         (_, msgs, initState) <- init(actorConfig, context, state, ts)
-        _                    <- stateRef.set(initState)
-        _                    <- msgs.traverse(m => actor ! m)
+        _ <- stateRef.set(initState)
+        _ <- msgs.traverse(m => actor ! m)
         _ <- restartOneSupervision(watching, watchedBy, terminatedQueued)(queue, stateRef, ts, context)
       } yield ()).onExit(_ =>
         for {
           st <- stateRef.get
-          _  <- self.postStop(actorConfig, context, st, ts).foldM(_ => URIO.unit, either => URIO.effectTotal(either))
+          _ <- self.postStop(actorConfig, context, st, ts).foldM(_ => URIO.unit, either => URIO.effectTotal(either))
           iAmWatchedBy <- watchedBy.get
           _ <- iAmWatchedBy.toList.traverse(actor =>
             actor.asInstanceOf[ActorRef[Msg]].sendSystemMessage(DeathWatchNotification(context.self))

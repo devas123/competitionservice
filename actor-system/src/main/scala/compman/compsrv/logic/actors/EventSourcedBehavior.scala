@@ -3,23 +3,23 @@ package compman.compsrv.logic.actors
 import cats.implicits._
 import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
 import compman.compsrv.logic.actors.EventSourcedMessages.Command
-import compman.compsrv.logic.actors.dungeon.{DeathWatch, DeathWatchNotification}
-import zio.{Fiber, Queue, Ref, RIO, Task, URIO, ZIO}
+import compman.compsrv.logic.actors.dungeon.{ActorsShutdownWatcher, DeathWatch, DeathWatchNotification}
 import zio.clock.Clock
 import zio.interop.catz._
+import zio.{Fiber, Promise, Queue, RIO, Ref, Task, URIO, ZIO}
 
 abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
-    extends AbstractBehavior[R, S, Msg] with DeathWatch {
+  extends AbstractBehavior[R, S, Msg] with DeathWatch {
   self =>
 
   def postStop(actorConfig: ActorConfig, context: Context[Msg], state: S, timers: Timers[R, Msg]): RIO[R, Unit] =
     RIO(())
 
   def receive(
-    context: Context[Msg],
-    actorConfig: ActorConfig,
-    state: S,
-    command: Msg,
+               context: Context[Msg],
+               actorConfig: ActorConfig,
+               state: S,
+               command: Msg,
     timers: Timers[R, Msg]
   ): RIO[R, (Command[Ev], S => Unit)]
 
@@ -99,13 +99,15 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
       context: Context[Msg]
     ): RIO[R with Clock, Unit] = {
       for {
-        res <- innerLoop(watching, watchedBy, terminatedQueued)(stateRef, queue, ts, context).foldM(
-          err =>
-            ZIO.debug(s"Error during receive loop $err") *>
-              restartOneSupervision(watching, watchedBy, terminatedQueued)(queue, stateRef, ts, context),
-          _ => ZIO.unit
-        )
-      } yield res
+        res <- innerLoop(watching, watchedBy, terminatedQueued)(stateRef, queue, ts, context).attempt
+        _ <- restartOneSupervision(watching, watchedBy, terminatedQueued)(queue, stateRef, ts, context).when(res.isLeft)
+        chldrn <- children.get
+        _ <- (for {
+          promise <- Promise.make[Throwable, Unit]
+          _ <- ActorsShutdownWatcher[R](actorSystem, chldrn.map(_.actor), promise)
+          _ <- promise.await
+        } yield ()).when(chldrn.nonEmpty)
+      } yield ()
     }
 
     for {
