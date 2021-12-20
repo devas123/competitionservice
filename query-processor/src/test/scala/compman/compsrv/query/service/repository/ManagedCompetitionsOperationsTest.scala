@@ -4,7 +4,6 @@ import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import org.testcontainers.containers.MongoDBContainer
 import zio.ZManaged
-import zio.test.Assertion._
 import zio.test._
 
 object ManagedCompetitionsOperationsTest extends DefaultRunnableSpec with EmbeddedMongoDb with TestEntities {
@@ -23,7 +22,7 @@ object ManagedCompetitionsOperationsTest extends DefaultRunnableSpec with Embedd
           competitions <- ManagedCompetitionsOperations.getActiveCompetitions[LIO]
           _ <- ManagedCompetitionsOperations.deleteManagedCompetition[LIO](managedCompetition.id)
           shouldBeEmpty <- ManagedCompetitionsOperations.getActiveCompetitions[LIO]
-        } yield assert(competitions)(isNonEmpty) && assert(shouldBeEmpty)(isEmpty)
+        } yield assertTrue(competitions.nonEmpty) && assertTrue(shouldBeEmpty.isEmpty)
       }.provideLayer(layers)
     }
   })

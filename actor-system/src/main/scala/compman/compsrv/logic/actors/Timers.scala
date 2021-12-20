@@ -1,16 +1,17 @@
 package compman.compsrv.logic.actors
 
-import zio.{Fiber, Ref, RIO, URIO}
+import zio.{Chunk, Fiber, RIO, Ref, Supervisor, URIO}
 import zio.clock.Clock
 import zio.duration.Duration
 
 case class Timers[R, Msg](
                            private val self: ActorRef[Msg],
-                           private val timers: Ref[Map[String, Fiber[Throwable, Unit]]]
+                           private val timers: Ref[Map[String, Fiber[Throwable, Unit]]],
+                           private val supervisor: Supervisor[Chunk[Fiber.Runtime[Any, Any]]]
 ) {
   def startSingleTimer(key: String, delay: Duration, msg: Msg): RIO[R with Clock, Unit] = {
-    def create = (RIO.sleep(delay) <* (self ! msg)).fork
-    updateTimers(key, () => create)
+    def create = (RIO.sleep(delay) <* (self ! msg)).supervised(supervisor).forkDaemon
+    updateTimers(key, create)
   }
   def startRepeatedTimer(
     key: String,
@@ -18,20 +19,20 @@ case class Timers[R, Msg](
     interval: Duration,
     msg: Msg
   ): RIO[R with Clock, Unit] = {
-    def create = (RIO.sleep(initialDelay) <* (RIO.sleep(interval) <* (self ! msg)).forever.fork).fork
-    updateTimers(key, () => create)
+    def create = (RIO.sleep(initialDelay) <* (RIO.sleep(interval) <* (self ! msg)).forever.supervised(supervisor).forkDaemon).supervised(supervisor).forkDaemon
+    updateTimers(key, create)
   }
 
-  private def updateTimers(key: String, create: () => URIO[Clock, Fiber.Runtime[Throwable, Unit]]) = {
+  private def updateTimers(key: String, create: URIO[Clock, Fiber.Runtime[Throwable, Unit]]) = {
     for {
       map <- timers.get
       maybeTimer = map.get(key)
       fiber <- maybeTimer match {
         case Some(value) => for {
             _ <- value.interrupt
-            f <- create()
+            f <- create
           } yield f
-        case None => create()
+        case None => create
       }
       _ <- timers.update(map => map + (key -> fiber))
     } yield ()
@@ -53,8 +54,8 @@ case class Timers[R, Msg](
     import zio.interop.catz._
     for {
       timersMap <- timers.get
-      _         <- timersMap.values.toList.traverse { fiber => fiber.interrupt}
-      _         <- timers.set(Map.empty)
+      _ <- timersMap.values.toList.traverse { fiber => fiber.interruptFork.disconnect }
+      _ <- timers.set(Map.empty)
     } yield ()
   }
 }

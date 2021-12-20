@@ -3,10 +3,11 @@ package compman.compsrv.logic.actors
 import cats.implicits._
 import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
 import compman.compsrv.logic.actors.EventSourcedMessages.Command
-import compman.compsrv.logic.actors.dungeon.{ActorsShutdownWatcher, DeathWatch, DeathWatchNotification}
+import compman.compsrv.logic.actors.dungeon.DeathWatch
 import zio.clock.Clock
+import zio.console.Console
 import zio.interop.catz._
-import zio.{Fiber, Promise, Queue, RIO, Ref, Task, URIO, ZIO}
+import zio.{Fiber, Queue, RIO, Ref, Supervisor, Task, URIO, ZIO}
 
 abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
   extends AbstractBehavior[R, S, Msg] with DeathWatch {
@@ -40,7 +41,7 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
     initialState: S,
     actorSystem: ActorSystem,
     children: Ref[Set[InternalActorCell[Nothing]]]
-  )(optPostStop: () => Task[Unit]): RIO[R with Clock, InternalActorCell[Msg]] = {
+  )(optPostStop: Task[Unit]): RIO[R with Clock with Console, InternalActorCell[Msg]] = {
 
     def applyEvents(events: Seq[Ev], state: S): RIO[R, S] = events.foldLeftM(state)(sourceEvent)
 
@@ -48,7 +49,7 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
       watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
       watchedBy: Ref[Set[ActorRef[Nothing]]],
       terminatedQueued: Ref[Map[ActorRef[Nothing], Option[Any]]]
-    )(msg: PendingMessage[Msg], state: Ref[S], context: Context[Msg], timers: Timers[R, Msg]): RIO[R with Clock, Unit] =
+    )(msg: PendingMessage[Msg], state: Ref[S], context: Context[Msg], timers: Timers[R, Msg]): RIO[R with Clock with Console, Unit] =
       for {
         s <- state.get
         fa = msg
@@ -77,66 +78,32 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
         _ <- receiver.foldM(e => ZIO.fail(e), fullCompleter)
       } yield ()
 
-    def innerLoop(
-      watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
-      watchedBy: Ref[Set[ActorRef[Nothing]]],
-      terminatedQueued: Ref[Map[ActorRef[Nothing], Option[Any]]]
-    )(state: Ref[S], queue: Queue[PendingMessage[Msg]], ts: Timers[R, Msg], context: Context[Msg]) = {
-      (for {
-        t <- queue.take
-        _ <- process(watching, watchedBy, terminatedQueued)(t, state, context, ts)
-      } yield ()).repeatUntilM(_ => queue.isShutdown)
-    }
-
-    def restartOneSupervision(
-      watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
-      watchedBy: Ref[Set[ActorRef[Nothing]]],
-      terminatedQueued: Ref[Map[ActorRef[Nothing], Option[Any]]]
-    )(
-      queue: Queue[PendingMessage[Msg]],
-      stateRef: Ref[S],
-      ts: Timers[R, Msg],
-      context: Context[Msg]
-    ): RIO[R with Clock, Unit] = {
-      for {
-        res <- innerLoop(watching, watchedBy, terminatedQueued)(stateRef, queue, ts, context).attempt
-        _ <- restartOneSupervision(watching, watchedBy, terminatedQueued)(queue, stateRef, ts, context).when(res.isLeft)
-        chldrn <- children.get
-        _ <- (for {
-          promise <- Promise.make[Throwable, Unit]
-          _ <- ActorsShutdownWatcher[R](actorSystem, chldrn.map(_.actor), promise)
-          _ <- promise.await
-        } yield ()).when(chldrn.nonEmpty)
-      } yield ()
-    }
-
     for {
-      queue            <- Queue.bounded[PendingMessage[Msg]](actorConfig.mailboxSize)
-      watching         <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
-      watchedBy        <- Ref.make(Set.empty[ActorRef[Nothing]])
+      queue <- Queue.bounded[PendingMessage[Msg]](actorConfig.mailboxSize)
+      watching <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
+      watchedBy <- Ref.make(Set.empty[ActorRef[Nothing]])
       terminatedQueued <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
-      actor = LocalActorRef[Msg](queue, actorPath)(optPostStop, actorSystem)
-      stateRef  <- Ref.make(initialState)
+      stopSwitch <- Ref.make(false)
+      actor = LocalActorRef[Msg](queue, actorPath)(stopSwitch.set(true) *> optPostStop, actorSystem)
+      stateRef <- Ref.make(initialState)
       timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
-      ts      = Timers[R, Msg](actor, timersMap)
+      supervisor <- Supervisor.track(true)
+      ts = Timers[R, Msg](actor, timersMap, supervisor)
       context = Context(children, actor, actorPath, actorSystem)
       actorLoop <- (for {
-        events       <- getEvents(persistenceId, initialState)
+        events <- getEvents(persistenceId, initialState)
         sourcedState <- applyEvents(events, initialState)
-        _            <- stateRef.set(sourcedState)
-        (_, msgs)    <- init(actorConfig, context, sourcedState, ts)
-        _            <- msgs.traverse(m => actor ! m)
-        _            <- restartOneSupervision(watching, watchedBy, terminatedQueued)(queue, stateRef, ts, context)
-      } yield ()).onExit(_ =>
+        _ <- stateRef.set(sourcedState)
+        (_, msgs) <- init(actorConfig, context, sourcedState, ts)
+        _ <- msgs.traverse(m => actor ! m)
+        _ <- restartOneSupervision(context, queue, ts)(() => innerLoop(msg => process(watching, watchedBy, terminatedQueued)(msg, stateRef, context, ts))(queue, stopSwitch))
+      } yield ()).onExit(exit =>
         for {
+          _ <- ZIO.debug(s"Actor $actor stopped with exit result $exit.")
           st <- stateRef.get
-          _  <- self.postStop(actorConfig, context, st, ts).foldM(_ => URIO.unit, either => URIO.effectTotal(either))
-          iAmWatchedBy <- watchedBy.get
-          _ <- iAmWatchedBy.toList.traverse(actor =>
-            actor.asInstanceOf[ActorRef[Msg]].sendSystemMessage(DeathWatchNotification(context.self))
-          ).foldM(_ => URIO.unit, either => URIO.effectTotal(either))
+          _ <- finalizeActor(self.postStop(actorConfig, context, st, ts).foldM(_ => URIO.unit, either => URIO.effectTotal(either)))(watchedBy, context)
         } yield ()
-      ).fork
+      ).supervised(actorSystem.supervisor).forkDaemon
     } yield InternalActorCell(actor, actorLoop)
   }
 }

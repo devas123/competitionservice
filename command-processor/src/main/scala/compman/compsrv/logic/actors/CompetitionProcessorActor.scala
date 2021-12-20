@@ -2,19 +2,19 @@ package compman.compsrv.logic.actors
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.jackson.ObjectMapperFactory
-import compman.compsrv.logic.{CompetitionState, Operations}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
 import compman.compsrv.logic.actors.EventSourcedMessages._
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
-import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionProcessingStopped}
+import compman.compsrv.logic.{CompetitionState, Operations}
 import compman.compsrv.model.commands.CommandDTO
 import compman.compsrv.model.events.EventDTO
-import zio.{Fiber, Has, Promise, RIO, Task, ZIO}
+import compman.compsrv.model.{CompetitionProcessingStarted, CompetitionProcessingStopped}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.consumer.Consumer
 import zio.kafka.producer.Producer
 import zio.logging.{LogAnnotation, Logging}
+import zio.{Fiber, Has, Promise, RIO, Task, ZIO}
 
 import java.util.UUID
 import java.util.concurrent.TimeUnit

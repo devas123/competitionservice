@@ -9,17 +9,20 @@ import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.commands.CommandDTO
 import zio.{Tag, ZIO}
 import zio.clock.Clock
+import zio.console.Console
 import zio.logging.Logging
 
 object CompetitionProcessorSupervisorActor {
+
+  type CompetitionProcessorSupervisorEnv[Env] = Env with Logging with Clock with SnapshotService.Snapshot with Console
 
   import Behaviors._
   def behavior[Env: Tag](
     commandProcessorOperationsFactory: CommandProcessorOperationsFactory[Env],
     commandProcessorConfig: CommandProcessorConfig,
     kafkaSupervisor: ActorRef[KafkaSupervisorCommand]
-  ): ActorBehavior[Env with Logging with Clock with SnapshotService.Snapshot, Unit, Message] = Behaviors
-    .behavior[Env with Logging with Clock with SnapshotService.Snapshot, Unit, Message]
+  ): ActorBehavior[CompetitionProcessorSupervisorEnv[Env], Unit, Message] = Behaviors
+    .behavior[CompetitionProcessorSupervisorEnv[Env], Unit, Message]
     .withReceive { (context, _, _, command, _) =>
       {
         command match {

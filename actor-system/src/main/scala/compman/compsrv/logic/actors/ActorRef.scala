@@ -1,7 +1,7 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.PendingMessage
-import compman.compsrv.logic.actors.dungeon.{DeadLetter, DeathWatchNotification, SystemMessage, Watch}
+import compman.compsrv.logic.actors.dungeon.{DeadLetter, DeathWatchNotification, PoisonPill, SystemMessage, Watch}
 import zio.{Queue, Task}
 
 import scala.annotation.unchecked.uncheckedVariance
@@ -24,9 +24,9 @@ private[actors] trait MinimalActorRef[Msg] extends ActorRef[Msg] {
 }
 
 private[actors] case class LocalActorRef[Msg](
-  private val queue: Queue[PendingMessage[Msg]],
-  private val path: ActorPath
-)(private val postStop: () => Task[Unit], private val provider: ActorRefProvider)
+                                               private val queue: Queue[PendingMessage[Msg]],
+                                               private val path: ActorPath
+                                             )(private val postStop: Task[Unit], private val provider: ActorRefProvider)
     extends ActorRef[Msg] {
 
   override def hashCode(): Int = path.hashCode()
@@ -62,8 +62,8 @@ private[actors] case class LocalActorRef[Msg](
 
   override private[actors] val stop: Task[List[_]] = for {
     tail <- queue.takeAll
-    _    <- postStop()
-    _    <- queue.shutdown
+    _ <- queue.offer(Left(PoisonPill))
+    _ <- postStop
   } yield tail
 
   override def toString: String = s"ActorRef($path)"

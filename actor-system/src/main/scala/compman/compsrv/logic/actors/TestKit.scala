@@ -4,6 +4,7 @@ import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.dungeon.Watch
 import zio.{Queue, RIO, Task, ZIO}
 import zio.clock.Clock
+import zio.console.Console
 import zio.duration.Duration
 
 import java.util.UUID
@@ -20,17 +21,18 @@ trait TestKit[F] {
 
 object TestKit {
   import Behaviors._
-  def apply[F](actorSystem: ActorSystem): ZIO[Any with Clock, Throwable, TestKit[F]] =
+  def apply[F](actorSystem: ActorSystem): ZIO[Any with Clock with Console, Throwable, TestKit[F]] =
     for {
       queue <- Queue.unbounded[F]
       actor <- actorSystem.make(
-        UUID.randomUUID().toString,
+        s"TestKit-${UUID.randomUUID()}",
         ActorConfig(),
         (),
         Behaviors.behavior[Any, Unit, F]
           .withReceive { (_: Context[F], _: ActorConfig, _: Unit, command: F, _: Timers[Any, F]) =>
             { for { _ <- queue.offer(command) } yield () }
           }
+          .withPostStop((_, _, _, _) => queue.shutdown)
       )
     } yield new TestKit[F] {
       override def ref: ActorRef[F] = actor

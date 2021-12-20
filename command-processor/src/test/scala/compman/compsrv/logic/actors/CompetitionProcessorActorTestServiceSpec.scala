@@ -82,5 +82,5 @@ object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
           event = eventsOptional.get.message
         } yield assertTrue(event != null)
       }
-    }).provideLayer(loggingLayer ++ snapshotLayer ++ Clock.live ++ Blocking.live)
+    }).provideLayer(loggingLayer ++ snapshotLayer ++ Clock.live ++ Blocking.live ++ zio.console.Console.live)
 }

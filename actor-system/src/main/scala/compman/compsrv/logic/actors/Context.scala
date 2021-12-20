@@ -2,8 +2,9 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.dungeon.{DeadLetter, Unwatch, Watch}
-import zio.{RIO, Ref, Task, ZIO}
 import zio.clock.Clock
+import zio.console.Console
+import zio.{RIO, Ref, Task, ZIO}
 
 import java.util.UUID
 
@@ -23,17 +24,17 @@ case class Context[-F](
   def watch[F1](actorRef: ActorRef[F1]): Task[Unit] = { self sendSystemMessage Watch(actorRef, self, None) }
   def unwatch[F1](actorRef: ActorRef[F1]): Task[Unit] = { self sendSystemMessage Unwatch(actorRef, self) }
 
-  def messageAdapter[In](mapping: In => F): ZIO[Any with Clock, Throwable, ActorRef[In]] = make[Any, Unit, In](
+  def messageAdapter[In](mapping: In => F): ZIO[Any with Clock with Console, Throwable, ActorRef[In]] = make[Any, Unit, In](
     s"message-adapter-${UUID.randomUUID()}",
     ActorConfig(),
     (),
     new MinimalBehavior[Any, Unit, In] {
       override def receive(
-        context: Context[In],
-        actorConfig: ActorConfig,
-        state: Unit,
-        command: In,
-        timers: Timers[Any, In]
+                            context: Context[In],
+                            actorConfig: ActorConfig,
+                            state: Unit,
+                            command: In,
+                            timers: Timers[Any, In]
       ): RIO[Any, Unit] = for { _ <- self ! mapping.apply(command) } yield ()
     }
   )
@@ -55,17 +56,17 @@ case class Context[-F](
     * @tparam F1
     *   - DSL type
     * @return
-    *   reference to the created actor in effect that can't fail
+    * reference to the created actor in effect that can't fail
     */
   override def make[R, S, F1](
-    actorName: String,
-    actorConfig: ActorConfig,
-    init: S,
-    behavior: => AbstractBehavior[R, S, F1]
-  ): ZIO[R with Clock, Throwable, ActorRef[F1]] = for {
-    ch       <- children.get
+                               actorName: String,
+                               actorConfig: ActorConfig,
+                               init: S,
+                               behavior: => AbstractBehavior[R, S, F1]
+                             ): ZIO[R with Clock with Console, Throwable, ActorRef[F1]] = for {
+    ch <- children.get
     actorRef <- actorSystem.make(actorName, actorConfig, init, behavior).map(_.asInstanceOf[InternalActorCell[F1]])
-    _        <- children.set(ch + actorRef)
+    _ <- children.set(ch + actorRef)
   } yield actorRef
 
   override def select[F1](path: String): Task[ActorRef[F1]] = actorSystem.select(path)

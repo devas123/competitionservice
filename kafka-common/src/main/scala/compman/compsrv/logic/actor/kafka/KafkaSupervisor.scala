@@ -1,15 +1,16 @@
 package compman.compsrv.logic.actor.kafka
 
 import compman.compsrv.logic.actor.kafka.KafkaPublishActor.PublishMessageToKafka
-import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Behaviors}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import zio.{Promise, RIO, Tag, Task}
+import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Behaviors}
 import zio.blocking.Blocking
 import zio.clock.Clock
-import zio.duration.{durationInt, Duration}
+import zio.console.Console
+import zio.duration.{Duration, durationInt}
 import zio.kafka.admin.{AdminClient, AdminClientSettings}
 import zio.kafka.consumer.CommittableRecord
 import zio.logging.Logging
+import zio.{Promise, RIO, Tag, Task}
 
 import java.util.UUID
 
@@ -56,7 +57,7 @@ object KafkaSupervisor {
 
   case object Stop extends KafkaSupervisorCommand
 
-  type KafkaSupervisorEnvironment[R] = R with Logging with Clock with Blocking
+  type KafkaSupervisorEnvironment[R] = R with Logging with Clock with Blocking with Console
 
   import Behaviors._
   def behavior[R: Tag](brokers: List[String]): ActorBehavior[KafkaSupervisorEnvironment[R], Option[
@@ -67,50 +68,31 @@ object KafkaSupervisor {
     ], KafkaSupervisorCommand].withReceive { (context, _, state, command, _) =>
       command match {
         case QueryAndSubscribe(topic, groupId, replyTo) => for {
-            actorId <- RIO.effectTotal(UUID.randomUUID().toString)
-            state <- context.make(
-              actorId,
-              ActorConfig(),
-              (),
-              KafkaQueryAndSubscribeActor.behavior(topic, groupId, replyTo, brokers, subscribe = true, query = true)
-            ).as(state)
-            _ <- Logging.info(s"Created actor with id $actorId to process query and subscribe request.")
-          } yield state
+          actorId <- RIO.effectTotal(UUID.randomUUID().toString)
+          state <- KafkaQueryAndSubscribeActor(actorId, context)(topic, groupId, replyTo, brokers, subscribe = true, query = true).as(state)
+          _ <- Logging.info(s"Created actor with id $actorId to process query and subscribe request.")
+        } yield state
         case QuerySync(topic, groupId, promise, timeout) => for {
-            queryReceiver <- context.make(
-              UUID.randomUUID().toString,
-              ActorConfig(),
-              Seq.empty[Array[Byte]],
-              KafkaSyncQueryReceiverActor.behavior(promise, timeout)
-            )
-            _ <- context.make(
-              UUID.randomUUID().toString,
-              ActorConfig(),
-              (),
-              KafkaQueryAndSubscribeActor
-                .behavior(topic, groupId, queryReceiver, brokers, subscribe = false, query = true)
-            )
-          } yield state
+          actorId <- RIO.effectTotal(UUID.randomUUID().toString)
+          queryReceiver <- context.make(
+            UUID.randomUUID().toString,
+            ActorConfig(),
+            Seq.empty[Array[Byte]],
+            KafkaSyncQueryReceiverActor.behavior(promise, timeout)
+          )
+          _ <- KafkaQueryAndSubscribeActor(actorId, context)(topic, groupId, queryReceiver, brokers, subscribe = false, query = true)
+        } yield state
 
-        case QueryAsync(topic, groupId, replyTo) => context.make(
-            UUID.randomUUID().toString,
-            ActorConfig(),
-            (),
-            KafkaQueryAndSubscribeActor.behavior(topic, groupId, replyTo, brokers, subscribe = false, query = true)
-          ).as(state)
-        case Subscribe(topic, groupId, replyTo) => context.make(
-            UUID.randomUUID().toString,
-            ActorConfig(),
-            (),
-            KafkaQueryAndSubscribeActor.behavior(topic, groupId, replyTo, brokers, subscribe = true, query = false)
-          ).as(state)
+        case QueryAsync(topic, groupId, replyTo) => KafkaQueryAndSubscribeActor(UUID.randomUUID().toString, context)(topic, groupId, replyTo, brokers, subscribe = false, query = true).as(state)
+
+        case Subscribe(topic, groupId, replyTo) =>
+          KafkaQueryAndSubscribeActor(UUID.randomUUID().toString, context)(topic, groupId, replyTo, brokers, subscribe = true, query = false).as(state)
         case Stop => context.stopSelf.as(state)
         case PublishMessage(topic, key, message) => state.fold(Task(()))(_ ! PublishMessageToKafka(topic, key, message))
-            .as(state)
+          .as(state)
         case CreateTopicIfMissing(topic, topicConfig) => AdminClient.make(AdminClientSettings(brokers))
-            .use(_.createTopic(AdminClient.NewTopic(topic, topicConfig.numPartitions, topicConfig.replicationFactor)))
-            .as(state)
-
+          .use(_.createTopic(AdminClient.NewTopic(topic, topicConfig.numPartitions, topicConfig.replicationFactor)))
+          .as(state)
       }
     }.withInit { (_, context, initState, _) =>
       for {

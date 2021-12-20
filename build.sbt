@@ -16,7 +16,7 @@ inThisBuild(List(
 ))
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
-
+Test / parallelExecution := false
 Compile / logLevel := Level.Debug
 val zTestFramework = TestFramework("zio.test.sbt.ZTestFramework")
 

@@ -9,7 +9,6 @@ private[actors] case class InternalActorCell[-F](actor: ActorRef[F], actorFiber:
   override def !(fa: F): Task[Unit]                                  = actor ! fa
   override private[actors] val stop                                  = for {
     res <- actor.stop
-    _ <- actorFiber.interruptFork
   } yield res
 
   override def hashCode(): Int = actor.hashCode()

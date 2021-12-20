@@ -7,6 +7,7 @@ import org.apache.kafka.clients.producer.ProducerRecord
 import zio.{Chunk, Tag}
 import zio.blocking.Blocking
 import zio.clock.Clock
+import zio.console.Console
 import zio.kafka.producer.{Producer, ProducerSettings}
 import zio.kafka.serde.Serde
 import zio.logging.Logging
@@ -19,7 +20,7 @@ object KafkaPublishActor {
   private[kafka] case class PublishMessageToKafka(topic: String, key: String, message: Array[Byte])
       extends KafkaPublishActorCommand
 
-  type KafkaPublishActorEnvironment[R] = R with Logging with Clock with Blocking
+  type KafkaPublishActorEnvironment[R] = R with Logging with Clock with Blocking with Console
 
   import Behaviors._
 

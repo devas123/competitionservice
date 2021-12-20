@@ -90,5 +90,5 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
           assertTrue(event.getCorrelationId == command.getId) &&
           assertTrue(event.getLocalEventNumber.toLong == 0L)
       }
-    }).provideLayer(loggingLayer ++ snapshotLayer ++ Clock.live ++ Blocking.live)
+    }).provideLayer(loggingLayer ++ snapshotLayer ++ Clock.live ++ Blocking.live ++ zio.console.Console.live)
 }

@@ -16,7 +16,7 @@ object FightOperationsTest extends DefaultRunnableSpec with TestEntities with Em
   type Env = Logging
   val mongoLayer: ZManaged[Any, Nothing, MongoDBContainer] = embeddedMongo()
   val layers: ZLayer[Any, Throwable, Env] = CompetitionLogging.Live.loggingLayer
-  override def spec: ZSpec[Any, Throwable] = suite("Fight operations")(
+  override def spec: ZSpec[Environment, Throwable] = suite("Fight operations")(
     testM("Should save and load fight by id") {
       mongoLayer.use { mongo =>
         val context = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
@@ -37,14 +37,14 @@ object FightOperationsTest extends DefaultRunnableSpec with TestEntities with Em
           _ <- FightUpdateOperations[LIO].updateFightScoresAndResultAndStatus(competitionId)(fightId, scores, fightResult, FightStatus.FINISHED)
           loadedFight <- FightQueryOperations[LIO].getFightById(competitionId)(categoryId, fightId)
           _ <- FightUpdateOperations[LIO].removeFightsForCompetition(competitionId)
-        } yield assert(loadedFight)(isSome) && assert(loadedFight.get.scores)(isNonEmpty) &&
-          assert(loadedFight.get.scores.size)(equalTo(2)) && assert(loadedFight.get.fightResult)(isSome) &&
-          assert(loadedFight.get.scores.forall(s => s.competitorFirstName.isDefined && s.competitorLastName.isDefined))(isTrue) &&
+        } yield assert(loadedFight)(isSome) && assertTrue(loadedFight.get.scores.nonEmpty) &&
+          assertTrue(loadedFight.get.scores.size == 2) && assert(loadedFight.get.fightResult)(isSome) &&
+          assertTrue(loadedFight.get.scores.forall(s => s.competitorFirstName.isDefined && s.competitorLastName.isDefined)) &&
           assert(loadedFight.get.fightResult)(isSome) &&
-          assert(loadedFight.get.fightResult.get.reason)(equalTo(fightResult.reason)) &&
-          assert(loadedFight.get.fightResult.get.winnerId)(equalTo(fightResult.winnerId)) &&
-          assert(loadedFight.get.status.get)(equalTo(FightStatus.FINISHED)) &&
-          assert(loadedFight.get.fightResult.get.resultTypeId)(equalTo(fightResult.resultTypeId))
+          assertTrue(loadedFight.get.fightResult.get.reason == fightResult.reason) &&
+          assertTrue(loadedFight.get.fightResult.get.winnerId == fightResult.winnerId) &&
+          assertTrue(loadedFight.get.status.get == FightStatus.FINISHED) &&
+          assertTrue(loadedFight.get.fightResult.get.resultTypeId == fightResult.resultTypeId)
           )
           .provideLayer(layers)
       }

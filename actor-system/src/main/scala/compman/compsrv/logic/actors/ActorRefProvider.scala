@@ -3,6 +3,7 @@ import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.dungeon.DeadLetter
 import zio.{Task, ZIO}
 import zio.clock.Clock
+import zio.console.Console
 
 trait ActorRefProvider {
 
@@ -26,7 +27,7 @@ trait ActorRefProvider {
     actorConfig: ActorConfig,
     init: S,
     behavior: => AbstractBehavior[R, S, F1]
-  ): ZIO[R with Clock, Throwable, ActorRef[F1]]
+  ): ZIO[R with Clock with Console, Throwable, ActorRef[F1]]
 
   def select[F1](path: String): Task[ActorRef[F1]]
 

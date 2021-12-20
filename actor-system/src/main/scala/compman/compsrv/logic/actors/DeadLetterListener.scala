@@ -3,6 +3,7 @@ import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.dungeon.DeadLetter
 import zio.RIO
 import zio.clock.Clock
+import zio.console.Console
 import zio.logging.Logging
 
 case class DeadLetterListener() extends MinimalBehavior[Logging, Int, DeadLetter] {
@@ -20,7 +21,7 @@ case class DeadLetterListener() extends MinimalBehavior[Logging, Int, DeadLetter
 }
 
 object DeadLetterListener {
-  def apply(actorSystem: ActorSystem): RIO[Logging with Clock, ActorRef[DeadLetter]] = {
+  def apply(actorSystem: ActorSystem): RIO[Logging with Clock with Console, ActorRef[DeadLetter]] = {
     actorSystem.make("DeadLetters", ActorConfig(), 0, DeadLetterListener())
   }
 }

@@ -8,13 +8,14 @@ import compman.compsrv.logic.actors._
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorActor.LiveEnv
 import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
-import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
+import compman.compsrv.logic.logging.CompetitionLogging.{LIO, logError}
 import compman.compsrv.logic.logging.CompetitionLogging.Live.loggingLayer
 import compman.compsrv.model.Mapping
 import compman.compsrv.model.commands.CommandDTO
-import zio.{ExitCode, URIO, ZIO}
+import zio.{ExitCode, URIO, ZEnv, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
+import zio.console.Console
 import zio.duration.durationInt
 import zio.kafka.admin.{AdminClient, AdminClientSettings}
 import zio.kafka.consumer.{Consumer, ConsumerSettings, Offset, Subscription}
@@ -37,9 +38,9 @@ object CommandProcessorMain extends zio.App {
       compman.compsrv.logic.logging.CompetitionLogging.Live.live
   }
 
-  type PipelineEnvironment = LiveEnv
+  type PipelineEnvironment = LiveEnv with Console
 
-  def createProgram(appConfig: AppConfig): ZIO[Any with Clock with Blocking, Any, Any] = {
+  def createProgram(appConfig: AppConfig): ZIO[zio.ZEnv, Any, Any] = {
     val consumerSettings = ConsumerSettings(appConfig.consumer.brokers)
       .withGroupId(appConfig.consumer.groupId)
       .withClientId("client")
@@ -100,7 +101,7 @@ object CommandProcessorMain extends zio.App {
         }
       }
     }
-    program.provideSomeLayer(Clock.live ++ Blocking.live ++ layers ++ loggingLayer)
+    program.provideSomeLayer[ZEnv](Clock.live ++ Blocking.live ++ layers ++ loggingLayer)
   }
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {

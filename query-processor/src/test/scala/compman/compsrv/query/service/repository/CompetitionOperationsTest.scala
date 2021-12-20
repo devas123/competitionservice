@@ -59,9 +59,9 @@ object CompetitionOperationsTest extends DefaultRunnableSpec with TestEntities w
             loadedCompetitorsByIds <- competitors.traverse(c => CompetitionQueryOperations[LIO].getCompetitorById(competitionId)(c.getId)).map(_.mapFilter(identity))
           } yield
             assert(loadedCompetitorsByCompetitionId)(hasSize(equalTo(competitors.size))) &&
-            assert(loadedCompetitorsByCompetitionId.forall(c => c.lastName.nonEmpty && c.firstName.nonEmpty))(isTrue) &&
+            assertTrue(loadedCompetitorsByCompetitionId.forall(c => c.lastName.nonEmpty && c.firstName.nonEmpty)) &&
             assert(loadedCompetitorsByIds)(hasSize(equalTo(competitors.size))) &&
-            assert(pagination.totalResults)(equalTo(competitors.size))
+            assertTrue(pagination.totalResults == competitors.size)
         ).provideLayer(layers)
       }
     },

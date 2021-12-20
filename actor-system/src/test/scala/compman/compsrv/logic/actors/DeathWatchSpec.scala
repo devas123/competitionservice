@@ -21,6 +21,7 @@ object DeathWatchSpec extends DefaultRunnableSpec {
   final case object Unwatch extends WatcherDsl
 
   val logging: ZLayer[Console with Clock, Nothing, Logging] = Logging.console()
+  final val dieAfter = 1
 
   import Behaviors._
 
@@ -46,7 +47,6 @@ object DeathWatchSpec extends DefaultRunnableSpec {
   override def spec: ZSpec[TestEnvironment, Any] = suite("DeathWatch")(
     testM("Should react to actor death with custom message.") {
       ActorSystem("test").use { actorSystem =>
-        val dieAfter = 1
         for {
           watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
           _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
@@ -57,7 +57,6 @@ object DeathWatchSpec extends DefaultRunnableSpec {
     },
     testM("Should react to actor death with custom message when the actor is already dead.") {
       ActorSystem("test").use { actorSystem =>
-        val dieAfter = 1
         for {
           watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
           _ <- ZIO.sleep((dieAfter + 3).seconds)
@@ -70,7 +69,6 @@ object DeathWatchSpec extends DefaultRunnableSpec {
     ,
     testM("Should handle unwatch.") {
       ActorSystem("test").use { actorSystem =>
-        val dieAfter = 1
         for {
           watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
           watcher <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
@@ -83,7 +81,6 @@ object DeathWatchSpec extends DefaultRunnableSpec {
     },
     testM("Should react to actor death with Terminated message.") {
       ActorSystem("test").use { actorSystem =>
-        val dieAfter = 1
         for {
           watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
           _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, None))
