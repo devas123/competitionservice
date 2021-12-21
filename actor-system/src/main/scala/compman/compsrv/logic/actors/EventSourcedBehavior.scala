@@ -84,7 +84,7 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
       watchedBy <- Ref.make(Set.empty[ActorRef[Nothing]])
       terminatedQueued <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
       stopSwitch <- Ref.make(false)
-      actor = LocalActorRef[Msg](queue, actorPath)(stopSwitch.set(true) *> optPostStop, actorSystem)
+      actor = LocalActorRef[Msg](queue, actorPath)(stopSwitch.set(true) *> optPostStop, actorSystem, stopSwitch)
       stateRef <- Ref.make(initialState)
       timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
       supervisor <- Supervisor.track(true)
@@ -101,7 +101,8 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
         for {
           _ <- ZIO.debug(s"Actor $actor stopped with exit result $exit.")
           st <- stateRef.get
-          _ <- finalizeActor(self.postStop(actorConfig, context, st, ts).foldM(_ => URIO.unit, either => URIO.effectTotal(either)))(watchedBy, context)
+          _ <- self.postStop(actorConfig, context, st, ts).foldM(_ => URIO.unit, either => URIO.effectTotal(either))
+          _ <- sendDeathwatchNotifications(watchedBy, context)
         } yield ()
       ).supervised(actorSystem.supervisor).forkDaemon
     } yield InternalActorCell(actor, actorLoop)

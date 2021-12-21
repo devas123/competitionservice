@@ -5,6 +5,7 @@ import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.model.events.EventDTO
 import zio.{Queue, Tag, Task}
 import zio.clock.Clock
+import zio.console.Console
 import zio.logging.Logging
 
 object WebsocketConnectionSupervisor {
@@ -24,8 +25,8 @@ object WebsocketConnectionSupervisor {
 
   val initialState: ActorState = ActorState()
   import Behaviors._
-  def behavior[R: Tag]: ActorBehavior[R with Logging with Clock, ActorState, ApiCommand] = Behaviors
-    .behavior[R with Logging with Clock, ActorState, ApiCommand].withReceive { (context, _, state, command, _) =>
+  def behavior[R: Tag]: ActorBehavior[R with Logging with Clock with Console, ActorState, ApiCommand] = Behaviors
+    .behavior[R with Logging with Clock with Console, ActorState, ApiCommand].withReceive { (context, _, state, command, _) =>
       {
         for {
           res <- command match {

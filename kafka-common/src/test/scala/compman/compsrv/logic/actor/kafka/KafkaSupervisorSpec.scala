@@ -7,6 +7,7 @@ import compman.compsrv.logic.logging.CompetitionLogging
 import zio.{Has, Promise, URIO, ZIO, ZLayer}
 import zio.blocking.Blocking
 import zio.clock.Clock
+import zio.console.Console
 import zio.duration.durationInt
 import zio.kafka.consumer.{CommittableRecord, Consumer, Subscription}
 import zio.kafka.serde.Serde
@@ -22,7 +23,7 @@ import scala.util.{Random, Try}
 object KafkaSupervisorSpec extends DefaultRunnableSpec {
   val loggingLayer: ZLayer[Any, Throwable, Logging]                       = CompetitionLogging.Live.loggingLayer
   val layers: ZLayer[Any, Throwable, Clock with Blocking]                 = Clock.live ++ Blocking.live
-  val allLayers: ZLayer[Any, Throwable, Clock with Blocking with Logging] = Clock.live ++ Blocking.live ++ loggingLayer
+  val allLayers: ZLayer[Any, Throwable, Clock with Blocking with Logging with Console] = Clock.live ++ Blocking.live ++ loggingLayer ++ zio.console.Console.live
 
   import cats.implicits._
   import zio.interop.catz._

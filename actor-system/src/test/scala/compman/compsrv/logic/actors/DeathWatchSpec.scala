@@ -60,10 +60,11 @@ object DeathWatchSpec extends DefaultRunnableSpec {
         for {
           watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
           _ <- ZIO.sleep((dieAfter + 3).seconds)
+          _ <- ZIO.debug("Creating watcher.")
           _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
           _ <- ZIO.sleep(1.seconds)
-          msg <- actorSystem.select[Any]("watcher").isFailure
-        } yield assertTrue(msg)
+          actorDoesNotExist <- actorSystem.select[Any]("watcher").isFailure
+        } yield assertTrue(actorDoesNotExist)
       }
     }
     ,

@@ -16,12 +16,13 @@ import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.Ma
 import org.mongodb.scala.MongoClient
 import zio.{Ref, Tag, Task, ZIO}
 import zio.clock.Clock
+import zio.console.Console
 import zio.logging.Logging
 
 import java.io.{PrintWriter, StringWriter}
 
 object CompetitionEventListenerSupervisor {
-  type SupervisorEnvironment[R] = Clock with R with Logging
+  type SupervisorEnvironment[R] = Clock with R with Logging with Console
   sealed trait ActorMessages
   case class ReceivedNotification(notification: CommandProcessorNotification)                    extends ActorMessages
   case class ActiveCompetition(managedCompetition: ManagedCompetition)                           extends ActorMessages
@@ -82,7 +83,7 @@ object CompetitionEventListenerSupervisor {
           case ActiveCompetition(competition) => for {
               res <- context
                 .make[
-                  R with Logging with Clock,
+                  R with Logging with Clock with Console,
                   CompetitionEventListener.ActorState,
                   CompetitionEventListener.ApiCommand
                 ](
@@ -136,7 +137,7 @@ object CompetitionEventListenerSupervisor {
                   _ <- Logging.info(s"Added competition $id to db.")
                   res <- context
                     .make[
-                      R with Logging with Clock,
+                      R with Logging with Clock with Console,
                       CompetitionEventListener.ActorState,
                       CompetitionEventListener.ApiCommand
                     ](

@@ -83,7 +83,7 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
           eventBytes = eventOpt.get.message
           mapper = ObjectMapperFactory.createObjectMapper
           event = mapper.readValue(eventBytes, classOf[EventDTO])
-        } yield assertTrue(!(notification == null)) &&
+        } yield assertTrue(notification != null) &&
           assertTrue(event.getType == EventType.COMPETITION_CREATED) &&
           assertTrue(event.getPayload != null) &&
           assert(event.getPayload)(isSubtype[CompetitionCreatedPayload](anything)) &&

@@ -74,12 +74,12 @@ trait AbstractBehavior[R, S, Msg] {
   }
 
 
-  def finalizeActor(postStop: RIO[R, Unit])(watchedBy: Ref[Set[ActorRef[Nothing]]], context: Context[Msg]): URIO[R, Unit] = {
+  def sendDeathwatchNotifications(watchedBy: Ref[Set[ActorRef[Nothing]]], context: Context[Msg]): URIO[R, Unit] = {
     for {
-      _ <- postStop
       iAmWatchedBy <- watchedBy.get
+      _ <- ZIO.debug(s"${context.self} sending DeathWatchNotifications to $iAmWatchedBy")
       _ <- iAmWatchedBy.toList.traverse(actor =>
-        actor.asInstanceOf[ActorRef[Msg]].sendSystemMessage(DeathWatchNotification(context.self))
+        ZIO.debug(s"${context.self} sending DeathWatchNotification to $actor") *> actor.asInstanceOf[ActorRef[Msg]].sendSystemMessage(DeathWatchNotification(context.self))
       )
     } yield ()
   }.foldM(_ => URIO.unit, either => URIO.effectTotal(either))

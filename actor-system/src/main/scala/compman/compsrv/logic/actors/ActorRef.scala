@@ -1,8 +1,8 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.PendingMessage
-import compman.compsrv.logic.actors.dungeon.{DeadLetter, DeathWatchNotification, PoisonPill, SystemMessage, Watch}
-import zio.{Queue, Task}
+import compman.compsrv.logic.actors.dungeon._
+import zio.{Queue, Ref, Task}
 
 import scala.annotation.unchecked.uncheckedVariance
 
@@ -24,9 +24,9 @@ private[actors] trait MinimalActorRef[Msg] extends ActorRef[Msg] {
 }
 
 private[actors] case class LocalActorRef[Msg](
-                                               private val queue: Queue[PendingMessage[Msg]],
-                                               private val path: ActorPath
-                                             )(private val postStop: Task[Unit], private val provider: ActorRefProvider)
+  private val queue: Queue[PendingMessage[Msg]],
+  private val path: ActorPath
+)(private val postStop: Task[Unit], private val provider: ActorRefProvider, killSwitch: Ref[Boolean])
     extends ActorRef[Msg] {
 
   override def hashCode(): Int = path.hashCode()
@@ -37,7 +37,7 @@ private[actors] case class LocalActorRef[Msg](
   }
 
   override private[actors] def sendSystemMessage(systemMessage: SystemMessage): Task[Unit] = for {
-    shutdown <- queue.isShutdown
+    shutdown <- killSwitch.get
     _ <-
       if (shutdown) for {
         handled <- handleSpecial(systemMessage)
@@ -54,16 +54,22 @@ private[actors] case class LocalActorRef[Msg](
   }
 
   override def !(message: Msg): Task[Unit] = for {
-    shutdown <- queue.isShutdown
+    shutdown <- killSwitch.get
     _ <-
-      if (shutdown) provider.deadLetters ! DeadLetter(message, None, this.narrow[Nothing])
+      if (shutdown) (provider.deadLetters ! DeadLetter(message, None, this.narrow[Nothing]))
+        .unless(message.isInstanceOf[DeadLetter])
       else queue.offer(Right(message))
   } yield ()
 
   override private[actors] val stop: Task[List[_]] = for {
-    tail <- queue.takeAll
-    _ <- queue.offer(Left(PoisonPill))
-    _ <- postStop
+    shutdown <- killSwitch.getAndSet(true)
+    tail <-
+      if (shutdown) for {
+        t <- queue.takeAll
+        _ <- queue.offer(Left(PoisonPill))
+        _ <- postStop
+      } yield t
+      else Task.effectTotal(List.empty)
   } yield tail
 
   override def toString: String = s"ActorRef($path)"
@@ -73,8 +79,7 @@ private[actors] case class DeadLetterActorRef(eventStream: EventStream) extends 
   override def !(fa: Any): Task[Unit] = {
     fa match {
       case d: DeadLetter => eventStream.publish(d)
-      case _ => eventStream.publish(DeadLetter(fa, None, this))
+      case _             => eventStream.publish(DeadLetter(fa, None, this))
     }
   }
 }
-

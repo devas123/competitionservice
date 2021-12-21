@@ -4,10 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, MessageReceived}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors._
-import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{
-  CompetitionDeletedMessage,
-  CompetitionUpdated
-}
+import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{CompetitionDeletedMessage, CompetitionUpdated}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model
@@ -24,6 +21,7 @@ import compman.compsrv.query.service.repository._
 import org.mongodb.scala.MongoClient
 import zio.{Cause, Queue, Ref, RIO, Tag, ZIO}
 import zio.clock.Clock
+import zio.console.Console
 import zio.kafka.consumer.Offset
 import zio.logging.Logging
 
@@ -90,7 +88,7 @@ object CompetitionEventListener {
     kafkaSupervisorActor: ActorRef[KafkaSupervisorCommand],
     competitionEventListenerSupervisor: ActorRef[CompetitionEventListenerSupervisor.ActorMessages],
     websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
-  ): ActorBehavior[R with Logging with Clock, ActorState, ApiCommand] = {
+  ): ActorBehavior[R with Logging with Clock with Console, ActorState, ApiCommand] = {
     def notifyEventListenerSupervisor[A](topic: String, event: EventDTO, mapped: Events.Event[Payload]) = {
       mapped match {
         case CompetitionPropertiesUpdatedEvent(_, _, _) => competitionEventListenerSupervisor !
@@ -105,7 +103,7 @@ object CompetitionEventListener {
     import context._
     import zio.interop.catz._
 
-    Behaviors.behavior[R with Logging with Clock, ActorState, ApiCommand].withReceive {
+    Behaviors.behavior[R with Logging with Clock with Console, ActorState, ApiCommand].withReceive {
       (context, _, state, command, _) =>
         {
           command match {
