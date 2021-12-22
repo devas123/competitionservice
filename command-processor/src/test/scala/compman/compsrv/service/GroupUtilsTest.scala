@@ -21,7 +21,7 @@ object GroupUtilsTest extends DefaultRunnableSpec with TestEntities {
           competitionId,
           categoryId,
           stageForGroupsGeneration,
-          BigDecimal(10).bigDecimal,
+          600,
           fighters
         )
         unfolded = fights.fold(_ => List.empty, identity)

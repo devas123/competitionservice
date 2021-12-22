@@ -38,11 +38,11 @@ object BracketsUtils {
   }
 
   def generateEmptyWinnerRoundsForCategory[F[+_]: Monad](
-    competitionId: String,
-    categoryId: String,
-    stageId: String,
-    compssize: Int,
-    duration: BigDecimal
+                                                          competitionId: String,
+                                                          categoryId: String,
+                                                          stageId: String,
+                                                          compssize: Int,
+                                                          durationSeconds: Int
   ): F[CanFail[List[FightDescriptionDTO]]] = {
     val numberOfRounds = Integer.numberOfTrailingZeros(Integer.highestOneBit(nextPowerOfTwo(compssize)))
 
@@ -62,7 +62,7 @@ object BracketsUtils {
           stageId,
           currentRound,
           StageRoundType.WINNER_BRACKETS,
-          duration
+          durationSeconds
         )
         if (currentRound == 0) {
           //this is the first round
@@ -229,11 +229,11 @@ object BracketsUtils {
   }
 
   private def generateLoserBracketAndGrandFinalForWinnerBracket[F[+_]: Monad](
-    competitionId: String,
-    categoryId: String,
-    stageId: String,
-    winnerFightsAndGrandFinal: List[FightDescriptionDTO],
-    duration: BigDecimal
+                                                                               competitionId: String,
+                                                                               categoryId: String,
+                                                                               stageId: String,
+                                                                               winnerFightsAndGrandFinal: List[FightDescriptionDTO],
+                                                                               durationSeconds: Int
   ): F[CanFail[List[FightDescriptionDTO]]] = {
 
     val eitherT = for {
@@ -261,7 +261,7 @@ object BracketsUtils {
         totalWinnerRounds,
         StageRoundType.GRAND_FINAL,
         0,
-        duration,
+        durationSeconds,
         GRAND_FINAL,
         null
       )
@@ -290,7 +290,7 @@ object BracketsUtils {
             stageId,
             currentLoserRound,
             StageRoundType.LOSER_BRACKETS,
-            duration
+            durationSeconds
           )
           val errorOrEither = for {
             connectedFights <-
@@ -335,17 +335,17 @@ object BracketsUtils {
   }
 
   def generateDoubleEliminationBracket[F[+_]: Monad](
-    competitionId: String,
-    categoryId: String,
-    stageId: String,
-    compssize: Int,
-    duration: BigDecimal
+                                                      competitionId: String,
+                                                      categoryId: String,
+                                                      stageId: String,
+                                                      compssize: Int,
+                                                      durationSeconds: Int
   ): F[CanFail[List[FightDescriptionDTO]]] = {
     (for {
       winnerRounds <-
-        EitherT(generateEmptyWinnerRoundsForCategory[F](competitionId, categoryId, stageId, compssize, duration))
+        EitherT(generateEmptyWinnerRoundsForCategory[F](competitionId, categoryId, stageId, compssize, durationSeconds))
       res <- EitherT(
-        generateLoserBracketAndGrandFinalForWinnerBracket[F](competitionId, categoryId, stageId, winnerRounds, duration)
+        generateLoserBracketAndGrandFinalForWinnerBracket[F](competitionId, categoryId, stageId, winnerRounds, durationSeconds)
       )
     } yield res).value
   }

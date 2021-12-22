@@ -48,7 +48,7 @@ case class StageGraph private[schedule](
 
   def getStageId(id: String): String = { fightsMap(id).getStageId }
 
-  def getDuration(id: String): BigDecimal = { fightsMap(id).getDuration }
+  def getDuration(id: String): Int = { fightsMap(id).getDuration }
 
   def getStageFights(stageId: String): List[String] = {
     if (stageIdsToIds.containsKey(stageId)) { stageIdsToFightIds(stageIdsToIds.get(stageId)) }

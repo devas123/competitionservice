@@ -5,7 +5,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 
 @Data
@@ -21,5 +20,5 @@ public class PeriodDTO {
     private Instant endTime;
     private Boolean isActive;
     private Integer timeBetweenFights;
-    private BigDecimal riskPercent;
+    private Integer riskPercent;
 }

@@ -17,7 +17,7 @@ case class StageDescriptor(
   hasThirdPlaceFight: Boolean,
   groupDescriptors: Option[List[GroupDescriptor]],
   numberOfFights: Option[Int],
-  fightDuration: Option[Long]
+  fightDuration: Option[Int]
 )
 
 case class StageResultDescriptor(

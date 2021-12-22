@@ -7,7 +7,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 
 @Data
@@ -21,7 +20,7 @@ public class FightDescriptionDTO {
     private String winFight;
     private String loseFight;
     private CompScoreDTO[] scores;
-    private BigDecimal duration;
+    private Integer duration;
     private Integer round;
     private Boolean invalid;
     private StageRoundType roundType;

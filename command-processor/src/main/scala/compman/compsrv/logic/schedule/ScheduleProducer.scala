@@ -16,7 +16,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.util.Try
 
 private[schedule] object ScheduleProducer {
-  private def eightyPercentOfDurationInMillis(duration: Int): Int = duration * 8 / 10
+  private def eightyPercentOfDurationInMillis(durationInSeconds: Int): Int = (durationInSeconds * 8 / 10) * 1000
 
   private def createPauseEntry(
     pauseReq: ScheduleRequirementDTO,
@@ -46,7 +46,7 @@ private[schedule] object ScheduleProducer {
     createPauseEntry(requirement, startTime, endTime, ScheduleEntryType.RELATIVE_PAUSE)
 
   private def getFightDuration(duration: Int, riskCoeff: Int, timeBetweenFights: Int): Int = duration *
-    (1 + 100 / riskCoeff) + timeBetweenFights
+    (100 + riskCoeff) / 100 + timeBetweenFights
 
   def simulate(
     stageGraph: StageGraph,
@@ -93,8 +93,8 @@ private[schedule] object ScheduleProducer {
       period: PeriodDTO
     ): StageGraph = {
       val duration = getFightDuration(
-        st.getDuration(fightId).toInt,
-        (period.getRiskPercent.doubleValue() * 100).toInt,
+        st.getDuration(fightId),
+        period.getRiskPercent,
         period.getTimeBetweenFights
       )
       if (
@@ -120,7 +120,7 @@ private[schedule] object ScheduleProducer {
         period.getId
       ))
       mat.totalFights += 1
-      mat.currentTime = mat.currentTime.plus(duration.toLong, ChronoUnit.MINUTES)
+      mat.currentTime = mat.currentTime.plus(duration.toLong, ChronoUnit.SECONDS)
       StageGraph.completeFight(fightId, st)
     }
 

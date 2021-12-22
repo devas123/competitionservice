@@ -14,12 +14,12 @@ import scala.collection.{mutable, SortedSet}
 object GroupsUtils {
 
   def createGroupFights(
-    competitionId: String,
-    categoryId: String,
-    stageId: String,
-    groupId: String,
-    duration: BigDecimal,
-    competitors: List[CompetitorDTO]
+                         competitionId: String,
+                         categoryId: String,
+                         stageId: String,
+                         groupId: String,
+                         durationSeconds: Int,
+                         competitors: List[CompetitorDTO]
   ): List[FightDescriptionDTO] = {
     val combined = createPairs(competitors)
     combined.filter { it => it._1.getId != it._2.getId }.distinctBy { it =>
@@ -33,7 +33,7 @@ object GroupsUtils {
         round = 0,
         roundType = StageRoundType.GROUP,
         numberInRound = ind,
-        duration = duration,
+        durationSeconds = durationSeconds,
         fightName = s"Round 0 fight $ind",
         groupId = groupId
       ).setScores(Array(
@@ -76,11 +76,11 @@ object GroupsUtils {
   }
 
   def generateStageFights[F[+_]: Monad](
-    competitionId: String,
-    categoryId: String,
-    stage: StageDescriptorDTO,
-    duration: BigDecimal,
-    competitors: List[CompetitorDTO]
+                                         competitionId: String,
+                                         categoryId: String,
+                                         stage: StageDescriptorDTO,
+                                         durationSeconds: Int,
+                                         competitors: List[CompetitorDTO]
   ): F[CanFail[List[FightDescriptionDTO]]] = {
     (for {
       _ <- assertET[F](stage.groupsNumber > 0, Some(s"Group descriptors are empty (${stage.groupsNumber})"))
@@ -106,7 +106,7 @@ object GroupsUtils {
             categoryId,
             stage.getId,
             groupDescriptorDTO.getId,
-            duration,
+            durationSeconds,
             comps.slice(acc._1, acc._1 + groupDescriptorDTO.getSize)
           ))
       }._2

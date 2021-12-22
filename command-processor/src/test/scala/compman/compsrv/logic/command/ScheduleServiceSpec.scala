@@ -32,7 +32,7 @@ class ScheduleServiceSpec extends AnyFunSuite with BeforeAndAfter with TestEntit
   val payload: Option[GenerateSchedulePayload] = Some(
     new GenerateSchedulePayload().setMats(Array(testMat)).setPeriods(Array(
       new PeriodDTO().setId(periodId).setName("period").setStartTime(Instant.now()).setIsActive(false)
-        .setRiskPercent(BigDecimal(10).bigDecimal).setScheduleRequirements(Array(
+        .setRiskPercent(10).setScheduleRequirements(Array(
           new ScheduleRequirementDTO().setId("schedReq1").setCategoryIds(Array(categoryId)).setMatId(matId)
             .setPeriodId(periodId).setEntryOrder(0).setEntryType(ScheduleRequirementType.CATEGORIES),
           new ScheduleRequirementDTO().setId("schedReq2").setCategoryIds(Array(category2)).setMatId(matId)

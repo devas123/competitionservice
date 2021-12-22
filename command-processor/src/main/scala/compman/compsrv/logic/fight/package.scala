@@ -24,7 +24,7 @@ package object fight {
 
   import compman.compsrv.model.extensions._
 
-  val zero: java.math.BigDecimal = BigDecimal(0).bigDecimal
+  val zero: Int = 0
 
   def generatePlaceholderCompetitorsForGroup(size: Int): List[CompetitorDTO] = {
     (0 until size).map { it => new CompetitorDTO().setId(s"placeholder-$it").setPlaceholder(true) }.toList
@@ -55,7 +55,7 @@ package object fight {
                         round: Int,
                         roundType: StageRoundType,
                         numberInRound: Int,
-                        duration: BigDecimal,
+                        durationSeconds: Int,
                         fightName: String,
                         groupId: String
                       ): FightDescriptionDTO = {
@@ -65,7 +65,7 @@ package object fight {
       .setRound(round)
       .setNumberInRound(numberInRound)
       .setCompetitionId(competitionId)
-      .setDuration(duration.bigDecimal)
+      .setDuration(durationSeconds)
       .setRoundType(roundType)
       .setStageId(stageId)
       .setFightName(fightName)
@@ -174,13 +174,13 @@ package object fight {
   }
 
   def generateCurrentRoundFights(
-    numberOfFightsInCurrentRound: Int,
-    competitionId: String,
-    categoryId: String,
-    stageId: String,
-    currentRound: Int,
-    roundType: StageRoundType,
-    duration: BigDecimal
+                                  numberOfFightsInCurrentRound: Int,
+                                  competitionId: String,
+                                  categoryId: String,
+                                  stageId: String,
+                                  currentRound: Int,
+                                  roundType: StageRoundType,
+                                  durationSeconds: Int
   ): List[FightDescriptionDTO] = (0 until numberOfFightsInCurrentRound)
     .map { index =>
       fightDescription(
@@ -190,7 +190,7 @@ package object fight {
         currentRound,
         roundType,
         index,
-        duration,
+        durationSeconds,
         s"Round ${currentRound + 1}, fight #${index + 1}",
         null
       )

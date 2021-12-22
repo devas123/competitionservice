@@ -20,7 +20,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
           categoryId,
           stageId,
           compsSize,
-          BigDecimal(10).bigDecimal
+          10
         )
         fighters <- ZIO.effect(CompetitorService.generateRandomCompetitorsForCategory(
           size = compsSize,
@@ -47,7 +47,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
           categoryId,
           stageId,
           compsSize,
-          BigDecimal(10).bigDecimal
+          10
         )
         fighters <- ZIO.effect(CompetitorService.generateRandomCompetitorsForCategory(
           size = compsSize,
@@ -73,7 +73,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
           categoryId,
           stageId,
           compsSize,
-          BigDecimal(10).bigDecimal
+          600
         )
         fighters <- ZIO.effect(CompetitorService.generateRandomCompetitorsForCategory(
           size = compsSize,

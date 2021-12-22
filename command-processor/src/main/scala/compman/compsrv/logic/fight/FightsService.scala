@@ -37,13 +37,13 @@ object FightsService {
   }
 
   def bracketsGenerator[F[+_]: Monad](
-    competitionId: String,
-    categoryId: String,
-    stage: StageDescriptorDTO,
-    targetCompetitorsSize: Int,
-    duration: BigDecimal,
-    competitorsToDistribute: List[CompetitorDTO],
-    outputSize: Int
+                                       competitionId: String,
+                                       categoryId: String,
+                                       stage: StageDescriptorDTO,
+                                       targetCompetitorsSize: Int,
+                                       durationSeconds: Int,
+                                       competitorsToDistribute: List[CompetitorDTO],
+                                       outputSize: Int
   ): PartialFunction[BracketType, F[CanFail[List[FightDescriptionDTO]]]] = {
 
     import BracketsUtils._
@@ -81,7 +81,7 @@ object FightsService {
                   categoryId,
                   stage.getId,
                   targetCompetitorsSize,
-                  duration
+                  durationSeconds
                 ))
                 res <- EitherT.fromEither[F](
                   generateThirdPlaceFightForOlympicSystem(competitionId, categoryId, stage.getId, fights)
@@ -94,7 +94,7 @@ object FightsService {
                   categoryId,
                   stage.getId,
                   targetCompetitorsSize,
-                  duration
+                  durationSeconds
                 ))
               } yield res
             }
@@ -103,13 +103,13 @@ object FightsService {
         } yield res).value
       case BracketType.DOUBLE_ELIMINATION => (for {
           generated <- EitherT(
-            generateDoubleEliminationBracket[F](competitionId, categoryId, stage.getId, targetCompetitorsSize, duration)
+            generateDoubleEliminationBracket[F](competitionId, categoryId, stage.getId, targetCompetitorsSize, durationSeconds)
           )
           res <-
             if (stage.getStageOrder == 0) postProcessFights(generated) else EitherT.pure[F, Errors.Error](generated)
         } yield res).value
       case BracketType.GROUP => (for {
-          generated <- EitherT(generateStageFights(competitionId, categoryId, stage, duration, competitorsToDistribute))
+          generated <- EitherT(generateStageFights(competitionId, categoryId, stage, durationSeconds, competitorsToDistribute))
         } yield generated).value
     }
   }

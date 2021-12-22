@@ -44,7 +44,7 @@ trait TestEntities {
 
   val stageForGroupsGeneration: StageDescriptorDTO = new StageDescriptorDTO().setId(stageId).setName(stageId)
     .setCompetitionId(competitionId).setStageType(StageType.FINAL).setStageOrder(0).setBracketType(BracketType.GROUP)
-    .setFightDuration(BigDecimal.decimal(10).bigDecimal).setGroupDescriptors(groupDescriptors.toArray)
+    .setFightDuration(600).setGroupDescriptors(groupDescriptors.toArray)
     .setInputDescriptor(inputDescriptor).setStageResultDescriptor(resultRescriptor)
     .setStageStatus(StageStatus.WAITING_FOR_APPROVAL).setWaitForPrevious(false)
 
@@ -90,7 +90,7 @@ trait TestEntities {
           null
         )
       ),
-      BigDecimal(10).bigDecimal,
+      600,
       0,
       false,
       StageRoundType.WINNER_BRACKETS,
@@ -124,7 +124,7 @@ trait TestEntities {
         ),
         new CompScoreDTO(null, null, new ScoreDTO(0, 0, 0, Array.empty), 1, FightReferenceType.PROPAGATED, null)
       ),
-      BigDecimal(10).bigDecimal,
+      600,
       0,
       false,
       StageRoundType.WINNER_BRACKETS,
@@ -151,7 +151,7 @@ trait TestEntities {
         new CompScoreDTO(null, null, new ScoreDTO(0, 0, 0, Array.empty), 0, FightReferenceType.WINNER, fight2),
         new CompScoreDTO(null, null, new ScoreDTO(0, 0, 0, Array.empty), 1, FightReferenceType.WINNER, fight1)
       ),
-      BigDecimal(10).bigDecimal,
+      600,
       1,
       false,
       StageRoundType.GRAND_FINAL,

@@ -9,7 +9,6 @@ import compman.compsrv.model.dto.schedule
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 
-import java.math.BigDecimal
 import java.util.Date
 
 object DtoMapping {
@@ -74,7 +73,7 @@ object DtoMapping {
       .setStageOrder(stageDescriptor.stageOrder).setWaitForPrevious(stageDescriptor.waitForPrevious)
       .setHasThirdPlaceFight(stageDescriptor.hasThirdPlaceFight)
       .setGroupDescriptors(stageDescriptor.groupDescriptors.map(_.map(toDtoGroupDescriptor).toArray).getOrElse(Array.empty))
-      .setNumberOfFights(stageDescriptor.numberOfFights.orElse(Option(0)).map(_.intValue).get).setFightDuration(stageDescriptor.fightDuration.map(BigDecimal.valueOf).getOrElse(BigDecimal.ZERO))
+      .setNumberOfFights(stageDescriptor.numberOfFights.orElse(Option(0)).map(_.intValue()).get).setFightDuration(stageDescriptor.fightDuration.orElse(Option(0)).map(_.intValue()).get)
   }
 
   def mapScheduleEntry(competitionId: String)(dto: ScheduleEntryDTO): ScheduleEntry = {
@@ -241,8 +240,8 @@ object DtoMapping {
           .setPointGroups(
             cs.score.pointGroups.map(pg =>
               new PointGroupDTO().setId(pg.id).setName(pg.name.orNull)
-                .setPriority(pg.priority.map(v => new BigDecimal(v)).orNull)
-                .setValue(pg.value.map(v => new BigDecimal(v)).orNull)
+                .setPriority(pg.priority.orElse(Option(0)).map(_.intValue()).get)
+                .setValue(pg.value.orElse(Option(0)).map(_.intValue()).get)
             ).toArray
           )
       )
@@ -258,7 +257,7 @@ object DtoMapping {
     new FightDescriptionDTO().setId(f.id).setCategoryId(f.categoryId).setFightName(f.id)
       .setWinFight(f.bracketsInfo.flatMap(_.winFight).orNull).setLoseFight(f.bracketsInfo.flatMap(_.loseFight).orNull)
       .setScores(f.scores.mapWithIndex((c, i) => toDtoCompScore(c, i)).toArray)
-      .setDuration(new BigDecimal(f.durationSeconds))
+      .setDuration(f.durationSeconds)
       .setRound(f.bracketsInfo.flatMap(_.round).map(Integer.valueOf).orNull)
       .setInvalid(f.invalid.map(java.lang.Boolean.valueOf).getOrElse(false))
       .setRoundType(f.bracketsInfo.map(_.roundType).orNull).setStatus(f.status.orNull)
@@ -368,7 +367,7 @@ object DtoMapping {
       Option(s.getGroupDescriptors).map(_.toList)
         .map(_.map(dto => GroupDescriptor(dto.getId, Option(dto.getName), dto.getSize))).orElse(Option(List.empty)),
       Option(s.getNumberOfFights).map(_.intValue()),
-      Option(s.getFightDuration).map(_.longValue()).orElse(Option(0L))
+      Option(s.getFightDuration).map(_.intValue()).orElse(Option(0))
     )
   }
 
@@ -395,7 +394,7 @@ object DtoMapping {
       .setEndTime(o.endTime.map(_.toInstant).orNull)
       .setScheduleEntries(o.scheduleEntries.map(toDtopScheduleEntry(o.id)).toArray)
       .setScheduleRequirements(o.scheduleRequirements.map(toDtopScheduleRequirement).toArray).setIsActive(o.active)
-      .setRiskPercent(BigDecimal.valueOf(o.riskCoefficient.toLong)).setTimeBetweenFights(o.timeBetweenFights)
+      .setRiskPercent(o.riskCoefficient).setTimeBetweenFights(o.timeBetweenFights)
   }
 
   def toDtopScheduleEntry(periodId: String)(o: ScheduleEntry): ScheduleEntryDTO = {
@@ -443,7 +442,7 @@ object DtoMapping {
         Some(RegistrationFee(
           currency = "Rub",
           r.getRegistrationFee.intValue(),
-          Option(r.getRegistrationFee.remainder(new BigDecimal(10)).intValue)
+          Option(r.getRegistrationFee.remainder(BigDecimal(10).bigDecimal).intValue)
         )),
         categories = Option(r.getCategories).map(_.toSet).getOrElse(Set.empty)
       )
