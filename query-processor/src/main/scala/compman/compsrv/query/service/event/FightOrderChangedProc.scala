@@ -46,7 +46,7 @@ object FightOrderChangedProc {
       updates = CommonFightUtils.generateUpdates(payload, asFightView(fight), asFightViews(matFights))
         .map(upd => {
           val f = matFights(upd._1)
-          FightOrderUpdateExtended(upd._2, Mat(f.matId.orNull, f.matName.orNull, f.matOrder.getOrElse(-1)))
+          FightOrderUpdateExtended(competitionId, upd._2, Mat(f.matId.orNull, f.matName.orNull, f.matOrder.getOrElse(-1)))
         })
       _ <- OptionT.liftF(FightUpdateOperations[F].updateFightOrderAndMat(updates.toList))
     } yield ()

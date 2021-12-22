@@ -6,7 +6,7 @@ import compman.compsrv.model.events.payload.FightOrderUpdate
 
 import java.util.Date
 
-case class FightOrderUpdateExtended(fightOrderUpdate: FightOrderUpdate, newMat: Mat)
+case class FightOrderUpdateExtended(competitionId: String, fightOrderUpdate: FightOrderUpdate, newMat: Mat)
 
 case class FightStartTimeUpdate(
   id: String,

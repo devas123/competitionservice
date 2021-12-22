@@ -142,7 +142,7 @@ object FightUpdateOperations {
         writes = () =>
           updates.map(f =>
             UpdateOneModel(
-              equal(idField, f.fightOrderUpdate.getFightId),
+              and(equal(competitionIdField, f.competitionId), equal(idField, f.fightOrderUpdate.getFightId)),
               combine(
                 set("matId", f.fightOrderUpdate.getMatId),
                 set("numberOnMat", f.fightOrderUpdate.getNumberOnMat),

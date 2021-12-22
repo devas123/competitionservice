@@ -3,19 +3,24 @@ package compman.compsrv.query.service.repository
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.competition.FightStatus
+import compman.compsrv.model.events.payload.FightOrderUpdate
+import compman.compsrv.query.model.{FightOrderUpdateExtended, Mat}
 import org.testcontainers.containers.MongoDBContainer
 import zio.logging.Logging
 import zio.test.Assertion._
 import zio.test.TestAspect.sequential
 import zio.test._
-import zio.{ZLayer, ZManaged}
+import zio.{ZIO, ZLayer, ZManaged}
 
-import java.util.UUID
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+import java.util.{Date, UUID}
 
-object FightOperationsTest extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
+object FightOperationsSpec extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
   type Env = Logging
   val mongoLayer: ZManaged[Any, Nothing, MongoDBContainer] = embeddedMongo()
   val layers: ZLayer[Any, Throwable, Env] = CompetitionLogging.Live.loggingLayer
+
   override def spec: ZSpec[Environment, Throwable] = suite("Fight operations")(
     testM("Should save and load fight by id") {
       mongoLayer.use { mongo =>
@@ -60,6 +65,34 @@ object FightOperationsTest extends DefaultRunnableSpec with TestEntities with Em
           loadedFight <- FightQueryOperations[LIO].getFightsByIds(competitionId)(categoryId, Set(fightId, fight2Id))
           _ <- FightUpdateOperations[LIO].removeFightsForCompetition(competitionId)
         } yield assert(loadedFight)(hasSize(equalTo(2))))
+          .provideLayer(layers)
+      }
+    },
+    testM("Should update fight order") {
+      mongoLayer.use { mongo =>
+        val context = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
+        import context._
+        (for {
+          _ <- FightUpdateOperations[LIO].removeFightsForCompetition(competitionId)
+          fights <- ZIO.effectTotal(List(fight, fight.copy(id = UUID.randomUUID().toString), fight.copy(id = UUID.randomUUID().toString)))
+          _ <- FightUpdateOperations[LIO].addFights(fights)
+          newMat = Mat(UUID.randomUUID().toString, "newMat", 100)
+          newStartTime = Instant.now().plus(10, ChronoUnit.HOURS)
+          newNumberOnMat = 50
+          updates = fights.map(f => {
+            FightOrderUpdateExtended(competitionId, new FightOrderUpdate().setFightId(f.id)
+              .setMatId(newMat.matId)
+              .setStartTime(newStartTime)
+              .setNumberOnMat(newNumberOnMat), newMat)
+          })
+          _ <- FightUpdateOperations[LIO].updateFightOrderAndMat(updates)
+          updatedFights <- FightQueryOperations[LIO].getFightsByIds(competitionId)(fight.categoryId, fights.map(_.id).toSet)
+        } yield assert(updatedFights)(hasSize(equalTo(3))) && assertTrue(updatedFights.forall(f =>
+          f.matId.contains(newMat.matId)
+            && f.matName.contains(newMat.name)
+            && f.matOrder.contains(newMat.matOrder)
+            && f.startTime.contains(Date.from(newStartTime))
+            && f.numberOnMat.contains(newNumberOnMat))))
           .provideLayer(layers)
       }
     }

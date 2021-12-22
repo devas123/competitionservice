@@ -25,10 +25,10 @@ final class ActorSystem(
     (for {
       runningActors <- refActorMap.get
       _             <- URIO.foreach_(runningActors)(cell => cell._2.stop.ignore)
-      _             <- awaitShutdown()
+      _             <- awaitShutdown(3)
     } yield ())
 
-  private[actors] def awaitShutdown(): URIO[Clock, Unit] = for {
+  private[actors] def awaitShutdown(repeatBeforeInterrupting: Int): URIO[Clock, Unit] = for {
     fibers <- supervisor.value
     filtered <- fibers.filterM(fiber =>
       fiber.status.map {
@@ -38,7 +38,7 @@ final class ActorSystem(
         case Suspended(_, _, _, _, _) => true
       }
     )
-    _ <- ZIO.foreach_(filtered)(_.interruptFork)
+    _ <- ZIO.foreach_(filtered)(_.interruptFork).when(repeatBeforeInterrupting <= 0)
     _ <- (for {
       _ <- (for {
         dumps    <- ZIO.foreach(filtered)(_.dump)
@@ -46,7 +46,7 @@ final class ActorSystem(
         _        <- ZIO.foreach_(dumpsStr)(ZIO.debug)
       } yield ()).when(debug)
       statuses <- filtered.mapM(_.status)
-      _ <- (RIO.debug(s"Waiting for ${filtered.length} fibers with statuses $statuses to stop. ") *> awaitShutdown())
+      _ <- (RIO.debug(s"Waiting for ${filtered.length} fibers with statuses $statuses to stop. ") *> awaitShutdown(repeatBeforeInterrupting - 1))
         .delay(1000.millis)
     } yield ()).when(filtered.nonEmpty)
     _ <- RIO.debug("All fibers stopped.")

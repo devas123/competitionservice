@@ -68,12 +68,12 @@ object KafkaSupervisor {
     ], KafkaSupervisorCommand].withReceive { (context, _, state, command, _) =>
       command match {
         case QueryAndSubscribe(topic, groupId, replyTo) => for {
-          actorId <- RIO.effectTotal(UUID.randomUUID().toString)
+          actorId <- getQueryActorId
           state <- KafkaQueryAndSubscribeActor(actorId, context)(topic, groupId, replyTo, brokers, subscribe = true, query = true).as(state)
           _ <- Logging.info(s"Created actor with id $actorId to process query and subscribe request.")
         } yield state
         case QuerySync(topic, groupId, promise, timeout) => for {
-          actorId <- RIO.effectTotal(UUID.randomUUID().toString)
+          actorId <- getQueryActorId
           queryReceiver <- context.make(
             UUID.randomUUID().toString,
             ActorConfig(),
@@ -83,10 +83,10 @@ object KafkaSupervisor {
           _ <- KafkaQueryAndSubscribeActor(actorId, context)(topic, groupId, queryReceiver, brokers, subscribe = false, query = true)
         } yield state
 
-        case QueryAsync(topic, groupId, replyTo) => KafkaQueryAndSubscribeActor(UUID.randomUUID().toString, context)(topic, groupId, replyTo, brokers, subscribe = false, query = true).as(state)
+        case QueryAsync(topic, groupId, replyTo) => KafkaQueryAndSubscribeActor(innerQueryActorId, context)(topic, groupId, replyTo, brokers, subscribe = false, query = true).as(state)
 
         case Subscribe(topic, groupId, replyTo) =>
-          KafkaQueryAndSubscribeActor(UUID.randomUUID().toString, context)(topic, groupId, replyTo, brokers, subscribe = true, query = false).as(state)
+          KafkaQueryAndSubscribeActor(innerQueryActorId, context)(topic, groupId, replyTo, brokers, subscribe = true, query = false).as(state)
         case Stop => context.stopSelf.as(state)
         case PublishMessage(topic, key, message) => state.fold(Task(()))(_ ! PublishMessageToKafka(topic, key, message))
           .as(state)
@@ -100,4 +100,12 @@ object KafkaSupervisor {
           .getOrElse(context.make("KafkaPublishActor", ActorConfig(), (), KafkaPublishActor.behavior[R](brokers)))
       } yield (Seq.empty, Seq.empty, Some(publishActor))
     }
+
+  private def getQueryActorId = {
+    RIO.effectTotal(innerQueryActorId)
+  }
+
+  private def innerQueryActorId = {
+    s"queryAndSubscribe-${UUID.randomUUID()}"
+  }
 }

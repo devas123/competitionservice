@@ -76,7 +76,6 @@ trait AbstractBehavior[R, S, Msg] {
   def sendDeathwatchNotifications(watchedBy: Ref[Set[ActorRef[Nothing]]], context: Context[Msg]): URIO[R, Unit] = {
     for {
       iAmWatchedBy <- watchedBy.get
-      _ <- ZIO.debug(s"${context.self} sending DeathWatchNotifications to $iAmWatchedBy")
       _ <- iAmWatchedBy.toList.traverse(actor =>
         ZIO.debug(s"${context.self} sending DeathWatchNotification to $actor") *> actor.asInstanceOf[ActorRef[Msg]].sendSystemMessage(DeathWatchNotification(context.self))
       )
