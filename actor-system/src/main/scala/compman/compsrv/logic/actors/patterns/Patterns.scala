@@ -19,6 +19,7 @@ object Patterns {
 
   private[actors] case class PromiseActorRef[Msg](promise: Promise[Throwable, Msg]) extends MinimalActorRef[Msg] {
     override def !(fa: Msg): Task[Unit] = promise.succeed(fa).unit
+    override private[actors] val stop                                  = promise.fail(new RuntimeException("Stopped before getting the result")) *> Task(List.empty)
   }
 
   implicit def withAskSupport[F](actorRef: ActorRef[F]): AskActorRef[F] = new AskActorRef[F](actorRef)

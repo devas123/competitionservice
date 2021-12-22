@@ -58,8 +58,7 @@ trait AbstractBehavior[R, S, Msg] {
 
   def innerLoop(process: PendingMessage[Msg] => RIO[R with Clock with Console, Unit])(queue: Queue[PendingMessage[Msg]], stopSwitch: Ref[Boolean]): RIO[R with Clock with Console, Unit] = {
     (for {
-      thread <- queue.take.fork
-      msg <- thread.await
+      msg <- queue.take.run
       _ <- msg match {
         case Exit.Success(value) => value match {
           case Left(leftVal) => leftVal match {

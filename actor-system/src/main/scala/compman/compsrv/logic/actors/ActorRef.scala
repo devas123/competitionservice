@@ -64,7 +64,7 @@ private[actors] case class LocalActorRef[Msg](
   override private[actors] val stop: Task[List[_]] = for {
     shutdown <- killSwitch.getAndSet(true)
     tail <-
-      if (shutdown) for {
+      if (!shutdown) for {
         t <- queue.takeAll
         _ <- queue.offer(Left(PoisonPill))
         _ <- postStop

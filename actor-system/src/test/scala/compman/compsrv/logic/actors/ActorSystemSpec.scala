@@ -22,7 +22,7 @@ object ActorSystemSpec extends DefaultRunnableSpec {
           for {
             _ <- createTestActor(actorSystem, testActorName)
             exists <- actorSystem.select[Msg]("/" + testActorName).fold(_ => None, Some(_))
-            _ <- ZIO.sleep(3.seconds)
+            _ <- ZIO.sleep(5.seconds)
             exists2 <- actorSystem.select[Msg](testActorName).fold(_ => None, Some(_))
           } yield assert(exists)(isSome) && assert(exists2)(isNone)
         }
