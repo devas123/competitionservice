@@ -1,7 +1,0 @@
-{
-  "id": "1f5cbce0-c9c2-4149-b590-28dafba26344",
-  "notificationType": {
-    "enumClass": "compman.compsrv.model.NotificationTypes",
-    "value": "ProcessingStopped"
-  }
-}
