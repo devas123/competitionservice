@@ -63,7 +63,7 @@ object CompetitionProcessorSupervisorActor {
                 )
               } yield act
               _ <- for {
-                _ <- Logging.info(s"Sending command $fa to actor")
+                _ <- Logging.info(s"Sending command $fa to actor $actor")
                 _ <- actor ! ProcessCommand(fa)
               } yield ()
             } yield ()).onError(err => CompetitionLogging.logError(err.squashTrace))

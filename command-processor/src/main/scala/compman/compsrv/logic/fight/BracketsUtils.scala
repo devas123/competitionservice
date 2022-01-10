@@ -6,7 +6,8 @@ import compman.compsrv.Utils.groupById
 import compman.compsrv.logic._
 import compman.compsrv.model.Errors
 import compman.compsrv.model.dto.brackets._
-import compman.compsrv.model.dto.competition.{CompScoreDTO, CompetitorDTO, FightDescriptionDTO, FightStatus}
+import compman.compsrv.model.dto.competition.{CompetitorDTO, CompScoreDTO, FightDescriptionDTO, FightStatus}
+import compman.compsrv.Utils
 
 import scala.util.Random
 
@@ -38,11 +39,11 @@ object BracketsUtils {
   }
 
   def generateEmptyWinnerRoundsForCategory[F[+_]: Monad](
-                                                          competitionId: String,
-                                                          categoryId: String,
-                                                          stageId: String,
-                                                          compssize: Int,
-                                                          durationSeconds: Int
+    competitionId: String,
+    categoryId: String,
+    stageId: String,
+    compssize: Int,
+    durationSeconds: Int
   ): F[CanFail[List[FightDescriptionDTO]]] = {
     val numberOfRounds = Integer.numberOfTrailingZeros(Integer.highestOneBit(nextPowerOfTwo(compssize)))
 
@@ -89,7 +90,8 @@ object BracketsUtils {
                   result ++ connectedFights.flatMap { it => List(it._1, it._2) },
                   connectedFights.map { it => it._3 },
                   currentRound + 1,
-                  totalRounds))
+                  totalRounds
+                ))
               }
           } yield res
           either.fold(er => Monad[F].pure(Right(Left(er))), r => Monad[F].pure(r.map(list => Right(list))))
@@ -103,7 +105,6 @@ object BracketsUtils {
 
   def generateStageResultForCompetitor(
     stageId: String,
-    roundType: StageRoundType,
     fights: List[FightDescriptionDTO],
     maxRound: Int
   )(cid: String): CanFail[CompetitorStageResultDTO] = {
@@ -111,7 +112,7 @@ object BracketsUtils {
       stageId,
       cid,
       lastFight.roundOrZero,
-      roundType,
+      lastFight.getRoundType,
       calculateLoserPlaceForFinalStage(lastFight.roundOrZero, maxRound)
     )
   }
@@ -229,11 +230,11 @@ object BracketsUtils {
   }
 
   private def generateLoserBracketAndGrandFinalForWinnerBracket[F[+_]: Monad](
-                                                                               competitionId: String,
-                                                                               categoryId: String,
-                                                                               stageId: String,
-                                                                               winnerFightsAndGrandFinal: List[FightDescriptionDTO],
-                                                                               durationSeconds: Int
+    competitionId: String,
+    categoryId: String,
+    stageId: String,
+    winnerFightsAndGrandFinal: List[FightDescriptionDTO],
+    durationSeconds: Int
   ): F[CanFail[List[FightDescriptionDTO]]] = {
 
     val eitherT = for {
@@ -335,18 +336,22 @@ object BracketsUtils {
   }
 
   def generateDoubleEliminationBracket[F[+_]: Monad](
-                                                      competitionId: String,
-                                                      categoryId: String,
-                                                      stageId: String,
-                                                      compssize: Int,
-                                                      durationSeconds: Int
+    competitionId: String,
+    categoryId: String,
+    stageId: String,
+    compssize: Int,
+    durationSeconds: Int
   ): F[CanFail[List[FightDescriptionDTO]]] = {
     (for {
       winnerRounds <-
         EitherT(generateEmptyWinnerRoundsForCategory[F](competitionId, categoryId, stageId, compssize, durationSeconds))
-      res <- EitherT(
-        generateLoserBracketAndGrandFinalForWinnerBracket[F](competitionId, categoryId, stageId, winnerRounds, durationSeconds)
-      )
+      res <- EitherT(generateLoserBracketAndGrandFinalForWinnerBracket[F](
+        competitionId,
+        categoryId,
+        stageId,
+        winnerRounds,
+        durationSeconds
+      ))
     } yield res).value
   }
 
@@ -433,21 +438,24 @@ object BracketsUtils {
   }
 
   private def generateFinalSingleElimination(
-    fights: List[FightDescriptionDTO],
+    inputFights: List[FightDescriptionDTO],
     stageId: String
   ): CanFail[List[CompetitorStageResultDTO]] = {
-    import cats.implicits._
-
     for {
-      grandFinal <- fights.find(it => it.getRoundType == StageRoundType.GRAND_FINAL)
-        .toRight(Errors.InternalError(Some("The stage is a final stage but has no grand final.")))
-      thirdPlaceFight         = fights.find(it => it.getRoundType == StageRoundType.THIRD_PLACE_FIGHT)
+      fights <- FightUtils.markAndProcessUncompletableFights[CanFail](Utils.groupById(inputFights)(_.getId))
+      grandFinal <- fights.find(it => it._2.getRoundType == StageRoundType.GRAND_FINAL)
+        .toRight(Errors.InternalError(Some("The stage is a final stage but has no grand final."))).map(_._2)
+      thirdPlaceFight         = fights.find(it => it._2.getRoundType == StageRoundType.THIRD_PLACE_FIGHT).map(_._2)
       grandFinalAndThirdPlace = getCompetitorsSetFromFights(List(Some(grandFinal), thirdPlaceFight).mapFilter(identity))
-      competitors             = getCompetitorsSetFromFights(fights) -- grandFinalAndThirdPlace
+      competitors             = getCompetitorsSetFromFights(fights.values.toList) -- grandFinalAndThirdPlace
       thirdPlaceResults       = createResultForFight(stageId, thirdPlaceFight, 3)
       grandFinalResults       = createResultForFight(stageId, Some(grandFinal), 1)
       otherFightsResults = competitors.toList.mapFilter(
-        generateStageResultForCompetitor(stageId, grandFinal.getRoundType, fights, grandFinal.roundOrZero)(_).toOption
+        generateStageResultForCompetitor(
+          stageId,
+          fights.values.toList,
+          grandFinal.roundOrZero
+        )(_).toOption
       )
       res = grandFinalResults ++ thirdPlaceResults ++ otherFightsResults
 

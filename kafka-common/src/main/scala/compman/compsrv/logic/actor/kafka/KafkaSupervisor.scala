@@ -1,16 +1,17 @@
 package compman.compsrv.logic.actor.kafka
 
 import compman.compsrv.logic.actor.kafka.KafkaPublishActor.PublishMessageToKafka
-import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Behaviors}
+import compman.compsrv.logic.actors.ActorSystem.ActorConfig
+import org.apache.kafka.common.errors.TopicExistsException
+import zio.{Promise, RIO, Tag, Task}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.console.Console
-import zio.duration.{Duration, durationInt}
+import zio.duration.{durationInt, Duration}
 import zio.kafka.admin.{AdminClient, AdminClientSettings}
 import zio.kafka.consumer.CommittableRecord
 import zio.logging.Logging
-import zio.{Promise, RIO, Tag, Task}
 
 import java.util.UUID
 
@@ -68,31 +69,64 @@ object KafkaSupervisor {
     ], KafkaSupervisorCommand].withReceive { (context, _, state, command, _) =>
       command match {
         case QueryAndSubscribe(topic, groupId, replyTo) => for {
-          actorId <- getQueryActorId
-          state <- KafkaQueryAndSubscribeActor(actorId, context)(topic, groupId, replyTo, brokers, subscribe = true, query = true).as(state)
-          _ <- Logging.info(s"Created actor with id $actorId to process query and subscribe request.")
-        } yield state
+            actorId <- getQueryActorId
+            state <- KafkaQueryAndSubscribeActor(actorId, context)(
+              topic,
+              groupId,
+              replyTo,
+              brokers,
+              subscribe = true,
+              query = true
+            ).as(state)
+            _ <- Logging.info(s"Created actor with id $actorId to process query and subscribe request.")
+          } yield state
         case QuerySync(topic, groupId, promise, timeout) => for {
-          actorId <- getQueryActorId
-          queryReceiver <- context.make(
-            UUID.randomUUID().toString,
-            ActorConfig(),
-            Seq.empty[Array[Byte]],
-            KafkaSyncQueryReceiverActor.behavior(promise, timeout)
-          )
-          _ <- KafkaQueryAndSubscribeActor(actorId, context)(topic, groupId, queryReceiver, brokers, subscribe = false, query = true)
-        } yield state
+            actorId <- getQueryActorId
+            queryReceiver <- context.make(
+              UUID.randomUUID().toString,
+              ActorConfig(),
+              Seq.empty[Array[Byte]],
+              KafkaSyncQueryReceiverActor.behavior(promise, timeout)
+            )
+            _ <- KafkaQueryAndSubscribeActor(actorId, context)(
+              topic,
+              groupId,
+              queryReceiver,
+              brokers,
+              subscribe = false,
+              query = true
+            )
+          } yield state
 
-        case QueryAsync(topic, groupId, replyTo) => KafkaQueryAndSubscribeActor(innerQueryActorId, context)(topic, groupId, replyTo, brokers, subscribe = false, query = true).as(state)
+        case QueryAsync(topic, groupId, replyTo) => KafkaQueryAndSubscribeActor(innerQueryActorId, context)(
+            topic,
+            groupId,
+            replyTo,
+            brokers,
+            subscribe = false,
+            query = true
+          ).as(state)
 
-        case Subscribe(topic, groupId, replyTo) =>
-          KafkaQueryAndSubscribeActor(innerQueryActorId, context)(topic, groupId, replyTo, brokers, subscribe = true, query = false).as(state)
+        case Subscribe(topic, groupId, replyTo) => KafkaQueryAndSubscribeActor(innerQueryActorId, context)(
+            topic,
+            groupId,
+            replyTo,
+            brokers,
+            subscribe = true,
+            query = false
+          ).as(state)
         case Stop => context.stopSelf.as(state)
         case PublishMessage(topic, key, message) => state.fold(Task(()))(_ ! PublishMessageToKafka(topic, key, message))
-          .as(state)
-        case CreateTopicIfMissing(topic, topicConfig) => AdminClient.make(AdminClientSettings(brokers))
-          .use(_.createTopic(AdminClient.NewTopic(topic, topicConfig.numPartitions, topicConfig.replicationFactor)))
-          .as(state)
+            .as(state)
+        case CreateTopicIfMissing(topic, topicConfig) => AdminClient.make(AdminClientSettings(brokers)).use(
+            _.createTopic(AdminClient.NewTopic(topic, topicConfig.numPartitions, topicConfig.replicationFactor)).fold(
+              {
+                case _: TopicExistsException => Task.unit
+                case x                       => Task.fail(x)
+              },
+              _ => Task.unit
+            )
+          ).as(state)
       }
     }.withInit { (_, context, initState, _) =>
       for {
@@ -101,11 +135,7 @@ object KafkaSupervisor {
       } yield (Seq.empty, Seq.empty, Some(publishActor))
     }
 
-  private def getQueryActorId = {
-    RIO.effectTotal(innerQueryActorId)
-  }
+  private def getQueryActorId = { RIO.effectTotal(innerQueryActorId) }
 
-  private def innerQueryActorId = {
-    s"queryAndSubscribe-${UUID.randomUUID()}"
-  }
+  private def innerQueryActorId = { s"queryAndSubscribe-${UUID.randomUUID()}" }
 }

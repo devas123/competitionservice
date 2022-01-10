@@ -116,14 +116,15 @@ object SetFightResultProc {
         id <- EitherT.fromOption[F](getIdToProceed(ref, fight, payload), Errors.InternalError())
         assignments <- EitherT
           .liftF(FightUtils.advanceFighterToSiblingFights[F](id, payload.getFightId, ref, stageFights))
-        events <- EitherT.liftF(CommandEventOperations[F, EventDTO, EventType].create(
+
+        events <- if (assignments._2.nonEmpty) EitherT.liftF[F, Errors.Error, EventDTO](CommandEventOperations[F, EventDTO, EventType].create(
           `type` = EventType.DASHBOARD_FIGHT_COMPETITORS_ASSIGNED,
           competitorId = command.competitorId,
           competitionId = command.competitionId,
           categoryId = command.categoryId,
           payload = Some(new FightCompetitorsAssignedPayload().setAssignments(assignments._2.toArray))
-        ))
-      } yield List(events)
+        )).map(List(_)) else EitherT.liftF[F, Errors.Error, List[EventDTO]](Monad[F].pure(List.empty[EventDTO]))
+      } yield events
       k.value.map(_.getOrElse(List.empty))
     })
   }

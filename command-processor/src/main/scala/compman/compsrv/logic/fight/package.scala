@@ -151,18 +151,18 @@ package object fight {
   }
 
   def createResultForFight(
-    stageId: String,
-    thirdPlaceFight: Option[FightDescriptionDTO],
-    winnerPlace: Int,
-    loserPlace: Option[Int] = None
+                            stageId: String,
+                            fight: Option[FightDescriptionDTO],
+                            winnerPlace: Int,
+                            loserPlace: Option[Int] = None
   ): Array[CompetitorStageResultDTO] = {
-    thirdPlaceFight
+    fight
       .flatMap(f =>
         f.scores
           .map(
             _.map { score =>
               val place =
-                if (f.winnerId.contains(f.getCompetitionId))
+                if (f.winnerId.contains(score.getCompetitorId) || f.winnerId.isEmpty)
                   winnerPlace
                 else
                   loserPlace.getOrElse(winnerPlace + 1)

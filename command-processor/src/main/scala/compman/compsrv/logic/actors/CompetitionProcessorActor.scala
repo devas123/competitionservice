@@ -15,6 +15,7 @@ import zio.kafka.consumer.Consumer
 import zio.kafka.producer.Producer
 import zio.logging.{LogAnnotation, Logging}
 import zio.{Fiber, Has, Promise, RIO, Task, ZIO}
+import zio.duration.durationInt
 
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -130,7 +131,7 @@ object CompetitionProcessorActor {
       ): RIO[Env with Logging with Clock, Seq[EventDTO]] = for {
         promise <- Promise.make[Throwable, Seq[Array[Byte]]]
         _       <- kafkaSupervisor ! CreateTopicIfMissing(eventTopic, KafkaTopicConfig())
-        _       <- kafkaSupervisor ! QuerySync(eventTopic, UUID.randomUUID().toString, promise)
+        _       <- kafkaSupervisor ! QuerySync(eventTopic, UUID.randomUUID().toString, promise, 30.seconds)
         _       <- Logging.info(s"Getting events from topic: $eventTopic, starting from ${state.revision}")
         events <- promise.await.map(_.map(e => mapper.readValue(e, classOf[EventDTO])))
           .onError(e => Logging.info(e.prettyPrint)).foldM(_ => RIO(Seq.empty), RIO(_))

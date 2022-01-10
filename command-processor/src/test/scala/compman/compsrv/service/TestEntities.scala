@@ -38,15 +38,21 @@ trait TestEntities {
   val inputDescriptor: StageInputDescriptorDTO = new StageInputDescriptorDTO().setSelectors(Array.empty)
     .setNumberOfCompetitors(totalNumberOfCompetitors).setDistributionType(DistributionType.AUTOMATIC)
 
-  val resultRescriptor: StageResultDescriptorDTO = new StageResultDescriptorDTO().setName(stageId)
+  val resultDescriptor: StageResultDescriptorDTO = new StageResultDescriptorDTO().setName(stageId)
     .setCompetitorResults(Array.empty).setFightResultOptions(FightResultOptionDTO.values.asScala.toArray)
-    .setOutputSize(1).setAdditionalGroupSortingDescriptors(Array.empty).setForceManualAssignment(false)
+    .setOutputSize(1)
 
   val stageForGroupsGeneration: StageDescriptorDTO = new StageDescriptorDTO().setId(stageId).setName(stageId)
     .setCompetitionId(competitionId).setStageType(StageType.FINAL).setStageOrder(0).setBracketType(BracketType.GROUP)
     .setFightDuration(600).setGroupDescriptors(groupDescriptors.toArray)
-    .setInputDescriptor(inputDescriptor).setStageResultDescriptor(resultRescriptor)
+    .setInputDescriptor(inputDescriptor).setStageResultDescriptor(resultDescriptor.setAdditionalGroupSortingDescriptors(Array.empty).setForceManualAssignment(false))
     .setStageStatus(StageStatus.WAITING_FOR_APPROVAL).setWaitForPrevious(false)
+
+  val singleEliminationBracketsStage: StageDescriptorDTO = new StageDescriptorDTO().setId(stageId).setName(stageId)
+    .setCompetitionId(competitionId).setStageType(StageType.FINAL).setStageOrder(0).setBracketType(BracketType.SINGLE_ELIMINATION)
+    .setFightDuration(600)
+    .setInputDescriptor(inputDescriptor).setStageResultDescriptor(resultDescriptor)
+    .setStageStatus(StageStatus.APPROVED).setWaitForPrevious(false)
 
   val competitors = List(
     new CompetitorDTO().setId("competitor1").setCategories(Array(categoryId)),

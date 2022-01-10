@@ -1,5 +1,6 @@
 package compman.compsrv.model
 
+import cats.Monad
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.command.Commands
 import compman.compsrv.model.commands.CommandDTO
@@ -183,8 +184,8 @@ object Mapping {
   object EventMapping {
     def apply[F[+_]](implicit F: EventMapping[F]): EventMapping[F] = F
 
-    val live: EventMapping[LIO] = (eventDto: EventDTO) =>
-      Task {
+    def create[F[+_]: Monad]: EventMapping[F] = (eventDto: EventDTO) =>
+      Monad[F].pure {
         eventDto.getType match {
           case FIGHT_ORDER_CHANGED => FightOrderChangedEvent(
               Try { eventDto.getPayload.asInstanceOf[ChangeFightOrderPayload] }.toOption,
@@ -396,6 +397,12 @@ object Mapping {
             )
         }
       }
+
+    val live: EventMapping[LIO] = {
+      import zio.interop.catz._
+      create[LIO]
+    }
+
     def mapEventDto[F[+_]: EventMapping](eventDto: EventDTO): F[Events.Event[Payload]] = EventMapping[F]
       .mapEventDto(eventDto)
   }
