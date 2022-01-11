@@ -41,14 +41,14 @@ case class CompetitorStageResult(
   roundType: StageRoundType,
   place: Int,
   stageId: String,
-  groupId: String,
+  groupId: Option[String],
   conflicting: Boolean
 )
 
 case class FightResultOption(
                               optionId: String,
-                              description: String,
-                              shortName: String,
+                              description: Option[String],
+                              shortName: Option[String],
                               draw: Boolean,
                               winnerPoints: Int,
                               winnerAdditionalPoints: Int = 0,

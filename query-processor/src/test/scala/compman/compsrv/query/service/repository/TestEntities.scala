@@ -46,8 +46,8 @@ trait TestEntities {
     forceManualAssignment = false,
     10,
     List(
-      FightResultOption("frO1", "description1", "die", draw = false, 199, 3399, 0, -1),
-      FightResultOption("frO2", "description2", "live", draw = false, 2, 3, 9, 4)
+      FightResultOption("frO1", Option("description1"), Option("die"), draw = false, 199, 3399, 0, -1),
+      FightResultOption("frO2", Option("description2"), Option("live"), draw = false, 2, 3, 9, 4)
     ),
     List(CompetitorStageResult(
       "competitor",
@@ -56,7 +56,7 @@ trait TestEntities {
       StageRoundType.WINNER_BRACKETS,
       10,
       "stageId",
-      "group",
+      Option("group"),
       conflicting = true
     )),
     List(AdditionalGroupSortingDescriptor(GroupSortDirection.DESC, GroupSortSpecifier.POINTS_DIFFERENCE))

@@ -21,7 +21,7 @@ object DtoMapping {
 
   def toDtoCompetitorResult(o: CompetitorStageResult): CompetitorStageResultDTO = {
     new CompetitorStageResultDTO().setCompetitorId(o.competitorId).setPoints(o.points).setRound(o.round)
-      .setRoundType(o.roundType).setPlace(o.place).setStageId(o.stageId).setGroupId(o.groupId)
+      .setRoundType(o.roundType).setPlace(o.place).setStageId(o.stageId).setGroupId(o.groupId.orNull)
       .setConflicting(o.conflicting)
   }
 
@@ -29,8 +29,8 @@ object DtoMapping {
     .setPointGroups(Array.empty)
 
   def toDtoFightResultOption(fightResultOption: FightResultOption): FightResultOptionDTO = {
-    new FightResultOptionDTO().setId(fightResultOption.optionId).setDescription(fightResultOption.description)
-      .setShortName(fightResultOption.shortName).setDraw(fightResultOption.draw)
+    new FightResultOptionDTO().setId(fightResultOption.optionId).setDescription(fightResultOption.description.orNull)
+      .setShortName(fightResultOption.shortName.orNull).setDraw(fightResultOption.draw)
       .setWinnerPoints(fightResultOption.winnerPoints)
       .setWinnerAdditionalPoints(fightResultOption.winnerAdditionalPoints).setLoserPoints(fightResultOption.loserPoints)
       .setLoserAdditionalPoints(fightResultOption.loserAdditionalPoints)
@@ -310,8 +310,8 @@ object DtoMapping {
 
   def mapFightResultOption(dto: FightResultOptionDTO): FightResultOption = FightResultOption(
     dto.getId,
-    description = dto.getDescription,
-    shortName = dto.getShortName,
+    description = Option(dto.getDescription),
+    shortName = Option(dto.getShortName),
     draw = dto.isDraw,
     winnerPoints = dto.getWinnerPoints,
     winnerAdditionalPoints = dto.getWinnerAdditionalPoints,
@@ -329,7 +329,7 @@ object DtoMapping {
     dto.getRoundType,
     dto.getPlace,
     dto.getStageId,
-    dto.getGroupId,
+    Option(dto.getGroupId),
     dto.getConflicting
   )
 
