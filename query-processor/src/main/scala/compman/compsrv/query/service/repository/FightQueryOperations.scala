@@ -5,7 +5,7 @@ import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model._
 import org.mongodb.scala.MongoClient
 import org.mongodb.scala.bson.BsonNull
-import org.mongodb.scala.model.Filters.{and, equal, not}
+import org.mongodb.scala.model.Filters.{and, equal, not, size}
 import org.mongodb.scala.model.Sorts
 import zio.{Ref, RIO, Task}
 import zio.interop.catz._
@@ -86,7 +86,7 @@ object FightQueryOperations {
     with CommonLiveOperations with FightFieldsAndFilters {
 
     private def activeFights(competitionId: String) =
-      and(equal(competitionIdField, competitionId), statusCheck, not(equal("scores.competitorId", BsonNull())))
+      and(equal(competitionIdField, competitionId), statusCheck, not(equal("scores", BsonNull())), not(equal("scores.competitorId", BsonNull())), not(size("scores", 0)))
 
     override def mongoClient: MongoClient = mongo
 
