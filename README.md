@@ -10,6 +10,14 @@ TODO:
 Main modules:
 + Query-processor 
 
+To build docker images, run
+
+```shell
+sbt docker:publishLocal
+```
+
+from the project root (where build.sbt is)
+
 To start the backend, first run command
 ```shell
 ./gradlew clean build dockerTag
