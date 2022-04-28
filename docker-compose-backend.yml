@@ -77,7 +77,7 @@ services:
       compsrv_backend:
 
   zookeeper:
-    image: confluentinc/cp-zookeeper:6.2.1
+    image: confluentinc/cp-zookeeper:${CONFLUENT_VERSION:-7.1.1}
     hostname: zookeeper
     container_name: zookeeper
     ports:
@@ -90,7 +90,7 @@ services:
 
 
   broker:
-    image: confluentinc/cp-server:6.2.1
+    image: confluentinc/cp-server:${CONFLUENT_VERSION:-7.1.1}
     hostname: broker
     container_name: broker
     depends_on:

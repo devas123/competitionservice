@@ -25,12 +25,12 @@ object GatewayServiceMain extends zio.App {
   def server(args: List[String]): ZIO[zio.ZEnv with ServiceEnv, Throwable, Unit] = for {
     signal <- SignallingRef[ServiceIO, Boolean](false)
     _ <- (for {
-      _ <- args.headOption.map(f => if (Files.exists(Path.of(f))) ZIO.unit else signal.set(true)).getOrElse(ZIO.unit)
+      _ <- args.headOption.map(f => signal.set(true).unless(Files.exists(Path.of(f)))).getOrElse(ZIO.unit)
       _ <- ZIO.sleep(5.seconds)
     } yield ()).forever.fork
     _        <- Logging.debug("Starting server...")
     exitCode <- effect.Ref.of[ServiceIO, effect.ExitCode](effect.ExitCode.Success)
-    srv <- ZIO.runtime[ZEnv].flatMap { _ =>
+    srv <- ZIO.runtime[ZEnv] *> {
       BlazeServerBuilder[ServiceIO].bindHttp(8080, "0.0.0.0").withWebSockets(true).withSocketKeepAlive(true)
         .withHttpApp(GatewayService.service().orNotFound).serveWhile(signal, exitCode).compile.drain
     }
@@ -44,7 +44,7 @@ object GatewayServiceMain extends zio.App {
   } yield srv
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
-    (for { srv <- createServer(args) } yield srv).tapError(logError).fold(_ => ExitCode.failure, _ => ExitCode.success)
+    (for {srv <- createServer(args)} yield srv).tapError(logError).exitCode
       .provideLayer(CompetitionLogging.Live.loggingLayer ++ ZEnv.live)
   }
 
