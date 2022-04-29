@@ -51,11 +51,8 @@ object GenerateBracketsProc {
               }
             }.traverse(identity)
           )
-          bracketsGeneratedPayload = {
-            val p = new BracketsGeneratedPayload()
-            p.setStages(updatedStages.mapWithIndex((a, b) => a._1.setStageOrder(b)).toArray)
-            p
-          }
+          bracketsGeneratedPayload =
+              new BracketsGeneratedPayload().setStages(updatedStages.mapWithIndex((a, b) => a._1.setStageOrder(b)).toArray)
           bracketsGeneratedEvent <- EitherT
             .liftF[F, Errors.Error, EventDTO](CommandEventOperations[F, EventDTO, EventType].create(
               `type` = EventType.BRACKETS_GENERATED,
