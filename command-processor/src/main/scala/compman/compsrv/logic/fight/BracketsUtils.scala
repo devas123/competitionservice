@@ -365,9 +365,6 @@ object BracketsUtils {
     else {
       for {
         _ <- assertSingleFinal(winnerFights)
-        _ <- assertE(winnerFights.filter { it => it.roundType.contains(StageRoundType.GRAND_FINAL) }.forall { it =>
-          it.roundType.contains(StageRoundType.WINNER_BRACKETS) && it.round.isDefined
-        })
         semiFinal       = getMaxRound(winnerFights) - 1
         semiFinalFights = winnerFights.filter { it => it.roundOrZero == semiFinal }
         _ <- assertE(

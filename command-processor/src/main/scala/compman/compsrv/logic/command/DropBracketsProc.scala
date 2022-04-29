@@ -14,7 +14,7 @@ object DropBracketsProc {
   def apply[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations, P <: Payload](
     state: CompetitionState
   ): PartialFunction[Command[P], F[Either[Errors.Error, Seq[EventDTO]]]] = {
-    case x: DropAllBracketsCommand => process(x.competitionId, x.categoryId, state)
+    case x: DropAllBracketsCommand => process(x.competitionId, None, state)
     case x: DropBracketsCommand    => process(x.competitionId, x.categoryId, state)
   }
 

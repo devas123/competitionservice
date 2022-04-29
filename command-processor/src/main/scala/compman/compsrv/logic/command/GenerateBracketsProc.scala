@@ -113,7 +113,8 @@ object GenerateBracketsProc {
     resultDescriptor = stage.getStageResultDescriptor
       .setFightResultOptions(enrichedOptionsWithIds.distinctBy { _.getId }.toArray)
     status = if (stage.getStageOrder == 0) StageStatus.WAITING_FOR_APPROVAL else StageStatus.WAITING_FOR_COMPETITORS
-    stageWithIds = stage.setCategoryId(categoryId).setId(stageId).setStageStatus(status).setCompetitionId(state.id)
+    stageWithIds = stage
+      .setCategoryId(categoryId).setId(stageId).setStageStatus(status).setCompetitionId(state.id)
       .setGroupDescriptors(groupDescr.toArray).setInputDescriptor(inputDescriptor)
       .setStageResultDescriptor(resultDescriptor)
 
