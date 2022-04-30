@@ -7,7 +7,7 @@ import compman.compsrv.query.model.ManagedCompetition
 import org.mongodb.scala.{MongoClient, Observable}
 import org.mongodb.scala.model.Filters
 import org.mongodb.scala.model.Filters.equal
-import org.mongodb.scala.model.Updates.set
+import org.mongodb.scala.model.Updates.{set, unset}
 import zio.{Ref, RIO}
 
 object ManagedCompetitionsOperations {
@@ -73,18 +73,20 @@ object ManagedCompetitionsOperations {
       } yield ()
     }
 
+    private def setOption[T](name: String, opt: Option[T]) = opt.map(v => set(name, v)).getOrElse(unset(name))
+
     override def updateManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {
       for {
         collection <- managedCompetitionCollection
         update = collection.updateMany(
           equal(idField, competition.id),
           Seq(
-            set("competitionName", competition.competitionName),
+            setOption("competitionName", competition.competitionName),
             set("eventsTopic", competition.eventsTopic),
-            set("creatorId", competition.creatorId),
+            setOption("creatorId", competition.creatorId),
             set("createdAt", competition.createdAt),
             set("startsAt", competition.startsAt),
-            set("endsAt", competition.endsAt),
+            setOption("endsAt", competition.endsAt),
             set("timeZone", competition.timeZone),
             set("status", competition.status)
           )
