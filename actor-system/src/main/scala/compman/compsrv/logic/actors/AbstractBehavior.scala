@@ -49,7 +49,7 @@ trait AbstractBehavior[R, S, Msg] {
   def restartOneSupervision(context: Context[Msg], queue: Queue[PendingMessage[Msg]], timers: Timers[R, Msg])(receiveLoop: () => RIO[R with Clock with Console, Unit]): RIO[R with Clock with Console, Unit] = {
     for {
       _ <- for {
-        res <- receiveLoop().catchAllCause(err => RIO.debug(s"Error while executing receive loop in actor ${context.self}. $err")).exitCode
+        res <- receiveLoop().onError(err => RIO.debug(s"Error while executing receive loop in actor ${context.self}. $err")).exitCode
         _ <- restartOneSupervision(context, queue, timers)(receiveLoop).unlessM(ZIO.effectTotal(res.code == 0) || queue.isShutdown)
       } yield ()
       _ <- timers.cancelAll()
