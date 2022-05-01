@@ -8,7 +8,7 @@ import compman.compsrv.model.{Errors, Payload}
 import compman.compsrv.model.command.Commands.{AddRegistrationPeriodCommand, Command}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.events.payload.RegistrationPeriodAddedPayload
-import compman.compsrv.model.Errors.{InternalError, NoPayloadError}
+import compman.compsrv.model.Errors.{NoPayloadError, RegistrationPeriodAlreadyExistsError}
 
 object AddRegistrationPeriodProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
@@ -28,25 +28,25 @@ object AddRegistrationPeriodProc {
         payload <- EitherT.fromOption(command.payload, NoPayloadError())
         id <- EitherT
           .liftF[F, Errors.Error, String](IdOperations[F].registrationPeriodId(payload.getPeriod))
-        exists <- EitherT.right(Monad[F].pure((for {
+        periodExists <- EitherT.right(Monad[F].pure((for {
             regInfo <- state.registrationInfo
             periods <- Option(regInfo.getRegistrationPeriods)
-          } yield periods.exists(_.getId == id)).getOrElse(false)))
+          } yield periods.containsKey(id)).getOrElse(false)))
         event <-
-          if (exists) {
+          if (!periodExists) {
             EitherT.liftF[F, Errors.Error, EventDTO](
               CommandEventOperations[F, EventDTO, EventType].create(
                 `type` = EventType.REGISTRATION_PERIOD_ADDED,
                 competitorId = None,
                 competitionId = command.competitionId,
                 categoryId = None,
-                payload = Some(new RegistrationPeriodAddedPayload(payload.getPeriod))
+                payload = Some(new RegistrationPeriodAddedPayload(payload.getPeriod.setId(id)))
               )
             )
           } else {
             EitherT(
               CommandEventOperations[F, EventDTO, EventType]
-                .error(InternalError())
+                .error(RegistrationPeriodAlreadyExistsError(id))
             )
           }
       } yield Seq(event)

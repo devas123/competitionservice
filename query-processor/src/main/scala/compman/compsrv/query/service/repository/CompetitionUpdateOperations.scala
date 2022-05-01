@@ -177,7 +177,7 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         statement = collection.replaceOne(
           Filters.eq(idField, competitionProperties.id),
-          CompetitionState(competitionProperties.id, competitionProperties, Map.empty, Map.empty, Map.empty, None),
+          CompetitionState(competitionProperties.id, competitionProperties, Map.empty, Map.empty, Map.empty, RegistrationInfo()),
           new ReplaceOptions().upsert(true)
         )
         res <- RIO.fromFuture(_ => statement.toFuture()).unit

@@ -1,18 +1,18 @@
 package compman.compsrv.logic.actors
 
-import compman.compsrv.config.CommandProcessorConfig
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.model.Payload
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
-import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
+import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.dto.schedule.ScheduleDTO
+import zio.{Has, Ref, RIO, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.producer.Producer
 import zio.logging.Logging
-import zio.{Has, Ref, RIO, URIO, ZIO}
 
 import java.time.Instant
+import scala.jdk.CollectionConverters._
 
 trait CommandProcessorOperations[-E] {
   def getStateSnapshot(id: String): URIO[E with SnapshotService.Snapshot, Option[CompetitionState]]
@@ -26,8 +26,8 @@ trait CommandProcessorOperations[-E] {
         .setStaffIds(Array.empty).setEmailNotificationsEnabled(false).setTimeZone("UTC")
     )
     val defaultRegInfo = Some(
-      new RegistrationInfoDTO().setId(competitionId).setRegistrationGroups(Array.empty)
-        .setRegistrationPeriods(Array.empty).setRegistrationOpen(false)
+      new RegistrationInfoDTO().setId(competitionId).setRegistrationGroups(Map.empty[String, RegistrationGroupDTO].asJava)
+        .setRegistrationPeriods(Map.empty[String, RegistrationPeriodDTO].asJava).setRegistrationOpen(false)
     )
 
     CompetitionState(
@@ -58,9 +58,7 @@ object CommandProcessorOperations {
   private type CommandProcLive = Logging
     with Clock with Blocking with SnapshotService.Snapshot with Has[Producer]
 
-  def apply[E](
-    commandProcessorConfig: CommandProcessorConfig
-  ): RIO[E with CommandProcLive, CommandProcessorOperations[E with CommandProcLive]] = {
+  def apply[E](): RIO[E with CommandProcLive, CommandProcessorOperations[E with CommandProcLive]] = {
     for {
       operations <- ZIO.effect {
         new CommandProcessorOperations[E with CommandProcLive] {

@@ -8,7 +8,7 @@ import compman.compsrv.logic.actors.CompetitionProcessorSupervisorActor.CommandR
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.commands.{CommandDTO, CommandType}
-import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationInfoDTO}
+import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, CompetitionStatus, RegistrationGroupDTO, RegistrationInfoDTO, RegistrationPeriodDTO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -20,6 +20,7 @@ import zio.{Layer, Ref}
 
 import java.time.Instant
 import java.util.UUID
+import scala.jdk.CollectionConverters.MapHasAsJava
 
 object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
   object Deps {
@@ -62,8 +63,8 @@ object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
             cmd.setCompetitionId(competitionId)
             cmd.setPayload(
               new CreateCompetitionPayload().setReginfo(
-                new RegistrationInfoDTO().setId(competitionId).setRegistrationGroups(Array.empty)
-                  .setRegistrationPeriods(Array.empty).setRegistrationOpen(true)
+                new RegistrationInfoDTO().setId(competitionId).setRegistrationGroups(Map.empty[String, RegistrationGroupDTO].asJava)
+                  .setRegistrationPeriods(Map.empty[String, RegistrationPeriodDTO].asJava).setRegistrationOpen(true)
               ).setProperties(
                 new CompetitionPropertiesDTO().setId(competitionId).setCompetitionName("Test competition")
                   .setStatus(CompetitionStatus.CREATED).setTimeZone("UTC").setStartDate(Instant.now())

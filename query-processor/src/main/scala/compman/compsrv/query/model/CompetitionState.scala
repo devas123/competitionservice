@@ -6,5 +6,5 @@ case class CompetitionState(
   periods: Map[String, Period],
   categories: Map[String, Category],
   stages: Map[String, StageDescriptor],
-  registrationInfo: Option[RegistrationInfo]
+  registrationInfo: RegistrationInfo
 )

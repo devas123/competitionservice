@@ -7,7 +7,7 @@ import compman.compsrv.query.model.ManagedCompetition
 import org.mongodb.scala.{MongoClient, Observable}
 import org.mongodb.scala.model.Filters
 import org.mongodb.scala.model.Filters.equal
-import org.mongodb.scala.model.Updates.{set, unset}
+import org.mongodb.scala.model.Updates.set
 import zio.{Ref, RIO}
 
 object ManagedCompetitionsOperations {
@@ -73,7 +73,6 @@ object ManagedCompetitionsOperations {
       } yield ()
     }
 
-    private def setOption[T](name: String, opt: Option[T]) = opt.map(v => set(name, v)).getOrElse(unset(name))
 
     override def updateManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {
       for {

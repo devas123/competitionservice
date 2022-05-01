@@ -73,7 +73,7 @@ object CommandProcessorMain extends zio.App {
               )
             )
             commandProcessorOperationsFactory = CommandProcessorOperationsFactory
-              .live(appConfig.commandProcessor)
+              .live()
             suervisor <- actorSystem.make(
               "command-processor-supervisor",
               ActorConfig(),

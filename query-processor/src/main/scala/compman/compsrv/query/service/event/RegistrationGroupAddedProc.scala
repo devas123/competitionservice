@@ -22,7 +22,7 @@ object RegistrationGroupAddedProc {
       groups <- OptionT.fromOption[F](Option(payload.getGroups))
       periodId <- OptionT.fromOption[F](Option(payload.getPeriodId))
       period <- OptionT(CompetitionQueryOperations[F].getRegistrationPeriodById(competitionId)(periodId))
-      mappedGroups <- OptionT.liftF(groups.toList.traverse(DtoMapping.mapRegistrationGroup[F](competitionId)))
+      mappedGroups = groups.toList.map(DtoMapping.mapRegistrationGroup(competitionId))
       existingGroups <- OptionT.fromOption[F](Option(period.registrationGroupIds).orElse(Option(Set.empty)))
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].addRegistrationGroups(mappedGroups))
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateRegistrationPeriod(period.copy(registrationGroupIds = existingGroups ++ mappedGroups.map(_.id))))

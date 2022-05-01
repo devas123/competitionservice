@@ -4,7 +4,10 @@ import cats.Monad
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
 import compman.compsrv.model.Payload
+import compman.compsrv.model.dto.competition.RegistrationPeriodDTO
 import compman.compsrv.model.event.Events.{Event, RegistrationPeriodAddedEvent}
+
+import scala.jdk.CollectionConverters._
 
 object RegistrationPeriodAddedProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
@@ -21,9 +24,9 @@ object RegistrationPeriodAddedProc {
       payload    <- event.payload
       newP       <- Option(payload.getPeriod)
       regInfo    <- state.registrationInfo
-      regPeriods <- Option(regInfo.getRegistrationPeriods).orElse(Some(Array.empty))
-      newPeriods = (regPeriods :+ newP).distinctBy(_.getId)
-      newState   = state.copy(registrationInfo = Some(regInfo.setRegistrationPeriods(newPeriods)))
+      regPeriods <- Option(regInfo.getRegistrationPeriods).orElse(Some(Map.empty[String, RegistrationPeriodDTO].asJava))
+      newPeriods = regPeriods.asScala.toMap + (newP.getId -> newP)
+      newState   = state.copy(registrationInfo = Some(regInfo.setRegistrationPeriods(newPeriods.asJava)))
     } yield newState
     Monad[F].pure(eventT)
   }

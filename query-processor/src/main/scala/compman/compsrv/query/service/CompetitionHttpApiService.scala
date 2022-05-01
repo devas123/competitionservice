@@ -74,7 +74,7 @@ object CompetitionHttpApiService {
       sendApiCommandAndReturnResponse(apiActor, GetCompetitionInfoTemplate(id))
     case GET -> Root / "competition" / id / "schedule"  => sendApiCommandAndReturnResponse(apiActor, GetSchedule(id))
     case GET -> Root / "competition" / id / "dashboard" => sendApiCommandAndReturnResponse(apiActor, GetDashboard(id))
-    case GET -> Root / "competition" / id / "registration" =>
+    case GET -> Root / "competition" / id / "reginfo" =>
       sendApiCommandAndReturnResponse(apiActor, GetRegistrationInfo(id))
     case GET -> Root / "competition" / id / "category" => sendApiCommandAndReturnResponse(apiActor, GetCategories(id))
     case GET -> Root / "competition" / id / "category" / categoryId =>

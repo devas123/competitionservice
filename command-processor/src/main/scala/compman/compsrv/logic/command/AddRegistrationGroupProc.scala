@@ -8,51 +8,46 @@ import compman.compsrv.model.{Errors, Payload}
 import compman.compsrv.model.command.Commands.{AddRegistrationGroupCommand, Command}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.events.payload.RegistrationGroupAddedPayload
-import compman.compsrv.model.Errors.{InternalError, NoPayloadError}
+import compman.compsrv.model.Errors.{NoPayloadError, RegistrationGroupAlreadyExistsError}
+import compman.compsrv.model.dto.competition.RegistrationGroupDTO
 
 object AddRegistrationGroupProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
-      state: CompetitionState
+    state: CompetitionState
   ): PartialFunction[Command[P], F[Either[Errors.Error, Seq[EventDTO]]]] = {
-    case x @ AddRegistrationGroupCommand(_, _, _) =>
-      addRegistrationGroup(x, state)
+    case x @ AddRegistrationGroupCommand(_, _, _) => addRegistrationGroup(x, state)
   }
 
   private def addRegistrationGroup[F[+_]: Monad: IdOperations: EventOperations](
-      command: AddRegistrationGroupCommand,
-      state: CompetitionState
+    command: AddRegistrationGroupCommand,
+    state: CompetitionState
   ): F[Either[Errors.Error, Seq[EventDTO]]] = {
-    val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] =
-      for {
-        payload <- EitherT.fromOption(command.payload, NoPayloadError())
-        ids <- EitherT
-          .liftF[F, Errors.Error, List[String]](Traverse[List].traverse(payload.getGroups.toList)(g => IdOperations[F].registrationGroupId(g)))
-        exists <- EitherT.right(
-          Monad[F].pure(
-            (
-              for {
-                regInfo <- state.registrationInfo
-                idSet = ids.toSet
-                groups <- Option(regInfo.getRegistrationGroups)
-              } yield groups.exists(g => idSet.contains(g.getId))
-            ).getOrElse(false)
-          )
-        )
-        event <-
-          if (exists) {
-            EitherT.liftF[F, Errors.Error, EventDTO](
-              CommandEventOperations[F, EventDTO, EventType].create(
-                `type` = EventType.REGISTRATION_PERIOD_ADDED,
-                competitorId = None,
-                competitionId = command.competitionId,
-                categoryId = None,
-                payload = Some(new RegistrationGroupAddedPayload(payload.getPeriodId, payload.getGroups))
-              )
-            )
-          } else {
-            EitherT(CommandEventOperations[F, EventDTO, EventType].error(InternalError()))
-          }
-      } yield Seq(event)
+    val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
+      payload <- EitherT.fromOption(command.payload, NoPayloadError())
+      groupsWithIds <- EitherT
+        .liftF[F, Errors.Error, List[RegistrationGroupDTO]](Traverse[List].traverse(payload.getGroups.toList)(g =>
+          Monad[F].map(IdOperations[F].registrationGroupId(g))(id => g.setId(id))
+        ))
+      exists <- EitherT.right(Monad[F].pure(
+        (for {
+          regInfo <- state.registrationInfo
+          idSet = groupsWithIds.map(_.getId).toSet
+          groups <- Option(regInfo.getRegistrationGroups)
+        } yield idSet.filter(groups.containsKey)).getOrElse(Set.empty[String])
+      ))
+      event <-
+        if (exists.isEmpty) {
+          EitherT.liftF[F, Errors.Error, EventDTO](CommandEventOperations[F, EventDTO, EventType].create(
+            `type` = EventType.REGISTRATION_GROUP_ADDED,
+            competitorId = None,
+            competitionId = command.competitionId,
+            categoryId = None,
+            payload = Some(new RegistrationGroupAddedPayload(payload.getPeriodId, groupsWithIds.toArray))
+          ))
+        } else {
+          EitherT(CommandEventOperations[F, EventDTO, EventType].error(RegistrationGroupAlreadyExistsError(exists)))
+        }
+    } yield Seq(event)
     eventT.value
   }
 }

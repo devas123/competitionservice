@@ -27,7 +27,7 @@ object DeleteRegistrationPeriodProc {
         payload <- EitherT.fromOption(command.payload, NoPayloadError())
         periodExists = state
           .registrationInfo
-          .exists(_.getRegistrationPeriods.exists(per => payload.getPeriodId == per.getId))
+          .exists(_.getRegistrationPeriods.containsKey(payload.getPeriodId))
         event <-
           if (!periodExists) {
             EitherT.fromEither(

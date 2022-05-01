@@ -151,9 +151,9 @@ object CompetitionApiActor {
     override type responseType = MatFightsQueryResult
   }
 
-  final case class GetRegistrationInfo(competitionId: String)(override val replyTo: ActorRef[Option[RegistrationInfo]])
+  final case class GetRegistrationInfo(competitionId: String)(override val replyTo: ActorRef[Option[RegistrationInfoDTO]])
       extends ApiCommand {
-    override type responseType = Option[RegistrationInfo]
+    override type responseType = Option[RegistrationInfoDTO]
   }
 
   final case class GetCategories(competitionId: String)(override val replyTo: ActorRef[List[CategoryStateDTO]])
@@ -283,9 +283,10 @@ object CompetitionApiActor {
                 _ <- c.replyTo ! MatFightsQueryResult(competitors, fightDtos)
               } yield state
             case c @ GetRegistrationInfo(competitionId) => for {
+              properties <- CompetitionQueryOperations[LIO].getCompetitionProperties(competitionId)
                 groups  <- CompetitionQueryOperations[LIO].getRegistrationGroups(competitionId)
                 periods <- CompetitionQueryOperations[LIO].getRegistrationPeriods(competitionId)
-                _ <- c.replyTo ! Option(RegistrationInfo(Utils.groupById(groups)(_.id), Utils.groupById(periods)(_.id)))
+                _ <- c.replyTo ! Option(RegistrationInfo(Utils.groupById(groups)(_.id), Utils.groupById(periods)(_.id))).map(DtoMapping.toDtoRegistrationInfo(properties.exists(_.registrationOpen), competitionId))
               } yield state
             case c @ GetCategories(competitionId) => for {
                 categories <- CompetitionQueryOperations[LIO].getCategoriesByCompetitionId(competitionId)
@@ -365,12 +366,11 @@ object CompetitionApiActor {
                 .getFightsByStage(competitionId)(categoryId, stageId).map(_.map(DtoMapping.toDtoFight))
                 .flatMap(res => c.replyTo ! res).as(state)
           }
-          _ <- Logging.info(s"Response: $res")
         } yield res
       }
     }
 
-  private def createPageResponse[R: Tag, A](competitionId: String, res: (List[Competitor], Pagination)) = {
+  private def createPageResponse(competitionId: String, res: (List[Competitor], Pagination)) = {
     new PageResponse[CompetitorDTO](
       competitionId,
       res._2.totalResults.toLong,
@@ -379,7 +379,7 @@ object CompetitionApiActor {
     )
   }
 
-  private def createCategoryState[R: Tag, A](
+  private def createCategoryState(
     competitionId: String,
     category: Category,
     numberOfFights: Int,

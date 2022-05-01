@@ -18,7 +18,7 @@ object RegistrationPeriodAddedProc {
       payload <- OptionT.fromOption[F](event.payload)
       competitionId <- OptionT.fromOption[F](event.competitionId)
       dto <- OptionT.fromOption[F](Option(payload.getPeriod))
-      mapped <- OptionT.liftF(DtoMapping.mapRegistrationPeriod[F](competitionId)(dto))
+      mapped = DtoMapping.mapRegistrationPeriod(competitionId)(dto)
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateRegistrationPeriod(mapped))
     } yield ()
   }.value.map(_ => ())

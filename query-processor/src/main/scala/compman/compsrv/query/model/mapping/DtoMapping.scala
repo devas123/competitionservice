@@ -10,6 +10,7 @@ import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 
 import java.util.Date
+import scala.jdk.CollectionConverters.MapHasAsJava
 
 object DtoMapping {
   def toDtoAdditionalGroupSortingDescriptor(
@@ -57,10 +58,7 @@ object DtoMapping {
   }
 
   def toDtoGroupDescriptor(o: GroupDescriptor): GroupDescriptorDTO = {
-    new GroupDescriptorDTO()
-    .setId(o.groupId)
-    .setName(o.name.orNull)
-    .setSize(o.size)
+    new GroupDescriptorDTO().setId(o.groupId).setName(o.name.orNull).setSize(o.size)
   }
 
   def toDtoStageDescriptor(stageDescriptor: StageDescriptor): StageDescriptorDTO = {
@@ -72,8 +70,10 @@ object DtoMapping {
       .setInputDescriptor(stageDescriptor.inputDescriptor.map(toDtoStageInputDescriptor).orNull)
       .setStageOrder(stageDescriptor.stageOrder).setWaitForPrevious(stageDescriptor.waitForPrevious)
       .setHasThirdPlaceFight(stageDescriptor.hasThirdPlaceFight)
-      .setGroupDescriptors(stageDescriptor.groupDescriptors.map(_.map(toDtoGroupDescriptor).toArray).getOrElse(Array.empty))
-      .setNumberOfFights(stageDescriptor.numberOfFights.orElse(Option(0)).map(_.intValue()).get).setFightDuration(stageDescriptor.fightDuration.orElse(Option(0)).map(_.intValue()).get)
+      .setGroupDescriptors(stageDescriptor.groupDescriptors.map(_.map(toDtoGroupDescriptor).toArray).getOrElse(
+        Array.empty
+      )).setNumberOfFights(stageDescriptor.numberOfFights.orElse(Option(0)).map(_.intValue()).get)
+      .setFightDuration(stageDescriptor.fightDuration.orElse(Option(0)).map(_.intValue()).get)
   }
 
   def mapScheduleEntry(competitionId: String)(dto: ScheduleEntryDTO): ScheduleEntry = {
@@ -256,8 +256,7 @@ object DtoMapping {
     import cats.implicits._
     new FightDescriptionDTO().setId(f.id).setCategoryId(f.categoryId).setFightName(f.id)
       .setWinFight(f.bracketsInfo.flatMap(_.winFight).orNull).setLoseFight(f.bracketsInfo.flatMap(_.loseFight).orNull)
-      .setScores(f.scores.mapWithIndex((c, i) => toDtoCompScore(c, i)).toArray)
-      .setDuration(f.durationSeconds)
+      .setScores(f.scores.mapWithIndex((c, i) => toDtoCompScore(c, i)).toArray).setDuration(f.durationSeconds)
       .setRound(f.bracketsInfo.flatMap(_.round).map(Integer.valueOf).orNull)
       .setInvalid(f.invalid.map(java.lang.Boolean.valueOf).getOrElse(false))
       .setRoundType(f.bracketsInfo.map(_.roundType).orNull).setStatus(f.status.orNull)
@@ -422,31 +421,55 @@ object DtoMapping {
   def toDtoMat(periodId: String)(o: Mat): MatDescriptionDTO = new MatDescriptionDTO().setId(o.matId).setName(o.name)
     .setMatOrder(o.matOrder).setPeriodId(periodId)
 
-  def mapRegistrationPeriod[F[+_]: Monad](competitionId: String)(r: RegistrationPeriodDTO): F[RegistrationPeriod] =
-    Monad[F].pure {
-      RegistrationPeriod(
-        competitionId,
-        r.getId,
-        Option(r.getName),
-        Option(r.getStart),
-        Option(r.getEnd),
-        Option(r.getRegistrationGroupIds).map(_.toSet).getOrElse(Set.empty)
-      )
-    }
-  def mapRegistrationGroup[F[+_]: Monad](competitionId: String)(r: RegistrationGroupDTO): F[RegistrationGroup] =
-    Monad[F].pure {
-      RegistrationGroup(
-        competitionId,
-        r.getId,
-        r.getDefaultGroup,
-        Some(RegistrationFee(
-          currency = "Rub",
-          r.getRegistrationFee.intValue(),
-          Option(r.getRegistrationFee.remainder(BigDecimal(10).bigDecimal).intValue)
-        )),
-        categories = Option(r.getCategories).map(_.toSet).getOrElse(Set.empty)
-      )
-    }
+  def mapRegistrationPeriod(competitionId: String)(r: RegistrationPeriodDTO): RegistrationPeriod = RegistrationPeriod(
+    competitionId,
+    r.getId,
+    Option(r.getName),
+    Option(r.getStart),
+    Option(r.getEnd),
+    Option(r.getRegistrationGroupIds).map(_.toSet).getOrElse(Set.empty)
+  )
+
+  def mapRegistrationGroup(competitionId: String)(r: RegistrationGroupDTO): RegistrationGroup = RegistrationGroup(
+    competitionId,
+    r.getId,
+    Option(r.getDisplayName),
+    r.getDefaultGroup,
+    Some(RegistrationFee(
+      currency = r.getRegistrationFee.getCurrency,
+      r.getRegistrationFee.getAmount,
+      Option(r.getRegistrationFee.getRemainder)
+    )),
+    categories = Option(r.getCategories).map(_.toSet).getOrElse(Set.empty)
+  )
+
+  def toDtoRegistrationInfo(registrationOpen: Boolean, competitionId: String)(r: RegistrationInfo): RegistrationInfoDTO = {
+    new RegistrationInfoDTO()
+      .setId(competitionId)
+      .setRegistrationOpen(registrationOpen)
+      .setRegistrationGroups(r.registrationGroups.map { case (key, group) => key -> toDtoRegistrationGroup(group) }.asJava)
+      .setRegistrationPeriods(r.registrationPeriods.map { case (key, period) => key -> toDtoRegistrationPeriod(period) }.asJava)
+  }
+
+  def toDtoRegistrationGroup(r: RegistrationGroup): RegistrationGroupDTO = {
+    new RegistrationGroupDTO().setId(r.id).setDefaultGroup(r.isDefaultGroup)
+      .setRegistrationFee(r.registrationFee.map(toDtoRegistrationFee).getOrElse(new RegistrationFeeDTO()))
+      .setDisplayName(r.displayName.getOrElse("")).setCategories(r.categories.toArray)
+  }
+  def toDtoRegistrationPeriod(r: RegistrationPeriod): RegistrationPeriodDTO = {
+    new RegistrationPeriodDTO()
+      .setId(r.id)
+      .setName(r.name.getOrElse(""))
+      .setCompetitionId(r.competitionId)
+      .setEnd(r.end.orNull)
+      .setStart(r.start.orNull)
+      .setRegistrationGroupIds(r.registrationGroupIds.toArray)
+
+  }
+
+  def toDtoRegistrationFee(r: RegistrationFee): RegistrationFeeDTO = {
+    new RegistrationFeeDTO().setAmount(r.amount).setCurrency(r.currency).setRemainder(r.remainder.getOrElse(0))
+  }
 
   def mapCompetitionProperties[F[+_]: Monad](
     registrationOpen: Boolean

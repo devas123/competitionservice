@@ -6,6 +6,8 @@ import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
 import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, RegistrationGroupCategoriesAssignedEvent}
 
+import scala.jdk.CollectionConverters._
+
 object RegistrationGroupCategoriesAssignedProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
     state: CompetitionState
@@ -21,11 +23,10 @@ object RegistrationGroupCategoriesAssignedProc {
       payload     <- event.payload
       regInfo     <- state.registrationInfo
       groups      <- Option(regInfo.getRegistrationGroups)
-      targetGroup <- groups.find(_.getId == payload.getGroupId)
-      ind           = groups.indexOf(targetGroup)
+      targetGroup <- groups.asScala.get(payload.getGroupId)
       updatedGroup  = targetGroup.setCategories(payload.getCategories)
-      updatedGroups = (groups.slice(0, ind) :+ updatedGroup) ++ groups.slice(ind + 1, groups.length)
-      newState      = state.copy(registrationInfo = Some(regInfo.setRegistrationGroups(updatedGroups)))
+      updatedGroups = groups.asScala.toMap + (payload.getGroupId -> updatedGroup)
+      newState      = state.copy(registrationInfo = Some(regInfo.setRegistrationGroups(updatedGroups.asJava)))
     } yield newState
     Monad[F].pure(eventT)
   }

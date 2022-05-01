@@ -27,10 +27,10 @@ object DeleteRegistrationGroupProc {
         payload <- EitherT.fromOption(command.payload, NoPayloadError())
         groupExists = state
           .registrationInfo
-          .exists(_.getRegistrationGroups.exists(gr => payload.getGroupId == gr.getId))
+          .exists(_.getRegistrationGroups.containsKey(payload.getGroupId))
         periodExists = state
           .registrationInfo
-          .exists(_.getRegistrationPeriods.exists(per => payload.getPeriodId == per.getId))
+          .exists(_.getRegistrationPeriods.containsKey(payload.getPeriodId))
         event <-
           if (!groupExists) {
             EitherT.fromEither(

@@ -10,6 +10,8 @@ import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.Errors.NoPayloadError
 import compman.compsrv.model.events.payload.RegistrationInfoUpdatedPayload
 
+import scala.jdk.CollectionConverters._
+
 object RegistrationPeriodAddRegistrationGroupProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
     state: CompetitionState
@@ -24,19 +26,18 @@ object RegistrationPeriodAddRegistrationGroupProc {
     val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
       payload <- EitherT.fromOption(command.payload, NoPayloadError())
       periodExists = state.registrationInfo
-        .exists(_.getRegistrationPeriods.exists(per => payload.getPeriodId == per.getId))
+        .exists(_.getRegistrationPeriods.containsKey(payload.getPeriodId))
       groupId = payload.getGroupId
       _ <- assertETErr(
-        state.registrationInfo.exists(_.getRegistrationGroups.exists(_.getId == groupId)),
+        state.registrationInfo.exists(_.getRegistrationGroups.containsKey(groupId)),
         Errors.RegistrationGroupDoesNotExist(groupId)
       )
-      period = state.registrationInfo.flatMap(_.getRegistrationPeriods.find(per => payload.getPeriodId == per.getId))
+      period = state.registrationInfo.flatMap(_.getRegistrationPeriods.asScala.get(payload.getPeriodId))
         .get
       regInfo = state.registrationInfo.map { ri =>
         val newGroupIds = Option(period.getRegistrationGroupIds).getOrElse(Array.empty) :+ groupId
-        val periods = ri.getRegistrationPeriods.filter(_.getId != period.getId) :+
-          period.setRegistrationGroupIds(newGroupIds.distinct)
-        ri.setRegistrationPeriods(periods)
+        val periods = ri.getRegistrationPeriods.asScala.toMap + (period.getId -> period.setRegistrationGroupIds(newGroupIds.distinct))
+        ri.setRegistrationPeriods(periods.asJava)
       }
       event <-
         if (!periodExists) {

@@ -10,7 +10,9 @@ import org.bson.{BsonReader, BsonWriter}
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 import org.bson.codecs.configuration.CodecRegistries.fromCodecs
 import org.mongodb.scala.{MongoClient, MongoCollection, MongoDatabase}
+import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.Indexes
+import org.mongodb.scala.model.Updates.{set, unset}
 import zio.{Task, ZIO}
 
 import scala.reflect.ClassTag
@@ -75,6 +77,9 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
     ),
     fromProviders(classOf[CompetitionState]),
     fromProviders(classOf[Period]),
+    fromProviders(classOf[RegistrationPeriod]),
+    fromProviders(classOf[RegistrationGroup]),
+    fromProviders(classOf[RegistrationFee]),
     fromProviders(classOf[StageDescriptor]),
     fromProviders(classOf[StageResultDescriptor]),
     fromProviders(classOf[StageInputDescriptor]),
@@ -119,11 +124,13 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
   val competitionStateCollection: Task[MongoCollection[CompetitionState]] =
     createCollection(competitionStateCollectionName, idField)
   val competitorCollection: Task[MongoCollection[Competitor]] = createCollection(competitorsCollectionName, idField)
-  val fightCollection: Task[MongoCollection[Fight]]           = for {
+  val fightCollection: Task[MongoCollection[Fight]] = for {
     coll <- createCollection[Fight](fightsCollectionName, idField)
-    _ <- ZIO
-      .fromFuture(_ => coll.createIndex(fightsCollectionIndex).toFuture())
+    _    <- ZIO.fromFuture(_ => coll.createIndex(fightsCollectionIndex).toFuture())
   } yield coll
   val managedCompetitionCollection: Task[MongoCollection[ManagedCompetition]] =
     createCollection(managedCompetitionCollectionName, idField)
+
+  protected def setOption[T](name: String, opt: Option[T]): Bson = opt.map(v => set(name, v)).getOrElse(unset(name))
+
 }

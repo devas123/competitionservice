@@ -26,8 +26,8 @@ object AssignRegistrationGroupCategoriesProc {
       for {
         payload <- EitherT.fromOption(command.payload, NoPayloadError())
         allCategoriesExist = payload.getCategories.forall(b => state.categories.exists(_.contains(b)))
-        groupExists = state.registrationInfo.exists(_.getRegistrationGroups.exists(_.getId == payload.getGroupId))
-        periodExists = state.registrationInfo.exists(_.getRegistrationPeriods.exists(_.getId == payload.getPeriodId))
+        groupExists = state.registrationInfo.exists(_.getRegistrationGroups.containsKey(payload.getGroupId))
+        periodExists = state.registrationInfo.exists(_.getRegistrationPeriods.containsKey(payload.getPeriodId))
         event <- if (!allCategoriesExist) {
           EitherT.fromEither(Left[Errors.Error, EventDTO](Errors.CategoryDoesNotExist(payload.getCategories)))
         } else if (!groupExists) {

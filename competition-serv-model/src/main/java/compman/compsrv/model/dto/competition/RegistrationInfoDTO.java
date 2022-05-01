@@ -4,12 +4,14 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
+import java.util.Map;
+
 @Data
 @NoArgsConstructor
 @Accessors(chain = true)
 public class RegistrationInfoDTO {
     private String id;
     private Boolean registrationOpen;
-    private RegistrationPeriodDTO[] registrationPeriods;
-    private RegistrationGroupDTO[] registrationGroups;
+    private Map<String, RegistrationPeriodDTO> registrationPeriods;
+    private Map<String, RegistrationGroupDTO> registrationGroups;
 }

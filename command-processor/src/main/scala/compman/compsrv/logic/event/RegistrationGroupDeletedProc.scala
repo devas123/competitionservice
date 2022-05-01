@@ -7,6 +7,8 @@ import compman.compsrv.model.Payload
 import compman.compsrv.model.dto.competition.{RegistrationGroupDTO, RegistrationPeriodDTO}
 import compman.compsrv.model.event.Events.{Event, RegistrationGroupDeletedEvent}
 
+import scala.jdk.CollectionConverters._
+
 object RegistrationGroupDeletedProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
     state: CompetitionState
@@ -21,15 +23,15 @@ object RegistrationGroupDeletedProc {
     val eventT = for {
       payload    <- event.payload
       regInfo    <- state.registrationInfo
-      regPeriods <- Option(regInfo.getRegistrationPeriods).orElse(Some(Array.empty[RegistrationPeriodDTO]))
-      regGroups  <- Option(regInfo.getRegistrationGroups).orElse(Some(Array.empty[RegistrationGroupDTO]))
-      newPeriods = regPeriods.map(p => {
+      regPeriods <- Option(regInfo.getRegistrationPeriods).orElse(Some(Map.empty[String, RegistrationPeriodDTO].asJava))
+      regGroups  <- Option(regInfo.getRegistrationGroups).orElse(Some(Map.empty[String, RegistrationGroupDTO].asJava))
+      newPeriods = regPeriods.asScala.map { case (id, p) =>
         val regGrIds = Option(p.getRegistrationGroupIds).getOrElse(Array.empty[String])
-        p.setRegistrationGroupIds(regGrIds.filter(_ != payload.getGroupId))
-      })
-      newGroups = regGroups.filter(_.getId != payload.getGroupId)
+        (id, p.setRegistrationGroupIds(regGrIds.filter(_ != payload.getGroupId)))
+      }
+      newGroups = regGroups.asScala.toMap - payload.getGroupId
       newState = state.copy(registrationInfo =
-        Some(regInfo.setRegistrationGroups(newGroups).setRegistrationPeriods(newPeriods))
+        Some(regInfo.setRegistrationGroups(newGroups.asJava).setRegistrationPeriods(newPeriods.asJava))
       )
     } yield newState
     Monad[F].pure(eventT)
