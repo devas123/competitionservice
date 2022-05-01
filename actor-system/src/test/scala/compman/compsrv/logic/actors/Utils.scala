@@ -38,6 +38,15 @@ object Utils {
       }
     }
 
+  def unexpectedFailingActorBehavior(): ActorBehavior[TestEnvironment, Unit, Msg] = Behaviors.behavior[TestEnvironment, Unit, Msg]
+    .withReceive { (context, _, _, command, _) =>
+      command match {
+        case Stop => putStrLn("Stopping").unit *> context.stopSelf.unit
+        case Test => throw new Exception("Test fail.")
+        case Fail => putStrLn("Interrupting") *> ZIO.interrupt
+      }
+    }
+
   def mainActorBehavior(): ActorBehavior[TestEnvironment, Unit, Msg] = Behaviors.behavior[TestEnvironment, Unit, Msg]
     .withReceive { (context, _, _, command, _) =>
       command match {
@@ -100,6 +109,9 @@ object Utils {
 
   def createFailingActor(actorSystem: ActorSystem, name: String): RIO[TestEnvironment with Clock, ActorRef[Msg]] =
     actorSystem.make(name, ActorConfig(), (), failingActorBehavior())
+
+  def createUnexpectedFailingActor(actorSystem: ActorSystem, name: String): RIO[TestEnvironment with Clock, ActorRef[Msg]] =
+    actorSystem.make(name, ActorConfig(), (), unexpectedFailingActorBehavior())
 
   def createMainActor(actorSystem: ActorSystem, name: String): RIO[TestEnvironment with Clock, ActorRef[Msg]] =
     actorSystem.make(name, ActorConfig(), (), mainActorBehavior())
