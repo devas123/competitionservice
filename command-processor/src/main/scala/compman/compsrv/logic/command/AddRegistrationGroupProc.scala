@@ -8,8 +8,14 @@ import compman.compsrv.model.{Errors, Payload}
 import compman.compsrv.model.command.Commands.{AddRegistrationGroupCommand, Command}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import compman.compsrv.model.events.payload.RegistrationGroupAddedPayload
-import compman.compsrv.model.Errors.{NoPayloadError, RegistrationGroupAlreadyExistsError}
+import compman.compsrv.model.Errors.{
+  NoPayloadError,
+  RegistrationGroupAlreadyExistsError,
+  RegistrationGroupDefaultAlreadyExistsError
+}
 import compman.compsrv.model.dto.competition.RegistrationGroupDTO
+
+import scala.jdk.CollectionConverters._
 
 object AddRegistrationGroupProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
@@ -31,12 +37,17 @@ object AddRegistrationGroupProc {
       exists <- EitherT.right(Monad[F].pure(
         (for {
           regInfo <- state.registrationInfo
-          idSet = groupsWithIds.map(_.getId).toSet
+          idSet                = groupsWithIds.map(_.getId).toSet
+          defaultGroupsWithIds = groupsWithIds.filter(_.getDefaultGroup == true).map(_.getId).toSet
+          defaultGroupAlreadyExists = defaultGroupsWithIds.nonEmpty && regInfo.getRegistrationGroups != null &&
+            regInfo.getRegistrationGroups.asScala.exists { case (id, r) =>
+              !defaultGroupsWithIds.contains(id) && r.getDefaultGroup
+            }
           groups <- Option(regInfo.getRegistrationGroups)
-        } yield idSet.filter(groups.containsKey)).getOrElse(Set.empty[String])
+        } yield (idSet.filter(groups.containsKey), defaultGroupAlreadyExists)).getOrElse((Set.empty[String], false))
       ))
       event <-
-        if (exists.isEmpty) {
+        if (exists._1.isEmpty && !exists._2) {
           EitherT.liftF[F, Errors.Error, EventDTO](CommandEventOperations[F, EventDTO, EventType].create(
             `type` = EventType.REGISTRATION_GROUP_ADDED,
             competitorId = None,
@@ -44,9 +55,12 @@ object AddRegistrationGroupProc {
             categoryId = None,
             payload = Some(new RegistrationGroupAddedPayload(payload.getPeriodId, groupsWithIds.toArray))
           ))
+        } else if (exists._1.nonEmpty) {
+          EitherT(CommandEventOperations[F, EventDTO, EventType].error(RegistrationGroupAlreadyExistsError(exists._1)))
         } else {
-          EitherT(CommandEventOperations[F, EventDTO, EventType].error(RegistrationGroupAlreadyExistsError(exists)))
+          EitherT(CommandEventOperations[F, EventDTO, EventType].error(RegistrationGroupDefaultAlreadyExistsError()))
         }
+
     } yield Seq(event)
     eventT.value
   }

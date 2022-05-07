@@ -13,6 +13,7 @@ object Errors {
   final case class NoPayloadError() extends Error
   final case class RegistrationPeriodAlreadyExistsError(id: String) extends Error
   final case class RegistrationGroupAlreadyExistsError(id: Set[String]) extends Error
+  final case class RegistrationGroupDefaultAlreadyExistsError() extends Error
   final case class NoCategoryIdError() extends Error
   final case class NoCompetitionIdError() extends Error
   final case class NoCommandIdError() extends Error
