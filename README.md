@@ -8,7 +8,9 @@ TODO:
 
 
 Main modules:
-+ Query-processor 
++ Query-processor - Serves the query API
++ Command-processor - Receives commands from Kafka and produces the events
++ Gateway-service - Common Gateway for all operations
 
 To build docker images, run
 
