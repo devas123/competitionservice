@@ -333,8 +333,8 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitionStateCollection
         updates   = groups.map(group => set(s"registrationInfo.registrationGroups.${group.id}", group))
-        statement = collection.findOneAndUpdate(equal(idField, groups.head.competitionId), combine(updates: _*))
-        res <- RIO.fromFuture(_ => statement.toFuture()).unit
+        statement = collection.findOneAndUpdate(equal(idField, groups.headOption.map(_.competitionId).orNull), combine(updates: _*))
+        res <- RIO.fromFuture(_ => statement.toFuture()).when(groups.nonEmpty).unit
       } yield res
     }
 
@@ -366,7 +366,7 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitionStateCollection
         updates   = periods.map(period => set(s"registrationInfo.registrationPeriods.${period.id}", period))
-        statement = collection.findOneAndUpdate(equal(idField, periods.head.competitionId), combine(updates: _*))
+        statement = collection.findOneAndUpdate(equal(idField, periods.headOption.map(_.competitionId).orNull), combine(updates: _*))
         res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }

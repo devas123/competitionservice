@@ -40,7 +40,7 @@ public class SchemaGenerator {
             JsonNode jsonSchema = generator.generateJsonSchema(cls);
             String asJson = mapper.writeValueAsString(jsonSchema);
             Path output = Paths.get(outputPath);
-            if (!Files.exists(Paths.get(outputPath))) {
+            if (!Files.exists(output)) {
                 Files.createDirectories(output);
             }
             Files.writeString(Paths.get(outputPath, cls.getSimpleName().toLowerCase(Locale.ROOT) + ".json"), asJson, StandardOpenOption.CREATE);
