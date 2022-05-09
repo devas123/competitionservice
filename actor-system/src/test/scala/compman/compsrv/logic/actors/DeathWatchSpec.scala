@@ -44,13 +44,15 @@ object DeathWatchSpec extends DefaultRunnableSpec {
     case x: Terminated => putStrLn(s"Terminated msg: $x").unit *> context.stopSelf.unit
   })
 
+  private val timeDeltaPlus = 5
+
   override def spec: ZSpec[TestEnvironment, Any] = suite("DeathWatch")(
     testM("Should react to actor death with custom message.") {
       ActorSystem("test").use { actorSystem =>
         for {
           watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
           _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
-          _ <- ZIO.sleep((dieAfter + 3).seconds)
+          _ <- ZIO.sleep((dieAfter + timeDeltaPlus).seconds)
           msg <- actorSystem.select[Any]("watcher").isFailure
         } yield assertTrue(msg)
       }
@@ -59,10 +61,10 @@ object DeathWatchSpec extends DefaultRunnableSpec {
       ActorSystem("test").use { actorSystem =>
         for {
           watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
-          _ <- ZIO.sleep((dieAfter + 3).seconds)
+          _ <- ZIO.sleep((dieAfter + timeDeltaPlus).seconds)
           _ <- ZIO.debug("Creating watcher.")
           _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
-          _ <- ZIO.sleep(1.seconds)
+          _ <- ZIO.sleep(timeDeltaPlus.seconds)
           actorDoesNotExist <- actorSystem.select[Any]("watcher").isFailure
         } yield assertTrue(actorDoesNotExist)
       }
@@ -75,7 +77,7 @@ object DeathWatchSpec extends DefaultRunnableSpec {
           watcher <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
           _ <- ZIO.sleep((dieAfter - 1).seconds)
           _ <- watcher ! Unwatch
-          _ <- ZIO.sleep((dieAfter + 3).seconds)
+          _ <- ZIO.sleep((dieAfter + timeDeltaPlus).seconds)
           msg <- actorSystem.select[Any]("watcher")
         } yield assertTrue(msg != null)
       }
@@ -85,7 +87,7 @@ object DeathWatchSpec extends DefaultRunnableSpec {
         for {
           watchee <- createTestActor(actorSystem, "testActor", Option(dieAfter))
           _ <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, None))
-          _ <- ZIO.sleep((dieAfter + 3).seconds)
+          _ <- ZIO.sleep((dieAfter + timeDeltaPlus).seconds)
           msg <- actorSystem.select[Any]("watcher").isFailure
         } yield assertTrue(msg)
       }
