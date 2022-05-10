@@ -22,10 +22,8 @@ object CompetitorCategoryChangedProc {
     val eventT = for {
       payload <- event.payload
       fighterId <- Option(payload.getFighterId)
-      newCategoryId <- Option(payload.getNewCategoryId)
-      oldCategoryOpt = Option(payload.getOldCategoryId)
+      updatedCategories <- Option(payload.getNewCategories)
       competitor <- state.competitors.flatMap(_.get(fighterId))
-      updatedCategories = (oldCategoryOpt.map(c => competitor.getCategories.filter(_ != c)).getOrElse(competitor.getCategories) :+ newCategoryId).distinct
       newCompetitor = competitor.copy(categories = updatedCategories)
       newState = state.copy(competitors = state.competitors.map(_ + (competitor.getId -> newCompetitor)))
     } yield newState

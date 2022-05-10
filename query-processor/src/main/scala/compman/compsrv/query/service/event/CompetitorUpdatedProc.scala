@@ -29,7 +29,8 @@ object CompetitorUpdatedProc {
         academy = newComp.academy,
         categories = newComp.categories,
         userId = newComp.userId,
-        promo = newComp.promo
+        promo = newComp.promo,
+        registrationStatus = newComp.registrationStatus
       )
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateCompetitor(updated))
     } yield ()

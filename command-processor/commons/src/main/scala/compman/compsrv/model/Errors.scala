@@ -20,6 +20,7 @@ object Errors {
   final case class CompetitorAlreadyExists(id: String, competitor: CompetitorDTO) extends Error
   final case class CompetitorDoesNotExist(id: String) extends Error
   final case class CategoryAlreadyExists(id: String, category: CategoryDescriptorDTO) extends Error
+  final case class CategoryListIsEmpty() extends Error
   final case class CategoryDoesNotExist(ids: Array[String]) extends Error
   final case class BracketsAlreadyGeneratedForCategory(categoryId: String) extends Error
   final case class StageDoesNotExist(id: String) extends Error

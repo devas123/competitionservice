@@ -15,7 +15,7 @@ import java.io.Serializable;
 @CommandPayload(type = CommandType.CHANGE_COMPETITOR_CATEGORY_COMMAND)
 @EventPayload(type = EventType.COMPETITOR_CATEGORY_CHANGED)
 public class ChangeCompetitorCategoryPayload implements Serializable, Payload {
-    private String newCategoryId;
-    private String oldCategoryId;
+    private String[] newCategories;
+    private String[] oldCategories;
     private String fighterId;
 }
