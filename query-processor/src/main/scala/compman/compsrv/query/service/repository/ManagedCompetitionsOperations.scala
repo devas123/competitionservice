@@ -1,11 +1,9 @@
 package compman.compsrv.query.service.repository
 
-import com.mongodb.client.model.ReplaceOptions
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.query.model.ManagedCompetition
 import org.mongodb.scala.{MongoClient, Observable}
-import org.mongodb.scala.model.Filters
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.Updates.set
 import zio.{Ref, RIO}
