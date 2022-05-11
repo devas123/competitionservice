@@ -5,7 +5,6 @@ import compman.compsrv.model.commands.payload.CreateCompetitionPayload
 import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, RegistrationInfoDTO}
 import zio.{Task, ZIO}
 import zio.test._
-import zio.test.Assertion._
 
 object SerdeApiTest extends DefaultRunnableSpec {
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
@@ -27,8 +26,8 @@ object SerdeApiTest extends DefaultRunnableSpec {
         _ <- Task(println(new String(bytes)))
         deser = mapper.readValue(bytes, classOf[CommandDTO])
 
-      } yield assert(deser.getPayload != null)(isTrue) &&
-        assert(deser.getPayload.isInstanceOf[CreateCompetitionPayload])(isTrue) &&
-        assert(deser.getPayload.asInstanceOf[CreateCompetitionPayload].getProperties.getId == competitionId)(isTrue)
+      } yield assertTrue(deser.getPayload != null) &&
+        assertTrue(deser.getPayload.isInstanceOf[CreateCompetitionPayload]) &&
+        assertTrue(deser.getPayload.asInstanceOf[CreateCompetitionPayload].getProperties.getId == competitionId)
     })
 }

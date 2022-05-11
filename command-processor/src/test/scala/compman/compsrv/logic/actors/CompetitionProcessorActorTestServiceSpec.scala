@@ -52,7 +52,7 @@ object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
             (),
             CompetitionProcessorSupervisorActor.behavior(
               CommandProcessorOperationsFactory.test(snapshotsRef),
-              CommandProcessorConfig(None, "events", "notif"),
+              CommandProcessorConfig(None, "events", "competition-events", "academy-events"),
               kafkaSupervisor.ref
             )
           )

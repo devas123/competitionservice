@@ -18,7 +18,7 @@ object Libraries {
   val kafka = "2.8.1"
   val rocksdb: String = "7.1.2"
   val http4s: String = "1.0.0-M27"
-  val mongodb: String = "4.6.0"
+  val mongodb: String = "4.5.0"
   val testContainers = "1.17.1"
 
   val monocle: String = "3.1.0"

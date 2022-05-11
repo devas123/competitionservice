@@ -1,4 +1,4 @@
-import sbt._
+import sbt.{Def, _}
 import sbt.Keys._
 import sbtbuildinfo._
 import BuildInfoKeys._
@@ -25,14 +25,14 @@ object BuildHelper {
 
   private val extraOptions = Seq("-Xfatal-warnings")
 
-  def buildInfoSettings(packageName: String) =
+  def buildInfoSettings(packageName: String): Seq[Def.Setting[_ >: Seq[BuildInfoKey.Entry[_]] with String <: Object]] =
     Seq(
       buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion, isSnapshot),
       buildInfoPackage := packageName,
       buildInfoObject := "BuildInfo"
     )
 
-  def stdSettings(prjName: String, extra: Seq[String] = extraOptions) =
+  def stdSettings(prjName: String, extra: Seq[String] = extraOptions): Seq[Def.Setting[_ >: String with Task[Seq[String]] with Seq[ModuleID] with Task[IncOptions] <: Object]] =
     Seq(
       name := s"$prjName",
       ThisBuild / scalaVersion := Scala213,
