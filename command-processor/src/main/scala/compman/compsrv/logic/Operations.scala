@@ -2,13 +2,18 @@ package compman.compsrv.logic
 
 import cats.data.EitherT
 import cats.Monad
-import compman.compsrv.model.Mapping.{CommandMapping, EventMapping}
 import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.{info, CompetitionLogging}
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model._
+import compman.compsrv.model.Mapping.{CommandMapping, EventMapping}
 import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CompetitorDTO, RegistrationGroupDTO, RegistrationPeriodDTO}
+import compman.compsrv.model.dto.competition.{
+  CategoryDescriptorDTO,
+  CompetitorDTO,
+  RegistrationGroupDTO,
+  RegistrationPeriodDTO
+}
 import compman.compsrv.model.events.{EventDTO, EventType}
 import zio.Task
 
@@ -90,7 +95,28 @@ object Operations {
 
   }
 
-  def processCommand[F[
+  def processStatelessCommand[F[
+    +_
+  ]: Monad: CommandMapping: IdOperations: CompetitionLogging.Service: EventOperations: Interpreter](
+    command: CommandDTO
+  ): F[Either[Errors.Error, Seq[EventDTO]]] = {
+    import cats.implicits._
+    val either: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
+      _             <- EitherT.liftF(info(s"Received command: $command"))
+      mapped        <- EitherT.liftF(Mapping.mapCommandDto(command))
+      _             <- EitherT.liftF(info(s"Mapped command: $mapped"))
+      eventsToApply <- EitherT(StatelessCommandProcessors.process(mapped))
+      _             <- EitherT.liftF(info(s"Received events: $eventsToApply"))
+      enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) => {
+        ev.setLocalEventNumber(ind).setCorrelationId(command.getId)
+        ev
+      })
+      _ <- EitherT.liftF(info(s"Returning events: $enrichedEvents"))
+    } yield enrichedEvents
+    either.value
+  }
+
+  def processStatefulCommand[F[
     +_
   ]: Monad: CommandMapping: IdOperations: CompetitionLogging.Service: EventOperations: Interpreter](
     latestState: CompetitionState,
@@ -98,11 +124,11 @@ object Operations {
   ): F[Either[Errors.Error, Seq[EventDTO]]] = {
     import cats.implicits._
     val either: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
-      _ <- EitherT.liftF(info(s"Received command: $command"))
+      _             <- EitherT.liftF(info(s"Received command: $command"))
       mapped        <- EitherT.liftF(Mapping.mapCommandDto(command))
-      _ <- EitherT.liftF(info(s"Mapped command: $mapped"))
+      _             <- EitherT.liftF(info(s"Mapped command: $mapped"))
       eventsToApply <- EitherT(CompetitionCommandProcessors.process(mapped, latestState))
-      _ <- EitherT.liftF(info(s"Received events: $eventsToApply"))
+      _             <- EitherT.liftF(info(s"Received events: $eventsToApply"))
       n = latestState.revision
       enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) => {
         ev.setLocalEventNumber(n + ind).setCorrelationId(command.getId)
@@ -113,9 +139,7 @@ object Operations {
     either.value
   }
 
-  def applyEvent[F[
-    +_
-  ]: CompetitionLogging.Service: Monad: EventMapping: IdOperations: EventOperations](
+  def applyEvent[F[+_]: CompetitionLogging.Service: Monad: EventMapping: IdOperations: EventOperations](
     latestState: CompetitionState,
     event: EventDTO
   ): F[CompetitionState] = {

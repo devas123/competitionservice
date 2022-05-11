@@ -101,7 +101,7 @@ object CompetitionProcessorActor {
                   processResult <- Live.withContext(
                     _.annotate(LogAnnotation.CorrelationId, Option(cmd.getId).map(UUID.fromString))
                       .annotate(Annotations.competitionId, Option(cmd.getCompetitionId))
-                  ) { Operations.processCommand[LIO](state, cmd) }
+                  ) { Operations.processStatefulCommand[LIO](state, cmd) }
                   _ <- info(s"Processing done. ")
                   res <- processResult match {
                     case Left(value)  => info(s"Error: $value") *> ZIO.effect((Command.ignore, unit))

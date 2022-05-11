@@ -20,5 +20,5 @@ import java.io.Serializable;
 @CommandPayload(type = CommandType.REMOVE_ACADEMY_COMMAND)
 @EventPayload(type = EventType.ACADEMY_REMOVED)
 public class RemoveAcademyPayload implements Serializable, Payload {
-    private AcademyDTO academy;
+    private String academyId;
 }
