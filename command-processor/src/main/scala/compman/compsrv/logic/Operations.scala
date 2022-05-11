@@ -17,13 +17,6 @@ import java.util.UUID
 
 object Operations {
 
-  trait CrudOperations[F[+_], A, Context[_], DB] {
-    def add(ctx: Context[DB], entity: A): F[Unit]
-    def remove(ctx: Context[DB], id: String): F[Unit]
-    def get(ctx: Context[DB], id: String): F[A]
-    def exists(ctx: Context[DB], id: String): F[Boolean]
-  }
-
   trait IdOperations[F[_]] {
     def generateIdIfMissing(id: Option[String] = None): F[String]
     def uid: F[String]
@@ -108,7 +101,7 @@ object Operations {
       _ <- EitherT.liftF(info(s"Received command: $command"))
       mapped        <- EitherT.liftF(Mapping.mapCommandDto(command))
       _ <- EitherT.liftF(info(s"Mapped command: $mapped"))
-      eventsToApply <- EitherT(CommandProcessors.process(mapped, latestState))
+      eventsToApply <- EitherT(CompetitionCommandProcessors.process(mapped, latestState))
       _ <- EitherT.liftF(info(s"Received events: $eventsToApply"))
       n = latestState.revision
       enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) => {

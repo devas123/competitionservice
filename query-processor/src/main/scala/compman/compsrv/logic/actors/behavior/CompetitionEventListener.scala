@@ -132,7 +132,7 @@ object CompetitionEventListener {
         }
     }.withInit { (_, context, initState, _) =>
       for {
-        adapter <- context.messageAdapter[KafkaConsumerApi](fa => EventReceived(fa))
+        adapter <- context.messageAdapter[KafkaConsumerApi](fa => Some(EventReceived(fa)))
         groupId = s"query-service-$competitionId"
         _ <- kafkaSupervisorActor ! KafkaSupervisor.QueryAndSubscribe(topic, groupId, adapter)
       } yield (Seq(), Seq.empty[ApiCommand], initState)

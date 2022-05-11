@@ -8,7 +8,7 @@ import compman.compsrv.model.{Errors, Payload}
 import compman.compsrv.model.command.Commands.Command
 import compman.compsrv.model.events.EventDTO
 
-object CommandProcessors {
+object CompetitionCommandProcessors {
   import Operations._
 
   def process[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations: Interpreter, P <: Payload](

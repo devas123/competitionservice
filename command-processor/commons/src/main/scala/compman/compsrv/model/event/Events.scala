@@ -1,7 +1,7 @@
 package compman.compsrv.model.event
 
 import compman.compsrv.model.Payload
-import compman.compsrv.model.commands.payload.{CategoryRegistrationStatusChangePayload, ChangeCompetitorCategoryPayload, ChangeFightOrderPayload, CompetitorCategoryAddedPayload, SetFightResultPayload}
+import compman.compsrv.model.commands.payload._
 import compman.compsrv.model.events.payload._
 
 object Events {
@@ -316,6 +316,34 @@ object Events {
   ) extends Event[StageStatusUpdatedPayload] {
     override val competitorId: Option[String] = None
     override val fightId: Option[String]      = None
+  }
+
+  final case class AcademyAddedEvent(
+                                      payload: Option[AddAcademyPayload],
+                                      sequenceNumber: Long
+                                    ) extends Event[AddAcademyPayload] {
+    override val fightId: Option[String]      = None
+    override val competitionId: Option[String] = None
+    override val categoryId: Option[String] = None
+    override val competitorId: Option[String] = None
+  }
+  final case class AcademyUpdatedEvent(
+                                         payload: Option[UpdateAcademyPayload],
+                                         sequenceNumber: Long
+                                      ) extends Event[UpdateAcademyPayload] {
+    override val fightId: Option[String]      = None
+    override val competitionId: Option[String] = None
+    override val categoryId: Option[String] = None
+    override val competitorId: Option[String] = None
+  }
+  final case class AcademyRemovedEvent(
+                                         payload: Option[RemoveAcademyPayload],
+                                         sequenceNumber: Long
+                                      ) extends Event[RemoveAcademyPayload] {
+    override val fightId: Option[String]      = None
+    override val competitionId: Option[String] = None
+    override val categoryId: Option[String] = None
+    override val competitorId: Option[String] = None
   }
 
 }

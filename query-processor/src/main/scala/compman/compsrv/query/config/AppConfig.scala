@@ -22,13 +22,15 @@ final case class RoutingConfig(id: String, redirectUrl: String)
 object AppConfig {
   private val descriptor = DeriveConfigDescriptor.descriptor[AppConfig]
 
-  def load(): Task[(AppConfig, MongodbConfig)] = for {
-    rawConfig              <- ZIO.effect(ConfigFactory.load())
-    appConfigSource           <- ZIO.fromEither(TypesafeConfigSource.fromTypesafeConfig(rawConfig.getConfig("processor")))
-    mongoConfigSource           <- ZIO.fromEither(TypesafeConfigSource.fromTypesafeConfig(rawConfig.getConfig("mongo")))
-    mongoContextConfig <- ZIO.fromEither(read(MongodbConfig.descriptor.from(mongoConfigSource)))
-    config                 <- ZIO.fromEither(read(AppConfig.descriptor.from(appConfigSource)))
-  } yield (config, mongoContextConfig)
+  def load(): Task[(AppConfig, MongodbConfig)] = {
+    val rawConfig              = ZIO.effect(ConfigFactory.load())
+    for {
+      appConfigSource <- ZIO(TypesafeConfigSource.fromTypesafeConfig(rawConfig.map(_.getConfig("processor"))))
+      mongoConfigSource <- ZIO(TypesafeConfigSource.fromTypesafeConfig(rawConfig.map(_.getConfig("mongo"))))
+      mongoContextConfig <- read(MongodbConfig.descriptor.from(mongoConfigSource))
+      config <- read(AppConfig.descriptor.from(appConfigSource))
+    } yield (config, mongoContextConfig)
+  }
 }
 
 case class CompetitionEventListenerConfig(competitionNotificationsTopic: String)

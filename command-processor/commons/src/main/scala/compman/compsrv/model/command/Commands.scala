@@ -100,6 +100,30 @@ object Commands {
     override val competitorId: Option[String] = None
     override val fightId: Option[String]      = None
   }
+  final case class AddAcademyCommand(
+      payload: Option[AddAcademyPayload],
+  ) extends Command[AddAcademyPayload] {
+    override val fightId: Option[String]      = None
+    override val competitionId: Option[String] = None
+    override val categoryId: Option[String] = None
+    override val competitorId: Option[String] = None
+  }
+  final case class UpdateAcademyCommand(
+      payload: Option[UpdateAcademyPayload],
+  ) extends Command[UpdateAcademyPayload] {
+    override val fightId: Option[String]      = None
+    override val competitionId: Option[String] = None
+    override val categoryId: Option[String] = None
+    override val competitorId: Option[String] = None
+  }
+  final case class RemoveAcademyCommand(
+      payload: Option[RemoveAcademyPayload],
+  ) extends Command[RemoveAcademyPayload] {
+    override val fightId: Option[String]      = None
+    override val competitionId: Option[String] = None
+    override val categoryId: Option[String] = None
+    override val competitorId: Option[String] = None
+  }
   final case class DeleteRegistrationPeriodCommand(
       payload: Option[DeleteRegistrationPeriodPayload],
       competitionId: Option[String],

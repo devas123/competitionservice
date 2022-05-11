@@ -16,8 +16,7 @@ object AppConfig {
   private val descriptor = DeriveConfigDescriptor.descriptor[AppConfig]
 
   def load(): Task[AppConfig] = for {
-    rawConfig              <- ZIO.effect(ConfigFactory.load())
-    configSource           <- ZIO.fromEither(TypesafeConfigSource.fromTypesafeConfig(rawConfig.getConfig("gateway")))
-    config                 <- ZIO.fromEither(read(AppConfig.descriptor.from(configSource)))
+    configSource           <- ZIO(TypesafeConfigSource.fromTypesafeConfig(ZIO.effect(ConfigFactory.load()).map(_.getConfig("gateway"))))
+    config                 <- read(AppConfig.descriptor.from(configSource))
   } yield config
 }

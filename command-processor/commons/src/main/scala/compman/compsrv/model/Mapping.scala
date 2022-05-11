@@ -173,6 +173,15 @@ object Mapping {
               competitionId = Option(commandDTO.getCompetitionId),
               categoryId = Option(commandDTO.getCategoryId)
             )
+          case ADD_ACADEMY_COMMAND => Commands.AddAcademyCommand(
+            payload = Try { commandDTO.getPayload.asInstanceOf[AddAcademyPayload] }.toOption
+          )
+          case UPDATE_ACADEMY_COMMAND => Commands.UpdateAcademyCommand(
+            payload = Try { commandDTO.getPayload.asInstanceOf[UpdateAcademyPayload] }.toOption
+          )
+          case REMOVE_ACADEMY_COMMAND => Commands.RemoveAcademyCommand(
+            payload = Try { commandDTO.getPayload.asInstanceOf[RemoveAcademyPayload] }.toOption
+          )
         }
       }
 
@@ -395,6 +404,19 @@ object Mapping {
               Option(eventDto.getCategoryId),
               eventDto.getLocalEventNumber
             )
+
+          case ACADEMY_ADDED => AcademyAddedEvent(
+            payload = Try { eventDto.getPayload.asInstanceOf[AddAcademyPayload] }.toOption,
+            eventDto.getLocalEventNumber
+          )
+          case ACADEMY_UPDATED => AcademyUpdatedEvent(
+            payload = Try { eventDto.getPayload.asInstanceOf[UpdateAcademyPayload] }.toOption,
+            eventDto.getLocalEventNumber
+          )
+          case ACADEMY_REMOVED => AcademyRemovedEvent(
+            payload = Try { eventDto.getPayload.asInstanceOf[RemoveAcademyPayload] }.toOption,
+            eventDto.getLocalEventNumber
+          )
         }
       }
 

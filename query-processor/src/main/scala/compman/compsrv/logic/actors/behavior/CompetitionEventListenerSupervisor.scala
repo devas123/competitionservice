@@ -174,12 +174,12 @@ object CompetitionEventListenerSupervisor {
         for {
           mapper <- ZIO.effect(ObjectMapperFactory.createObjectMapper)
           adapter <- context.messageAdapter[KafkaConsumerApi] {
-            case KafkaSupervisor.QueryStarted()    => KafkaNotification("Query started.")
-            case KafkaSupervisor.QueryFinished()   => KafkaNotification("Query finished.")
-            case KafkaSupervisor.QueryError(error) => KafkaNotification(s"Query error. $error")
+            case KafkaSupervisor.QueryStarted()    => Some(KafkaNotification("Query started."))
+            case KafkaSupervisor.QueryFinished()   => Some(KafkaNotification("Query finished."))
+            case KafkaSupervisor.QueryError(error) => Some(KafkaNotification(s"Query error. $error"))
             case KafkaSupervisor.MessageReceived(_, record) =>
               val notif = mapper.readValue(record.value, classOf[CommandProcessorNotification])
-              ReceivedNotification(notif)
+              Some(ReceivedNotification(notif))
           }
           activeCompetitions <- ManagedCompetitionsOperations.getActiveCompetitions[LIO].foldM(
             err => logError(err) *> ZIO.effectTotal(List.empty),
