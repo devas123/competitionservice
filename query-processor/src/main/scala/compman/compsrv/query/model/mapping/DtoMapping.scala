@@ -8,6 +8,7 @@ import compman.compsrv.model.dto.schedule.{PeriodDTO, ScheduleEntryDTO, Schedule
 import compman.compsrv.model.dto.schedule
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
+import compman.compsrv.query.model.academy.FullAcademyInfo
 
 import java.util.Date
 import scala.jdk.CollectionConverters.MapHasAsJava
@@ -163,6 +164,14 @@ object DtoMapping {
       Option(dto.getName),
       dto.getRegistrationOpen
     ))
+  }
+
+  def mapAcademy(dto: FullAcademyInfoDTO): FullAcademyInfo = {
+    FullAcademyInfo(
+      dto.getId,
+      Option(dto.getName),
+      Option(dto.getCoaches).map(_.toSet).getOrElse(Set.empty)
+    )
   }
 
   def mapRestriction(d: CategoryRestrictionDTO): Restriction = {

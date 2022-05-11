@@ -4,11 +4,22 @@ import cats.Monad
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events
-import compman.compsrv.query.service.repository.{CompetitionQueryOperations, CompetitionUpdateOperations, FightQueryOperations, FightUpdateOperations}
+import compman.compsrv.query.service.repository.{
+  CompetitionQueryOperations,
+  CompetitionUpdateOperations,
+  FightQueryOperations,
+  FightUpdateOperations
+}
+import compman.compsrv.query.service.repository.AcademyOperations.AcademyService
 
 object EventProcessors {
-  def applyEvent[F[+_]: CompetitionLogging.Service: Monad: CompetitionQueryOperations: CompetitionUpdateOperations:
-  FightQueryOperations: FightUpdateOperations, P <: Payload](
+  def applyStatelessEvent[F[+_]: CompetitionLogging.Service: Monad: AcademyService, P <: Payload](
+    event: Events.Event[P]
+  ): F[Unit] = List(AcademyAddedProc(), AcademyRemovedProc(), AcademyUpdatedProc()).reduce((a, b) => a.orElse(b))
+    .apply(event)
+  def applyEvent[F[
+    +_
+  ]: CompetitionLogging.Service: Monad: CompetitionQueryOperations: CompetitionUpdateOperations: FightQueryOperations: FightUpdateOperations, P <: Payload](
     event: Events.Event[P]
   ): F[Unit] = List(
     FightOrderChangedProc(),
