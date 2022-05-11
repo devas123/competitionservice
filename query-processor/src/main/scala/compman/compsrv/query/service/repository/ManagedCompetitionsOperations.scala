@@ -57,21 +57,9 @@ object ManagedCompetitionsOperations {
         res <- runQuery(select)
       } yield res
     }
-    override def addManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {
-      for {
-        collection <- managedCompetitionCollection
-        insert = collection.replaceOne(Filters.eq(idField, competition.id), competition, new ReplaceOptions().upsert(true))
-        _ <- RIO.fromFuture(_ => insert.toFuture())
-      } yield ()
-    }
+    override def addManagedCompetition(competition: ManagedCompetition): LIO[Unit] = insertElement(managedCompetitionCollection)(competition.id, competition)
 
-    override def deleteManagedCompetition(id: String): LIO[Unit] = {
-      for {
-        collection <- managedCompetitionCollection
-        delete = collection.deleteMany(equal(idField, id))
-        _ <- RIO.fromFuture(_ => delete.toFuture())
-      } yield ()
-    }
+    override def deleteManagedCompetition(id: String): LIO[Unit] = deleteById(managedCompetitionCollection)(id)
 
 
     override def updateManagedCompetition(competition: ManagedCompetition): LIO[Unit] = {

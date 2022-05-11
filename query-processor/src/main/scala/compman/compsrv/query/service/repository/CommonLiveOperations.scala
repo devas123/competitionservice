@@ -1,19 +1,22 @@
 package compman.compsrv.query.service.repository
 
-import com.mongodb.client.model.IndexOptions
+import com.mongodb.client.model.{IndexOptions, ReplaceOptions}
+import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.dto.brackets._
 import compman.compsrv.model.dto.competition.{CategoryRestrictionType, CompetitionStatus, CompetitorRegistrationStatus, FightStatus}
 import compman.compsrv.model.dto.schedule.{ScheduleEntryType, ScheduleRequirementType}
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
+import compman.compsrv.query.model.academy.FullAcademyInfo
 import org.bson.{BsonReader, BsonWriter}
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 import org.bson.codecs.configuration.CodecRegistries.fromCodecs
 import org.mongodb.scala.{MongoClient, MongoCollection, MongoDatabase}
 import org.mongodb.scala.bson.conversions.Bson
-import org.mongodb.scala.model.Indexes
+import org.mongodb.scala.model.Filters.equal
+import org.mongodb.scala.model.{Filters, Indexes}
 import org.mongodb.scala.model.Updates.{set, unset}
-import zio.{Task, ZIO}
+import zio.{RIO, Task, ZIO}
 
 import scala.reflect.ClassTag
 
@@ -23,6 +26,7 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
   private final val competitorsCollectionName        = "competitor"
   private final val fightsCollectionName             = "fight"
   private final val managedCompetitionCollectionName = "managed_competition"
+  private final val academyCollectionName = "academy"
 
   import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
   import org.mongodb.scala.bson.codecs.Macros._
@@ -75,6 +79,7 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
       competitorRegistrationStatusCodec,
       fightStatusCodec
     ),
+    fromProviders(classOf[FullAcademyInfo]),
     fromProviders(classOf[CompetitionState]),
     fromProviders(classOf[Period]),
     fromProviders(classOf[RegistrationPeriod]),
@@ -130,7 +135,22 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
   } yield coll
   val managedCompetitionCollection: Task[MongoCollection[ManagedCompetition]] =
     createCollection(managedCompetitionCollectionName, idField)
+  val academyCollection: Task[MongoCollection[FullAcademyInfo]] =
+    createCollection(academyCollectionName, idField)
 
   protected def setOption[T](name: String, opt: Option[T]): Bson = opt.map(v => set(name, v)).getOrElse(unset(name))
-
+  protected def deleteById[T](collectionTask: Task[MongoCollection[T]])(id: String): LIO[Unit] = {
+    for {
+      collection <- collectionTask
+      delete = collection.deleteMany(equal(idField, id))
+      _ <- RIO.fromFuture(_ => delete.toFuture())
+    } yield ()
+  }
+  protected def insertElement[T](collectionTask: Task[MongoCollection[T]])(id: String, element: T): LIO[Unit] = {
+    for {
+      collection <- collectionTask
+      insert = collection.replaceOne(Filters.eq(idField, id), element, new ReplaceOptions().upsert(true))
+      _ <- RIO.fromFuture(_ => insert.toFuture())
+    } yield ()
+  }
 }
