@@ -6,7 +6,7 @@ import zio.config.magnolia.DeriveConfigDescriptor
 import zio.config.read
 import zio.config.typesafe.TypesafeConfigSource
 
-final case class AppConfig(competitionEventListener: CompetitionEventListenerConfig, consumer: ConsumerConfig)
+final case class AppConfig(competitionEventListener: CompetitionEventListenerConfig, statelessEventListener: StatelessEventListenerConfig, consumer: ConsumerConfig)
 
 final case class ConsumerConfig(bootstrapServers: String, groupId: String) {
   def brokers: List[String] = bootstrapServers.split(",").toList
@@ -34,3 +34,4 @@ object AppConfig {
 }
 
 case class CompetitionEventListenerConfig(competitionNotificationsTopic: String)
+case class StatelessEventListenerConfig(academyNotificationsTopic: String, commandCallbackTopic: String)

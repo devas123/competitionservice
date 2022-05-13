@@ -108,6 +108,9 @@ object CompetitionHttpApiService {
 
     case GET -> Root / "competition" / id / "competitor" / competitorId =>
       sendApiCommandAndReturnResponse(apiActor, GetCompetitor(id, competitorId))
+
+    case GET -> Root / "competition" / id / "competitor" / competitorId =>
+      sendApiCommandAndReturnResponse(apiActor, GetCompetitor(id, competitorId))
   }
 
   private def sendApiCommandAndReturnResponse[Resp](
