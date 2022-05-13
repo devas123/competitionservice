@@ -5,13 +5,8 @@ import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaTopicConfig}
 import compman.compsrv.logic.actors.ActorSystem
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.logic.actors.behavior.{
-  CompetitionEventListener,
-  CompetitionEventListenerSupervisor,
-  StatelessEventListener,
-  WebsocketConnectionSupervisor
-}
-import compman.compsrv.logic.actors.behavior.api.CompetitionApiActor
+import compman.compsrv.logic.actors.behavior.{CompetitionEventListener, CompetitionEventListenerSupervisor, StatelessEventListener, WebsocketConnectionSupervisor}
+import compman.compsrv.logic.actors.behavior.api.{AcademyApiActor, CompetitionApiActor}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.logError
 import compman.compsrv.query.config.AppConfig
@@ -81,6 +76,12 @@ object QueryServiceMain extends zio.App {
           CompetitionApiActor.initialState,
           CompetitionApiActor.behavior[ZEnv](CompetitionApiActor.Live(mongoDbSession, mongodbConfig))
         )
+        academyApiActor <- actorSystem.make(
+          "academyApiActor",
+          ActorConfig(),
+          AcademyApiActor.initialState,
+          AcademyApiActor.behavior[ZEnv](AcademyApiActor.Live(mongoDbSession, mongodbConfig))
+        )
         _ <- actorSystem.make(
           "stateless-event-listener",
           ActorConfig(),
@@ -101,7 +102,7 @@ object QueryServiceMain extends zio.App {
         exitCode <- effect.Ref.of[ServiceIO, effect.ExitCode](effect.ExitCode.Success)
         serviceVersion = "v1"
         httpApp = Router[ServiceIO](
-          s"/query/$serviceVersion"    -> CompetitionHttpApiService.service(competitionApiActor),
+          s"/query/$serviceVersion"    -> CompetitionHttpApiService.service(competitionApiActor, academyApiActor),
           s"/query/$serviceVersion/ws" -> WebsocketService.wsRoutes(webSocketSupervisor)
         ).orNotFound
         srv <- ZIO.runtime[ZEnv] *> {

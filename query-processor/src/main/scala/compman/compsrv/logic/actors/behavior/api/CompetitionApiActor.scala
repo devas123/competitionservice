@@ -60,20 +60,20 @@ object CompetitionApiActor {
     implicit val managedCompetitionService: ManagedCompetitionService[LIO]
   }
 
-  sealed trait ApiCommand {
+  sealed trait CompetitionApiCommand {
     type responseType
     val replyTo: ActorRef[responseType]
   }
 
   final case class GetDefaultRestrictions(override val replyTo: ActorRef[List[CategoryRestrictionDTO]])
-      extends ApiCommand {
+      extends CompetitionApiCommand {
     override type responseType = List[CategoryRestrictionDTO]
   }
   final case class GetDefaultFightResults(override val replyTo: ActorRef[List[FightResultOptionDTO]])
-      extends ApiCommand {
+      extends CompetitionApiCommand {
     override type responseType = List[FightResultOptionDTO]
   }
-  final case class GetAllCompetitions(override val replyTo: ActorRef[List[ManagedCompetition]]) extends ApiCommand {
+  final case class GetAllCompetitions(override val replyTo: ActorRef[List[ManagedCompetition]]) extends CompetitionApiCommand {
     override type responseType = List[ManagedCompetition]
   }
 
@@ -82,22 +82,22 @@ object CompetitionApiActor {
     idTrees: List[AdjacencyList],
     restrictionNames: List[String]
   )(override val replyTo: ActorRef[List[CategoryDescriptorDTO]])
-      extends ApiCommand {
+      extends CompetitionApiCommand {
     override type responseType = List[CategoryDescriptorDTO]
   }
 
   final case class GetCompetitionProperties(id: String)(
     override val replyTo: ActorRef[Option[CompetitionPropertiesDTO]]
-  ) extends ApiCommand {
+  ) extends CompetitionApiCommand {
     override type responseType = Option[CompetitionPropertiesDTO]
   }
 
   final case class GetCompetitionInfoTemplate(competitionId: String)(override val replyTo: ActorRef[String])
-      extends ApiCommand {
+      extends CompetitionApiCommand {
     override type responseType = String
   }
 
-  final case class GetSchedule(competitionId: String)(override val replyTo: ActorRef[ScheduleDTO]) extends ApiCommand {
+  final case class GetSchedule(competitionId: String)(override val replyTo: ActorRef[ScheduleDTO]) extends CompetitionApiCommand {
     override type responseType = ScheduleDTO
   }
 
@@ -107,105 +107,105 @@ object CompetitionApiActor {
     searchString: Option[String],
     pagination: Option[Pagination]
   )(override val replyTo: ActorRef[PageResponse[CompetitorDTO]])
-      extends ApiCommand {
+      extends CompetitionApiCommand {
     override type responseType = PageResponse[CompetitorDTO]
   }
 
   final case class GetCompetitor(competitionId: String, competitorId: String)(
     override val replyTo: ActorRef[Option[CompetitorDTO]]
-  ) extends ApiCommand {
+  ) extends CompetitionApiCommand {
     override type responseType = Option[CompetitorDTO]
   }
 
   final case class GetDashboard(competitionId: String)(override val replyTo: ActorRef[List[Period]])
-      extends ApiCommand {
+      extends CompetitionApiCommand {
     override type responseType = List[Period]
   }
 
   final case class GetMats(competitionId: String)(override val replyTo: ActorRef[List[MatDescriptionDTO]])
-      extends ApiCommand {
+      extends CompetitionApiCommand {
     override type responseType = List[MatDescriptionDTO]
   }
 
   final case class GetPeriodMats(competitionId: String, periodId: String)(
     override val replyTo: ActorRef[MatsQueryResult]
-  ) extends ApiCommand {
+  ) extends CompetitionApiCommand {
     override type responseType = MatsQueryResult
   }
 
   final case class GetMat(competitionId: String, matId: String)(
     override val replyTo: ActorRef[Option[MatDescriptionDTO]]
-  ) extends ApiCommand {
+  ) extends CompetitionApiCommand {
     override type responseType = Option[MatDescriptionDTO]
   }
 
   final case class GetMatFights(competitionId: String, matId: String)(
     override val replyTo: ActorRef[MatFightsQueryResult]
-  ) extends ApiCommand {
+  ) extends CompetitionApiCommand {
     override type responseType = MatFightsQueryResult
   }
 
   final case class GetRegistrationInfo(competitionId: String)(
     override val replyTo: ActorRef[Option[RegistrationInfoDTO]]
-  ) extends ApiCommand {
+  ) extends CompetitionApiCommand {
     override type responseType = Option[RegistrationInfoDTO]
   }
 
   final case class GetCategories(competitionId: String)(override val replyTo: ActorRef[List[CategoryStateDTO]])
-      extends ApiCommand {
+      extends CompetitionApiCommand {
     override type responseType = List[CategoryStateDTO]
   }
 
   final case class GetFightById(competitionId: String, categoryId: String, fightId: String)(
     override val replyTo: ActorRef[Option[FightDescriptionDTO]]
-  ) extends ApiCommand {
+  ) extends CompetitionApiCommand {
     override type responseType = Option[FightDescriptionDTO]
   }
   final case class GetFightIdsByCategoryIds(competitionId: String)(
     override val replyTo: ActorRef[Option[Map[String, List[String]]]]
-  ) extends ApiCommand {
+  ) extends CompetitionApiCommand {
     override type responseType = Option[Map[String, List[String]]]
   }
 
   final case class GetCategory(competitionId: String, categoryId: String)(
     override val replyTo: ActorRef[Option[CategoryStateDTO]]
-  ) extends ApiCommand {
+  ) extends CompetitionApiCommand {
     override type responseType = Option[CategoryStateDTO]
   }
 
   final case class GetPeriodFightsByMats(competitionId: String, periodId: String, limit: Int)(
     override val replyTo: ActorRef[Map[String, List[String]]]
-  ) extends ApiCommand {
+  ) extends CompetitionApiCommand {
     override type responseType = Map[String, List[String]]
   }
 
   final case class GetFightResulOptions(competitionId: String, categoryId: String, stageId: String)(
     override val replyTo: ActorRef[List[FightResultOptionDTO]]
-  ) extends ApiCommand {
+  ) extends CompetitionApiCommand {
     override type responseType = List[FightResultOptionDTO]
   }
 
   final case class GetStagesForCategory(competitionId: String, categoryId: String)(
     override val replyTo: ActorRef[List[StageDescriptorDTO]]
-  ) extends ApiCommand {
+  ) extends CompetitionApiCommand {
     override type responseType = List[StageDescriptorDTO]
   }
   final case class GetStageById(competitionId: String, categoryId: String, stageId: String)(
     override val replyTo: ActorRef[Option[StageDescriptorDTO]]
-  ) extends ApiCommand {
+  ) extends CompetitionApiCommand {
     override type responseType = Option[StageDescriptorDTO]
   }
   final case class GetStageFights(competitionId: String, categoryId: String, stageId: String)(
     override val replyTo: ActorRef[List[FightDescriptionDTO]]
-  ) extends ApiCommand {
+  ) extends CompetitionApiCommand {
     override type responseType = List[FightDescriptionDTO]
   }
 
   case class ActorState()
   val initialState: ActorState = ActorState()
   import Behaviors._
-  def behavior[R: Tag](ctx: ActorContext): ActorBehavior[R with Logging, ActorState, ApiCommand] = Behaviors
-    .behavior[R with Logging, ActorState, ApiCommand].withReceive { (_, _, state, command, _) =>
+  def behavior[R: Tag](ctx: ActorContext): ActorBehavior[R with Logging, ActorState, CompetitionApiCommand] = Behaviors
+    .behavior[R with Logging, ActorState, CompetitionApiCommand].withReceive { (_, _, state, command, _) =>
       {
         import cats.implicits._
         import ctx._

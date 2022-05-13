@@ -167,11 +167,7 @@ object DtoMapping {
   }
 
   def mapAcademy(dto: FullAcademyInfoDTO): FullAcademyInfo = {
-    FullAcademyInfo(
-      dto.getId,
-      Option(dto.getName),
-      Option(dto.getCoaches).map(_.toSet).getOrElse(Set.empty)
-    )
+    FullAcademyInfo(dto.getId, Option(dto.getName), Option(dto.getCoaches).map(_.toSet))
   }
 
   def mapRestriction(d: CategoryRestrictionDTO): Restriction = {
@@ -430,6 +426,9 @@ object DtoMapping {
   def toDtoMat(periodId: String)(o: Mat): MatDescriptionDTO = new MatDescriptionDTO().setId(o.matId).setName(o.name)
     .setMatOrder(o.matOrder).setPeriodId(periodId)
 
+  def toDtoFullAcademyInfo(o: FullAcademyInfo): FullAcademyInfoDTO = new FullAcademyInfoDTO().setId(o.id)
+    .setName(o.name.orNull).setCoaches(o.coaches.map(_.toArray).orNull)
+
   def mapRegistrationPeriod(competitionId: String)(r: RegistrationPeriodDTO): RegistrationPeriod = RegistrationPeriod(
     competitionId,
     r.getId,
@@ -452,12 +451,14 @@ object DtoMapping {
     categories = Option(r.getCategories).map(_.toSet).getOrElse(Set.empty)
   )
 
-  def toDtoRegistrationInfo(registrationOpen: Boolean, competitionId: String)(r: RegistrationInfo): RegistrationInfoDTO = {
-    new RegistrationInfoDTO()
-      .setId(competitionId)
-      .setRegistrationOpen(registrationOpen)
-      .setRegistrationGroups(r.registrationGroups.map { case (key, group) => key -> toDtoRegistrationGroup(group) }.asJava)
-      .setRegistrationPeriods(r.registrationPeriods.map { case (key, period) => key -> toDtoRegistrationPeriod(period) }.asJava)
+  def toDtoRegistrationInfo(registrationOpen: Boolean, competitionId: String)(
+    r: RegistrationInfo
+  ): RegistrationInfoDTO = {
+    new RegistrationInfoDTO().setId(competitionId).setRegistrationOpen(registrationOpen)
+      .setRegistrationGroups(r.registrationGroups.map { case (key, group) => key -> toDtoRegistrationGroup(group) }
+        .asJava).setRegistrationPeriods(r.registrationPeriods.map { case (key, period) =>
+        key -> toDtoRegistrationPeriod(period)
+      }.asJava)
   }
 
   def toDtoRegistrationGroup(r: RegistrationGroup): RegistrationGroupDTO = {
@@ -466,13 +467,8 @@ object DtoMapping {
       .setDisplayName(r.displayName.getOrElse("")).setCategories(r.categories.toArray)
   }
   def toDtoRegistrationPeriod(r: RegistrationPeriod): RegistrationPeriodDTO = {
-    new RegistrationPeriodDTO()
-      .setId(r.id)
-      .setName(r.name.getOrElse(""))
-      .setCompetitionId(r.competitionId)
-      .setEnd(r.end.orNull)
-      .setStart(r.start.orNull)
-      .setRegistrationGroupIds(r.registrationGroupIds.toArray)
+    new RegistrationPeriodDTO().setId(r.id).setName(r.name.getOrElse("")).setCompetitionId(r.competitionId)
+      .setEnd(r.end.orNull).setStart(r.start.orNull).setRegistrationGroupIds(r.registrationGroupIds.toArray)
 
   }
 

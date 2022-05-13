@@ -3,6 +3,7 @@ package compman.compsrv.query.service
 import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.logic.actors.behavior.api.CompetitionApiActor._
 import compman.compsrv.logic.actors.ActorRef
+import compman.compsrv.logic.actors.behavior.api.AcademyApiActor.{AcademyApiCommand, GetAcademies}
 import compman.compsrv.model.commands.payload.AdjacencyList
 import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CategoryRestrictionDTO}
 import compman.compsrv.query.serde.ObjectMapperFactory
@@ -48,13 +49,13 @@ object CompetitionHttpApiService {
 
   import dsl._
 
-  def service(apiActor: ActorRef[ApiCommand]): HttpRoutes[ServiceIO] = HttpRoutes.of[ServiceIO] {
+  def service(competitionApiActor: ActorRef[CompetitionApiCommand], academyApiActor: ActorRef[AcademyApiCommand]): HttpRoutes[ServiceIO] = HttpRoutes.of[ServiceIO] {
     case req @ POST -> Root / "generatecategories" / _ => for {
         body <- req.body.covary[ServiceIO].chunkAll.compile.toList
         bytes   = body.flatMap(_.toList).toArray
         request = decoder.readValue(bytes, classOf[GenerateCategoriesFromRestrictionsRequest])
-        res <- sendApiCommandAndReturnResponse[List[CategoryDescriptorDTO]](
-          apiActor,
+        res <- sendApiCommandAndReturnResponse[List[CategoryDescriptorDTO], CompetitionApiCommand](
+          competitionApiActor,
           replyTo => GenerateCategoriesFromRestrictions(
             restrictions = request.restrictions,
             idTrees = request.idTrees,
@@ -62,40 +63,40 @@ object CompetitionHttpApiService {
           )(replyTo)
         )
       } yield res
-    case GET -> Root / "defaultfightresults" => sendApiCommandAndReturnResponse(apiActor, GetDefaultFightResults)
-    case GET -> Root / "defaultrestrictions" => sendApiCommandAndReturnResponse(apiActor, GetDefaultRestrictions)
-    case GET -> Root / "competition"         => sendApiCommandAndReturnResponse(apiActor, GetAllCompetitions)
-    case GET -> Root / "competition" / id    => sendApiCommandAndReturnResponse(apiActor, GetCompetitionProperties(id))
+    case GET -> Root / "defaultfightresults" => sendApiCommandAndReturnResponse(competitionApiActor, GetDefaultFightResults)
+    case GET -> Root / "defaultrestrictions" => sendApiCommandAndReturnResponse(competitionApiActor, GetDefaultRestrictions)
+    case GET -> Root / "competition"         => sendApiCommandAndReturnResponse(competitionApiActor, GetAllCompetitions)
+    case GET -> Root / "competition" / id    => sendApiCommandAndReturnResponse(competitionApiActor, GetCompetitionProperties(id))
     case GET -> Root / "competition" / id / "fight" =>
-      sendApiCommandAndReturnResponse(apiActor, GetFightIdsByCategoryIds(id))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetFightIdsByCategoryIds(id))
     case GET -> Root / "competition" / id / "category" / categoryId / "fight" / fightId =>
-      sendApiCommandAndReturnResponse(apiActor, GetFightById(id, categoryId, fightId))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetFightById(id, categoryId, fightId))
     case GET -> Root / "competition" / id / "infotemplate" =>
-      sendApiCommandAndReturnResponse(apiActor, GetCompetitionInfoTemplate(id))
-    case GET -> Root / "competition" / id / "schedule"  => sendApiCommandAndReturnResponse(apiActor, GetSchedule(id))
-    case GET -> Root / "competition" / id / "dashboard" => sendApiCommandAndReturnResponse(apiActor, GetDashboard(id))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetCompetitionInfoTemplate(id))
+    case GET -> Root / "competition" / id / "schedule"  => sendApiCommandAndReturnResponse(competitionApiActor, GetSchedule(id))
+    case GET -> Root / "competition" / id / "dashboard" => sendApiCommandAndReturnResponse(competitionApiActor, GetDashboard(id))
     case GET -> Root / "competition" / id / "reginfo" =>
-      sendApiCommandAndReturnResponse(apiActor, GetRegistrationInfo(id))
-    case GET -> Root / "competition" / id / "category" => sendApiCommandAndReturnResponse(apiActor, GetCategories(id))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetRegistrationInfo(id))
+    case GET -> Root / "competition" / id / "category" => sendApiCommandAndReturnResponse(competitionApiActor, GetCategories(id))
     case GET -> Root / "competition" / id / "category" / categoryId =>
-      sendApiCommandAndReturnResponse(apiActor, GetCategory(id, categoryId))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetCategory(id, categoryId))
     case GET -> Root / "competition" / id / "category" / categoryId / "stage" =>
-      sendApiCommandAndReturnResponse(apiActor, GetStagesForCategory(id, categoryId))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetStagesForCategory(id, categoryId))
     case GET -> Root / "competition" / id / "category" / categoryId / "stage" / stageId =>
-      sendApiCommandAndReturnResponse(apiActor, GetStageById(id, categoryId, stageId))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetStageById(id, categoryId, stageId))
     case GET -> Root / "competition" / id / "category" / categoryId / "stage" / stageId / "fight" =>
-      sendApiCommandAndReturnResponse(apiActor, GetStageFights(id, categoryId, stageId))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetStageFights(id, categoryId, stageId))
     case GET -> Root / "competition" / id / "category" / categoryId / "stage" / stageId / "resultoptions" =>
-      sendApiCommandAndReturnResponse(apiActor, GetFightResulOptions(id, categoryId, stageId))
-    case GET -> Root / "competition" / id / "mat" => sendApiCommandAndReturnResponse(apiActor, GetMats(id))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetFightResulOptions(id, categoryId, stageId))
+    case GET -> Root / "competition" / id / "mat" => sendApiCommandAndReturnResponse(competitionApiActor, GetMats(id))
     case GET -> Root / "competition" / id / "mat" / matId =>
-      sendApiCommandAndReturnResponse(apiActor, GetMat(id, matId))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetMat(id, matId))
     case GET -> Root / "competition" / id / "mat" / matId / "fight" =>
-      sendApiCommandAndReturnResponse(apiActor, GetMatFights(id, matId))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetMatFights(id, matId))
     case GET -> Root / "competition" / id / "period" / periodId / "fight" =>
-      sendApiCommandAndReturnResponse(apiActor, GetPeriodFightsByMats(id, periodId, 10))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetPeriodFightsByMats(id, periodId, 10))
     case GET -> Root / "competition" / id / "period" / periodId / "mat" =>
-      sendApiCommandAndReturnResponse(apiActor, GetPeriodMats(id, periodId))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetPeriodMats(id, periodId))
     case GET -> Root / "competition" / id / "competitor" :?
         QueryParameters.SearchStringParamMatcher(maybeSearchString) +& QueryParameters.StartAtParamMatcher(
           maybeStartAt
@@ -104,18 +105,20 @@ object CompetitionHttpApiService {
         s   <- maybeStartAt
         lim <- maybeLimit
       } yield Pagination(s, lim, 0)
-      sendApiCommandAndReturnResponse(apiActor, GetCompetitors(id, maybeCategoryId, maybeSearchString, pagination))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetCompetitors(id, maybeCategoryId, maybeSearchString, pagination))
 
     case GET -> Root / "competition" / id / "competitor" / competitorId =>
-      sendApiCommandAndReturnResponse(apiActor, GetCompetitor(id, competitorId))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetCompetitor(id, competitorId))
 
     case GET -> Root / "competition" / id / "competitor" / competitorId =>
-      sendApiCommandAndReturnResponse(apiActor, GetCompetitor(id, competitorId))
+      sendApiCommandAndReturnResponse(competitionApiActor, GetCompetitor(id, competitorId))
+    case GET -> Root / "academy" =>
+      sendApiCommandAndReturnResponse(academyApiActor, GetAcademies(None, None))
   }
 
-  private def sendApiCommandAndReturnResponse[Resp](
-    apiActor: ActorRef[ApiCommand],
-    apiCommand: ActorRef[Resp] => ApiCommand
+  private def sendApiCommandAndReturnResponse[Resp, Command](
+    apiActor: ActorRef[Command],
+    apiCommand: ActorRef[Resp] => Command
   ): ServiceIO[Response[ServiceIO]] = {
     import compman.compsrv.logic.actors.patterns.Patterns._
     for {
