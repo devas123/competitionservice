@@ -1,12 +1,14 @@
 package compman.compsrv.logic.actors
 
+import cats.implicits._
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, Subscribe}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, PublishMessage, Subscribe}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.Operations
 import compman.compsrv.logic.logging.CompetitionLogging.{LIO, Live}
+import compman.compsrv.logic.logging.info
+import compman.compsrv.model.callback.{CommandCallbackDTO, CommandExecutionResult, ErrorCallbackDTO}
 import compman.compsrv.model.commands.CommandDTO
-import zio.Tag
 import zio.clock.Clock
 import zio.console.Console
 import zio.logging.{LogAnnotation, Logging}
@@ -18,23 +20,38 @@ object StatelessCommandProcessor {
   import compman.compsrv.CommandProcessorMain.Live._
   import zio.interop.catz._
 
-  type AcademyCommandProcessorSupervisorEnv[Env] = Env with Logging with Clock with Console
+  type AcademyCommandProcessorSupervisorEnv = Logging with Clock with Console
 
   import Behaviors._
-  def behavior[Env: Tag](
-    academyCommandsTopic: String,
+  def behavior(
+    statelessCommandsTopic: String,
     mapper: ObjectMapper,
     groupId: String,
+    statelessEventsTopic: String,
+    statelessCommandCallbackTopic: String,
     kafkaSupervisor: ActorRef[KafkaSupervisorCommand]
-  ): ActorBehavior[AcademyCommandProcessorSupervisorEnv[Env], Unit, AcademyCommandProcessorMessage] = Behaviors
-    .behavior[AcademyCommandProcessorSupervisorEnv[Env], Unit, AcademyCommandProcessorMessage]
+  ): ActorBehavior[AcademyCommandProcessorSupervisorEnv, Unit, AcademyCommandProcessorMessage] = Behaviors
+    .behavior[AcademyCommandProcessorSupervisorEnv, Unit, AcademyCommandProcessorMessage]
     .withReceive { (_, _, _, message, _) =>
       message match {
         case AcademyCommandReceived(cmd) => for {
-            _ <- Live
+            processResult <- Live
               .withContext(_.annotate(LogAnnotation.CorrelationId, Option(cmd.getId).map(UUID.fromString))) {
                 Operations.processStatelessCommand[LIO](cmd)
               }
+            _ <- processResult match {
+              case Left(value) => info(s"Error: $value") *>
+                  (kafkaSupervisor ! PublishMessage(
+                    statelessCommandCallbackTopic,
+                    cmd.getId,
+                    mapper.writeValueAsBytes(
+                      new CommandCallbackDTO().setId(UUID.randomUUID().toString).setCorrelationId(cmd.getId)
+                        .setResult(CommandExecutionResult.FAIL)
+                        .setErrorInfo(new ErrorCallbackDTO().setMessage(s"Error: $value"))
+                    )
+                  ))
+              case Right(events) => events.traverse(e => kafkaSupervisor ! PublishMessage(statelessEventsTopic, cmd.getId, mapper.writeValueAsBytes(e))).unit
+            }
           } yield ()
       }
     }.withInit { (_, context, _, _) =>
@@ -46,7 +63,7 @@ object StatelessCommandProcessor {
           case KafkaSupervisor.MessageReceived(_, committableRecord) =>
             Try { mapper.readValue(committableRecord.value, classOf[CommandDTO]) }.toOption.map(AcademyCommandReceived)
         }
-        _ <- kafkaSupervisor ! Subscribe(academyCommandsTopic, groupId = groupId, replyTo = receiver)
+        _ <- kafkaSupervisor ! Subscribe(statelessCommandsTopic, groupId = groupId, replyTo = receiver)
       } yield (Seq.empty, Seq.empty, ())
     }
 

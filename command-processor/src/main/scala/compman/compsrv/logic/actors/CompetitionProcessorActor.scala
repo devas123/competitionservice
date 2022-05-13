@@ -55,9 +55,8 @@ object CompetitionProcessorActor {
         initState: CompetitionState,
         timers: Timers[Env with Logging with Clock, Message]
       ): RIO[Env with Logging with Clock, (Seq[Fiber[Throwable, Unit]], Seq[Message])] = for {
-        _ <-
-          Task
-            .fail(new RuntimeException(s"Competition properties are missing: $initState")).when(initState.competitionProperties.isEmpty)
+        _ <- Task.fail(new RuntimeException(s"Competition properties are missing: $initState"))
+          .when(initState.competitionProperties.isEmpty)
         props = initState.competitionProperties.get
         started = CompetitionProcessingStarted(
           competitionId,
@@ -95,8 +94,8 @@ object CompetitionProcessorActor {
               ) *> {
                 for {
                   _ <-
-                    (info(s"Command $cmd has no ID") *>
-                      RIO.fail(new IllegalArgumentException(s"Command $cmd has no ID"))).when(cmd.getId == null)
+                  (info(s"Command $cmd has no ID") *> RIO.fail(new IllegalArgumentException(s"Command $cmd has no ID")))
+                    .when(cmd.getId == null)
                   _ <- info(s"Processing command $command")
                   processResult <- Live.withContext(
                     _.annotate(LogAnnotation.CorrelationId, Option(cmd.getId).map(UUID.fromString))
@@ -143,7 +142,8 @@ object CompetitionProcessorActor {
         events: Seq[EventDTO]
       ): RIO[Env with Logging with Clock, Unit] = {
         import cats.implicits._
-        events.traverse(e => kafkaSupervisor ! PublishMessage(eventTopic, competitionId, mapper.writeValueAsBytes(e))).unit
+        events.traverse(e => kafkaSupervisor ! PublishMessage(eventTopic, competitionId, mapper.writeValueAsBytes(e)))
+          .unit
       }
     }
 

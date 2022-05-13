@@ -5,7 +5,7 @@ import cats.data.OptionT
 import cats.implicits._
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.Payload
-import compman.compsrv.model.event.Events.{AcademyAddedEvent, AcademyUpdatedEvent, Event}
+import compman.compsrv.model.event.Events.{AcademyUpdatedEvent, Event}
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.AcademyOperations
 import compman.compsrv.query.service.repository.AcademyOperations.AcademyService

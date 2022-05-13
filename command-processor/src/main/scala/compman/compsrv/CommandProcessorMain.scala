@@ -1,7 +1,7 @@
 package compman.compsrv
 
 import compman.compsrv.config.AppConfig
-import compman.compsrv.jackson.SerdeApi.commandDeserializer
+import compman.compsrv.jackson.SerdeApi.{commandDeserializer, objectMapper}
 import compman.compsrv.logic.Operations._
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaTopicConfig}
@@ -66,12 +66,18 @@ object CommandProcessorMain extends zio.App {
           _ <- kafkaSupervisor !
             CreateTopicIfMissing(appConfig.commandProcessor.academyNotificationsTopic, KafkaTopicConfig())
           commandProcessorOperationsFactory = CommandProcessorOperationsFactory.live()
-          suervisor <- actorSystem.make(
-            "command-processor-supervisor",
+          competitionCommandSupervisor <- actorSystem.make(
+            "competition-command-processor-supervisor",
             ActorConfig(),
             (),
             CompetitionProcessorSupervisorActor
               .behavior(commandProcessorOperationsFactory, appConfig.commandProcessor, kafkaSupervisor)
+          )
+          _ <- actorSystem.make(
+            "stateless-command-processor",
+            ActorConfig(),
+            (),
+            StatelessCommandProcessor.behavior(appConfig.consumer.commandTopics.academy, objectMapper, appConfig.consumer.groupId, appConfig.commandProcessor.academyNotificationsTopic, appConfig.commandProcessor.commandCallbackTopic, kafkaSupervisor)
           )
           res <- Consumer.subscribeAnd(Subscription.topics(appConfig.consumer.commandTopics.competition))
             .plainStream(Serde.string, commandDeserializer.asTry).mapM(record => {
@@ -85,7 +91,7 @@ object CommandProcessorMain extends zio.App {
                       _ <- logError(exception)
                     } yield offset
                   case Success(value) =>
-                    (suervisor ! CompetitionProcessorSupervisorActor.CommandReceived(record.key, value)).as(offset)
+                    (competitionCommandSupervisor ! CompetitionProcessorSupervisorActor.CommandReceived(record.key, value)).as(offset)
                 })
             }).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
         } yield res

@@ -36,8 +36,9 @@ object AppConfig {
 }
 
 case class CommandProcessorConfig(
-  actorIdleTimeoutMillis: Option[Long],
-  eventsTopicPrefix: String,
-  competitionNotificationsTopic: String,
-  academyNotificationsTopic: String
+                                   actorIdleTimeoutMillis: Option[Long],
+                                   eventsTopicPrefix: String,
+                                   competitionNotificationsTopic: String,
+                                   academyNotificationsTopic: String,
+                                   commandCallbackTopic: String
 )
