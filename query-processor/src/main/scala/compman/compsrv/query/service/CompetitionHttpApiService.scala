@@ -1,7 +1,7 @@
 package compman.compsrv.query.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.logic.actors.behavior.CompetitionApiActor._
+import compman.compsrv.logic.actors.behavior.api.CompetitionApiActor._
 import compman.compsrv.logic.actors.ActorRef
 import compman.compsrv.model.commands.payload.AdjacencyList
 import compman.compsrv.model.dto.competition.{CategoryDescriptorDTO, CategoryRestrictionDTO}

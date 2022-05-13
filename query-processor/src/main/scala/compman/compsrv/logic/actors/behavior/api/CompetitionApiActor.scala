@@ -1,32 +1,26 @@
-package compman.compsrv.logic.actors.behavior
+package compman.compsrv.logic.actors.behavior.api
 
 import cats.data.OptionT
-import compman.compsrv.Utils
 import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Behaviors}
 import compman.compsrv.logic.category.CategoryGenerateService
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compman.compsrv.model.commands.payload.AdjacencyList
-import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.PageResponse
+import compman.compsrv.model.commands.payload.AdjacencyList
 import compman.compsrv.model.dto.brackets.{FightResultOptionDTO, StageDescriptorDTO}
+import compman.compsrv.model.dto.competition._
 import compman.compsrv.model.dto.dashboard.{MatDescriptionDTO, MatStateDTO}
 import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.query.config.MongodbConfig
-import compman.compsrv.query.model._
 import compman.compsrv.query.model.mapping.DtoMapping
-import compman.compsrv.query.service.repository.{
-  CompetitionQueryOperations,
-  FightQueryOperations,
-  ManagedCompetitionsOperations,
-  Pagination
-}
+import compman.compsrv.query.service.repository.{CompetitionQueryOperations, FightQueryOperations, ManagedCompetitionsOperations, Pagination}
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
+import compman.compsrv.Utils
+import compman.compsrv.query.model._
 import org.mongodb.scala.MongoClient
 import zio.{Ref, Tag, ZIO}
 import zio.logging.Logging
-
-import scala.jdk.CollectionConverters.IterableHasAsScala
+import scala.jdk.CollectionConverters._
 
 object CompetitionApiActor {
 
@@ -151,8 +145,9 @@ object CompetitionApiActor {
     override type responseType = MatFightsQueryResult
   }
 
-  final case class GetRegistrationInfo(competitionId: String)(override val replyTo: ActorRef[Option[RegistrationInfoDTO]])
-      extends ApiCommand {
+  final case class GetRegistrationInfo(competitionId: String)(
+    override val replyTo: ActorRef[Option[RegistrationInfoDTO]]
+  ) extends ApiCommand {
     override type responseType = Option[RegistrationInfoDTO]
   }
 
@@ -283,10 +278,11 @@ object CompetitionApiActor {
                 _ <- c.replyTo ! MatFightsQueryResult(competitors, fightDtos)
               } yield state
             case c @ GetRegistrationInfo(competitionId) => for {
-              properties <- CompetitionQueryOperations[LIO].getCompetitionProperties(competitionId)
-                groups  <- CompetitionQueryOperations[LIO].getRegistrationGroups(competitionId)
-                periods <- CompetitionQueryOperations[LIO].getRegistrationPeriods(competitionId)
-                _ <- c.replyTo ! Option(RegistrationInfo(Utils.groupById(groups)(_.id), Utils.groupById(periods)(_.id))).map(DtoMapping.toDtoRegistrationInfo(properties.exists(_.registrationOpen), competitionId))
+                properties <- CompetitionQueryOperations[LIO].getCompetitionProperties(competitionId)
+                groups     <- CompetitionQueryOperations[LIO].getRegistrationGroups(competitionId)
+                periods    <- CompetitionQueryOperations[LIO].getRegistrationPeriods(competitionId)
+                _ <- c.replyTo ! Option(RegistrationInfo(Utils.groupById(groups)(_.id), Utils.groupById(periods)(_.id)))
+                  .map(DtoMapping.toDtoRegistrationInfo(properties.exists(_.registrationOpen), competitionId))
               } yield state
             case c @ GetCategories(competitionId) => for {
                 categories <- CompetitionQueryOperations[LIO].getCategoriesByCompetitionId(competitionId)

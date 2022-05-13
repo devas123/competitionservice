@@ -11,7 +11,7 @@ import compman.compsrv.logic.actors.behavior.{
   StatelessEventListener,
   WebsocketConnectionSupervisor
 }
-import compman.compsrv.logic.actors.behavior.CompetitionApiActor
+import compman.compsrv.logic.actors.behavior.api.CompetitionApiActor
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.logError
 import compman.compsrv.query.config.AppConfig
