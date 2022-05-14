@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+import "model.proto";
+
+message AddAcademyPayload {
+  FullAcademyInfo academy = 1;
+}
+message AddCategoryPayload {
+  CategoryDescriptor category = 1;
+
+}
+message AddCompetitorPayload {
+  Competitor competitor = 1;
+}
+message AddRegistrationGroupPayload {
+  string periodId = 1;
+  repeated RegistrationGroup groups = 2;
+}
+message AddRegistrationPeriodPayload {
+  RegistrationPeriod period = 1;
+}
+message AdjacencyList {
+  int32 root = 1;
+  repeated AdjacencyListEntry vertices = 2;
+}
+message AdjacencyListEntry {
+  int32 id = 1;
+  repeated int32 children = 2;
+}
+message AssignRegistrationGroupCategoriesPayload {
+  string periodId = 1;
+  string groupId = 2;
+  repeated string categories = 3;
+}
+message CategoryRegistrationStatusChangePayload {
+  bool newStatus = 1;
+}
+message ChangeCompetitorCategoryPayload {
+  repeated string newCategories = 1;
+  repeated string oldCategories = 2;
+  string fighterId = 3;
+}
+message ChangeFightOrderPayload {
+  string fightId = 1;
+  string newMatId = 2;
+  int32 newOrderOnMat = 3;
+  string periodId = 4;
+}
+message CompetitorCategoryAddedPayload {
+  string newCategoryId = 1;
+  string fighterId = 2;
+}
+message CompetitorMovedToGroup {
+  string competitorId = 1;
+  string groupId = 2;
+  GroupChangeType changeType = 3;
+}
+message CreateCompetitionPayload {
+  CompetitionProperties properties = 1;
+  optional RegistrationInfo reginfo = 2;
+}
+message CreateFakeCompetitorsPayload {
+  int32 numberOfCompetitors = 1;
+  int32 numberOfAcademies = 2;
+}
+message DeleteRegistrationGroupPayload {
+  string periodId = 1;
+  string groupId = 2;
+}
+message DeleteRegistrationPeriodPayload {
+  string periodId = 1;
+}
+message FightEditorApplyChangesPayload {
+  string stageId = 1;
+  repeated CompetitorsOfFightUpdated bracketsChanges = 2;
+  repeated CompetitorMovedToGroup competitorMovedToGroups = 3;
+}
+message CompetitorsOfFightUpdated {
+  string fightId = 1;
+  repeated string competitors = 2;
+}
+message GenerateAbsoluteCategoryPayload {
+  repeated string competitors = 1;
+  CategoryDescriptor category = 2;
+  string competitionId = 3;
+}
+message GenerateBracketsPayload {
+  repeated StageDescriptor stageDescriptors = 1;
+}
+message GenerateCategoriesFromRestrictionsPayload {
+  repeated CategoryRestriction restrictions = 1;
+  repeated AdjacencyList idTrees = 2;
+  repeated string restrictionNames = 3;
+}
+message GenerateSchedulePayload {
+  repeated Period periods = 1;
+  repeated MatDescription mats = 2;
+}
+enum GroupChangeType {
+  GROUP_CHANGE_TYPE_UNKNOWN = 0;
+  GROUP_CHANGE_TYPE_ADD = 1;
+  GROUP_CHANGE_TYPE_REMOVE = 2;
+}
+message PropagateCompetitorsPayload {
+  bool manualOverride = 1;
+  string propagateToStageId = 2;
+  string previousStageId = 3;
+  repeated CompetitorSelector selectorOverrides = 4;
+}
+message RegistrationPeriodAddRegistrationGroupPayload {
+  string groupId = 1;
+  string periodId = 2;
+}
+message RemoveAcademyPayload {
+  string academyId = 1;
+}
+message RemoveCompetitorPayload {
+  string competitorId = 1;
+}
+message SetFightResultPayload {
+  string fightId = 1;
+  FightResult fightResult = 2;
+  repeated CompScore scores = 3;
+  FightStatus status = 4;
+}
+message UpdateAcademyPayload {
+  FullAcademyInfo academy = 1;
+}
+message UpdateCompetionPropertiesPayload {
+  CompetitionProperties competitionProperties = 1;
+}
+message UpdateCompetitorPayload {
+  Competitor competitor = 1;
+}
+message UpdateRegistrationInfoPayload {
+  RegistrationInfo registrationInfo = 1;
+}
+message UpdateStageStatusPayload {
+  string stageId = 1;
+  StageStatus status = 2;
+}

@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+import "eventpayload.proto";
+import "commandpayload.proto";
+import "google/protobuf/any.proto";
+
+message MessageInfo {
+  string id = 1;
+  string correlationId = 2;
+  string competitionId = 3;
+  string competitorId = 4;
+  string categoryId = 5;
+  string matId = 6;
+  Payload payload = 7;
+}
+
+message Payload {
+  oneof payload {
+    AddAcademyPayload addAcademyPayload = 11;
+    AddCategoryPayload     addCategoryPayload = 12;
+    AddCompetitorPayload addCompetitorPayload = 13;
+    AddRegistrationGroupPayload     addRegistrationGroupPayload = 14;
+    AddRegistrationPeriodPayload addRegistrationPeriodPayload = 15;
+    AssignRegistrationGroupCategoriesPayload     assignRegistrationGroupCategoriesPayload = 16;
+    CategoryRegistrationStatusChangePayload categoryRegistrationStatusChangePayload = 17;
+    ChangeCompetitorCategoryPayload     changeCompetitorCategoryPayload = 18;
+    ChangeFightOrderPayload changeFightOrderPayload = 19;
+    CompetitorCategoryAddedPayload     competitorCategoryAddedPayload = 110;
+    CreateCompetitionPayload     createCompetitionPayload = 111;
+    CreateFakeCompetitorsPayload createFakeCompetitorsPayload = 112;
+    DeleteRegistrationGroupPayload     deleteRegistrationGroupPayload = 113;
+    DeleteRegistrationPeriodPayload deleteRegistrationPeriodPayload = 114;
+    FightEditorApplyChangesPayload     fightEditorApplyChangesPayload = 115;
+    GenerateAbsoluteCategoryPayload     generateAbsoluteCategoryPayload = 116;
+    GenerateBracketsPayload generateBracketsPayload = 117;
+    GenerateCategoriesFromRestrictionsPayload     generateCategoriesFromRestrictionsPayload = 118;
+    GenerateSchedulePayload generateSchedulePayload = 119;
+    PropagateCompetitorsPayload propagateCompetitorsPayload = 120;
+    RegistrationPeriodAddRegistrationGroupPayload     registrationPeriodAddRegistrationGroupPayload = 121;
+    RemoveAcademyPayload removeAcademyPayload = 122;
+    RemoveCompetitorPayload     removeCompetitorPayload = 123;
+    SetFightResultPayload setFightResultPayload = 124;
+    UpdateAcademyPayload     updateAcademyPayload = 125;
+    UpdateCompetionPropertiesPayload updateCompetionPropertiesPayload = 126;
+    UpdateCompetitorPayload     updateCompetitorPayload = 127;
+    UpdateRegistrationInfoPayload updateRegistrationInfoPayload = 128;
+    UpdateStageStatusPayload     updateStageStatusPayload = 129;
+    BracketsGeneratedPayload bracketsGeneratedPayload = 21;
+    CategoryAddedPayload     categoryAddedPayload = 22;
+    CompetitionCreatedPayload competitionCreatedPayload = 23;
+    CompetitionInfoPayload     competitionInfoPayload = 24;
+    CompetitionPropertiesUpdatedPayload competitionPropertiesUpdatedPayload = 25;
+    CompetitionStatusUpdatedPayload     competitionStatusUpdatedPayload = 26;
+    CompetitorAddedPayload competitorAddedPayload = 27;
+    CompetitorRemovedPayload competitorRemovedPayload = 28;
+    CompetitorsPropagatedToStagePayload     competitorsPropagatedToStagePayload = 29;
+    CompetitorUpdatedPayload competitorUpdatedPayload = 210;
+    FightCompetitorsAssignedPayload     fightCompetitorsAssignedPayload = 211;
+    FightEditorChangesAppliedPayload fightEditorChangesAppliedPayload = 212;
+    FightsAddedToStagePayload fightsAddedToStagePayload = 213;
+    FightStartTimeUpdatedPayload     fightStartTimeUpdatedPayload = 214;
+    MatsUpdatedPayload matsUpdatedPayload = 215;
+    RegistrationGroupAddedPayload     registrationGroupAddedPayload = 216;
+    RegistrationGroupCategoriesAssignedPayload registrationGroupCategoriesAssignedPayload = 217;
+    RegistrationGroupDeletedPayload     registrationGroupDeletedPayload = 218;
+    RegistrationInfoUpdatedPayload registrationInfoUpdatedPayload = 219;
+    RegistrationPeriodAddedPayload     registrationPeriodAddedPayload = 220;
+    RegistrationPeriodDeletedPayload registrationPeriodDeletedPayload = 221;
+    ScheduleGeneratedPayload     scheduleGeneratedPayload = 222;
+    StageResultSetPayload stageResultSetPayload = 223;
+    StageStatusUpdatedPayload     stageStatusUpdatedPayload = 224;
+  }
+}
+
+message CommandCallback {
+  string id = 1;
+  string correlationId = 2;
+  CommandExecutionResult result = 3;
+  ErrorCallback errorInfo = 4;
+}
+enum CommandExecutionResult {
+  COMMAND_EXECUTION_RESULT_SUCCESS = 0;
+  COMMAND_EXECUTION_RESULT_FAIL = 1;
+}
+message ErrorCallback {
+  string message = 1;
+  google.protobuf.Any payload = 2;
+}

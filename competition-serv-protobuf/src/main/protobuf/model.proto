@@ -1,0 +1,456 @@
+syntax = "proto3";
+import "google/protobuf/timestamp.proto";
+
+message StageDescriptor {
+  string id = 1;
+  optional string name = 2;
+  string categoryId = 3;
+  string competitionId = 4;
+  BracketType bracketType = 5;
+  StageType stageType = 6;
+  StageStatus stageStatus = 7;
+  StageResultDescriptor stageResultDescriptor = 8;
+  StageInputDescriptor inputDescriptor = 9;
+  int32 stageOrder = 10;
+  bool waitForPrevious = 11;
+  bool hasThirdPlaceFight = 12;
+  repeated GroupDescriptor groupDescriptors = 13;
+  int32 numberOfFights = 14;
+  int32 fightDuration = 15;
+}
+
+message GroupDescriptor {
+  string id = 1;
+  string name = 2;
+  int32 size = 3;
+}
+
+message StageInputDescriptor {
+  int32 numberOfCompetitors = 1;
+  repeated CompetitorSelector selectors = 2;
+  DistributionType distributionType = 3;
+}
+
+message CompetitorSelector {
+  string id = 1;
+  string applyToStageId = 2;
+  LogicalOperator logicalOperator = 4;
+  SelectorClassifier classifier = 5;
+  OperatorType operator = 6;
+  repeated string selectorValue = 7;
+}
+
+enum OperatorType {
+  OPERATOR_TYPE_EQUALS = 0;
+  OPERATOR_TYPE_IS_IN = 1;
+  OPERATOR_TYPE_LESS = 2;
+  OPERATOR_TYPE_GREATER = 3;
+  OPERATOR_TYPE_LEQ = 4;
+  OPERATOR_TYPE_GEQ = 5;
+}
+
+enum SelectorClassifier {
+  SELECTOR_CLASSIFIER_FIRST_N_PLACES = 0;
+  SELECTOR_CLASSIFIER_LAST_N_PLACES = 1;
+  SELECTOR_CLASSIFIER_MANUAL = 2;
+}
+
+enum LogicalOperator {
+  LOGICAL_OPERATOR_AND = 0;
+  LOGICAL_OPERATOR_OR = 1;
+  LOGICAL_OPERATOR_AND_NOT = 2;
+  LOGICAL_OPERATOR_OR_NOT = 3;
+}
+
+enum DistributionType {
+  DISTRIBUTION_TYPE_AUTOMATIC = 0;
+  DISTRIBUTION_TYPE_MANUAL = 1;
+}
+
+message StageResultDescriptor {
+  optional string name = 1;
+  bool forceManualAssignment = 2;
+  int32 outputSize = 3;
+  repeated FightResultOption fightResultOptions = 4;
+  repeated CompetitorStageResult competitorResults = 5;
+  repeated AdditionalGroupSortingDescriptor additionalGroupSortingDescriptors = 6;
+}
+
+message AdditionalGroupSortingDescriptor {
+  GroupSortDirection groupSortDirection = 1;
+  GroupSortSpecifier groupSortSpecifier = 2;
+}
+
+enum GroupSortDirection {
+  GROUP_SORT_DIRECTION_ASC = 0;
+  GROUP_SORT_DIRECTION_DESC = 1;
+}
+enum GroupSortSpecifier {
+  GROUP_SORT_SPECIFIER_DIRECT_FIGHT_RESULT = 0;
+  GROUP_SORT_SPECIFIER_MANUAL = 1;
+  GROUP_SORT_SPECIFIER_POINTS_DIFFERENCE = 2;
+  GROUP_SORT_SPECIFIER_TOTAL_POINTS = 3;
+}
+
+message CompetitorStageResult {
+  string competitorId = 1;
+  int32 points = 2;
+  int32 round = 3;
+  StageRoundType roundType = 4;
+  int32 place = 5;
+  string stageId = 6;
+  string groupId = 7;
+  bool conflicting = 8;
+}
+
+message FightResultOption {
+  string id = 1;
+  string description = 2;
+  string shortName = 3;
+  bool draw = 4;
+  int32 winnerPoints = 5;
+  int32 winnerAdditionalPoints = 6;
+  int32 loserPoints = 7;
+  int32 loserAdditionalPoints = 8;
+}
+
+enum StageRoundType {
+  STAGE_ROUND_TYPE_UNKNOWN = 0;
+  STAGE_ROUND_TYPE_GRAND_FINAL = 1;
+  STAGE_ROUND_TYPE_THIRD_PLACE_FIGHT = 2;
+  STAGE_ROUND_TYPE_WINNER_BRACKETS = 3;
+  STAGE_ROUND_TYPE_LOSER_BRACKETS = 4;
+  STAGE_ROUND_TYPE_GROUP = 5;
+}
+
+enum BracketType {
+  BRACKET_TYPE_UNKNOWN = 0;
+  BRACKET_TYPE_SINGLE_ELIMINATION = 2;
+  BRACKET_TYPE_DOUBLE_ELIMINATION = 3;
+  BRACKET_TYPE_GROUP = 4;
+}
+
+enum StageType {
+  STAGE_TYPE_UNKNOWN = 0;
+  STAGE_TYPE_PRELIMINARY = 1;
+  STAGE_TYPE_FINAL = 2;
+}
+
+enum StageStatus {
+  STAGE_STATUS_UNKNOWN = 0;
+  STAGE_STATUS_APPROVED = 1;
+  STAGE_STATUS_WAITING_FOR_APPROVAL = 2;
+  STAGE_STATUS_WAITING_FOR_COMPETITORS = 3;
+  STAGE_STATUS_FINISHED = 4;
+  STAGE_STATUS_IN_PROGRES = 5;
+}
+
+
+message FightDescription {
+  string id = 1;
+  string categoryId = 2;
+  string fightName = 3;
+  string winFight = 4;
+  string loseFight = 5;
+  repeated CompScore scores = 6;
+  int32 duration = 7;
+  int32 round = 8;
+  bool invalid = 9;
+  StageRoundType roundType = 10;
+  FightStatus status = 11;
+  FightResult fightResult = 12;
+  MatDescription mat = 13;
+  int32 numberOnMat = 14;
+  int32 priority = 15;
+  string competitionId = 16;
+  string period = 17;
+  google.protobuf.Timestamp startTime = 18;
+  string stageId = 19;
+  string groupId = 20;
+  string scheduleEntryId = 21;
+  int32 numberInRound = 22;
+}
+
+message MatDescription {
+  string id = 1;
+  string name = 2;
+  string periodId = 3;
+  int32 matOrder = 4;
+}
+
+message FightResult {
+  string winnerId = 1;
+  string resultTypeId = 2;
+  string reason = 3;
+}
+
+enum FightStatus {
+  FIGHT_STATUS_PENDING = 0;
+  FIGHT_STATUS_GET_READY = 1;
+  FIGHT_STATUS_IN_PROGRESS = 2;
+  FIGHT_STATUS_PAUSED = 3;
+  FIGHT_STATUS_FINISHED = 4;
+  FIGHT_STATUS_UNCOMPLETABLE = 5;
+  FIGHT_STATUS_WALKOVER = 6;
+}
+
+message CompScore {
+  string placeholderId = 1;
+  string competitorId = 2;
+  Score score = 3;
+  int32 order = 4;
+  FightReferenceType parentReferenceType = 5;
+  string parentFightId = 6;
+}
+
+enum FightReferenceType {
+  FIGHT_REFERENCE_TYPE_UNKNOWN = 0;
+  FIGHT_REFERENCE_TYPE_WINNER = 1;
+  FIGHT_REFERENCE_TYPE_LOSER = 2;
+  FIGHT_REFERENCE_TYPE_PROPAGATED = 3;
+}
+
+message Score {
+  int32 points = 1;
+  int32 advantages = 2;
+  int32 penalties = 3;
+  repeated PointGroup pointGroups = 4;
+}
+
+message PointGroup {
+  string id = 1;
+  string name = 2;
+  int32 priority = 3;
+  int32 value = 4;
+}
+
+message RegistrationInfo {
+  string id = 1;
+  bool registrationOpen = 2;
+  map<string, RegistrationPeriod> registrationPeriods = 3;
+  map<string, RegistrationGroup> registrationGroups = 4;
+}
+
+message RegistrationGroup {
+  string id = 1;
+  string displayName = 2;
+  bool defaultGroup = 3;
+  RegistrationFee registrationFee = 4;
+  repeated string categories = 5;
+}
+
+message RegistrationFee {
+  string currency = 1;
+  int32 amount = 2;
+  int32 remainder = 3;
+}
+
+message RegistrationPeriod {
+  string id = 1;
+  string name = 2;
+  string competitionId = 3;
+  google.protobuf.Timestamp start = 4;
+  google.protobuf.Timestamp end = 5;
+  repeated string registrationGroupIds = 6;
+}
+
+message FullAcademyInfo {
+  string id = 1;
+  string name = 2;
+  repeated string coaches = 3;
+  string contactUserId = 4;
+  string contactEmail = 5;
+  google.protobuf.Timestamp created = 6;
+  google.protobuf.Timestamp updated = 7;
+}
+
+message Academy {
+  string id = 1;
+  string name = 2;
+}
+
+message CategoryDescriptor {
+  repeated CategoryRestriction restrictions = 1;
+  string id = 2;
+  string name = 3;
+  bool registrationOpen = 4;
+}
+
+message CategoryRestriction {
+  string restrictionId = 1;
+  CategoryRestrictionType type = 2;
+  string name = 3;
+  string value = 4;
+  string alias = 5;
+  string minValue = 6;
+  string maxValue = 7;
+  string unit = 8;
+  int32 restrictionOrder = 9;
+}
+
+enum CategoryRestrictionType {
+  CategoryRestrictionType_Value = 0;
+  CategoryRestrictionType_Range = 1;
+}
+
+message CategoryState {
+  string id = 1;
+  string competitionId = 2;
+  CategoryDescriptor category = 3;
+  int32 fightsNumber = 4;
+  int32 numberOfCompetitors = 5;
+}
+
+message CompetitionProperties {
+  string id = 1;
+  string creatorId = 2;
+  repeated string staffIds = 3;
+  bool emailNotificationsEnabled = 4;
+  string competitionName = 5;
+  string emailTemplate = 6;
+  repeated PromoCode promoCodes = 7;
+  google.protobuf.Timestamp startDate = 8;
+  bool schedulePublished = 9;
+  bool bracketsPublished = 10;
+  google.protobuf.Timestamp endDate = 11;
+  string timeZone = 12;
+  google.protobuf.Timestamp creationTimestamp = 13;
+  CompetitionStatus status = 14;
+}
+
+message PromoCode {
+  string id = 1;
+  int32 coefficient = 2;
+  string competitionId = 3;
+  google.protobuf.Timestamp startAt = 4;
+  google.protobuf.Timestamp expireAt = 5;
+}
+
+enum CompetitionStatus {
+  COMPETITION_STATUS_UNKNOWN = 0;
+  COMPETITION_STATUS_CREATED = 1;
+  COMPETITION_STATUS_PUBLISHED = 2;
+  COMPETITION_STATUS_UNPUBLISHED = 3;
+  COMPETITION_STATUS_STARTED = 4;
+  COMPETITION_STATUS_PAUSED = 5;
+  COMPETITION_STATUS_STOPPED = 6;
+  COMPETITION_STATUS_DELETED = 7;
+}
+
+message CompetitionState {
+  string id = 1;
+  repeated CategoryState categories = 2;
+  CompetitionProperties properties = 3;
+  Schedule schedule = 4;
+}
+
+message Schedule {
+  string id = 1;
+  repeated Period periods = 2;
+  repeated MatDescription mats = 3;
+}
+
+message Period {
+  string id = 1;
+  string name = 2;
+  repeated ScheduleEntry scheduleEntries = 3;
+  repeated ScheduleRequirement scheduleRequirements = 4;
+  google.protobuf.Timestamp startTime = 5;
+  google.protobuf.Timestamp endTime = 6;
+  bool isActive = 7;
+  int32 timeBetweenFights = 8;
+  int32 riskPercent = 9;
+}
+
+message ScheduleEntry {
+  string id = 1;
+  repeated string categoryIds = 2;
+  repeated StartTimeInfo fightScheduleInfo = 3;
+  string periodId = 4;
+  optional string description = 5;
+  optional string name = 6;
+  optional string color = 7;
+  ScheduleEntryType entryType = 8;
+  repeated string requirementIds = 9;
+  google.protobuf.Timestamp startTime = 10;
+  optional google.protobuf.Timestamp endTime = 11;
+  int32 numberOfFights = 12;
+  int32 duration = 13;
+  int32 order = 14;
+}
+
+enum ScheduleEntryType {
+  SCHEDULE_ENTRY_TYPE_UNKNOWN = 0;
+  SCHEDULE_ENTRY_TYPE_FIGHTS_GROUP = 1;
+  SCHEDULE_ENTRY_TYPE_FIXED_PAUSE = 2;
+  SCHEDULE_ENTRY_TYPE_RELATIVE_PAUSE = 3;
+}
+
+message StartTimeInfo {
+  string matId = 1;
+  google.protobuf.Timestamp startTime = 2;
+  string someId = 3;
+}
+
+message ScheduleRequirement {
+  string id = 1;
+  repeated string categoryIds = 2;
+  repeated string fightIds = 3;
+  optional string matId = 4;
+  string periodId = 5;
+  optional string name = 6;
+  optional string color = 7;
+  ScheduleRequirementType entryType = 8;
+  bool force = 9;
+  google.protobuf.Timestamp startTime = 10;
+  optional google.protobuf.Timestamp endTime = 11;
+  optional int32 durationSeconds = 12;
+  int32 entryOrder = 13;
+}
+
+enum ScheduleRequirementType {
+  SCHEDULE_REQUIREMENT_TYPE_UNKNOWN = 0;
+  SCHEDULE_REQUIREMENT_TYPE_CATEGORIES = 1;
+  SCHEDULE_REQUIREMENT_TYPE_FIGHTS = 2;
+  SCHEDULE_REQUIREMENT_TYPE_RELATIVE_PAUSE = 3;
+  SCHEDULE_REQUIREMENT_TYPE_FIXED_PAUSE = 4;
+}
+
+message Competitor {
+  string id = 1;
+  string email = 2;
+  string userId = 3;
+  string firstName = 4;
+  string lastName = 5;
+  google.protobuf.Timestamp birthDate = 6;
+  Academy academy = 7;
+  repeated string categories = 8;
+  string competitionId = 9;
+  CompetitorRegistrationStatus registrationStatus = 10;
+  bool placeholder = 11;
+  string promo = 12;
+}
+
+enum CompetitorRegistrationStatus {
+  COMPETITOR_REGISTRATION_STATUS_UNKNOWN = 0;
+  COMPETITOR_REGISTRATION_STATUS_SUCCESS_CONFIRMED = 1;
+  COMPETITOR_REGISTRATION_STATUS_PAYMENT_PENDING = 2;
+  COMPETITOR_REGISTRATION_STATUS_REGISTRATION_CANCELLED = 3;
+}
+
+message MatState {
+  MatDescription matDescription = 1;
+  int32 numberOfFights = 2;
+  repeated FightDescription topFiveFights = 3;
+}
+
+message FightStartTimePair {
+  string fightId = 1;
+  string matId = 2;
+  int32 numberOnMat = 3;
+  google.protobuf.Timestamp startTime = 4;
+  string periodId = 5;
+  string fightCategoryId = 6;
+  string scheduleEntryId = 7;
+  bool invalid = 8;
+}

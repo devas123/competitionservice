@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+import "model.proto";
+
+message     BracketsGeneratedPayload {
+  StageDescriptor stages = 1;
+}
+message     CategoryAddedPayload {
+  CategoryDescriptor categoryState = 1;
+}
+message     CompetitionCreatedPayload {
+  CompetitionProperties properties = 1;
+  RegistrationInfo reginfo = 2;
+}
+message     CompetitionInfoPayload {
+  string competitionId = 1;
+  string memberId = 2;
+  string host = 3;
+  int32 port = 4;
+}
+message     CompetitionPropertiesUpdatedPayload {
+  CompetitionProperties properties = 1;
+}
+message     CompetitionStatusUpdatedPayload {
+  CompetitionStatus status = 1;
+}
+message     CompetitorAddedPayload {
+  Competitor competitor = 1;
+}
+message     CompetitorAssignmentDescriptor {
+  string fromFightId = 1;
+  string toFightId = 2;
+  string competitorId = 3;
+  FightReferenceType referenceType = 4;
+}
+message     CompetitorRemovedPayload {
+  string fighterId = 1;
+}
+message     CompetitorsPropagatedToStagePayload {
+  string stageId = 1;
+  repeated CompetitorAssignmentDescriptor propagations = 2;
+}
+message     CompetitorUpdatedPayload {
+  Competitor competitor = 1;
+}
+message     FightCompetitorsAssignedPayload {
+  repeated CompetitorAssignmentDescriptor assignments = 1;
+}
+message     FightEditorChangesAppliedPayload {
+  repeated FightDescription updates = 1;
+  repeated FightDescription newFights = 2;
+  repeated string removedFighids = 3;
+}
+message     FightOrderUpdate {
+  string fightId = 1;
+  int32 numberOnMat = 2;
+  google.protobuf.Timestamp startTime = 3;
+  string matId = 4;
+}
+message     FightsAddedToStagePayload {
+  repeated FightDescription fights = 1;
+  string stageId = 2;
+}
+message     FightStartTimeUpdatedPayload {
+  repeated FightStartTimePair newFights = 1;
+}
+message     MatsUpdatedPayload {
+  repeated MatDescription mats = 1;
+}
+message     RegistrationGroupAddedPayload {
+  string periodId = 1;
+  repeated RegistrationGroup groups = 2;
+}
+message     RegistrationGroupCategoriesAssignedPayload {
+  string periodId = 1;
+  string groupId = 2;
+  repeated string categories = 3;
+}
+message     RegistrationGroupDeletedPayload {
+  string periodId = 1;
+  string groupId = 2;
+}
+message     RegistrationInfoUpdatedPayload {
+  RegistrationInfo registrationInfo = 1;
+}
+message     RegistrationPeriodAddedPayload {
+  RegistrationPeriod period = 1;
+}
+message     RegistrationPeriodDeletedPayload {
+  string periodId = 1;
+}
+message     ScheduleGeneratedPayload {
+  Schedule schedule = 1;
+}
+message     StageResultSetPayload {
+  string stageId = 1;
+  repeated CompetitorStageResult results = 2;
+}
+message     StageStatusUpdatedPayload {
+  string stageId = 1;
+  StageStatus status = 2;
+}
