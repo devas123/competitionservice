@@ -126,18 +126,18 @@ final class ActorSystem(
     }
   }
 
-  private def selectByActorPathOption[F](finalName: ActorPath, actorMap: Map[ActorPath, Any]) = IO
-    .effectTotal(actorMap.get(finalName).map(_.asInstanceOf[ActorRef[F]]))
+  private def selectByActorPathOption[F](finalName: ActorPath, actorMap: Map[ActorPath, Any]) =
+    IO.fromOption(actorMap.get(finalName).map(_.asInstanceOf[ActorRef[F]]))
 
   override def deadLetters: ActorRef[DeadLetter] = _deadLetters
 
   override def selectOption[F1](path: String): Task[Option[ActorRef[F1]]] = for {
     actorMap  <- refActorMap.get
     finalName <- buildActorName(path)
-    result    <- selectByActorPathOption[F1](finalName, actorMap)
-  } yield result
+    result    <- selectByActorPathOption[F1](finalName, actorMap).orElseFail(new Exception(s"Actor $path does not exist"))
+  } yield Option(result)
 
-  private def buildActorName[F1](path: String) = {
+  private def buildActorName(path: String) = {
     if (path.startsWith("/")) IO.effectTotal(ActorPath.fromString(path))
     else buildFinalName(parentActor.getOrElse(RootActorPath()), path)
   }

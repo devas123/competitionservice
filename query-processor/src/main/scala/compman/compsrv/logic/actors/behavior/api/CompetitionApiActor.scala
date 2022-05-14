@@ -65,9 +65,9 @@ object CompetitionApiActor {
     val replyTo: ActorRef[responseType]
   }
 
-  final case class GetDefaultRestrictions(override val replyTo: ActorRef[List[CategoryRestrictionDTO]])
+  final case class GetDefaultRestrictions(override val replyTo: ActorRef[Seq[CategoryRestrictionDTO]])
       extends CompetitionApiCommand {
-    override type responseType = List[CategoryRestrictionDTO]
+    override type responseType = Seq[CategoryRestrictionDTO]
   }
   final case class GetDefaultFightResults(override val replyTo: ActorRef[List[FightResultOptionDTO]])
       extends CompetitionApiCommand {
