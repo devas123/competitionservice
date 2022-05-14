@@ -13,4 +13,6 @@ public class FullAcademyInfoDTO {
     private String id;
     private String name;
     private String[] coaches;
+    private String contactUserId;
+    private String contactEmail;
 }
