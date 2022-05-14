@@ -5,22 +5,22 @@ import compman.compsrv.logic.command._
 import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.{Errors, Payload}
-import compman.compsrv.model.command.Commands.Command
-import compman.compsrv.model.events.EventDTO
+import compman.compsrv.model.command.Commands.InternalCommandProcessorCommand
+import compservice.model.protobuf.event.Event
 
 object CompetitionCommandProcessors {
   import Operations._
 
   def process[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations: Interpreter, P <: Payload](
-    command: Command[P],
-    state: CompetitionState
-  ): F[Either[Errors.Error, Seq[EventDTO]]] = {
+                                                                                                                   command: InternalCommandProcessorCommand[P],
+                                                                                                                   state: CompetitionState
+  ): F[Either[Errors.Error, Seq[Event]]] = {
     Seq(
       DeleteCategoryProc(),
       DeleteCompetitionProc(),
-      UpdateCompetitionPropertiesProc(state),
+      UpdateCompetitionPropertiesProc(),
       DropBracketsProc(state),
-      DropScheduleProc(state),
+      DropScheduleProc(),
       AddCategoryProc(state),
       AddCompetitorProc(state),
       CreateFakeCompetitorsProc(),
@@ -43,7 +43,7 @@ object CompetitionCommandProcessors {
       RemoveCompetitorProc(state),
       SetFightResultProc(state),
       UpdateCompetitorProc(state),
-      UpdateRegistrationInfoProc(state),
+      UpdateRegistrationInfoProc(),
       UpdateStageStatusProc(state)
     ).reduce((a, b) => a.orElse(b)).apply(command)
   }

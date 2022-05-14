@@ -4,35 +4,38 @@ import cats.Monad
 import cats.data.EitherT
 import compman.compsrv.logic._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.model.{Errors, Payload}
-import compman.compsrv.model.command.Commands.{Command, UpdateCompetitorCommand}
-import compman.compsrv.model.events.{EventDTO, EventType}
-import compman.compsrv.model.events.payload.CompetitorUpdatedPayload
+import compman.compsrv.model.Errors
+import compman.compsrv.model.command.Commands.{InternalCommandProcessorCommand, UpdateCompetitorCommand}
 import compman.compsrv.model.Errors.NoPayloadError
+import compservice.model.protobuf.common.MessageInfo
+import compservice.model.protobuf.event.{Event, EventType}
+import compservice.model.protobuf.eventpayload.CompetitorUpdatedPayload
 
 object UpdateCompetitorProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
+  def apply[F[+_]: Monad: IdOperations: EventOperations, P](
     state: CompetitionState
-  ): PartialFunction[Command[P], F[Either[Errors.Error, Seq[EventDTO]]]] = { case x: UpdateCompetitorCommand =>
-    process(x, state)
+  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+    case x: UpdateCompetitorCommand => process(x, state)
   }
 
   private def process[F[+_]: Monad: IdOperations: EventOperations](
     command: UpdateCompetitorCommand,
     state: CompetitionState
-  ): F[Either[Errors.Error, Seq[EventDTO]]] = {
-    val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
+  ): F[Either[Errors.Error, Seq[Event]]] = {
+    val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption(command.payload, NoPayloadError())
       _ <- assertETErr(
-        state.competitors.exists(_.contains(payload.getCompetitor.getId)),
-        Errors.CompetitorDoesNotExist(payload.getCompetitor.getId)
+        state.competitors.exists(_.contains(payload.getCompetitor.id)),
+        Errors.CompetitorDoesNotExist(payload.getCompetitor.id)
       )
-      event <- EitherT.liftF[F, Errors.Error, EventDTO](CommandEventOperations[F, EventDTO, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
         `type` = EventType.COMPETITOR_UPDATED,
         competitorId = None,
         competitionId = command.competitionId,
         categoryId = command.categoryId,
-        payload = Some(new CompetitorUpdatedPayload().setFighter(payload.getCompetitor))
+        payload = Some(MessageInfo.Payload.CompetitorUpdatedPayload(
+          CompetitorUpdatedPayload().update(_.competitor.setIfDefined(payload.competitor))
+        ))
       ))
 
     } yield Seq(event)

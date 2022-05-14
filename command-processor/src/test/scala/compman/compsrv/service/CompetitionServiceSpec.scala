@@ -1,6 +1,5 @@
 package compman.compsrv.service
 
-import compman.compsrv.jackson.ObjectMapperFactory
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaSupervisorCommand, PublishMessage, QuerySync}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig

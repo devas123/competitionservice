@@ -1,7 +1,6 @@
 package compman.compsrv.logic.actors
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.jackson.ObjectMapperFactory
 import compman.compsrv.logic.CompetitionState
 import org.rocksdb.RocksDB
 import zio.{Has, Ref, Task, UIO, URIO, ZIO, ZManaged}
@@ -45,7 +44,6 @@ object SnapshotService {
         if (!Files.exists(p)) { Files.createDirectories(p) }
       }
       db     <- ZIO.effect(RocksDB.open(path))
-      mapper <- ZIO.effectTotal(ObjectMapperFactory.createObjectMapper)
     } yield Live(rocksDB = db, mapper = mapper)).toManaged(_.close)
   }
   def test: ZManaged[Any, Nothing, Service] = {

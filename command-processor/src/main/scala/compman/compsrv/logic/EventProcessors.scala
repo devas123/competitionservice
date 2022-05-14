@@ -9,7 +9,7 @@ import compman.compsrv.model.event.Events
 object EventProcessors {
   import Operations._
 
-  def applyEvent[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations, P <: Payload](
+  def applyEvent[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations, P](
     event: Events.Event[P],
     state: CompetitionState
   ): F[CompetitionState] = Monad[F].map(

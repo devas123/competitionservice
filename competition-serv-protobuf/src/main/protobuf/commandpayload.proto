@@ -1,6 +1,16 @@
 syntax = "proto3";
 
+package compservice.model.protobuf;
+
 import "model.proto";
+import "scalapb/scalapb.proto";
+
+option (scalapb.options) = {
+  lenses: true
+  getters: true
+  enum_strip_prefix: true
+};
+
 
 message AddAcademyPayload {
   FullAcademyInfo academy = 1;

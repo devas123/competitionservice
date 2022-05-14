@@ -1,14 +1,13 @@
 package compman.compsrv.logic.actors
 
 import cats.implicits._
-import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, PublishMessage, Subscribe}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.Operations
 import compman.compsrv.logic.logging.CompetitionLogging.{LIO, Live}
 import compman.compsrv.logic.logging.info
-import compman.compsrv.model.callback.{CommandCallbackDTO, CommandExecutionResult, ErrorCallbackDTO}
-import compman.compsrv.model.commands.CommandDTO
+import compservice.model.protobuf.command.Command
+import compservice.model.protobuf.common.{CommandCallback, CommandExecutionResult, ErrorCallback}
 import zio.clock.Clock
 import zio.console.Console
 import zio.logging.{LogAnnotation, Logging}
@@ -25,7 +24,6 @@ object StatelessCommandProcessor {
   import Behaviors._
   def behavior(
     statelessCommandsTopic: String,
-    mapper: ObjectMapper,
     groupId: String,
     statelessEventsTopic: String,
     statelessCommandCallbackTopic: String,
@@ -36,21 +34,21 @@ object StatelessCommandProcessor {
       message match {
         case AcademyCommandReceived(cmd) => for {
             processResult <- Live
-              .withContext(_.annotate(LogAnnotation.CorrelationId, Option(cmd.getId).map(UUID.fromString))) {
+              .withContext(_.annotate(LogAnnotation.CorrelationId, cmd.messageInfo.map(_.correlationId))) {
                 Operations.processStatelessCommand[LIO](cmd)
               }
             _ <- processResult match {
               case Left(value) => info(s"Error: $value") *>
                   (kafkaSupervisor ! PublishMessage(
                     statelessCommandCallbackTopic,
-                    cmd.getId,
-                    mapper.writeValueAsBytes(
-                      new CommandCallbackDTO().setId(UUID.randomUUID().toString).setCorrelationId(cmd.getId)
-                        .setResult(CommandExecutionResult.FAIL)
-                        .setErrorInfo(new ErrorCallbackDTO().setMessage(s"Error: $value"))
-                    )
+                    cmd.messageInfo.map(_.id).orNull,
+                    CommandCallback().withId(UUID.randomUUID().toString).withCorrelationId(cmd.messageInfo.map(_.id).orNull)
+                      .withResult(CommandExecutionResult.FAIL)
+                      .withErrorInfo(ErrorCallback().withMessage(s"Error: $value")).toByteArray
                   ))
-              case Right(events) => events.traverse(e => kafkaSupervisor ! PublishMessage(statelessEventsTopic, cmd.getId, mapper.writeValueAsBytes(e))).unit
+              case Right(events) => events.traverse(e =>
+                  kafkaSupervisor ! PublishMessage(statelessEventsTopic, cmd.messageInfo.map(_.id).orNull, e.toByteArray)
+                ).unit
             }
           } yield ()
       }
@@ -61,7 +59,7 @@ object StatelessCommandProcessor {
           case KafkaSupervisor.QueryFinished() => None
           case KafkaSupervisor.QueryError(_)   => None
           case KafkaSupervisor.MessageReceived(_, committableRecord) =>
-            Try { mapper.readValue(committableRecord.value, classOf[CommandDTO]) }.toOption.map(AcademyCommandReceived)
+            Try { Command.parseFrom(committableRecord.value) }.toOption.map(AcademyCommandReceived)
         }
         _ <- kafkaSupervisor ! Subscribe(statelessCommandsTopic, groupId = groupId, replyTo = receiver)
       } yield (Seq.empty, Seq.empty, ())
@@ -69,5 +67,5 @@ object StatelessCommandProcessor {
 
   sealed trait AcademyCommandProcessorMessage
 
-  final case class AcademyCommandReceived(cmd: CommandDTO) extends AcademyCommandProcessorMessage
+  final case class AcademyCommandReceived(cmd: Command) extends AcademyCommandProcessorMessage
 }

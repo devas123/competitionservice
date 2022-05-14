@@ -3,27 +3,26 @@ package compman.compsrv.logic.schedule
 import com.google.common.collect.{BiMap, HashBiMap}
 import compman.compsrv.Utils
 import compman.compsrv.logic.fight.CanFail
-import compman.compsrv.model.dto.brackets.StageDescriptorDTO
-import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.extensions._
+import compservice.model.protobuf.model._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 case class StageGraph private[schedule](
-  private val fightsMap: Map[String, FightDescriptionDTO],
-  private val stagesGraph: Array[List[Int]],
-  private val fightsGraph: Array[List[Int]],
-  private val stageIdsToIds: BiMap[String, Int] = HashBiMap.create(),
-  private val fightIdsToIds: BiMap[String, Int] = HashBiMap.create(),
-  private val stageOrdering: Array[Int],
-  private val fightsOrdering: Array[Int],
-  private val nonCompleteCount: Int,
-  private val fightsInDegree: Array[Int],
-  private val completedFights: Set[Int],
-  private val completableFights: Set[Int],
-  private val categoryIdToFightIds: Map[String, Set[String]],
-  private val stageIdsToFightIds: Array[List[String]]
+                                         private val fightsMap: Map[String, FightDescription],
+                                         private val stagesGraph: Array[List[Int]],
+                                         private val fightsGraph: Array[List[Int]],
+                                         private val stageIdsToIds: BiMap[String, Int] = HashBiMap.create(),
+                                         private val fightIdsToIds: BiMap[String, Int] = HashBiMap.create(),
+                                         private val stageOrdering: Array[Int],
+                                         private val fightsOrdering: Array[Int],
+                                         private val nonCompleteCount: Int,
+                                         private val fightsInDegree: Array[Int],
+                                         private val completedFights: Set[Int],
+                                         private val completableFights: Set[Int],
+                                         private val categoryIdToFightIds: Map[String, Set[String]],
+                                         private val stageIdsToFightIds: Array[List[String]]
 ) {
 
   def getFightInDegree(id: String): Int = { fightsInDegree(fightIdsToIds.get(id)) }
@@ -44,11 +43,11 @@ case class StageGraph private[schedule](
     fromFights.filter { it => completedFights(fightIdsToIds.get(it)) }.toList.sortedFights
   }
 
-  def getCategoryId(id: String): String = { fightsMap(id).getCategoryId }
+  def getCategoryId(id: String): String = { fightsMap(id).categoryId }
 
-  def getStageId(id: String): String = { fightsMap(id).getStageId }
+  def stageId(id: String): String = { fightsMap(id).stageId }
 
-  def getDuration(id: String): Int = { fightsMap(id).getDuration }
+  def getDuration(id: String): Int = { fightsMap(id).duration }
 
   def getStageFights(stageId: String): List[String] = {
     if (stageIdsToIds.containsKey(stageId)) { stageIdsToFightIds(stageIdsToIds.get(stageId)) }
@@ -85,15 +84,15 @@ object StageGraph {
   }
 
   private def createStagesGraph(
-    stages: List[StageDescriptorDTO],
+    stages: List[StageDescriptor],
     stageIdsToIds: BiMap[String, Int]
   ): Array[List[Int]] = {
     val stageNodesMutable = Array.fill(stageIdsToIds.keySet().size()) { mutable.HashSet.empty[Int] }
     stages.foreach { stage =>
-      Option(stage.getInputDescriptor).flatMap(inp => Option(inp.getSelectors)).foreach(arr => arr.foreach { s =>
-        val parentId = s.getApplyToStageId
+      stage.inputDescriptor.map(_.selectors).foreach(arr => arr.foreach { s =>
+        val parentId = s.applyToStageId
         if (stageIdsToIds.containsKey(parentId)) {
-          val nodeId = stageIdsToIds.get(stage.getId)
+          val nodeId = stageIdsToIds.get(stage.id)
           stageNodesMutable(stageIdsToIds.get(parentId)).add(nodeId)
         }
       })
@@ -101,16 +100,16 @@ object StageGraph {
     stageNodesMutable.map { _.toList }
   }
 
-  private def createStageIdsToIntIds(stages: List[StageDescriptorDTO]) = {
-    val indices = stages.distinctBy(_.getId).zipWithIndex.map(p => (p._1.getId, p._2)).toMap
+  private def createStageIdsToIntIds(stages: List[StageDescriptor]) = {
+    val indices = stages.distinctBy(_.id).zipWithIndex.map(p => (p._1.id, p._2)).toMap
     HashBiMap.create(indices.asJava)
   }
-  private def createFightIdsToIntIds(fights: List[FightDescriptionDTO]) = {
-    HashBiMap.create(fights.distinctBy(_.getId).zipWithIndex.map(p => (p._1.getId, p._2)).toMap.asJava)
+  private def createFightIdsToIntIds(fights: List[FightDescription]) = {
+    HashBiMap.create(fights.distinctBy(_.id).zipWithIndex.map(p => (p._1.id, p._2)).toMap.asJava)
   }
 
   private def getFightsGraphAndStageIdToFightId(
-    fights: List[FightDescriptionDTO],
+    fights: List[FightDescription],
     stagesNumber: Int,
     fightsNumber: Int,
     fightIdsToIds: BiMap[String, Int],
@@ -121,12 +120,12 @@ object StageGraph {
 
     fights.foreach { fight =>
       if (fight.getWinFight != null) {
-        fightsGraphMutable(fightIdsToIds.get(fight.getId)).add(fightIdsToIds.get(fight.getWinFight))
+        fightsGraphMutable(fightIdsToIds.get(fight.id)).add(fightIdsToIds.get(fight.getWinFight))
       }
       if (fight.getLoseFight != null) {
-        fightsGraphMutable(fightIdsToIds.get(fight.getId)).add(fightIdsToIds.get(fight.getLoseFight))
+        fightsGraphMutable(fightIdsToIds.get(fight.id)).add(fightIdsToIds.get(fight.getLoseFight))
       }
-      stageIdToFightIds(stageIdsToIds.get(fight.getStageId)).add(fight.getId)
+      stageIdToFightIds(stageIdsToIds.get(fight.stageId)).add(fight.id)
     }
     (fightsGraphMutable.map(_.toList), stageIdToFightIds.map(_.toList))
   }
@@ -141,15 +140,15 @@ object StageGraph {
     completableFights.toSet
   }
 
-  def create(stages: List[StageDescriptorDTO], fights: List[FightDescriptionDTO]): CanFail[StageGraph] = {
+  def create(stages: List[StageDescriptor], fights: List[FightDescription]): CanFail[StageGraph] = {
     // we resolve transitive connections here (a -> b -> c  ~>  (a -> b, a -> c, b -> c))
     val stageIdsToIds = createStageIdsToIntIds(stages)
     val stagesGraph   = createStagesGraph(stages, stageIdsToIds)
 
     for {
       stageOrdering <- GraphUtils.findTopologicalOrdering(stagesGraph)
-      sortedFights  = fights.sortBy { _.roundOrZero }.sortBy { it => stageOrdering(stageIdsToIds.get(it.getStageId)) }
-      fightsMap     = Utils.groupById(sortedFights)(_.getId)
+      sortedFights  = fights.sortBy { _.roundOrZero }.sortBy { it => stageOrdering(stageIdsToIds.get(it.stageId)) }
+      fightsMap     = Utils.groupById(sortedFights)(_.id)
       fightIdsToIds = createFightIdsToIntIds(sortedFights)
       (fightsGraph, stageIdsToFightIds) =
         getFightsGraphAndStageIdToFightId(fights, stages.size, fightsMap.size, fightIdsToIds, stageIdsToIds)
@@ -157,7 +156,7 @@ object StageGraph {
       fightsOrdering <- GraphUtils.findTopologicalOrdering(fightsGraph)
       completableFights    = getCompletableFights(fightsInDegree)
       completedFights      = Set.empty[Int]
-      categoryIdToFightIds = fights.groupMap(_.getCategoryId)(_.getId).map { case (k, list) => k -> list.toSet }
+      categoryIdToFightIds = fights.groupMap(_.categoryId)(_.id).map { case (k, list) => k -> list.toSet }
     } yield new StageGraph(
       stagesGraph = stagesGraph,
       fightsGraph = fightsGraph,

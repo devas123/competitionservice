@@ -1,12 +1,12 @@
 package compman.compsrv.logic.actors
 
 object EventSourcedMessages {
-  sealed trait Command[+Ev] extends Product
+  sealed trait EventSourcingCommand[+Ev] extends Product
 
-  object Command {
-    case class Persist[+Ev](event: Seq[Ev]) extends Command[Ev]
+  object EventSourcingCommand {
+    case class Persist[+Ev](event: Seq[Ev]) extends EventSourcingCommand[Ev]
 
-    case object Ignore extends Command[Nothing]
+    case object Ignore extends EventSourcingCommand[Nothing]
 
     def persist[Ev](event: Seq[Ev]): Persist[Ev] = Persist(event)
 

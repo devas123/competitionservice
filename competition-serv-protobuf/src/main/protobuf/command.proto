@@ -1,4 +1,5 @@
 syntax = "proto3";
+package compservice.model.protobuf;
 
 import "common.proto";
 message Command {

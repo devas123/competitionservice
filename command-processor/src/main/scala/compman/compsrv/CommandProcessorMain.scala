@@ -1,7 +1,7 @@
 package compman.compsrv
 
 import compman.compsrv.config.AppConfig
-import compman.compsrv.jackson.SerdeApi.{commandDeserializer, objectMapper}
+import compman.compsrv.jackson.SerdeApi.commandDeserializer
 import compman.compsrv.logic.Operations._
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaTopicConfig}
@@ -12,7 +12,7 @@ import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.logic.logging.CompetitionLogging.Live.loggingLayer
 import compman.compsrv.model.Mapping
-import compman.compsrv.model.commands.CommandDTO
+import compservice.model.command.Command
 import zio.{ExitCode, URIO, ZEnv, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
@@ -77,11 +77,11 @@ object CommandProcessorMain extends zio.App {
             "stateless-command-processor",
             ActorConfig(),
             (),
-            StatelessCommandProcessor.behavior(appConfig.consumer.commandTopics.academy, objectMapper, appConfig.consumer.groupId, appConfig.commandProcessor.academyNotificationsTopic, appConfig.commandProcessor.commandCallbackTopic, kafkaSupervisor)
+            StatelessCommandProcessor.behavior(appConfig.consumer.commandTopics.academy, appConfig.consumer.groupId, appConfig.commandProcessor.academyNotificationsTopic, appConfig.commandProcessor.commandCallbackTopic, kafkaSupervisor)
           )
           res <- Consumer.subscribeAnd(Subscription.topics(appConfig.consumer.commandTopics.competition))
             .plainStream(Serde.string, commandDeserializer.asTry).mapM(record => {
-              val tryValue: Try[CommandDTO] = record.record.value()
+              val tryValue: Try[Command] = record.record.value()
               val offset: Offset            = record.offset
 
               Logging.info(s"Received command: $tryValue") *>

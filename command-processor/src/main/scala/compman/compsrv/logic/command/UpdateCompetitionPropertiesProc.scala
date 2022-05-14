@@ -2,36 +2,34 @@ package compman.compsrv.logic.command
 
 import cats.Monad
 import cats.data.EitherT
-import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.{Errors, Payload}
-import compman.compsrv.model.command.Commands.{Command, UpdateCompetitionProperties}
-import compman.compsrv.model.events.{EventDTO, EventType}
+import compman.compsrv.model.Errors
+import compman.compsrv.model.command.Commands.{InternalCommandProcessorCommand, UpdateCompetitionProperties}
 import compman.compsrv.model.Errors.NoPayloadError
-import compman.compsrv.model.events.payload.CompetitionPropertiesUpdatedPayload
+import compservice.model.protobuf.common.MessageInfo
+import compservice.model.protobuf.event.{Event, EventType}
+import compservice.model.protobuf.eventpayload.CompetitionPropertiesUpdatedPayload
 
 object UpdateCompetitionPropertiesProc {
-  def apply[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations, P <: Payload](
-    state: CompetitionState
-  ): PartialFunction[Command[P], F[Either[Errors.Error, Seq[EventDTO]]]] = { case x: UpdateCompetitionProperties =>
-    process(x, state)
+  def apply[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations, P](): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+    case x: UpdateCompetitionProperties => process(x)
   }
 
   private def process[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations](
-    command: UpdateCompetitionProperties,
-    state: CompetitionState
-  ): F[Either[Errors.Error, Seq[EventDTO]]] = {
+    command: UpdateCompetitionProperties): F[Either[Errors.Error, Seq[Event]]] = {
     import compman.compsrv.logic.logging._
-    val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
+    val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption(command.payload, NoPayloadError())
       _       <- EitherT.liftF(info(s"Updating competition properties: $payload"))
-      event <- EitherT.liftF[F, Errors.Error, EventDTO](CommandEventOperations[F, EventDTO, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
         `type` = EventType.COMPETITION_PROPERTIES_UPDATED,
         competitorId = None,
         competitionId = command.competitionId,
         categoryId = command.categoryId,
-        payload = Some(new CompetitionPropertiesUpdatedPayload().setProperties(payload.getCompetitionProperties))
+        payload = Some(MessageInfo.Payload.CompetitionPropertiesUpdatedPayload(
+          CompetitionPropertiesUpdatedPayload().update(_.properties.setIfDefined(payload.competitionProperties))
+        ))
       ))
     } yield Seq(event)
     eventT.value

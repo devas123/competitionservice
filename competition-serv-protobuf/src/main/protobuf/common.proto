@@ -1,8 +1,18 @@
 syntax = "proto3";
+package compservice.model.protobuf;
 
 import "eventpayload.proto";
 import "commandpayload.proto";
 import "google/protobuf/any.proto";
+
+import "scalapb/scalapb.proto";
+
+option (scalapb.options) = {
+  scope: FILE
+  lenses: true
+  getters: true
+  enum_strip_prefix: true
+};
 
 message MessageInfo {
   string id = 1;
@@ -11,10 +21,6 @@ message MessageInfo {
   string competitorId = 4;
   string categoryId = 5;
   string matId = 6;
-  Payload payload = 7;
-}
-
-message Payload {
   oneof payload {
     AddAcademyPayload addAcademyPayload = 11;
     AddCategoryPayload     addCategoryPayload = 12;

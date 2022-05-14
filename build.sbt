@@ -35,13 +35,10 @@ lazy val competitionServiceModel = module("competition-serv-model", "competition
   .enablePlugins(AnnotationProcessorPlugin)
   .dependsOn(competitionServiceAnnotations, competitionServiceAnnotationProcessor)
 
-lazy val competitionServiceModelProtobuf = module("competition-serv-protobuf", "competition-serv-protobuf")
-  .settings(
-    libraryDependencies ++= scalapbProtobufDepenedency,
-    Compile / PB.targets := Seq(
-      scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
-    )
-  )
+lazy val competitionServiceModelProtobuf = module("competition-serv-protobuf", "competition-serv-protobuf").settings(
+  libraryDependencies ++= scalapbProtobufDepenedency,
+  Compile / PB.targets := Seq(scalapb.gen() -> (Compile / sourceManaged).value / "scalapb")
+)
 
 lazy val actorSystem = module("actor-system", "actor-system").settings(
   libraryDependencies ++= zioLoggingDependencies ++ catsDependencies ++ zioDependencies ++ zioTestDependencies,
@@ -52,13 +49,14 @@ lazy val kafkaCommons = module("kafka-common", "kafka-common").settings(
   libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioLoggingDependencies ++ zioTestDependencies ++
     jacksonDependencies ++ zioConfigDependencies ++
     Seq(zioKafkaDependency, disruptorDependency, testContainersKafkaDependency),
-  testFrameworks := Seq(zTestFramework),
+  testFrameworks := Seq(zTestFramework)
 ).dependsOn(actorSystem, commons)
 
 lazy val commons = module("commons", "command-processor/commons").settings(
-  libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioLoggingDependencies ++ zioTestDependencies,
+  libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioLoggingDependencies ++ zioTestDependencies ++
+    protobufUtils,
   testFrameworks := Seq(zTestFramework)
-).dependsOn(competitionServiceModel)
+).dependsOn(competitionServiceModel, competitionServiceModelProtobuf)
 
 lazy val competitionservice = project.in(file(".")).settings(publish / skip := true)
   .aggregate(commandProcessor, queryProcessor, gatewayService, kafkaCommons, actorSystem)
@@ -71,8 +69,7 @@ lazy val commandProcessor = module("command-processor", "command-processor")
       Seq(zioKafkaDependency, guavaDependency, rocksDbDependency, disruptorDependency, scalaTestDependency),
     testFrameworks       := Seq(zTestFramework, TestFrameworks.ScalaTest),
     Docker / packageName := "command-processor"
-  ).settings(stdSettings("command-processor"))
-  .dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons, competitionServiceModelProtobuf)
+  ).settings(stdSettings("command-processor")).dependsOn(commons, actorSystem, kafkaCommons)
 
 lazy val queryProcessor = module("query-processor", "query-processor")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.logic"))
@@ -90,8 +87,7 @@ lazy val queryProcessor = module("query-processor", "query-processor")
     dependencyOverrides  := Seq("dev.zio" %% "zio-test" % zioVersion % "test"),
     testFrameworks       := Seq(zTestFramework, TestFrameworks.ScalaTest),
     Docker / packageName := "query-processor"
-  ).settings(stdSettings("query-processor", Seq.empty))
-  .dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
+  ).settings(stdSettings("query-processor", Seq.empty)).dependsOn(commons, actorSystem, kafkaCommons)
 
 lazy val gatewayService = module("gateway-service", "gateway-service")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.gateway"))
@@ -101,4 +97,4 @@ lazy val gatewayService = module("gateway-service", "gateway-service")
       Seq(zioKafkaDependency, scalaTestDependency),
     testFrameworks       := Seq(zTestFramework),
     Docker / packageName := "gateway-service"
-  ).settings(stdSettings("gateway-service")).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
+  ).settings(stdSettings("gateway-service")).dependsOn(commons, actorSystem, kafkaCommons)

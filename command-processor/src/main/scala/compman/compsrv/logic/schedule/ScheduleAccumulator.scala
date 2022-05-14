@@ -1,7 +1,7 @@
 package compman.compsrv.logic.schedule
 
-import compman.compsrv.model.dto.schedule.{ScheduleEntryDTO, ScheduleEntryType, ScheduleRequirementDTO}
 import compman.compsrv.model.extensions._
+import compservice.model.protobuf.model._
 
 import java.time.Instant
 import java.util.UUID
@@ -10,25 +10,25 @@ import scala.collection.mutable.ArrayBuffer
 
 
 case class ScheduleAccumulator(initialMatSchedules: List[InternalMatScheduleContainer]) {
-  val scheduleEntries: mutable.ArrayBuffer[ScheduleEntryDTO] = ArrayBuffer.empty[ScheduleEntryDTO]
+  val scheduleEntries: mutable.ArrayBuffer[ScheduleEntry] = ArrayBuffer.empty[ScheduleEntry]
   val matSchedules: mutable.Seq[InternalMatScheduleContainer] = ArrayBuffer.from(initialMatSchedules)
   val invalidFights: mutable.Set[String] = mutable.HashSet[String]()
 
-  def scheduleEntryFromRequirement(requirement: ScheduleRequirementDTO, startTime: Instant, overridePeriodId: Option[String] = None): Int = {
-    val periodId = overridePeriodId.orElse(Option(requirement.getPeriodId))
-    val index = scheduleEntries.indexWhere { it => it.requirementIdsOrEmpty.contains(requirement.getId) && overridePeriodId.contains(it.getPeriodId) }
+  def scheduleEntryFromRequirement(requirement: ScheduleRequirement, startTime: Instant, overridePeriodId: Option[String] = None): Int = {
+    val periodId = overridePeriodId.orElse(Option(requirement.periodId))
+    val index = scheduleEntries.indexWhere { it => it.requirementIdsOrEmpty.contains(requirement.id) && overridePeriodId.contains(it.periodId) }
     if (index < 0) {
-      scheduleEntries.append(new ScheduleEntryDTO()
-        .setId(UUID.randomUUID().toString)
-        .setPeriodId(periodId.get)
-        .setEntryType(ScheduleEntryType.FIGHTS_GROUP)
-        .setFightIds(Array.empty)
-        .setCategoryIds(Array.empty)
-        .setStartTime(startTime)
-        .setEndTime(requirement.getEndTime)
-        .setRequirementIds(Array(requirement.getId))
-        .setName(requirement.getName)
-        .setColor(requirement.getColor))
+      scheduleEntries.append(ScheduleEntry()
+        .withId(UUID.randomUUID().toString)
+        .withPeriodId(periodId.get)
+        .withEntryType(ScheduleEntryType.FIGHTS_GROUP)
+        .withFightScheduleInfo(Array.empty)
+        .withCategoryIds(Array.empty)
+        .withStartTime(startTime.asTimestamp)
+        .withEndTime(requirement.getEndTime)
+        .withRequirementIds(Array(requirement.id))
+        .withName(requirement.getName)
+        .withColor(requirement.getColor))
       scheduleEntries.size - 1
     } else {
       index

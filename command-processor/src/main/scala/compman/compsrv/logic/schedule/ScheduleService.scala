@@ -7,61 +7,70 @@ import compman.compsrv.Utils
 import compman.compsrv.logic._
 import compman.compsrv.logic.Operations.IdOperations
 import compman.compsrv.logic.fight.CanFail
-import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.dto.schedule.{FightStartTimePairDTO, PeriodDTO, ScheduleDTO}
 import compman.compsrv.model.extensions._
+import compservice.model.protobuf.model._
 
 object ScheduleService {
   def generateSchedule[F[+_]: Monad: IdOperations](
     competitionId: String,
-    periods: Seq[PeriodDTO],
-    mats: Seq[MatDescriptionDTO],
+    periods: Seq[Period],
+    mats: Seq[MatDescription],
     stageGraph: StageGraph,
     timeZone: String
-  ): F[CanFail[(ScheduleDTO, List[FightStartTimePairDTO])]] = {
+  ): F[CanFail[(Schedule, List[FightStartTimePair])]] = {
     for {
       periodsWithIds <- EitherT
-        .liftF(periods.traverse(p => IdOperations[F].generateIdIfMissing(Option(p.getId)).map(p.setId)))
+        .liftF(periods.traverse(p => IdOperations[F].generateIdIfMissing(Option(p.id)).map(p.withId)))
       sortedPeriods = periodsWithIds.sortBy(_.getStartTime)
       enrichedScheduleRequirements <- EitherT.liftF(
         periodsWithIds.flatMap { periodDTO =>
-          periodDTO.getScheduleRequirements.map { it => it.setPeriodId(periodDTO.getId) }
-        }.traverse { it => IdOperations[F].generateIdIfMissing(Option(it.getId)).map(it.setId) }.map(_.sortBy {
-          _.getEntryOrder
+          periodDTO.scheduleRequirements.map { it => it.withPeriodId(periodDTO.id) }
+        }.traverse { it => IdOperations[F].generateIdIfMissing(Option(it.id)).map(it.withId) }.map(_.sortBy {
+          _.entryOrder
         })
       )
       flatFights = enrichedScheduleRequirements.flatMap(_.fightIdsOrEmpty)
       _ <- assertET[F](flatFights.size == flatFights.distinct.size, Some("Duplicate fights detected"))
       requirementsGraph <- EitherT.fromEither[F](RequirementsGraph(
-        Utils.groupById(enrichedScheduleRequirements)(_.getId),
+        Utils.groupById(enrichedScheduleRequirements)(_.id),
         stageGraph.getCategoryIdsToFightIds,
-        sortedPeriods.map(_.getId).toArray
+        sortedPeriods.map(_.id).toArray
       ))
       result <- EitherT.fromEither[F](ScheduleProducer.simulate(
         stageGraph,
         requirementsGraph,
         sortedPeriods.toList,
         enrichedScheduleRequirements.toList,
-        sortedPeriods.map(p => p.getId -> p.getStartTime).toMap,
+        sortedPeriods.map(p => p.id -> p.getStartTime.asJavaInstant).toMap,
         mats.toList,
         timeZone
       ))
       invalidFights = result._3
       fightsStartTimes = result._2.flatMap { container =>
         container.fights.map { it =>
-          new FightStartTimePairDTO().setStartTime(it.startTime).setNumberOnMat(it.fightNumber).setFightId(it.fightId)
-            .setPeriodId(it.periodId).setFightCategoryId(it.categoryId).setMatId(it.matId)
-            .setScheduleEntryId(it.scheduleEntryId).setInvalid(invalidFights.contains(it.fightId))
+          FightStartTimePair()
+            .withStartTime(it.startTime.asTimestamp)
+            .withNumberOnMat(it.fightNumber)
+            .withFightId(it.fightId)
+            .withPeriodId(it.periodId)
+            .withFightCategoryId(it.categoryId)
+            .withMatId(it.matId)
+            .withScheduleEntryId(it.scheduleEntryId)
+            .withInvalid(invalidFights.contains(it.fightId))
         }
       }
-      scheduleEntriesByPeriod      = result._1.groupBy(_.getPeriodId)
-      scheduleRequirementsByPeriod = enrichedScheduleRequirements.groupBy(_.getPeriodId)
-    } yield new ScheduleDTO().setId(competitionId).setMats(mats.toArray).setPeriods(
+      scheduleEntriesByPeriod      = result._1.groupBy(_.periodId)
+      scheduleRequirementsByPeriod = enrichedScheduleRequirements.groupBy(_.periodId)
+    } yield Schedule()
+      .withId(competitionId)
+      .withMats(mats)
+      .withPeriods(
       sortedPeriods.map(period =>
-        period.setScheduleRequirements(scheduleRequirementsByPeriod.getOrElse(period.getId, List.empty).toArray)
-          .setScheduleEntries(
-            scheduleEntriesByPeriod.getOrElse(period.getId, List.empty).sortBy(_.getStartTime)
-              .mapWithIndex((e, ind) => e.setOrder(ind).setCategoryIds(e.getCategoryIds.distinct)).toArray
+        period
+          .withScheduleRequirements(scheduleRequirementsByPeriod.getOrElse(period.id, List.empty).toArray)
+          .withScheduleEntries(
+            scheduleEntriesByPeriod.getOrElse(period.id, List.empty).sortBy(_.getStartTime)
+              .mapWithIndex((e, ind) => e.withOrder(ind).withCategoryIds(e.categoryIds.distinct)).toArray
           )
       ).toArray
     ) -> fightsStartTimes

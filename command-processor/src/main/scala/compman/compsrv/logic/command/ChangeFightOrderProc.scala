@@ -4,39 +4,40 @@ import cats.Monad
 import cats.data.EitherT
 import compman.compsrv.logic.{assertETErr, CompetitionState}
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.model.{Errors, Payload}
-import compman.compsrv.model.command.Commands.{ChangeFightOrderCommand, Command}
-import compman.compsrv.model.events.{EventDTO, EventType}
+import compman.compsrv.model.Errors
+import compman.compsrv.model.command.Commands.{ChangeFightOrderCommand, InternalCommandProcessorCommand}
 import compman.compsrv.model.Errors.NoPayloadError
-import compman.compsrv.model.dto.competition.FightStatus
+import compservice.model.protobuf.common.MessageInfo
+import compservice.model.protobuf.event.{Event, EventType}
+import compservice.model.protobuf.model.FightStatus
 
 object ChangeFightOrderProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
+  def apply[F[+_]: Monad: IdOperations: EventOperations, P](
     state: CompetitionState
-  ): PartialFunction[Command[P], F[Either[Errors.Error, Seq[EventDTO]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ ChangeFightOrderCommand(_, _, _) => process(x, state)
   }
 
   private def process[F[+_]: Monad: IdOperations: EventOperations](
     command: ChangeFightOrderCommand,
     state: CompetitionState
-  ): F[Either[Errors.Error, Seq[EventDTO]]] = {
-    val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
+  ): F[Either[Errors.Error, Seq[Event]]] = {
+    val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption(command.payload, NoPayloadError())
-      fightToMove  = state.fights.flatMap(_.get(payload.getFightId))
-      newMatExists = state.schedule.exists(sched => sched.getMats.exists(mat => payload.getNewMatId == mat.getId))
-      _ <- assertETErr(fightToMove.nonEmpty, Errors.FightDoesNotExist(payload.getFightId))
-      _ <- assertETErr(newMatExists, Errors.MatDoesNotExist(payload.getNewMatId))
+      fightToMove  = state.fights.flatMap(_.get(payload.fightId))
+      newMatExists = state.schedule.exists(sched => sched.mats.exists(mat => payload.newMatId == mat.id))
+      _ <- assertETErr(fightToMove.nonEmpty, Errors.FightDoesNotExist(payload.fightId))
+      _ <- assertETErr(newMatExists, Errors.MatDoesNotExist(payload.newMatId))
       _ <- assertETErr(
-        !fightToMove.exists(f => Seq(FightStatus.IN_PROGRESS, FightStatus.FINISHED).contains(f.getStatus)),
-        Errors.FightCannotBeMoved(payload.getFightId)
+        !fightToMove.exists(f => Seq(FightStatus.IN_PROGRESS, FightStatus.FINISHED).contains(f.status)),
+        Errors.FightCannotBeMoved(payload.fightId)
       )
-      event <- EitherT.liftF[F, Errors.Error, EventDTO](CommandEventOperations[F, EventDTO, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
         `type` = EventType.FIGHT_ORDER_CHANGED,
         competitorId = None,
         competitionId = command.competitionId,
         categoryId = command.categoryId,
-        payload = command.payload
+        payload = Some(MessageInfo.Payload.ChangeFightOrderPayload(payload))
       ))
     } yield Seq(event)
     eventT.value

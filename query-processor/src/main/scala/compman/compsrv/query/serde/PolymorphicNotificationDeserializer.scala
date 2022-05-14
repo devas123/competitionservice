@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer
 import compman.compsrv.model.{CommandProcessorNotification, CompetitionProcessingStarted, CompetitionProcessingStopped}
 import compman.compsrv.model.events.EventDTO
-import compman.compsrv.model.NotificationTypes.NotificationType
+import .NotificationType
 
 class PolymorphicNotificationDeserializer extends StdDeserializer[CommandProcessorNotification](classOf[EventDTO]) {
   override def deserialize(p: JsonParser, ctxt: DeserializationContext): CommandProcessorNotification = {

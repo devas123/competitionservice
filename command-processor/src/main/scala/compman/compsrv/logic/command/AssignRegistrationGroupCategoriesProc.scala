@@ -4,54 +4,51 @@ import cats.data.EitherT
 import cats.Monad
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.model.{Errors, Payload}
-import compman.compsrv.model.events.{EventDTO, EventType}
+import compman.compsrv.model.Errors
 import compman.compsrv.model.Errors.NoPayloadError
-import compman.compsrv.model.command.Commands.{AssignRegistrationGroupCategoriesCommand, Command}
-import compman.compsrv.model.events.payload.RegistrationGroupCategoriesAssignedPayload
+import compman.compsrv.model.command.Commands.{
+  AssignRegistrationGroupCategoriesCommand,
+  InternalCommandProcessorCommand
+}
+import compservice.model.protobuf.common.MessageInfo
+import compservice.model.protobuf.event.{Event, EventType}
+import compservice.model.protobuf.eventpayload.RegistrationGroupCategoriesAssignedPayload
 
 object AssignRegistrationGroupCategoriesProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
-      state: CompetitionState
-  ): PartialFunction[Command[P], F[Either[Errors.Error, Seq[EventDTO]]]] = {
-    case x @ AssignRegistrationGroupCategoriesCommand(_, _, _) =>
-      process(x, state)
+  def apply[F[+_]: Monad: IdOperations: EventOperations, P](
+    state: CompetitionState
+  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+    case x @ AssignRegistrationGroupCategoriesCommand(_, _, _) => process(x, state)
   }
 
   private def process[F[+_]: Monad: IdOperations: EventOperations](
-      command: AssignRegistrationGroupCategoriesCommand,
-      state: CompetitionState
-  ): F[Either[Errors.Error, Seq[EventDTO]]] = {
-    val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] =
-      for {
-        payload <- EitherT.fromOption(command.payload, NoPayloadError())
-        allCategoriesExist = payload.getCategories.forall(b => state.categories.exists(_.contains(b)))
-        groupExists = state.registrationInfo.exists(_.getRegistrationGroups.containsKey(payload.getGroupId))
-        periodExists = state.registrationInfo.exists(_.getRegistrationPeriods.containsKey(payload.getPeriodId))
-        event <- if (!allCategoriesExist) {
-          EitherT.fromEither(Left[Errors.Error, EventDTO](Errors.CategoryDoesNotExist(payload.getCategories)))
+    command: AssignRegistrationGroupCategoriesCommand,
+    state: CompetitionState
+  ): F[Either[Errors.Error, Seq[Event]]] = {
+    val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
+      payload <- EitherT.fromOption(command.payload, NoPayloadError())
+      allCategoriesExist = payload.categories.forall(b => state.categories.exists(_.contains(b)))
+      groupExists        = state.registrationInfo.exists(_.registrationGroups.contains(payload.groupId))
+      periodExists       = state.registrationInfo.exists(_.registrationPeriods.contains(payload.periodId))
+      event <-
+        if (!allCategoriesExist) {
+          EitherT.fromEither(Left[Errors.Error, Event](Errors.CategoryDoesNotExist(payload.categories.toArray)))
         } else if (!groupExists) {
-          EitherT.fromEither(Left[Errors.Error, EventDTO](Errors.RegistrationGroupDoesNotExist(payload.getGroupId)))
+          EitherT.fromEither(Left[Errors.Error, Event](Errors.RegistrationGroupDoesNotExist(payload.groupId)))
         } else if (!periodExists) {
-          EitherT.fromEither(Left[Errors.Error, EventDTO](Errors.RegistrationPeriodDoesNotExist(payload.getPeriodId)))
+          EitherT.fromEither(Left[Errors.Error, Event](Errors.RegistrationPeriodDoesNotExist(payload.periodId)))
         } else {
-          EitherT.liftF[F, Errors.Error, EventDTO](
-            CommandEventOperations[F, EventDTO, EventType].create(
-              `type` = EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED,
-              competitorId = None,
-              competitionId = command.competitionId,
-              categoryId = None,
-              payload = Some(
-                new RegistrationGroupCategoriesAssignedPayload(
-                  payload.getPeriodId,
-                  payload.getGroupId,
-                  payload.getCategories
-                )
-              )
-            )
-          )
+          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+            `type` = EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED,
+            competitorId = None,
+            competitionId = command.competitionId,
+            categoryId = None,
+            payload = Some(MessageInfo.Payload.RegistrationGroupCategoriesAssignedPayload(
+              RegistrationGroupCategoriesAssignedPayload(payload.periodId, payload.groupId, payload.categories)
+            ))
+          ))
         }
-      } yield Seq(event)
+    } yield Seq(event)
     eventT.value
   }
 }

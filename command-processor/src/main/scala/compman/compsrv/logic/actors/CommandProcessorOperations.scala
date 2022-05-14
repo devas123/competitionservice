@@ -1,53 +1,63 @@
 package compman.compsrv.logic.actors
 
+import com.google.protobuf.timestamp.Timestamp
+import com.google.protobuf.util.Timestamps
 import compman.compsrv.logic.CompetitionState
-import compman.compsrv.model.Payload
-import compman.compsrv.model.commands.payload.CreateCompetitionPayload
-import compman.compsrv.model.dto.competition._
-import compman.compsrv.model.dto.schedule.ScheduleDTO
+import compservice.model.protobuf.commandpayload.CreateCompetitionPayload
+import compservice.model.protobuf.model.{CompetitionProperties, CompetitionStatus, RegistrationInfo, Schedule}
 import zio.{Has, Ref, RIO, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.kafka.producer.Producer
 import zio.logging.Logging
 
-import java.time.Instant
-import scala.jdk.CollectionConverters._
-
 trait CommandProcessorOperations[-E] {
   def getStateSnapshot(id: String): URIO[E with SnapshotService.Snapshot, Option[CompetitionState]]
 
   def saveStateSnapshot(state: CompetitionState): URIO[E with SnapshotService.Snapshot, Unit]
-
-  def createInitialState(competitionId: String, payload: Option[Payload]): CompetitionState = {
+private def now: Timestamp = Timestamp.fromJavaProto(Timestamps.fromMillis(System.currentTimeMillis()))
+  def createInitialState(competitionId: String, payload: Option[Any]): CompetitionState = {
     val defaultProperties = Option(
-      new CompetitionPropertiesDTO().setId(competitionId).setStatus(CompetitionStatus.CREATED)
-        .setCreationTimestamp(Instant.now()).setBracketsPublished(false).setSchedulePublished(false)
-        .setStaffIds(Array.empty).setEmailNotificationsEnabled(false).setTimeZone("UTC")
+      CompetitionProperties()
+        .withId(competitionId)
+        .withStatus(CompetitionStatus.CREATED)
+        .withCreationTimestamp(now)
+        .withBracketsPublished(false)
+        .withSchedulePublished(false)
+        .withStaffIds(Array.empty)
+        .withEmailNotificationsEnabled(false)
+        .withTimeZone("UTC")
     )
     val defaultRegInfo = Some(
-      new RegistrationInfoDTO().setId(competitionId).setRegistrationGroups(Map.empty[String, RegistrationGroupDTO].asJava)
-        .setRegistrationPeriods(Map.empty[String, RegistrationPeriodDTO].asJava).setRegistrationOpen(false)
+      RegistrationInfo()
+        .withId(competitionId)
+        .withRegistrationGroups(Map.empty)
+        .withRegistrationPeriods(Map.empty)
+        .withRegistrationOpen(false)
     )
 
     CompetitionState(
       id = competitionId,
       competitors = Option(Map.empty),
       competitionProperties = payload.flatMap {
-        case ccp: CreateCompetitionPayload => Option(ccp.getProperties)
+        case ccp: CreateCompetitionPayload => ccp.properties
         case _                             => defaultProperties
-      }.orElse(defaultProperties).map(_.setId(competitionId).setTimeZone("UTC"))
-        .map(_.setStatus(CompetitionStatus.CREATED))
-        .map(pr => if (pr.getStartDate == null) pr.setStartDate(Instant.now()) else pr)
-        .map(pr => if (pr.getCreationTimestamp == null) pr.setCreationTimestamp(Instant.now()) else pr),
+      }.orElse(defaultProperties).map(_.withId(competitionId)
+        .withTimeZone("UTC"))
+        .map(_.withStatus(CompetitionStatus.CREATED))
+        .map(pr => if (pr.startDate.isEmpty) pr.withStartDate(now) else pr)
+        .map(pr => if (pr.creationTimestamp.isEmpty) pr.withCreationTimestamp(now) else pr),
       stages = Some(Map.empty),
       fights = Some(Map.empty),
       categories = Some(Map.empty),
       registrationInfo = payload.flatMap {
         case p: CreateCompetitionPayload => Option(p.getReginfo)
         case _                           => defaultRegInfo
-      }.orElse(defaultRegInfo).map(_.setId(competitionId)),
-      schedule = Some(new ScheduleDTO().setId(competitionId).setMats(Array.empty).setPeriods(Array.empty)),
+      }.orElse(defaultRegInfo).map(_.withId(competitionId)),
+      schedule = Some(Schedule()
+        .withId(competitionId)
+        .withMats(Array.empty)
+        .withPeriods(Array.empty)),
       revision = 0L
     )
   }
@@ -79,7 +89,7 @@ object CommandProcessorOperations {
     new CommandProcessorOperations[Env with Clock with Blocking with Logging] {
       self =>
 
-      override def createInitialState(competitionId: String, payload: Option[Payload]): CompetitionState = {
+      override def createInitialState(competitionId: String, payload: Option[Any]): CompetitionState = {
         initialState.getOrElse(super.createInitialState(competitionId, payload))
       }
 

@@ -1,5 +1,14 @@
 syntax = "proto3";
+package compservice.model.protobuf;
 import "google/protobuf/timestamp.proto";
+import "scalapb/scalapb.proto";
+
+option (scalapb.options) = {
+  scope: FILE
+  lenses: true
+  getters: true
+  enum_strip_prefix: true
+};
 
 message StageDescriptor {
   string id = 1;
@@ -70,7 +79,7 @@ enum DistributionType {
 message StageResultDescriptor {
   optional string name = 1;
   bool forceManualAssignment = 2;
-  int32 outputSize = 3;
+  optional int32 outputSize = 3;
   repeated FightResultOption fightResultOptions = 4;
   repeated CompetitorStageResult competitorResults = 5;
   repeated AdditionalGroupSortingDescriptor additionalGroupSortingDescriptors = 6;
@@ -94,24 +103,24 @@ enum GroupSortSpecifier {
 
 message CompetitorStageResult {
   string competitorId = 1;
-  int32 points = 2;
-  int32 round = 3;
+  optional int32 points = 2;
+  optional int32 round = 3;
   StageRoundType roundType = 4;
-  int32 place = 5;
+  optional int32 place = 5;
   string stageId = 6;
-  string groupId = 7;
+  optional string groupId = 7;
   bool conflicting = 8;
 }
 
 message FightResultOption {
   string id = 1;
-  string description = 2;
+  optional string description = 2;
   string shortName = 3;
   bool draw = 4;
   int32 winnerPoints = 5;
-  int32 winnerAdditionalPoints = 6;
+  optional int32 winnerAdditionalPoints = 6;
   int32 loserPoints = 7;
-  int32 loserAdditionalPoints = 8;
+  optional int32 loserAdditionalPoints = 8;
 }
 
 enum StageRoundType {
@@ -142,32 +151,32 @@ enum StageStatus {
   STAGE_STATUS_WAITING_FOR_APPROVAL = 2;
   STAGE_STATUS_WAITING_FOR_COMPETITORS = 3;
   STAGE_STATUS_FINISHED = 4;
-  STAGE_STATUS_IN_PROGRES = 5;
+  STAGE_STATUS_IN_PROGRESS = 5;
 }
 
 
 message FightDescription {
   string id = 1;
   string categoryId = 2;
-  string fightName = 3;
-  string winFight = 4;
-  string loseFight = 5;
+  optional string fightName = 3;
+  optional string winFight = 4;
+  optional string loseFight = 5;
   repeated CompScore scores = 6;
   int32 duration = 7;
   int32 round = 8;
   bool invalid = 9;
   StageRoundType roundType = 10;
   FightStatus status = 11;
-  FightResult fightResult = 12;
-  MatDescription mat = 13;
-  int32 numberOnMat = 14;
-  int32 priority = 15;
+  optional FightResult fightResult = 12;
+  optional MatDescription mat = 13;
+  optional int32 numberOnMat = 14;
+  optional int32 priority = 15;
   string competitionId = 16;
-  string period = 17;
-  google.protobuf.Timestamp startTime = 18;
+  optional string period = 17;
+  optional google.protobuf.Timestamp startTime = 18;
   string stageId = 19;
-  string groupId = 20;
-  string scheduleEntryId = 21;
+  optional string groupId = 20;
+  optional string scheduleEntryId = 21;
   int32 numberInRound = 22;
 }
 
@@ -179,9 +188,9 @@ message MatDescription {
 }
 
 message FightResult {
-  string winnerId = 1;
-  string resultTypeId = 2;
-  string reason = 3;
+  optional string winnerId = 1;
+  optional string resultTypeId = 2;
+  optional string reason = 3;
 }
 
 enum FightStatus {
@@ -195,12 +204,12 @@ enum FightStatus {
 }
 
 message CompScore {
-  string placeholderId = 1;
-  string competitorId = 2;
+  optional string placeholderId = 1;
+  optional string competitorId = 2;
   Score score = 3;
   int32 order = 4;
-  FightReferenceType parentReferenceType = 5;
-  string parentFightId = 6;
+  optional FightReferenceType parentReferenceType = 5;
+  optional string parentFightId = 6;
 }
 
 enum FightReferenceType {
@@ -272,7 +281,7 @@ message Academy {
 message CategoryDescriptor {
   repeated CategoryRestriction restrictions = 1;
   string id = 2;
-  string name = 3;
+  optional string name = 3;
   bool registrationOpen = 4;
 }
 
@@ -280,11 +289,11 @@ message CategoryRestriction {
   string restrictionId = 1;
   CategoryRestrictionType type = 2;
   string name = 3;
-  string value = 4;
-  string alias = 5;
-  string minValue = 6;
-  string maxValue = 7;
-  string unit = 8;
+  optional string value = 4;
+  optional string alias = 5;
+  optional string minValue = 6;
+  optional string maxValue = 7;
+  optional string unit = 8;
   int32 restrictionOrder = 9;
 }
 
@@ -307,7 +316,7 @@ message CompetitionProperties {
   repeated string staffIds = 3;
   bool emailNotificationsEnabled = 4;
   string competitionName = 5;
-  string emailTemplate = 6;
+  optional string emailTemplate = 6;
   repeated PromoCode promoCodes = 7;
   google.protobuf.Timestamp startDate = 8;
   bool schedulePublished = 9;
@@ -325,6 +334,31 @@ message PromoCode {
   google.protobuf.Timestamp startAt = 4;
   google.protobuf.Timestamp expireAt = 5;
 }
+
+
+message CompetitionProcessorNotification {
+  oneof notification {
+    CompetitionProcessingStarted started = 1;
+    CompetitionProcessingStopped stopped = 2;
+  }
+}
+
+message CompetitionProcessingStarted {
+  string id = 1;
+  string name = 2;
+  string topic = 3;
+  string creatorId = 4;
+  google.protobuf.Timestamp createdAt = 5;
+  google.protobuf.Timestamp startsAt = 6;
+  google.protobuf.Timestamp endsAt = 7;
+  string timeZone = 8;
+  CompetitionStatus status = 9;
+}
+
+message CompetitionProcessingStopped {
+  string id = 1;
+}
+
 
 enum CompetitionStatus {
   COMPETITION_STATUS_UNKNOWN = 0;

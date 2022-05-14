@@ -2,28 +2,23 @@ package compman.compsrv.logic.command
 
 import cats.Monad
 import cats.data.EitherT
-import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.{Errors, Payload}
-import compman.compsrv.model.command.Commands.{Command, DropScheduleCommand}
-import compman.compsrv.model.events.{EventDTO, EventType}
+import compman.compsrv.model.command.Commands.{DropScheduleCommand, InternalCommandProcessorCommand}
+import compman.compsrv.model.Errors
+import compservice.model.protobuf.event.{Event, EventType}
 
 object DropScheduleProc {
-  def apply[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations, P <: Payload](
-    state: CompetitionState
-  ): PartialFunction[Command[P], F[Either[Errors.Error, Seq[EventDTO]]]] = { case x: DropScheduleCommand =>
-    process(x.competitionId, state)
+  def apply[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations, P](): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = { case x: DropScheduleCommand =>
+    process(x.competitionId)
   }
 
   private def process[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations](
-    competitionId: Option[String],
-    state: CompetitionState
-  ): F[Either[Errors.Error, Seq[EventDTO]]] = {
+    competitionId: Option[String]): F[Either[Errors.Error, Seq[Event]]] = {
     import compman.compsrv.logic.logging._
-    val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
+    val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       _          <- EitherT.liftF(info(s"Dropping schedule"))
-      event <- EitherT.liftF[F, Errors.Error, EventDTO](CommandEventOperations[F, EventDTO, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
         `type` = EventType.SCHEDULE_DROPPED,
         competitorId = None,
         competitionId = competitionId,
