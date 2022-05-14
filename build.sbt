@@ -71,7 +71,8 @@ lazy val commandProcessor = module("command-processor", "command-processor")
       Seq(zioKafkaDependency, guavaDependency, rocksDbDependency, disruptorDependency, scalaTestDependency),
     testFrameworks       := Seq(zTestFramework, TestFrameworks.ScalaTest),
     Docker / packageName := "command-processor"
-  ).settings(stdSettings("command-processor")).dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons)
+  ).settings(stdSettings("command-processor"))
+  .dependsOn(commons, competitionServiceModel, actorSystem, kafkaCommons, competitionServiceModelProtobuf)
 
 lazy val queryProcessor = module("query-processor", "query-processor")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.logic"))

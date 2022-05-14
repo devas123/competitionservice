@@ -1,15 +1,18 @@
 syntax = "proto3";
 
 import "google/protobuf/timestamp.proto";
+import "common.proto";
+
 message Event {
   google.protobuf.Timestamp timestamp = 1;
   int32 version = 2;
   int32 localEventNumber = 3;
   EventType type = 4;
+  MessageInfo messageInfo = 5;
 }
 
 enum EventType {
-  UNKNOWN = 0;
+  EVENT_TYPE_UNKNOWN = 0;
   ACADEMY_ADDED = 1;
   ACADEMY_REMOVED = 2;
   ACADEMY_UPDATED = 3;
