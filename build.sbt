@@ -35,6 +35,14 @@ lazy val competitionServiceModel = module("competition-serv-model", "competition
   .enablePlugins(AnnotationProcessorPlugin)
   .dependsOn(competitionServiceAnnotations, competitionServiceAnnotationProcessor)
 
+lazy val competitionServiceModelProtobuf = module("competition-serv-protobuf", "competition-serv-protobuf")
+  .settings(
+    libraryDependencies ++= scalapbProtobufDepenedency,
+    Compile / PB.targets := Seq(
+      scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
+    )
+  )
+
 lazy val actorSystem = module("actor-system", "actor-system").settings(
   libraryDependencies ++= zioLoggingDependencies ++ catsDependencies ++ zioDependencies ++ zioTestDependencies,
   testFrameworks := Seq(zTestFramework)

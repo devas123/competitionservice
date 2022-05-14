@@ -90,4 +90,8 @@ object Libraries {
     "com.fasterxml.jackson.module"  %% "jackson-module-scala"           % jackson
   )
 
+  val scalapbProtobufDepenedency: Seq[ModuleID] = Seq(
+    "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf"
+  )
+
 }
