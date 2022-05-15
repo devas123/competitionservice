@@ -18,9 +18,9 @@ import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload.{CompetitorAssignmentDescriptor, CompetitorsPropagatedToStagePayload}
 
 object PropagateCompetitorsProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations: Interpreter, P](
+  def apply[F[+_]: Monad: IdOperations: EventOperations: Interpreter](
     state: CompetitionState
-  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x: PropagateCompetitorsCommand => process(x, state)
   }
 

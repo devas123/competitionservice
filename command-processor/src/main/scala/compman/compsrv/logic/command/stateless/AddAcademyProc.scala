@@ -10,8 +10,8 @@ import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
 
 object AddAcademyProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P]()
-    : PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  def apply[F[+_]: Monad: IdOperations: EventOperations]()
+    : PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x: AddAcademyCommand => addAcademy(x)
   }
 

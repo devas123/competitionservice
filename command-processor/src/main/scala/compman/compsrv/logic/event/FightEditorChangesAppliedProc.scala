@@ -3,14 +3,12 @@ package compman.compsrv.logic.event
 import cats.Monad
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.Payload
-import compman.compsrv.model.dto.competition.FightDescriptionDTO
 import compman.compsrv.model.event.Events.{Event, FightEditorChangesAppliedEvent}
 
 object FightEditorChangesAppliedProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
     state: CompetitionState
-  ): PartialFunction[Event[P], F[Option[CompetitionState]]] = { case x: FightEditorChangesAppliedEvent =>
+  ): PartialFunction[Event[Any], F[Option[CompetitionState]]] = { case x: FightEditorChangesAppliedEvent =>
     apply[F](x, state)
   }
 
@@ -20,9 +18,9 @@ object FightEditorChangesAppliedProc {
   ): F[Option[CompetitionState]] = {
     val eventT = for {
       payload       <- event.payload
-      updates       <- Option(payload.getUpdates).orElse(Some(Array.empty[FightDescriptionDTO]))
-      removals      <- Option(payload.getRemovedFighids).orElse(Some(Array.empty[String]))
-      additions     <- Option(payload.getNewFights).orElse(Some(Array.empty[FightDescriptionDTO]))
+      updates       <- Option(payload.updates).orElse(Some(Seq.empty))
+      removals      <- Option(payload.removedFighids).orElse(Some(Seq.empty))
+      additions     <- Option(payload.newFights).orElse(Some(Seq.empty))
       currentFights <- state.fights
       newFights = currentFights -- removals
       newState  = state.copy(fights = Some(newFights)).updateFights((updates ++ additions).toIndexedSeq)

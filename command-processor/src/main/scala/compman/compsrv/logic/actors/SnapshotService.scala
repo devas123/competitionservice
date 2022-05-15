@@ -14,7 +14,7 @@ object SnapshotService {
     def loadSnapshot(id: String): URIO[Snapshot, Option[CompetitionState]]
   }
 
-  private final case class Live(rocksDB: RocksDB, mapper: ObjectMapper) extends Service {
+  private final case class Live(rocksDB: RocksDB, mapper: ObjectMapper = new ObjectMapper()) extends Service {
     override def saveSnapshot(state: CompetitionState): URIO[Snapshot, Unit] =
       URIO { rocksDB.put(state.id.getBytes, mapper.writeValueAsBytes(state)) }
 
@@ -44,7 +44,7 @@ object SnapshotService {
         if (!Files.exists(p)) { Files.createDirectories(p) }
       }
       db     <- ZIO.effect(RocksDB.open(path))
-    } yield Live(rocksDB = db, mapper = mapper)).toManaged(_.close)
+    } yield Live(rocksDB = db)).toManaged(_.close)
   }
   def test: ZManaged[Any, Nothing, Service] = {
     (for {

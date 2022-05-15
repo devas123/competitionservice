@@ -3,16 +3,12 @@ package compman.compsrv.logic.event
 import cats.Monad
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.Payload
-import compman.compsrv.model.dto.competition.RegistrationGroupDTO
 import compman.compsrv.model.event.Events.{Event, RegistrationGroupAddedEvent}
 
-import scala.jdk.CollectionConverters._
-
 object RegistrationGroupAddedProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
     state: CompetitionState
-  ): PartialFunction[Event[P], F[Option[CompetitionState]]] = { case x: RegistrationGroupAddedEvent =>
+  ): PartialFunction[Event[Any], F[Option[CompetitionState]]] = { case x: RegistrationGroupAddedEvent =>
     apply[F](x, state)
   }
 
@@ -23,15 +19,15 @@ object RegistrationGroupAddedProc {
     val eventT = for {
       payload             <- event.payload
       regInfo             <- state.registrationInfo
-      regPeriods          <- Option(regInfo.getRegistrationPeriods)
-      regPeriod           <- regPeriods.asScala.get(payload.getPeriodId)
-      addedGroups         <- Option(payload.getGroups)
-      currentPeriodGroups <- Option(regPeriod.getRegistrationGroupIds).orElse(Some(Array.empty[String]))
-      regGroups <- Option(regInfo.getRegistrationGroups).orElse(Some(Map.empty[String, RegistrationGroupDTO].asJava))
-      updatedPeriod = regPeriod.setRegistrationGroupIds((currentPeriodGroups ++ addedGroups.map(_.getId)).distinct)
-      newPeriods = regPeriods.asScala.toMap + (payload.getPeriodId -> updatedPeriod)
-      newGroups  = regGroups.asScala.toMap ++ addedGroups.map(g => g.getId -> g)
-      newRegInfo = regInfo.setRegistrationPeriods(newPeriods.asJava).setRegistrationGroups(newGroups.asJava)
+      regPeriods          <- Option(regInfo.registrationPeriods)
+      regPeriod           <- regPeriods.get(payload.periodId)
+      addedGroups         <- Option(payload.groups)
+      currentPeriodGroups <- Option(regPeriod.registrationGroupIds).orElse(Some(Seq.empty[String]))
+      regGroups <- Option(regInfo.registrationGroups).orElse(Some(Map.empty))
+      updatedPeriod = regPeriod.withRegistrationGroupIds((currentPeriodGroups ++ addedGroups.map(_.id)).distinct)
+      newPeriods = regPeriods + (payload.periodId -> updatedPeriod)
+      newGroups  = regGroups ++ addedGroups.map(g => g.id -> g)
+      newRegInfo = regInfo.withRegistrationPeriods(newPeriods).withRegistrationGroups(newGroups.toMap)
       newState   = state.copy(registrationInfo = Some(newRegInfo))
     } yield newState
     Monad[F].pure(eventT)

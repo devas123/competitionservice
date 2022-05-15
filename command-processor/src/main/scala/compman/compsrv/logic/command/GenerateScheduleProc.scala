@@ -15,9 +15,9 @@ import compservice.model.protobuf.eventpayload.{FightStartTimeUpdatedPayload, Sc
 import compservice.model.protobuf.model.MatDescription
 
 object GenerateScheduleProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
     state: CompetitionState
-  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x: GenerateScheduleCommand => process[F](x, state)
   }
 
@@ -39,7 +39,7 @@ object GenerateScheduleProc {
       periods = payload.periods
       _    <- assertET[F](periods != null && periods.nonEmpty, Some("No periods"))
       mats <- EitherT.liftF(payload.mats.toList.traverse(mat => updateMatId(mat)))
-      categories = periods.flatMap(p => Option(p.scheduleRequirements).getOrElse(Array.empty))
+      categories = periods.flatMap(p => Option(p.scheduleRequirements).getOrElse(Seq.empty))
         .flatMap(e => e.categoryIds).toSet
       unknownCategories = state.categories.map(_.keySet).map(c => categories.diff(c)).getOrElse(Set.empty)
       _ <- assertET[F](!state.schedule.exists(s => s.periods.nonEmpty), Some("Schedule generated"))
@@ -56,7 +56,7 @@ object GenerateScheduleProc {
             competitionId = command.competitionId,
             categoryId = None,
             payload = Option(MessageInfo.Payload.FightStartTimeUpdatedPayload(
-              FightStartTimeUpdatedPayload().withNewFights(fights.toArray)
+              FightStartTimeUpdatedPayload().withNewFights(fights)
             ))
           )
         ))

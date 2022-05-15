@@ -34,7 +34,7 @@ object StatelessCommandProcessor {
       message match {
         case AcademyCommandReceived(cmd) => for {
             processResult <- Live
-              .withContext(_.annotate(LogAnnotation.CorrelationId, cmd.messageInfo.map(_.correlationId))) {
+              .withContext(_.annotate(LogAnnotation.CorrelationId, cmd.messageInfo.map(_.correlationId).map(UUID.fromString))) {
                 Operations.processStatelessCommand[LIO](cmd)
               }
             _ <- processResult match {

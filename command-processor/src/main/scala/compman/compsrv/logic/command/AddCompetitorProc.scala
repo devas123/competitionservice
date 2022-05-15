@@ -13,9 +13,9 @@ import compservice.model.protobuf.eventpayload.CompetitorAddedPayload
 
 object AddCompetitorProc {
 
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
       state: CompetitionState
-  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ AddCompetitorCommand(_, _, _) =>
       addCompetitor(x, state)
   }

@@ -15,9 +15,9 @@ import compservice.model.protobuf.eventpayload.{BracketsGeneratedPayload, Fights
 import compservice.model.protobuf.model.{StageDescriptor, StageStatus, StageType}
 
 object GenerateBracketsProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
     state: CompetitionState
-  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ GenerateBracketsCommand(_, _, _) => process[F](x, state)
   }
 
@@ -31,7 +31,7 @@ object GenerateBracketsProc {
       _          <- EitherT.fromOption[F](command.competitionId, NoCompetitionIdError())
       _ <- assertETErr[F](
         state.categories.exists(_.contains(categoryId)),
-        Errors.CategoryDoesNotExist(command.categoryId.map(Array(_)).getOrElse(Array.empty))
+        Errors.CategoryDoesNotExist(command.categoryId.map(Seq(_)).getOrElse(Seq.empty))
       )
       _ <- assertETErr[F](
         !state.fights.exists(fightsMap => fightsMap.values.exists(_.categoryId == categoryId)),
@@ -51,7 +51,7 @@ object GenerateBracketsProc {
                 None,
                 None,
                 command.categoryId,
-                Some(MessageInfo.Payload.FightsAddedToStagePayload(FightsAddedToStagePayload(it.toArray, stage.id)))
+                Some(MessageInfo.Payload.FightsAddedToStagePayload(FightsAddedToStagePayload(it, stage.id)))
               )
             }
           }.traverse(identity)
@@ -120,7 +120,7 @@ object GenerateBracketsProc {
       .withId(stageId)
       .withStageStatus(status)
       .withCompetitionId(state.id)
-      .withGroupDescriptors(groupDescr.toArray)
+      .withGroupDescriptors(groupDescr)
       .withInputDescriptor(inputDescriptor)
       .withStageResultDescriptor(resultDescriptor)
 

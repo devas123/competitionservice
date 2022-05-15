@@ -17,7 +17,7 @@ object CategoryGenerateService {
   ): CategoryDescriptor = {
     val restr = restrictions.mapWithIndex { case (it, index) => it.withRestrictionOrder(index) }
     CategoryDescriptor().withId(UUID.randomUUID().toString)
-      .withRestrictions(restr.toArray)
+      .withRestrictions(restr)
       .withRegistrationOpen(registrationOpen)
   }
 
@@ -39,7 +39,7 @@ object CategoryGenerateService {
     val stack = mutable.Stack[AdjacencyListEntryWithLevelAndId]()
     val idMap = Utils.groupById(idTree.vertices)(_.id)
     stack.push(AdjacencyListEntryWithLevelAndId(idTree.root, restrictions(idTree.root), 0))
-    val paths       = ArrayBuffer.empty[Array[CategoryRestriction]]
+    val paths       = ArrayBuffer.empty[Seq[CategoryRestriction]]
     val currentPath = mutable.ArrayDeque.empty[CategoryRestriction]
     while (stack.nonEmpty) {
       val node = stack.pop()
@@ -53,7 +53,7 @@ object CategoryGenerateService {
       } else {
         paths.append(
           currentPath.sortBy(categoryRestrictionDTO => restrictionNamesOrder(categoryRestrictionDTO.name)).toList
-            .mapWithIndex { case (c, index) => c.withRestrictionOrder(index) }.toArray
+            .mapWithIndex { case (c, index) => c.withRestrictionOrder(index) }
         )
       }
     }

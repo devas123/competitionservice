@@ -46,22 +46,22 @@ package object extensions {
   }
 
   final implicit class SchedReqOps(private val s: ScheduleRequirement) extends AnyVal {
-    def categories: Option[Array[String]] = Option(s.categoryIds).map(_.toArray).orElse(Option(Array.empty))
+    def categories: Option[Seq[String]] = Option(s.categoryIds).map(_.toSeq).orElse(Option(Seq.empty))
 
-    def categoriesOrEmpty: Array[String] = s.categoryIds.toArray
+    def categoriesOrEmpty: Seq[String] = s.categoryIds.toSeq
 
-    def fightIds: Option[Array[String]] = Option(s.fightIds).map(_.toArray).orElse(Option(Array.empty))
+    def fightIds: Option[Seq[String]] = Option(s.fightIds).map(_.toSeq).orElse(Option(Seq.empty))
 
-    def fightIdsOrEmpty: Array[String] = fightIds.getOrElse(Array.empty)
+    def fightIdsOrEmpty: Seq[String] = fightIds.getOrElse(Seq.empty)
   }
 
   final implicit class SchedEntryOps(private val s: ScheduleEntry) extends AnyVal {
-    def categories: Option[Array[String]]       = Option(s.categoryIds).map(_.toArray)
-    def categoriesOrEmpty: Array[String]        = categories.getOrElse(Array.empty)
-    def fightIds: Option[Array[StartTimeInfo]] = Option(s.fightScheduleInfo).map(_.toArray)
-    def fightIdsOrEmpty: Array[StartTimeInfo]  = fightIds.getOrElse(Array.empty)
-    def requirementIds: Option[Array[String]]   = Option(s.requirementIds).map(_.toArray)
-    def requirementIdsOrEmpty: Array[String]    = requirementIds.getOrElse(Array.empty)
+    def categories: Option[Seq[String]]       = Option(s.categoryIds).map(_.toSeq)
+    def categoriesOrEmpty: Seq[String]        = categories.getOrElse(Seq.empty)
+    def fightIds: Option[Seq[StartTimeInfo]] = Option(s.fightScheduleInfo).map(_.toSeq)
+    def fightIdsOrEmpty: Seq[StartTimeInfo]  = fightIds.getOrElse(Seq.empty)
+    def requirementIds: Option[Seq[String]]   = Option(s.requirementIds).map(_.toSeq)
+    def requirementIdsOrEmpty: Seq[String]    = requirementIds.getOrElse(Seq.empty)
     def addCategoryIds(categoryIds: IterableOnce[String]): ScheduleEntry = s.addAllCategoryIds(categoryIds.iterator.toList)
     def addCategoryId(categoryId: String): ScheduleEntry = s.addCategoryIds(categoryId)
   }
@@ -99,7 +99,7 @@ package object extensions {
     def hasPlaceholder(placeholderId: String): Boolean = scores.exists(_.exists(_.getPlaceholderId == placeholderId))
 
     def scoresSize: Int                    = scores.map(_.length).getOrElse(0)
-    def scoresOrEmpty: Array[CompScore] = scores.getOrElse(Array.empty)
+    def scoresOrEmpty: Seq[CompScore] = scores.getOrElse(Seq.empty)
 
     def round: Option[Int] = Option(f.round)
 
@@ -119,9 +119,9 @@ package object extensions {
       id <- loserScore.competitorId
     } yield id
 
-    def scores: Option[Array[CompScore]] = Option(f.scores).map(_.toArray)
+    def scores: Option[Seq[CompScore]] = Option(f.scores).map(_.toSeq)
 
-    private def putCompetitorIdAt(ind: Int, competitorId: String, sc: Array[CompScore]) = {
+    private def putCompetitorIdAt(ind: Int, competitorId: String, sc: Seq[CompScore]) = {
       for { updated <- if (ind >= 0 && ind < sc.length) Some(sc(ind).withCompetitorId(competitorId)) else None } yield (
         sc.slice(0, ind) :+ updated
       ) ++ sc.slice(ind + 1, sc.length)

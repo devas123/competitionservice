@@ -138,7 +138,7 @@ object BracketsUtils {
         )
       )
       firstRoundFightsEnriched = firstRoundFights.map(f =>
-        if (f.scores.isEmpty) f.withScores(Array(0, 1).map(i =>
+        if (f.scores.isEmpty) f.withScores(Seq(0, 1).map(i =>
           CompScore()
             .clearCompetitorId
             .clearPlaceholderId
@@ -174,12 +174,18 @@ object BracketsUtils {
           case BracketType.SINGLE_ELIMINATION => stageType match {
               case StageType.PRELIMINARY => generatePreliminarySingleElimination(fights, stageId)
               case StageType.FINAL       => generateFinalSingleElimination(fights, stageId)
+              case x => Left(Errors.InternalError(Some(
+                s"Unknown stage type ${x}"
+              )))
             }
           case BracketType.DOUBLE_ELIMINATION => stageType match {
               case StageType.PRELIMINARY => Left(Errors.InternalError(Some(
                   "Preliminary double elimination is not supported. Returning all the competitors."
                 )))
               case StageType.FINAL => generateFinalDoubleElimination(fights, stageId)
+              case x => Left(Errors.InternalError(Some(
+                s"Unknown stage type ${x}"
+              )))
             }
           case _ => Left(Errors.InternalError(Some(s"$bracketType is not supported. Returning all the competitors.")))
         }
@@ -227,7 +233,7 @@ object BracketsUtils {
   ): CanFail[List[FightDescription]] = {
     for {
       sc <- createScores(List(lastTuple._1.id, lastTuple._3.id), List(FightReferenceType.WINNER))
-      connectedGrandFinal = grandFinal.copy(scores = sc.toArray)
+      connectedGrandFinal = grandFinal.copy(scores = sc)
     } yield result :+ lastTuple._1.copy(winFight = Option(connectedGrandFinal.id)) :+ lastTuple._2 :+
       lastTuple._3.copy(winFight = Option(connectedGrandFinal.id)) :+ connectedGrandFinal
   }
@@ -390,7 +396,7 @@ object BracketsUtils {
         updatedFights = List(
           semiFinalFights.head.copy(loseFight = Option(thirdPlaceFight.id)),
           semiFinalFights(1).copy(loseFight = Option(thirdPlaceFight.id)),
-          thirdPlaceFight.copy(scores = sc.toArray)
+          thirdPlaceFight.copy(scores = sc)
         )
       } yield winnerFights.map { it =>
         if (it.id == updatedFights.head.id) updatedFights.head

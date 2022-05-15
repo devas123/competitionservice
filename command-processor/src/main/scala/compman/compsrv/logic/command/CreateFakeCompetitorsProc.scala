@@ -12,8 +12,8 @@ import compservice.model.protobuf.eventpayload
 
 object CreateFakeCompetitorsProc {
 
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P]()
-    : PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  def apply[F[+_]: Monad: IdOperations: EventOperations]()
+    : PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ CreateFakeCompetitors(_, _) => addCompetitor(x)
   }
 

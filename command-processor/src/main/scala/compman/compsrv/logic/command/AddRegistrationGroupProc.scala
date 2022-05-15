@@ -17,9 +17,9 @@ import compservice.model.protobuf.eventpayload.RegistrationGroupAddedPayload
 import compservice.model.protobuf.model.RegistrationGroup
 
 object AddRegistrationGroupProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
     state: CompetitionState
-  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ AddRegistrationGroupCommand(_, _, _) => addRegistrationGroup(x, state)
   }
 
@@ -51,7 +51,7 @@ object AddRegistrationGroupProc {
             competitionId = command.competitionId,
             categoryId = None,
             payload = Some(Payload.RegistrationGroupAddedPayload(
-              RegistrationGroupAddedPayload(payload.periodId, groupsWithIds.toArray)
+              RegistrationGroupAddedPayload(payload.periodId, groupsWithIds)
             ))
           ))
         } else if (exists._1.nonEmpty) {

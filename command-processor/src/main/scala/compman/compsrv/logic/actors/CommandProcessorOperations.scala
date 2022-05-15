@@ -24,7 +24,7 @@ private def now: Timestamp = Timestamp.fromJavaProto(Timestamps.fromMillis(Syste
         .withCreationTimestamp(now)
         .withBracketsPublished(false)
         .withSchedulePublished(false)
-        .withStaffIds(Array.empty)
+        .withStaffIds(Seq.empty)
         .withEmailNotificationsEnabled(false)
         .withTimeZone("UTC")
     )
@@ -56,9 +56,9 @@ private def now: Timestamp = Timestamp.fromJavaProto(Timestamps.fromMillis(Syste
       }.orElse(defaultRegInfo).map(_.withId(competitionId)),
       schedule = Some(Schedule()
         .withId(competitionId)
-        .withMats(Array.empty)
-        .withPeriods(Array.empty)),
-      revision = 0L
+        .withMats(Seq.empty)
+        .withPeriods(Seq.empty)),
+      revision = 0
     )
   }
 }

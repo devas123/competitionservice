@@ -1,6 +1,5 @@
 package compman.compsrv.model.command
 
-import compservice.model.protobuf.common._
 import compservice.model.protobuf.commandpayload._
 
 object Commands {
@@ -162,6 +161,7 @@ object Commands {
     override def payload: Option[Any] = None
     override val categoryId: Option[String] = None
   }
+  final case class UnknownCommand(competitionId: Option[String]) extends PayloadlessCommand
   final case class DropScheduleCommand(competitionId: Option[String]) extends PayloadlessCommand
   final case class DropAllBracketsCommand(competitionId: Option[String])  extends PayloadlessCommand
   final case class StartCompetition(competitionId: Option[String])  extends PayloadlessCommand

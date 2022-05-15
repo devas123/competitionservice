@@ -107,8 +107,7 @@ message GenerateSchedulePayload {
   repeated MatDescription mats = 2;
 }
 enum GroupChangeType {
-  GROUP_CHANGE_TYPE_UNKNOWN = 0;
-  GROUP_CHANGE_TYPE_ADD = 1;
+  GROUP_CHANGE_TYPE_ADD = 0;
   GROUP_CHANGE_TYPE_REMOVE = 2;
 }
 message PropagateCompetitorsPayload {

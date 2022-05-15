@@ -11,9 +11,9 @@ import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
 
 object ChangeCompetitorCategoryProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
     state: CompetitionState
-  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ ChangeCompetitorCategoryCommand(_, _, _) => process(x, state)
   }
 
@@ -33,7 +33,7 @@ object ChangeCompetitorCategoryProc {
           EitherT.fromEither(Left[Errors.Error, Event](Errors.CompetitorDoesNotExist(payload.fighterId)))
         } else if (!newCategoryExists) {
           EitherT.fromEither(Left[Errors.Error, Event](Errors.CategoryDoesNotExist(
-            state.categories.map(cs => payload.newCategories.toSet.diff(cs.keySet).toArray).getOrElse(Array.empty)
+            state.categories.map(cs => payload.newCategories.toSet.diff(cs.keySet)).getOrElse(Set.empty).toSeq
           )))
         } else {
           EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(

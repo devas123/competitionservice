@@ -57,15 +57,12 @@ object Operations {
         categoryId: Option[String],
         payload: Option[Payload]
       ): LIO[Event] = Task {
-        Event().withType(`type`)
-          .withMessageInfo(MessageInfo()
-          .withId(UUID.randomUUID().toString)
-            .update(
-              _.competitionId.setIfDefined(competitionId),
-              _.categoryId.setIfDefined(categoryId),
-              _.competitorId.setIfDefined(competitorId),
-              _.payload.setIfDefined(payload)
-            ))
+        Event().withType(`type`).withMessageInfo(MessageInfo().withId(UUID.randomUUID().toString).update(
+          _.competitionId.setIfDefined(competitionId),
+          _.categoryId.setIfDefined(categoryId),
+          _.competitorId.setIfDefined(competitorId),
+          _.payload.setIfDefined(payload)
+        ))
       }
     }
 
@@ -89,7 +86,8 @@ object Operations {
 
       override def uid: LIO[String] = Task(UUID.randomUUID().toString)
 
-      override def generateIdIfMissing(id: Option[String]): LIO[String] = Task(id.filter(_.isEmpty).getOrElse(UUID.randomUUID().toString))
+      override def generateIdIfMissing(id: Option[String]): LIO[String] =
+        Task(id.filter(_.isEmpty).getOrElse(UUID.randomUUID().toString))
     }
 
   }
@@ -107,7 +105,9 @@ object Operations {
       eventsToApply <- EitherT(StatelessCommandProcessors.process(mapped))
       _             <- EitherT.liftF(info(s"Received events: $eventsToApply"))
       enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) => {
-        ev.setLocalEventNumber(ind).setCorrelationId(command.messageInfo.map(_.id).orNull)
+        ev.withLocalEventNumber(ind).update(_.messageInfo.setIfDefined(
+          ev.messageInfo.map(_.update(_.correlationId.setIfDefined(command.messageInfo.map(_.id))))
+        ))
         ev
       })
       _ <- EitherT.liftF(info(s"Returning events: $enrichedEvents"))
@@ -131,11 +131,7 @@ object Operations {
       n = latestState.revision
       enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) => {
         ev.withLocalEventNumber(n + ind)
-          .withMessageInfo(
-            ev.getMessageInfo.update(
-              _.correlationId.setIfDefined(command.messageInfo.map(_.id))
-            )
-          )
+          .withMessageInfo(ev.getMessageInfo.update(_.correlationId.setIfDefined(command.messageInfo.map(_.id))))
         ev
       })
       _ <- EitherT.liftF(info(s"Returning events: $enrichedEvents"))
@@ -150,7 +146,7 @@ object Operations {
     import cats.implicits._
     for {
       mapped <- EventMapping.mapEventDto(event)
-      result <- EventProcessors.applyEvent[F, Any](mapped, latestState)
+      result <- EventProcessors.applyEvent[F](mapped, latestState)
     } yield result
   }
 

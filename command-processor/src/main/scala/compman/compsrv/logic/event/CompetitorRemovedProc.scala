@@ -3,13 +3,12 @@ package compman.compsrv.logic.event
 import cats.Monad
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{CompetitorRemovedEvent, Event}
 
 object CompetitorRemovedProc {
-  def apply[F[+_] : Monad : IdOperations : EventOperations, P <: Payload](
+  def apply[F[+_] : Monad : IdOperations : EventOperations](
                                                                            state: CompetitionState
-                                                                         ): PartialFunction[Event[P], F[Option[CompetitionState]]] = {
+                                                                         ): PartialFunction[Event[Any], F[Option[CompetitionState]]] = {
     case x: CompetitorRemovedEvent =>
       apply[F](x, state)
   }
@@ -22,7 +21,7 @@ object CompetitorRemovedProc {
       payload <- event.payload
       comps <- state.competitors
       newState = state.copy(
-        competitors = Some(comps - payload.getFighterId))
+        competitors = Some(comps - payload.fighterId))
     } yield newState
     Monad[F].pure(eventT)
   }

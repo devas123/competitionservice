@@ -34,7 +34,7 @@ object ScheduleService {
       requirementsGraph <- EitherT.fromEither[F](RequirementsGraph(
         Utils.groupById(enrichedScheduleRequirements)(_.id),
         stageGraph.getCategoryIdsToFightIds,
-        sortedPeriods.map(_.id).toArray
+        sortedPeriods.map(_.id)
       ))
       result <- EitherT.fromEither[F](ScheduleProducer.simulate(
         stageGraph,
@@ -67,12 +67,12 @@ object ScheduleService {
       .withPeriods(
       sortedPeriods.map(period =>
         period
-          .withScheduleRequirements(scheduleRequirementsByPeriod.getOrElse(period.id, List.empty).toArray)
+          .withScheduleRequirements(scheduleRequirementsByPeriod.getOrElse(period.id, List.empty))
           .withScheduleEntries(
             scheduleEntriesByPeriod.getOrElse(period.id, List.empty).sortBy(_.getStartTime)
-              .mapWithIndex((e, ind) => e.withOrder(ind).withCategoryIds(e.categoryIds.distinct)).toArray
+              .mapWithIndex((e, ind) => e.withOrder(ind).withCategoryIds(e.categoryIds.distinct))
           )
-      ).toArray
+      )
     ) -> fightsStartTimes
   }.value
 }

@@ -28,9 +28,9 @@ object FightUtils {
         descriptor.selectors.flatMap(it => {
           val classifier = it.classifier
           classifier match {
-            case SelectorClassifier.FIRST_N_PLACES => List(firstNPlaces(it.applyToStageId, it.selectorValue.head.toInt))
             case SelectorClassifier.LAST_N_PLACES  => List(lastNPlaces(it.applyToStageId, it.selectorValue.head.toInt))
             case SelectorClassifier.MANUAL         => List(returnIds(it.selectorValue.toList))
+            case _ => List(firstNPlaces(it.applyToStageId, it.selectorValue.head.toInt))
           }
         }).reduce((a, b) => CompetitorSelectionUtils.and(a, b))
       } else { firstNPlaces(previousStageId, descriptor.numberOfCompetitors) }

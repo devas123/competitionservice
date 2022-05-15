@@ -96,7 +96,7 @@ object CompetitionProcessorActor {
                     .when(cmd.messageInfo.map(_.id).isEmpty)
                   _ <- info(s"Processing command $command")
                   processResult <- Live.withContext(
-                    _.annotate(LogAnnotation.CorrelationId, cmd.messageInfo.map(_.id))
+                    _.annotate(LogAnnotation.CorrelationId, cmd.messageInfo.map(_.id).map(UUID.fromString))
                       .annotate(Annotations.competitionId, cmd.messageInfo.map(_.competitionId))
                   ) { Operations.processStatefulCommand[LIO](state, cmd) }
                   _ <- info(s"Processing done. ")
@@ -118,7 +118,7 @@ object CompetitionProcessorActor {
         state: CompetitionState,
         event: Event
       ): RIO[Env with Logging with Clock, CompetitionState] = Live.withContext(
-        _.annotate(LogAnnotation.CorrelationId, event.messageInfo.map(_.correlationId))
+        _.annotate(LogAnnotation.CorrelationId, event.messageInfo.map(_.correlationId).map(UUID.fromString))
           .annotate(Annotations.competitionId, event.messageInfo.map(_.competitionId))
       ) { Operations.applyEvent[LIO](state, event) }
 

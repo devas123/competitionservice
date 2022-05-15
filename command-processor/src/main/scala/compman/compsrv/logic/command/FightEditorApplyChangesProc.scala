@@ -19,9 +19,9 @@ import java.util.UUID
 import scala.annotation.tailrec
 
 object FightEditorApplyChangesProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
     state: CompetitionState
-  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ FightEditorApplyChangesCommand(_, _, _) => process[F](x, state)
   }
 
@@ -121,10 +121,10 @@ object FightEditorApplyChangesProc {
           val groupFights  = fightsByGroupId.getOrElse(gr.id, Iterable.empty).map(f => (f.id, f)).toMap
           groupChanges.sortBy(c => changePriority(c.changeType)).foldLeft(groupFights)((acc, ch) => {
             ch.changeType match {
-              case GroupChangeType.ADD    => addCompetitorToGroup(groupFights, ch)
               case GroupChangeType.REMOVE => removeCompetitorsFromGroup(acc, ch, gr)
+              case GroupChangeType.ADD    => addCompetitorToGroup(groupFights, ch)
+              case _ => acc
             }
-
           })
         }).sortBy(it => { it._2.numberInRound }).zipWithIndex.map(z => { z._1._2.withNumberInRound(z._2) })
           .map(f => (f.id, f)).toMap
@@ -191,8 +191,8 @@ object FightEditorApplyChangesProc {
         .exists(e => e._2.scores.exists(_.competitorId.contains(change.competitorId)))
     ) { groupFights }
     else {
-      val flatScores    = groupFights.values.flatMap(it => { Option(it.scores).getOrElse(Array.empty) })
-      val placeholderId = flatScores.find(it => { it.competitorId.isEmpty && it.placeholderId.isDefined})
+      val flatScores    = groupFights.values.flatMap(_.scores)
+      val placeholderId = flatScores.find(it => it.competitorId.isEmpty && it.placeholderId.isDefined)
       placeholderId match {
         case Some(value) =>
           // found a placeholder, it means there are already generated empty fights for this placeholder, update all the fights with this placeholder
@@ -212,8 +212,8 @@ object FightEditorApplyChangesProc {
             (fight: FightDescription) => (fight.duration, fight.stageId, fight.competitionId, fight.categoryId)
           val (duration, stageId, competitionId, categoryId) = extractor(groupFights.values.head)
 
-          val newPlaceholderId = flatScores.map(it => it.competitorId -> it.placeholderId).toMap +
-            (change.competitorId -> s"placeholder-${UUID.randomUUID()}")
+          val newPlaceholderId = flatScores.filter(cs => cs.competitorId.isDefined).map(it => it.competitorId.get -> it.placeholderId).toMap +
+            (change.competitorId -> Some(s"placeholder-${UUID.randomUUID()}"))
 
           val newFights = newCompetitorPairs.zipWithIndex.map(arg => {
             val (tuple2, index) = arg
@@ -230,8 +230,8 @@ object FightEditorApplyChangesProc {
               s"Round 0 fight ${firstFreeNumberInRound + index}",
               change.groupId
             ).withScores(Seq(
-              createCompscoreForGroup(Option(competitor1), Option(newPlaceholderId(competitor1)), 0),
-              createCompscoreForGroup(Option(competitor2), Option(newPlaceholderId(competitor2)), 1)
+              createCompscoreForGroup(Option(competitor1), newPlaceholderId(competitor1), 0),
+              createCompscoreForGroup(Option(competitor2), newPlaceholderId(competitor2), 1)
             ))
           })
           groupFights ++ newFights.map(f => (f.id, f))

@@ -3,9 +3,8 @@ package compman.compsrv.query.serde
 import com.fasterxml.jackson.core.{JsonParser, TreeNode}
 import com.fasterxml.jackson.databind.DeserializationContext
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer
-import compman.compsrv.model.{CommandProcessorNotification, CompetitionProcessingStarted, CompetitionProcessingStopped}
 import compman.compsrv.model.events.EventDTO
-import .NotificationType
+import compservice.model.protobuf.model.CompetitionProcessingStarted
 
 class PolymorphicNotificationDeserializer extends StdDeserializer[CommandProcessorNotification](classOf[EventDTO]) {
   override def deserialize(p: JsonParser, ctxt: DeserializationContext): CommandProcessorNotification = {

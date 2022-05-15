@@ -9,7 +9,7 @@ import compman.compsrv.model.Errors
 import compservice.model.protobuf.event.{Event, EventType}
 
 object DropScheduleProc {
-  def apply[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations, P](): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = { case x: DropScheduleCommand =>
+  def apply[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations](): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = { case x: DropScheduleCommand =>
     process(x.competitionId)
   }
 

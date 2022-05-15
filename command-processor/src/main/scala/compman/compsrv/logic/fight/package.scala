@@ -57,7 +57,7 @@ package object fight {
       .withNumberInRound(numberInRound).withCompetitionId(competitionId).withDuration(durationSeconds)
       .withRoundType(roundType).withStageId(stageId).withFightName(fightName).withStatus(FightStatus.PENDING)
       .withPriority(0).withGroupId(groupId).withFightName(s"Round ${round + 1} fight ${numberInRound + 1}")
-      .withScores(Array.empty)
+      .withScores(Seq.empty)
   }
 
   def createPairs[T](competitors: List[T], competitors2: Option[List[T]] = None): List[(T, T)] = Semigroupal[List]
@@ -121,7 +121,7 @@ package object fight {
     fight: Option[FightDescription],
     winnerPlace: Int,
     loserPlace: Option[Int] = None
-  ): Array[CompetitorStageResult] = {
+  ): Seq[CompetitorStageResult] = {
     fight.map(f =>
       f.scores.map { score =>
         val place =
@@ -129,7 +129,7 @@ package object fight {
           else loserPlace.getOrElse(winnerPlace + 1)
         competitorStageResult(stageId, score.getCompetitorId, f.roundOrZero, f.roundType, place)
       }
-    ).map(_.toArray).getOrElse(Array.empty)
+    ).getOrElse(Seq.empty)
   }
 
   def generateCurrentRoundFights(
@@ -164,7 +164,7 @@ package object fight {
     for { scores <- createScores(List(it._1.id, it._2.id), List(FightReferenceType.LOSER)) } yield (
       it._1.copy(loseFight = Option(it._3.id)),
       it._2.copy(loseFight = Option(it._3.id)),
-      it._3.copy(scores = scores.toArray)
+      it._3.copy(scores = scores)
     )
   }
 
@@ -176,7 +176,7 @@ package object fight {
     } yield (
       it._1.copy(loseFight = Option(it._3.id)),
       it._2.copy(winFight = Option(it._3.id)),
-      it._3.copy(scores = scores.toArray)
+      it._3.copy(scores = scores)
     )
   }
 
@@ -186,7 +186,7 @@ package object fight {
     for { scores <- createScores(List(it._1.id, it._2.id), List(FightReferenceType.WINNER)) } yield (
       it._1.copy(winFight = Option(it._3.id)),
       it._2.copy(winFight = Option(it._3.id)),
-      it._3.copy(scores = scores.toArray)
+      it._3.copy(scores = scores)
     )
   }
 

@@ -15,9 +15,9 @@ import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload.RegistrationGroupCategoriesAssignedPayload
 
 object AssignRegistrationGroupCategoriesProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
     state: CompetitionState
-  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ AssignRegistrationGroupCategoriesCommand(_, _, _) => process(x, state)
   }
 
@@ -32,7 +32,7 @@ object AssignRegistrationGroupCategoriesProc {
       periodExists       = state.registrationInfo.exists(_.registrationPeriods.contains(payload.periodId))
       event <-
         if (!allCategoriesExist) {
-          EitherT.fromEither(Left[Errors.Error, Event](Errors.CategoryDoesNotExist(payload.categories.toArray)))
+          EitherT.fromEither(Left[Errors.Error, Event](Errors.CategoryDoesNotExist(payload.categories)))
         } else if (!groupExists) {
           EitherT.fromEither(Left[Errors.Error, Event](Errors.RegistrationGroupDoesNotExist(payload.groupId)))
         } else if (!periodExists) {

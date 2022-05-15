@@ -12,11 +12,11 @@ import scala.collection.mutable.ArrayBuffer
 
 case class RequirementsGraph private[schedule](
   private val requirementIdToId: BiMap[String, Int] = HashBiMap.create(),
-  private val graph: Array[List[Int]],
+  private val graph: Seq[List[Int]],
   private val categoryRequirements: Map[String, List[Int]],
-  private val requirementFightIds: Array[Set[String]],
-  orderedRequirements: Array[ScheduleRequirement],
-  requirementFightsSize: Array[Int],
+  private val requirementFightIds: Seq[Set[String]],
+  orderedRequirements: Seq[ScheduleRequirement],
+  requirementFightsSize: Seq[Int],
   private val size: Int
 ) {
   def getFightIdsForRequirement(reqirementId: String): Set[String] = Option(requirementIdToId.get(reqirementId))
@@ -32,7 +32,7 @@ object RequirementsGraph {
   def apply(
     requirements: Map[String, ScheduleRequirement],
     categoryIdToFightIds: Map[String, Set[String]],
-    periods: Array[String]
+    periods: Seq[String]
   ): CanFail[RequirementsGraph] = {
 
     val requirementIdToId: BiMap[String, Int] = HashBiMap.create()
@@ -40,7 +40,7 @@ object RequirementsGraph {
     categoryIdToFightIds.foreach { case (t, u) => u.foreach { fid => fightIdToCategoryId(fid) = t } }
     var n = 0
     val sorted = requirements.values.toList.sortBy { _.entryOrder }.sortBy { it => periods.indexOf(it.periodId) }
-      .toArray
+
     sorted.foreach { req =>
       if (!requirementIdToId.containsKey(req.id)) {
         requirementIdToId.put(req.id, n)
@@ -81,11 +81,11 @@ object RequirementsGraph {
       orderedRequirements = sorted.sortBy { it => ordering(requirementIdToId.get(it.id)) }
     } yield RequirementsGraph(
       requirementIdToId = requirementIdToId,
-      graph = graph,
+      graph = graph.toSeq,
       categoryRequirements = categoryRequirements.view.mapValues(_.toList).toMap,
-      requirementFightIds = requirementFightIds.map(_.toSet),
+      requirementFightIds = requirementFightIds.map(_.toSet).toSeq,
       orderedRequirements = orderedRequirements,
-      requirementFightsSize = requirementFightIds.map(_.size),
+      requirementFightsSize = requirementFightIds.map(_.size).toSeq,
       size = size
     )
   }

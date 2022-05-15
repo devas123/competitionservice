@@ -12,7 +12,7 @@ import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.logic.logging.CompetitionLogging.Live.loggingLayer
 import compman.compsrv.model.Mapping
-import compservice.model.command.Command
+import compservice.model.protobuf.command.Command
 import zio.{ExitCode, URIO, ZEnv, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock

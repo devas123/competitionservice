@@ -14,9 +14,9 @@ import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload.CategoryAddedPayload
 
 object GenerateCategoriesFromRestrictionsProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
       state: CompetitionState
-  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x: GenerateCategoriesFromRestrictionsCommand =>
       process[F](x, state)
   }

@@ -5,9 +5,9 @@ import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.command.Commands
 import compman.compsrv.model.event.Events
 import compman.compsrv.model.event.Events._
-import compservice.model.protobuf.command.Command
+import compservice.model.protobuf.command.{Command, CommandType}
 import compservice.model.protobuf.command.CommandType._
-import compservice.model.protobuf.event.Event
+import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.event.EventType._
 import zio.Task
 
@@ -52,7 +52,8 @@ object Mapping {
             )
           case START_COMPETITION_COMMAND => Commands
               .StartCompetition(competitionId = dto.messageInfo.map(_.competitionId))
-          case STOP_COMPETITION_COMMAND => Commands.StopCompetition(competitionId = dto.messageInfo.map(_.competitionId))
+          case STOP_COMPETITION_COMMAND => Commands
+              .StopCompetition(competitionId = dto.messageInfo.map(_.competitionId))
           case UPDATE_COMPETITION_PROPERTIES_COMMAND => Commands.UpdateCompetitionProperties(
               payload = dto.messageInfo.map(_.getUpdateCompetionPropertiesPayload),
               competitionId = dto.messageInfo.map(_.competitionId)
@@ -75,7 +76,7 @@ object Mapping {
               competitionId = dto.messageInfo.map(_.competitionId)
             )
           case GENERATE_CATEGORIES_COMMAND => Commands.GenerateCategoriesFromRestrictionsCommand(
-              payload =  dto.messageInfo.map(_.getGenerateCategoriesFromRestrictionsPayload),
+              payload = dto.messageInfo.map(_.getGenerateCategoriesFromRestrictionsPayload),
               competitionId = dto.messageInfo.map(_.competitionId),
               categoryId = dto.messageInfo.map(_.categoryId)
             )
@@ -168,15 +169,13 @@ object Mapping {
               competitionId = dto.messageInfo.map(_.competitionId),
               categoryId = dto.messageInfo.map(_.categoryId)
             )
-          case ADD_ACADEMY_COMMAND => Commands.AddAcademyCommand(
-            payload = dto.messageInfo.map(_.getAddAcademyPayload)
-          )
-          case UPDATE_ACADEMY_COMMAND => Commands.UpdateAcademyCommand(
-            payload = dto.messageInfo.map(_.getUpdateAcademyPayload)
-          )
-          case REMOVE_ACADEMY_COMMAND => Commands.RemoveAcademyCommand(
-            payload = dto.messageInfo.map(_.getRemoveAcademyPayload)
-          )
+          case ADD_ACADEMY_COMMAND => Commands.AddAcademyCommand(payload = dto.messageInfo.map(_.getAddAcademyPayload))
+          case UPDATE_ACADEMY_COMMAND => Commands
+              .UpdateAcademyCommand(payload = dto.messageInfo.map(_.getUpdateAcademyPayload))
+          case REMOVE_ACADEMY_COMMAND => Commands
+              .RemoveAcademyCommand(payload = dto.messageInfo.map(_.getRemoveAcademyPayload))
+          case COMMAND_TYPE_UNKNOWN  => Commands.UnknownCommand(dto.messageInfo.map(_.competitionId))
+          case _: CommandType.Unrecognized  => Commands.UnknownCommand(dto.messageInfo.map(_.competitionId))
         }
       }
 
@@ -193,8 +192,8 @@ object Mapping {
         dto.`type` match {
           case FIGHT_ORDER_CHANGED => FightOrderChangedEvent(
               dto.messageInfo.map(_.getChangeFightOrderPayload),
-            dto.messageInfo.map(_.competitionId),
-            dto.messageInfo.map(_.categoryId),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
               dto.localEventNumber
             )
           case BRACKETS_GENERATED => BracketsGeneratedEvent(
@@ -400,18 +399,14 @@ object Mapping {
               dto.localEventNumber
             )
 
-          case ACADEMY_ADDED => AcademyAddedEvent(
-            payload = dto.messageInfo.map(_.getAddAcademyPayload),
-            dto.localEventNumber
-          )
-          case ACADEMY_UPDATED => AcademyUpdatedEvent(
-            payload = dto.messageInfo.map(_.getUpdateAcademyPayload),
-            dto.localEventNumber
-          )
-          case ACADEMY_REMOVED => AcademyRemovedEvent(
-            payload = dto.messageInfo.map(_.getRemoveAcademyPayload),
-            dto.localEventNumber
-          )
+          case ACADEMY_ADDED =>
+            AcademyAddedEvent(payload = dto.messageInfo.map(_.getAddAcademyPayload), dto.localEventNumber)
+          case ACADEMY_UPDATED =>
+            AcademyUpdatedEvent(payload = dto.messageInfo.map(_.getUpdateAcademyPayload), dto.localEventNumber)
+          case ACADEMY_REMOVED =>
+            AcademyRemovedEvent(payload = dto.messageInfo.map(_.getRemoveAcademyPayload), dto.localEventNumber)
+          case EVENT_TYPE_UNKNOWN => Events.UnknownEvent(dto.messageInfo.map(_.competitionId), dto.localEventNumber)
+          case _: EventType.Unrecognized => Events.UnknownEvent(dto.messageInfo.map(_.competitionId), dto.localEventNumber)
         }
       }
 
@@ -420,10 +415,9 @@ object Mapping {
       create[LIO]
     }
 
-    def mapEventDto[F[+_]: EventMapping](dto: Event): F[Events.Event[Any]] = EventMapping[F]
-      .mapEventDto(dto)
+    def mapEventDto[F[+_]: EventMapping](dto: Event): F[Events.Event[Any]] = EventMapping[F].mapEventDto(dto)
   }
 
-  def mapCommandDto[F[+_]: CommandMapping](command: Command): F[Commands.InternalCommandProcessorCommand[Any]] = CommandMapping[F]
-    .mapCommandDto(command)
+  def mapCommandDto[F[+_]: CommandMapping](command: Command): F[Commands.InternalCommandProcessorCommand[Any]] =
+    CommandMapping[F].mapCommandDto(command)
 }

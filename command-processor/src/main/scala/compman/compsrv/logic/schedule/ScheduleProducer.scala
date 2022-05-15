@@ -4,7 +4,6 @@ import cats.implicits._
 import com.google.protobuf.timestamp.Timestamp
 import com.google.protobuf.timestamp.Timestamp.toJavaProto
 import com.google.protobuf.util.{Durations, Timestamps}
-import com.google.protobuf.Duration
 import compman.compsrv.Utils.groupById
 import compman.compsrv.logic.fight.CanFail
 import compman.compsrv.model.extensions._
@@ -35,8 +34,8 @@ private[schedule] object ScheduleProducer {
   ): ScheduleEntry = {
     ScheduleEntry()
     .withId(pauseReq.id)
-    .withCategoryIds(Array.empty)
-    .withFightScheduleInfo(Array(
+    .withCategoryIds(Seq.empty)
+    .withFightScheduleInfo(Seq(
       StartTimeInfo()
         .withSomeId(pauseReq.id)
         .withMatId(pauseReq.getMatId)
@@ -48,7 +47,7 @@ private[schedule] object ScheduleProducer {
     .withEntryType(pauseType)
     .withEndTime(endTime)
     .withDuration(pauseReq.getDurationSeconds)
-    .withRequirementIds(Array(pauseReq.id))
+    .withRequirementIds(Seq(pauseReq.id))
   }
 
   private def createFixedPauseEntry(fixedPause: ScheduleRequirement, endTime: Timestamp) =
@@ -80,7 +79,7 @@ private[schedule] object ScheduleProducer {
     val unfinishedRequirements = mutable.Queue.empty[ScheduleRequirement]
     val matsToIds              = groupById(accumulator.matSchedules)(_.id)
     val sortedPeriods          = periods.sortBy { _.getStartTime }
-    val requirementsCapacity   = requiremetsGraph.requirementFightsSize
+    val requirementsCapacity   = requiremetsGraph.requirementFightsSize.toArray
 
     def loadBalanceToMats(
       req: (ScheduleRequirement, List[String]),

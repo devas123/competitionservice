@@ -11,9 +11,9 @@ import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
 
 object CategoryRegistrationStatusChangeProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
     state: CompetitionState
-  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ CategoryRegistrationStatusChangeCommand(_, _, _) => process(x, state)
   }
 
@@ -28,7 +28,7 @@ object CategoryRegistrationStatusChangeProc {
       event <-
         if (!exists) {
           EitherT.fromEither(Left[Errors.Error, Event](Errors.CategoryDoesNotExist(
-            command.categoryId.map(Array(_)).getOrElse(Array.empty)
+            command.categoryId.map(Seq(_)).getOrElse(Seq.empty)
           )))
         } else {
           EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(

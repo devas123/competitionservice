@@ -19,8 +19,8 @@ object StageResultSetProc {
       payload       <- OptionT.fromOption[F](event.payload)
       competitionId <- OptionT.fromOption[F](event.competitionId)
       categoryId <- OptionT.fromOption[F](event.categoryId)
-      stageId       <- OptionT.fromOption[F](Option(payload.getStageId))
-      resultsDto    <- OptionT.fromOption[F](Option(payload.getResults))
+      stageId       <- OptionT.fromOption[F](Option(payload.stageId))
+      resultsDto    <- OptionT.fromOption[F](Option(payload.results))
       stage         <- OptionT(CompetitionQueryOperations[F].getStageById(competitionId)(categoryId, stageId))
       mappedResults = resultsDto.map(DtoMapping.mapCompetitorStageResult).toList
       resultDescriptor <- OptionT.fromOption[F](stage.stageResultDescriptor)

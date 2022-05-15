@@ -17,9 +17,9 @@ import compservice.model.protobuf.eventpayload._
 import compservice.model.protobuf.model.{FightStatus, StageStatus}
 
 object UpdateStageStatusProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
     state: CompetitionState
-  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x: UpdateStageStatusCommand => process[F](x, state)
   }
 
@@ -60,13 +60,14 @@ object UpdateStageStatusProc {
               competitionId = command.competitionId,
               categoryId = command.categoryId,
               payload = Some(MessageInfo.Payload.FightEditorChangesAppliedPayload(
-                FightEditorChangesAppliedPayload().withUpdates(markedStageFights.values.toArray)
+                FightEditorChangesAppliedPayload().withUpdates(markedStageFights.values.toSeq)
               ))
             )
             stageUpdated <- createStageStatusUpdatedEvent(payload, stageId)
           } yield List(stageUpdated, fightsUpdated)
         case StageStatus.FINISHED | StageStatus.IN_PROGRESS =>
           for { e <- createStageStatusUpdatedEvent(payload, stageId) } yield List(e)
+        case _ => Monad[F].pure(List.empty)
       }
       event <- EitherT.liftF(e)
     } yield event

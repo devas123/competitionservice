@@ -18,9 +18,9 @@ import compservice.model.protobuf.eventpayload.{FightCompetitorsAssignedPayload,
 import compservice.model.protobuf.model._
 
 object SetFightResultProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
     state: logic.CompetitionState
-  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x: SetFightResultCommand => process[F](x, state)
   }
 
@@ -29,6 +29,7 @@ object SetFightResultProc {
       case FightReferenceType.WINNER => fight.winnerId
       case FightReferenceType.LOSER | FightReferenceType.PROPAGATED => Option(payload.scores)
           .flatMap(_.find { s => !fight.winnerId.contains(s.getCompetitorId) }).map(_.getCompetitorId)
+      case _ => None
     }
 
   private def checkIfAllStageFightsFinished(
@@ -88,7 +89,7 @@ object SetFightResultProc {
               competitionId = command.competitionId,
               categoryId = command.categoryId,
               payload = Some(MessageInfo.Payload.StageResultSetPayload(
-                StageResultSetPayload().withStageId(stageId).withResults(stageResults.toArray)
+                StageResultSetPayload().withStageId(stageId).withResults(stageResults)
               ))
             ))
           } yield List(dashboardFightResultSetEvent, stageResultSetEvent)
@@ -123,7 +124,7 @@ object SetFightResultProc {
               competitionId = command.competitionId,
               categoryId = command.categoryId,
               payload = Some(MessageInfo.Payload.FightCompetitorsAssignedPayload(
-                FightCompetitorsAssignedPayload().withAssignments(assignments._2.toArray)
+                FightCompetitorsAssignedPayload().withAssignments(assignments._2)
               ))
             )).map(List(_))
           else EitherT.liftF[F, Errors.Error, List[Event]](Monad[F].pure(List.empty[Event]))

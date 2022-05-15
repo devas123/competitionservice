@@ -1,7 +1,7 @@
 package compman.compsrv.logic.fight
 
-
 import com.google.protobuf.timestamp.Timestamp
+import com.google.protobuf.timestamp.Timestamp.toJavaProto
 import com.google.protobuf.util.Timestamps
 import compservice.model.protobuf.commandpayload.ChangeFightOrderPayload
 import compservice.model.protobuf.eventpayload.FightOrderUpdate
@@ -24,15 +24,14 @@ object CommonFightUtils {
     startTime: Instant
   )
 
-  implicit def asMatView(mat: MatDescription): MatView =
-    MatView(mat.id, Option(mat.name), mat.periodId, mat.matOrder)
+  implicit def asMatView(mat: MatDescription): MatView = MatView(mat.id, Option(mat.name), mat.periodId, mat.matOrder)
   implicit def asFightView(fight: FightDescription): FightView = FightView(
     fight.id,
-    fight.mat.orNull,
-    fight.numberOnMat,
+    fight.mat.map(asMatView).orNull,
+    fight.numberOnMat.getOrElse(0),
     fight.duration.longValue(),
     fight.categoryId,
-    fight.startTime
+    fight.startTime.map(st => Instant.ofEpochMilli(Timestamps.toMillis(toJavaProto(st)))).get
   )
 
   implicit def asFightViews(fights: Map[String, FightDescription]): Map[String, FightView] = fights.view
@@ -101,11 +100,9 @@ object CommonFightUtils {
     }
     updates.addOne((
       fight.categoryId,
-      FightOrderUpdate()
-        .withFightId(fight.id)
-        .withMatId(payload.newMatId)
-        .withStartTime(startTime.orElse(maxStartTime).map(Date.from).map(Timestamps.fromDate).map(Timestamp.fromJavaProto).orNull)
-        .withNumberOnMat(newOrderOnMat)
+      FightOrderUpdate().withFightId(fight.id).withMatId(payload.newMatId).withStartTime(
+        startTime.orElse(maxStartTime).map(Date.from).map(Timestamps.fromDate).map(Timestamp.fromJavaProto).orNull
+      ).withNumberOnMat(newOrderOnMat)
     ))
     updates.toSeq
   }
@@ -115,9 +112,7 @@ object CommonFightUtils {
   }
 
   private def createUpdate(f: FightView, newNumberOnMat: Int, newStarTime: Instant) = {
-    FightOrderUpdate()
-      .withFightId(f.id)
-      .withMatId(Option(f.mat).flatMap(m => Option(m.id)).orNull)
+    FightOrderUpdate().withFightId(f.id).withMatId(Option(f.mat).flatMap(m => Option(m.id)).orNull)
       .withNumberOnMat(newNumberOnMat)
       .withStartTime(Timestamp.fromJavaProto(Timestamps.fromDate(Date.from(newStarTime))))
   }
@@ -139,8 +134,7 @@ object CommonFightUtils {
       startTime1 = Option(f.startTime)
     }
     if (
-      f.id != payload.fightId && fightMatIdMatchesNewMatId(f, payload) &&
-      !maxStartTime1.exists(_.isAfter(f.startTime))
+      f.id != payload.fightId && fightMatIdMatchesNewMatId(f, payload) && !maxStartTime1.exists(_.isAfter(f.startTime))
     ) { maxStartTime1 = Option(f.startTime) }
     (maxStartTime1, startTime1)
   }

@@ -13,9 +13,9 @@ import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload.CompetitionCreatedPayload
 
 object CreateCompetitionProc {
-  def apply[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations, P](
+  def apply[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations](
     state: CompetitionState
-  ): PartialFunction[InternalCommandProcessorCommand[P], F[Either[Errors.Error, Seq[Event]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ CreateCompetitionCommand(_, _, _) => process(x, state)
   }
 

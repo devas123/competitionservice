@@ -22,7 +22,7 @@ object Errors {
   final case class CompetitorDoesNotExist(id: String) extends Error
   final case class CategoryAlreadyExists(id: String, category: CategoryDescriptor) extends Error
   final case class CategoryListIsEmpty() extends Error
-  final case class CategoryDoesNotExist(ids: Array[String]) extends Error
+  final case class CategoryDoesNotExist(ids: Seq[String]) extends Error
   final case class BracketsAlreadyGeneratedForCategory(categoryId: String) extends Error
   final case class StageDoesNotExist(id: String) extends Error
   final case class StageResultDescriptorMissing() extends Error

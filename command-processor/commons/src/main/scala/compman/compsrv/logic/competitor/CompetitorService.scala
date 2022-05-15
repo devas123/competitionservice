@@ -80,7 +80,7 @@ object CompetitorService {
           .withBirthDate(Timestamp.fromJavaProto(Timestamps.fromMillis(System.currentTimeMillis())))
           .withRegistrationStatus(CompetitorRegistrationStatus.SUCCESS_CONFIRMED)
           .withAcademy(Academy(UUID.randomUUID().toString, s"Academy${random.nextInt(academies)}"))
-          .withCategories(Array(categoryId))
+          .withCategories(Seq(categoryId))
           .withCompetitionId(competitionId)
       )
     }

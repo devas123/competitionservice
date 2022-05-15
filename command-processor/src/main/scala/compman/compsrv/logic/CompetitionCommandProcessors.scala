@@ -12,7 +12,7 @@ object CompetitionCommandProcessors {
   import Operations._
 
   def process[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations: Interpreter, P <: Payload](
-                                                                                                                   command: InternalCommandProcessorCommand[P],
+                                                                                                                   command: InternalCommandProcessorCommand[Any],
                                                                                                                    state: CompetitionState
   ): F[Either[Errors.Error, Seq[Event]]] = {
     Seq(
