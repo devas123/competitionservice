@@ -51,13 +51,14 @@ package object fight {
     numberInRound: Int,
     durationSeconds: Int,
     fightName: String,
-    groupId: String
+    groupId: Option[String]
   ): FightDescription = {
     FightDescription().withId(createFightId).withCategoryId(categoryId).withRound(round)
       .withNumberInRound(numberInRound).withCompetitionId(competitionId).withDuration(durationSeconds)
       .withRoundType(roundType).withStageId(stageId).withFightName(fightName).withStatus(FightStatus.PENDING)
-      .withPriority(0).withGroupId(groupId).withFightName(s"Round ${round + 1} fight ${numberInRound + 1}")
+      .withPriority(0).withFightName(s"Round ${round + 1} fight ${numberInRound + 1}")
       .withScores(Seq.empty)
+      .update(_.groupId.setIfDefined(groupId))
   }
 
   def createPairs[T](competitors: List[T], competitors2: Option[List[T]] = None): List[(T, T)] = Semigroupal[List]
@@ -150,7 +151,7 @@ package object fight {
       index,
       durationSeconds,
       s"Round ${currentRound + 1}, fight #${index + 1}",
-      null
+      None
     )
   }.toList
 

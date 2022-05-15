@@ -18,7 +18,7 @@ object DropScheduleProc {
     import compman.compsrv.logic.logging._
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       _          <- EitherT.liftF(info(s"Dropping schedule"))
-      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
         `type` = EventType.SCHEDULE_DROPPED,
         competitorId = None,
         competitionId = competitionId,

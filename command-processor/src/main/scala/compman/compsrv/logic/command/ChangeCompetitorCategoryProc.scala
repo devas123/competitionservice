@@ -36,7 +36,7 @@ object ChangeCompetitorCategoryProc {
             state.categories.map(cs => payload.newCategories.toSet.diff(cs.keySet)).getOrElse(Set.empty).toSeq
           )))
         } else {
-          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
             `type` = EventType.COMPETITOR_CATEGORY_CHANGED,
             competitorId = None,
             competitionId = command.competitionId,

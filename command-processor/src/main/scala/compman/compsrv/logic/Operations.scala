@@ -29,7 +29,7 @@ object Operations {
     def registrationGroupId(group: RegistrationGroup): F[String]
   }
 
-  trait CommandEventOperations[F[+_], A, T] {
+  trait CommandEventOperations[F[+_], A] {
     def lift(obj: => Seq[A]): F[Seq[A]]
     def create(
       `type`: EventType,
@@ -41,7 +41,7 @@ object Operations {
     ): F[A]
     def error(error: => Errors.Error): F[Either[Errors.Error, A]]
   }
-  trait EventOperations[F[+_]] extends CommandEventOperations[F, Event, EventType]
+  trait EventOperations[F[+_]] extends CommandEventOperations[F, Event]
 
   object EventOperations {
     val live: EventOperations[LIO] = new EventOperations[LIO] {
@@ -69,7 +69,7 @@ object Operations {
   }
 
   object CommandEventOperations {
-    def apply[F[+_], A, T](implicit F: CommandEventOperations[F, A, T]): CommandEventOperations[F, A, T] = F
+    def apply[F[+_], A](implicit F: CommandEventOperations[F, A]): CommandEventOperations[F, A] = F
   }
   object IdOperations {
     def apply[F[_]](implicit F: IdOperations[F]): IdOperations[F] = F
@@ -129,11 +129,10 @@ object Operations {
       eventsToApply <- EitherT(CompetitionCommandProcessors.process(mapped, latestState))
       _             <- EitherT.liftF(info(s"Received events: $eventsToApply"))
       n = latestState.revision
-      enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) => {
+      enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) =>
         ev.withLocalEventNumber(n + ind)
           .withMessageInfo(ev.getMessageInfo.update(_.correlationId.setIfDefined(command.messageInfo.map(_.id))))
-        ev
-      })
+      )
       _ <- EitherT.liftF(info(s"Returning events: $enrichedEvents"))
     } yield enrichedEvents
     either.value

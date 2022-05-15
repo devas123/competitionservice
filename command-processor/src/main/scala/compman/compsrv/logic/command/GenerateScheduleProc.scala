@@ -37,7 +37,7 @@ object GenerateScheduleProc {
         Errors.InternalError("No time zone")
       )
       periods = payload.periods
-      _    <- assertET[F](periods != null && periods.nonEmpty, Some("No periods"))
+      _    <- assertET[F](periods.nonEmpty, Some("No periods"))
       mats <- EitherT.liftF(payload.mats.toList.traverse(mat => updateMatId(mat)))
       categories = periods.flatMap(p => Option(p.scheduleRequirements).getOrElse(Seq.empty))
         .flatMap(e => e.categoryIds).toSet
@@ -50,7 +50,7 @@ object GenerateScheduleProc {
         EitherT(ScheduleService.generateSchedule[F](competitionId, periods.toIndexedSeq, mats, stageGraph, timeZone))
       fightUpdatedEvents <- EitherT
         .liftF[F, Errors.Error, List[Event]](scheduleAndFights._2.grouped(100).toList.traverse(fights =>
-          CommandEventOperations[F, Event, EventType].create(
+          CommandEventOperations[F, Event].create(
             `type` = EventType.FIGHTS_START_TIME_UPDATED,
             competitorId = None,
             competitionId = command.competitionId,
@@ -61,7 +61,7 @@ object GenerateScheduleProc {
           )
         ))
       scheduleGeneratedEvent <- EitherT
-        .liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+        .liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
           `type` = EventType.SCHEDULE_GENERATED,
           competitorId = None,
           competitionId = command.competitionId,

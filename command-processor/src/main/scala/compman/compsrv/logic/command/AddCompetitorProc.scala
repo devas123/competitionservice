@@ -34,7 +34,7 @@ object AddCompetitorProc {
         event <-
           if (exists) {
             EitherT.liftF[F, Errors.Error, Event](
-              CommandEventOperations[F, Event, EventType].create(
+              CommandEventOperations[F, Event].create(
                 `type` = EventType.COMPETITOR_ADDED,
                 competitorId = Some(id),
                 competitionId = command.competitionId,
@@ -44,7 +44,7 @@ object AddCompetitorProc {
             )
           } else {
             EitherT(
-              CommandEventOperations[F, Event, EventType]
+              CommandEventOperations[F, Event]
                 .error(CompetitorAlreadyExists(id, payload.getCompetitor))
             )
           }

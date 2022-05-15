@@ -39,7 +39,7 @@ object FightEditorApplyChangesProc {
           for {
             eventPayload <- EitherT
               .liftF[F, Errors.Error, Option[FightEditorChangesAppliedPayload]](createPayload[F](payload, state))
-            evt <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+            evt <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
               `type` = EventType.FIGHTS_EDITOR_CHANGE_APPLIED,
               competitorId = None,
               competitionId = command.competitionId,
@@ -133,7 +133,7 @@ object FightEditorApplyChangesProc {
   }
 
   private def getMinUnusedOrder(scores: Seq[CompScore], index: Int): Int = {
-    if (scores == null || scores.isEmpty) { 0 }
+    if (scores.isEmpty) { 0 }
     else { (0 to scores.length + index).filter(i => { !scores.exists(s => s.order == i) })(index) }
   }
 
@@ -228,7 +228,7 @@ object FightEditorApplyChangesProc {
               firstFreeNumberInRound + index,
               duration,
               s"Round 0 fight ${firstFreeNumberInRound + index}",
-              change.groupId
+              Option(change.groupId)
             ).withScores(Seq(
               createCompscoreForGroup(Option(competitor1), newPlaceholderId(competitor1), 0),
               createCompscoreForGroup(Option(competitor2), newPlaceholderId(competitor2), 1)

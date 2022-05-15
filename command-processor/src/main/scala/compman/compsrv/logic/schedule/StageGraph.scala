@@ -119,10 +119,10 @@ object StageGraph {
     val stageIdToFightIds  = Array.fill(stagesNumber) { mutable.HashSet.empty[String] }
 
     fights.foreach { fight =>
-      if (fight.getWinFight != null) {
+      if (fight.winFight.isDefined) {
         fightsGraphMutable(fightIdsToIds.get(fight.id)).add(fightIdsToIds.get(fight.getWinFight))
       }
-      if (fight.getLoseFight != null) {
+      if (fight.loseFight.isDefined) {
         fightsGraphMutable(fightIdsToIds.get(fight.id)).add(fightIdsToIds.get(fight.getLoseFight))
       }
       stageIdToFightIds(stageIdsToIds.get(fight.stageId)).add(fight.id)

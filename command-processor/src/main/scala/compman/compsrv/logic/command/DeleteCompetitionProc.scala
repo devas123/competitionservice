@@ -18,7 +18,7 @@ object DeleteCompetitionProc {
     command: DeleteCompetition
   ): F[Either[Errors.Error, Seq[Event]]] = {
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
-      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
         `type` = EventType.COMPETITION_DELETED,
         competitorId = None,
         competitionId = command.competitionId,

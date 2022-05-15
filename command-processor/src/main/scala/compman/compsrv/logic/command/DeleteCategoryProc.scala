@@ -21,7 +21,7 @@ object DeleteCategoryProc {
   ): F[Either[Errors.Error, Seq[Event]]] = {
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       _ <- logic.assertETErr[F](command.categoryId.isDefined, NoCategoryIdError())
-      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
         `type` = EventType.CATEGORY_DELETED,
         competitorId = None,
         competitionId = command.competitionId,

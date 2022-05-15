@@ -32,7 +32,7 @@ object DropBracketsProc {
       _          <- EitherT.liftF(info(s"Dropping all brackets"))
       categories <- EitherT.fromOption[F](state.categories, Errors.InternalError("No categories."))
       event <- categories.values.toList.filter(cat => categoryId.isEmpty || categoryId.contains(cat.id)).traverse(cat =>
-        EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+        EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
           `type` = EventType.CATEGORY_BRACKETS_DROPPED,
           competitorId = None,
           competitionId = competitionId,

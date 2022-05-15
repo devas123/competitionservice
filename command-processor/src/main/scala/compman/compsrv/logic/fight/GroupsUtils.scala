@@ -33,7 +33,7 @@ object GroupsUtils {
           numberInRound = ind,
           durationSeconds = durationSeconds,
           fightName = s"Round 0 fight $ind",
-          groupId = groupId
+          groupId = Option(groupId)
         ).withScores(Seq(
           createCompscoreForGroup(comps._1.competitorId, comps._1.placeholderId, 0),
           createCompscoreForGroup(comps._2.competitorId, comps._2.placeholderId, 1)

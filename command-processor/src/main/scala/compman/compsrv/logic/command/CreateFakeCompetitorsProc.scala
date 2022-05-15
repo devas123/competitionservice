@@ -26,7 +26,7 @@ object CreateFakeCompetitorsProc {
       categoryId    <- EitherT.fromOption[F](command.categoryId, Errors.NoCategoryIdError())
       fighters = CompetitorService.generateRandomCompetitorsForCategory(5, 20, categoryId, competitionId)
       events <- EitherT.liftF[F, Errors.Error, List[Event]](fighters.traverse(competitor =>
-        CommandEventOperations[F, Event, EventType].create(
+        CommandEventOperations[F, Event].create(
           `type` = EventType.COMPETITOR_ADDED,
           competitorId = Some(competitor.id),
           competitionId = command.competitionId,

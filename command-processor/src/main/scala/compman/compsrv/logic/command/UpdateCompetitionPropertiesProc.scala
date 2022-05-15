@@ -22,7 +22,7 @@ object UpdateCompetitionPropertiesProc {
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption(command.payload, NoPayloadError())
       _       <- EitherT.liftF(info(s"Updating competition properties: $payload"))
-      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
         `type` = EventType.COMPETITION_PROPERTIES_UPDATED,
         competitorId = None,
         competitionId = command.competitionId,

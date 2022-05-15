@@ -175,7 +175,7 @@ object BracketsUtils {
               case StageType.PRELIMINARY => generatePreliminarySingleElimination(fights, stageId)
               case StageType.FINAL       => generateFinalSingleElimination(fights, stageId)
               case x => Left(Errors.InternalError(Some(
-                s"Unknown stage type ${x}"
+                s"Unknown stage type $x"
               )))
             }
           case BracketType.DOUBLE_ELIMINATION => stageType match {
@@ -184,7 +184,7 @@ object BracketsUtils {
                 )))
               case StageType.FINAL => generateFinalDoubleElimination(fights, stageId)
               case x => Left(Errors.InternalError(Some(
-                s"Unknown stage type ${x}"
+                s"Unknown stage type $x"
               )))
             }
           case _ => Left(Errors.InternalError(Some(s"$bracketType is not supported. Returning all the competitors.")))
@@ -273,7 +273,7 @@ object BracketsUtils {
         0,
         durationSeconds,
         GRAND_FINAL,
-        null
+        None
       )
       totalLoserRounds       = 2 * (totalWinnerRounds - 1)
       firstWinnerRoundFights = winnerFights.filter { it => it.round == 0 }
@@ -390,7 +390,7 @@ object BracketsUtils {
           0,
           semiFinalFights.head.duration,
           THIRD_PLACE_FIGHT,
-          null
+          None
         )
         sc <- createScores(semiFinalFights.map { f => f.id }, List(FightReferenceType.LOSER))
         updatedFights = List(

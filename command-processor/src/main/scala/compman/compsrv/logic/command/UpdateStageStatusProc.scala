@@ -28,7 +28,7 @@ object UpdateStageStatusProc {
     state: CompetitionState
   ): F[Either[Errors.Error, Seq[Event]]] = {
     def createStageStatusUpdatedEvent(payload: UpdateStageStatusPayload, stageId: String) = {
-      CommandEventOperations[F, Event, EventType].create(
+      CommandEventOperations[F, Event].create(
         `type` = EventType.STAGE_STATUS_UPDATED,
         competitorId = None,
         competitionId = command.competitionId,
@@ -54,7 +54,7 @@ object UpdateStageStatusProc {
             markedStageFights <-
               if (payload.status == StageStatus.WAITING_FOR_COMPETITORS) Monad[F].pure(dirtyStageFights)
               else FightUtils.markAndProcessUncompletableFights[F](dirtyStageFights)
-            fightsUpdated <- CommandEventOperations[F, Event, EventType].create(
+            fightsUpdated <- CommandEventOperations[F, Event].create(
               `type` = EventType.FIGHTS_EDITOR_CHANGE_APPLIED,
               competitorId = None,
               competitionId = command.competitionId,

@@ -31,7 +31,7 @@ object CategoryRegistrationStatusChangeProc {
             command.categoryId.map(Seq(_)).getOrElse(Seq.empty)
           )))
         } else {
-          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
             `type` = EventType.CATEGORY_REGISTRATION_STATUS_CHANGED,
             competitorId = None,
             competitionId = command.competitionId,

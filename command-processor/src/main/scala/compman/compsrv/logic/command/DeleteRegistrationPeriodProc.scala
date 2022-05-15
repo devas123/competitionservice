@@ -35,7 +35,7 @@ object DeleteRegistrationPeriodProc {
         groupsOfPeriod.filter { gr =>
           !registrationPeriods.exists { case (id, p) => id != payload.periodId && p.registrationGroupIds.contains(gr) }
         }.traverse { grId =>
-          CommandEventOperations[F, Event, EventType].create(
+          CommandEventOperations[F, Event].create(
             `type` = EventType.REGISTRATION_GROUP_DELETED,
             competitorId = None,
             competitionId = command.competitionId,
@@ -50,7 +50,7 @@ object DeleteRegistrationPeriodProc {
         if (!periodExists) {
           EitherT.fromEither[F](Left[Errors.Error, Event](Errors.RegistrationPeriodDoesNotExist(payload.periodId)))
         } else {
-          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
             `type` = EventType.REGISTRATION_PERIOD_DELETED,
             competitorId = None,
             competitionId = command.competitionId,

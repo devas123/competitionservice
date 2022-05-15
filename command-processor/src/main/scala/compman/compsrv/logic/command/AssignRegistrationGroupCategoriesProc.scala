@@ -38,7 +38,7 @@ object AssignRegistrationGroupCategoriesProc {
         } else if (!periodExists) {
           EitherT.fromEither(Left[Errors.Error, Event](Errors.RegistrationPeriodDoesNotExist(payload.periodId)))
         } else {
-          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
             `type` = EventType.REGISTRATION_GROUP_CATEGORIES_ASSIGNED,
             competitorId = None,
             competitionId = command.competitionId,

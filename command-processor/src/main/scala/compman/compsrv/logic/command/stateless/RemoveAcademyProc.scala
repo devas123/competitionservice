@@ -21,7 +21,7 @@ object RemoveAcademyProc {
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption(command.payload, NoPayloadError())
       _       <- EitherT.fromOption(Option(payload.academyId), InvalidPayload(payload))
-      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
         `type` = EventType.ACADEMY_REMOVED,
         competitorId = None,
         competitionId = None,

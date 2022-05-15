@@ -27,7 +27,7 @@ object CreateCompetitionProc {
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption(command.payload, NoPayloadError())
       _       <- EitherT.liftF(info(s"Creating competition: ${payload.getProperties}"))
-      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
         `type` = EventType.COMPETITION_CREATED,
         competitorId = None,
         competitionId = command.competitionId,

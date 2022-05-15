@@ -30,7 +30,7 @@ object GenerateAbsoluteCategoryProc {
       exists  <- EitherT.fromOption[F](state.categories.map(_.contains(id)), Errors.InternalError())
       event <-
         if (exists) {
-          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
             `type` = EventType.CATEGORY_ADDED,
             competitorId = None,
             competitionId = command.competitionId,
@@ -40,10 +40,10 @@ object GenerateAbsoluteCategoryProc {
             ))
           ))
         } else {
-          EitherT(CommandEventOperations[F, Event, EventType].error(CategoryAlreadyExists(id, payload.getCategory)))
+          EitherT(CommandEventOperations[F, Event].error(CategoryAlreadyExists(id, payload.getCategory)))
         }
       competitorAddedEvents <- payload.competitors.toList.traverse(c =>
-        EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+        EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
           `type` = EventType.COMPETITOR_CATEGORY_ADDED,
           competitorId = None,
           competitionId = command.competitionId,

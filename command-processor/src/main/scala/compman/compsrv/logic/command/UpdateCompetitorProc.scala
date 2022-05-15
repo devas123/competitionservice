@@ -28,7 +28,7 @@ object UpdateCompetitorProc {
         state.competitors.exists(_.contains(payload.getCompetitor.id)),
         Errors.CompetitorDoesNotExist(payload.getCompetitor.id)
       )
-      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
         `type` = EventType.COMPETITOR_UPDATED,
         competitorId = None,
         competitionId = command.competitionId,

@@ -53,11 +53,11 @@ object FightUtils {
     }
     for {
       a <- update[F](result)(
-        it => it.winFight != null && result.exists(r => { it.winFight.contains(r.id) }),
+        it => it.winFight.isDefined && result.exists(r => it.winFight.contains(r.id)),
         _.clearWinFight
       )
       b <-
-        update[F](a)(it => it.winFight != null && result.exists(r => { it.loseFight.contains(r.id) }), _.clearLoseFight)
+        update[F](a)(it => it.winFight.isDefined && result.exists(r => it.loseFight.contains(r.id)), _.clearLoseFight)
     } yield b
   }
 
@@ -112,7 +112,7 @@ object FightUtils {
     }
 
     for {
-      uncompletableFights <- fights.values.filter(_.id != null).toList.traverse(it =>
+      uncompletableFights <- fights.values.filter(_.id.nonEmpty).toList.traverse(it =>
         for { canBePacked <- checkIfFightIsPackedOrCanBePackedEventually[F](it.id, fights) } yield
           if (canBePacked) it else markAsUncompletable(it)
       )
@@ -123,7 +123,7 @@ object FightUtils {
     markedFights: Map[String, FightDescription]
   ): F[Map[String, FightDescription]] = {
     def getUncompletableFightScores(uncompletableFights: Map[String, FightDescription]) = {
-      uncompletableFights.values.flatMap(f => f.scores.map(s => (s.getCompetitorId, f.id))).filter(_._1 != null).toList
+      uncompletableFights.values.flatMap(f => f.scores.map(s => (s.competitorId, f.id))).filter(_._1.isDefined).toList
     }
     for {
       uncompletableFights <- Monad[F].pure(markedFights.filter(e => e._2.status == FightStatus.UNCOMPLETABLE))
@@ -131,7 +131,7 @@ object FightUtils {
       mapped <- uncompletableFightsScores
         .foldM((markedFights, List.empty[CompetitorAssignmentDescriptor]))((acc, elem) =>
           for {
-            p <- advanceFighterToSiblingFights[F](elem._1, elem._2, FightReferenceType.WINNER, acc._1)
+            p <- advanceFighterToSiblingFights[F](elem._1.get, elem._2, FightReferenceType.WINNER, acc._1)
             assignments = acc._2 ++ p._2
           } yield (p._1, assignments)
         )
@@ -146,9 +146,11 @@ object FightUtils {
 
     def checkIfFightCanProduceReference(fightId: String, referenceType: FightReferenceType): Boolean = {
       val fightScores = getFightScores(fightId)
-      val parentFights = fightScores.map(_.map(it => { it.getParentReferenceType -> it.getParentFightId }))
-        .map(_.filter(it => it._1 != null && it._2 != null))
-      val fightScoresWithCompetitors = fightScores.map(_.filter(_.getCompetitorId != null))
+      val parentFights = fightScores.map(_.map(it => it.parentReferenceType -> it.parentFightId))
+        .map(_.filter(it => it._1.isDefined && it._2.isDefined))
+        .map(_.map(it => it._1.get -> it._2.get))
+
+      val fightScoresWithCompetitors = fightScores.map(_.filter(_.competitorId.isDefined))
       if (!fightScoresWithCompetitors.exists(_.nonEmpty)) {
         referenceType match {
           case FightReferenceType.WINNER => parentFights

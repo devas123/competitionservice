@@ -40,7 +40,7 @@ object GenerateCategoriesFromRestrictionsProc {
           } else {
             EitherT.liftF[F, Errors.Error, List[Event]](
               categories.traverse(cat =>
-                CommandEventOperations[F, Event, EventType].create(
+                CommandEventOperations[F, Event].create(
                   `type` = EventType.CATEGORY_ADDED,
                   competitorId = None,
                   competitionId = command.competitionId,

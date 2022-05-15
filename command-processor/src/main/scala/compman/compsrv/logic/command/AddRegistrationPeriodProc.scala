@@ -33,7 +33,7 @@ object AddRegistrationPeriodProc {
       ))
       event <-
         if (!periodExists) {
-          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
             `type` = EventType.REGISTRATION_PERIOD_ADDED,
             competitorId = None,
             competitionId = command.competitionId,
@@ -42,7 +42,7 @@ object AddRegistrationPeriodProc {
               eventpayload.RegistrationPeriodAddedPayload(payload.period.map(_.withId(id)))
             ))
           ))
-        } else { EitherT(CommandEventOperations[F, Event, EventType].error(RegistrationPeriodAlreadyExistsError(id))) }
+        } else { EitherT(CommandEventOperations[F, Event].error(RegistrationPeriodAlreadyExistsError(id))) }
     } yield Seq(event)
     eventT.value
   }

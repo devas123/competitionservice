@@ -45,7 +45,7 @@ object AddRegistrationGroupProc {
       ))
       event <-
         if (exists._1.isEmpty && !exists._2) {
-          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
             `type` = EventType.REGISTRATION_GROUP_ADDED,
             competitorId = None,
             competitionId = command.competitionId,
@@ -55,9 +55,9 @@ object AddRegistrationGroupProc {
             ))
           ))
         } else if (exists._1.nonEmpty) {
-          EitherT(CommandEventOperations[F, Event, EventType].error(RegistrationGroupAlreadyExistsError(exists._1)))
+          EitherT(CommandEventOperations[F, Event].error(RegistrationGroupAlreadyExistsError(exists._1)))
         } else {
-          EitherT(CommandEventOperations[F, Event, EventType].error(RegistrationGroupDefaultAlreadyExistsError()))
+          EitherT(CommandEventOperations[F, Event].error(RegistrationGroupDefaultAlreadyExistsError()))
         }
 
     } yield Seq(event)

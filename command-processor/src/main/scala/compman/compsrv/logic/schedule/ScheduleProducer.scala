@@ -191,7 +191,7 @@ private[schedule] object ScheduleProducer {
         } else {
           val ind      = requiremetsGraph.getIndex(req._1.id)
           val capacity = requirementsCapacity(ind.getOrElse(-1))
-          if (req._1.getMatId != null) {
+          if (req._1.matId.isDefined) {
             if (matsToIds.contains(req._1.getMatId)) {
               val mat = matsToIds(req._1.getMatId)
               if (mat.periodId == period.id) {

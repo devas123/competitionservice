@@ -45,7 +45,7 @@ object PropagateCompetitorsProc {
       compAssignmentDescriptors = competitorIdsToFightIds.flatMap(f =>
         f.competitors.map(cid => CompetitorAssignmentDescriptor().withCompetitorId(cid).withToFightId(f.id))
       )
-      fightUpdatedEvent <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+      fightUpdatedEvent <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
         `type` = EventType.COMPETITORS_PROPAGATED_TO_STAGE,
         competitorId = None,
         competitionId = command.competitionId,

@@ -20,7 +20,7 @@ object UpdateRegistrationInfoProc {
   ): F[Either[Errors.Error, Seq[Event]]] = {
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption(command.payload, NoPayloadError())
-      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
         `type` = EventType.REGISTRATION_INFO_UPDATED,
         competitorId = None,
         competitionId = command.competitionId,

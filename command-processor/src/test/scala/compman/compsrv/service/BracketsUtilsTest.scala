@@ -32,9 +32,9 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
           .onError(err => URIO(println(err.toString)))
       } yield assertTrue(res.size == 7) && assertTrue(distribRes.size == 7) &&
         assertTrue(distribRes.values.filter(_.round == 0).forall(f =>
-          f.scores != null && f.scores.nonEmpty && f.scores.forall(_.getCompetitorId != null)
+          f.scores.nonEmpty && f.scores.forall(_.competitorId.isDefined)
         )) &&
-        assertTrue(distribRes.values.filter(f => f.scores != null && !f.scores.exists(_.getCompetitorId == null)).forall(f =>
+        assertTrue(distribRes.values.filter(f => !f.scores.exists(_.competitorId.isEmpty)).forall(f =>
           f.scores.map(_.getCompetitorId).toSet.size == 2
         ))
     },
@@ -59,7 +59,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
           .onError(err => URIO(println(err.toString)))
       } yield assertTrue(res.size == 15) && assertTrue(distribRes.size == 15) &&
         assertTrue(distribRes.values.count(_.round == 0) == 8) &&
-        assertTrue(distribRes.values.filter(f => f.scores != null && !f.scores.exists(_.getCompetitorId == null)).forall(f =>
+        assertTrue(distribRes.values.filter(f => !f.scores.exists(_.competitorId.isEmpty)).forall(f =>
           f.scores.map(_.getCompetitorId).toSet.size == 2
         ))
     },
@@ -88,7 +88,7 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
         assertTrue(marked.count(_._2.round == 0) == 8) &&
         assertTrue(marked.count(e => e._2.round == 0 && e._2.status == FightStatus.UNCOMPLETABLE) == 6) &&
         assertTrue(marked.count(e => e._2.round != 0 && e._2.status == FightStatus.UNCOMPLETABLE) == 0) &&
-        assertTrue(marked.count(e => e._2.round == 1 && e._2.scores != null && e._2.scores.count(_.getCompetitorId != null) == 2) >= 2) &&
+        assertTrue(marked.count(e => e._2.round == 1 && e._2.scores.count(_.competitorId.isDefined) == 2) >= 2) &&
         assertTrue(marked.count(_._2.round == 1) == 4) &&
         assertTrue(marked.count(_._2.round == 2) == 2) &&
         assertTrue(marked.count(_._2.round == 3) == 1)

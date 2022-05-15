@@ -32,7 +32,7 @@ object ChangeFightOrderProc {
         !fightToMove.exists(f => Seq(FightStatus.IN_PROGRESS, FightStatus.FINISHED).contains(f.status)),
         Errors.FightCannotBeMoved(payload.fightId)
       )
-      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
         `type` = EventType.FIGHT_ORDER_CHANGED,
         competitorId = None,
         competitionId = command.competitionId,

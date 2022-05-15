@@ -22,7 +22,7 @@ object UpdateAcademyProc {
       payload <- EitherT.fromOption(command.payload, NoPayloadError())
       academy <- EitherT.fromOption(Option(payload.getAcademy), InvalidPayload(payload))
       _       <- EitherT.fromOption(Option(academy.id), InvalidPayload(payload))
-      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
         `type` = EventType.ACADEMY_UPDATED,
         competitorId = None,
         competitionId = None,

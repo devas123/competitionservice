@@ -28,7 +28,7 @@ object AddCategoryProc {
       exists  <- EitherT.fromOption(state.categories.map(_.contains(id)), Errors.InternalError())
       event <-
         if (exists) {
-          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
             `type` = EventType.CATEGORY_ADDED,
             competitorId = None,
             competitionId = command.competitionId,
@@ -36,7 +36,7 @@ object AddCategoryProc {
             payload = Some(MessageInfo.Payload.CategoryAddedPayload(CategoryAddedPayload(payload.category)))
           ))
         } else {
-          EitherT(CommandEventOperations[F, Event, EventType].error(CategoryAlreadyExists(id, payload.getCategory)))
+          EitherT(CommandEventOperations[F, Event].error(CategoryAlreadyExists(id, payload.getCategory)))
         }
     } yield Seq(event)
     eventT.value

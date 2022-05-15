@@ -45,7 +45,7 @@ object GenerateBracketsProc {
         fightAddedEvents <- EitherT.liftF(
           updatedStages.flatMap { case (stage, fights) =>
             fights.grouped(30).map { it =>
-              CommandEventOperations[F, Event, EventType].create(
+              CommandEventOperations[F, Event].create(
                 EventType.FIGHTS_ADDED_TO_STAGE,
                 command.competitionId,
                 None,
@@ -59,7 +59,7 @@ object GenerateBracketsProc {
         bracketsGeneratedPayload = BracketsGeneratedPayload()
           .withStages(updatedStages.mapWithIndex((a, b) => a._1.withStageOrder(b)))
         bracketsGeneratedEvent <- EitherT
-          .liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+          .liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
             `type` = EventType.BRACKETS_GENERATED,
             competitorId = None,
             competitionId = command.competitionId,

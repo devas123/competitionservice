@@ -28,7 +28,7 @@ object RemoveCompetitorProc {
         state.competitors.exists(_.contains(payload.competitorId)),
         Errors.CompetitorDoesNotExist(payload.competitorId)
       )
-      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event, EventType].create(
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
         `type` = EventType.COMPETITOR_REMOVED,
         competitorId = None,
         competitionId = command.competitionId,
