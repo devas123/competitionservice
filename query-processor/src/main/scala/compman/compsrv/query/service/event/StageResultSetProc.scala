@@ -2,15 +2,14 @@ package compman.compsrv.query.service.event
 
 import cats.Monad
 import cats.data.OptionT
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, StageResultSetEvent}
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.{CompetitionQueryOperations, CompetitionUpdateOperations}
 
 object StageResultSetProc {
   import cats.implicits._
-  def apply[F[+_]: Monad: CompetitionQueryOperations: CompetitionUpdateOperations, P <: Payload]()
-    : PartialFunction[Event[P], F[Unit]] = { case x: StageResultSetEvent => apply[F](x) }
+  def apply[F[+_]: Monad: CompetitionQueryOperations: CompetitionUpdateOperations]()
+    : PartialFunction[Event[Any], F[Unit]] = { case x: StageResultSetEvent => apply[F](x) }
 
   private def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations](
     event: StageResultSetEvent

@@ -4,13 +4,12 @@ import cats.Monad
 import cats.data.OptionT
 import cats.implicits._
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{CategoryAddedEvent, Event}
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.CompetitionUpdateOperations
 
 object CategoryAddedProc {
-  def apply[F[+_]: CompetitionLogging.Service: Monad: CompetitionUpdateOperations, P <: Payload](): PartialFunction[Event[P], F[Unit]] = {
+  def apply[F[+_]: CompetitionLogging.Service: Monad: CompetitionUpdateOperations](): PartialFunction[Event[Any], F[Unit]] = {
     case x: CategoryAddedEvent => apply[F](x)
   }
 

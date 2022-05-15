@@ -2,7 +2,6 @@ package compman.compsrv.query.service.event
 
 import cats.Monad
 import cats.data.OptionT
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, FightsAddedToStageEvent}
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.model.CompetitorDisplayInfo
@@ -10,15 +9,15 @@ import compman.compsrv.query.service.repository.{CompetitionQueryOperations, Fig
 
 object FightsAddedToStageProc {
   import cats.implicits._
-  def apply[F[+_]: Monad: FightUpdateOperations: CompetitionQueryOperations, P <: Payload]()
-    : PartialFunction[Event[P], F[Unit]] = { case x: FightsAddedToStageEvent => apply[F](x) }
+  def apply[F[+_]: Monad: FightUpdateOperations: CompetitionQueryOperations]()
+    : PartialFunction[Event[Any], F[Unit]] = { case x: FightsAddedToStageEvent => apply[F](x) }
 
   private def apply[F[+_]: Monad: FightUpdateOperations: CompetitionQueryOperations](
     event: FightsAddedToStageEvent
   ): F[Unit] = {
     for {
       payload       <- OptionT.fromOption[F](event.payload)
-      fights        <- OptionT.fromOption[F](Option(payload.getFights))
+      fights        <- OptionT.fromOption[F](Option(payload.fights))
       categoryId    <- OptionT.fromOption[F](event.categoryId)
       competitionId <- OptionT.fromOption[F](event.competitionId)
       competitors <- OptionT

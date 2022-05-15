@@ -1,7 +1,7 @@
 package compman.compsrv.logic.category
 
 import compman.compsrv.Utils
-import compservice.model.protobuf.commandpayload.{AdjacencyList, GenerateCategoriesFromRestrictionsPayload}
+import compservice.model.protobuf.commandpayload.GenerateCategoriesFromRestrictionsPayload
 import compservice.model.protobuf.model._
 
 import java.util.UUID

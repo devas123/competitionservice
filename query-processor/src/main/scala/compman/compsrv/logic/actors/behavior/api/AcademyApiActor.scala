@@ -3,11 +3,12 @@ package compman.compsrv.logic.actors.behavior.api
 import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Behaviors}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compman.compsrv.model.dto.competition._
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.{AcademyOperations, Pagination}
 import compman.compsrv.query.service.repository.AcademyOperations.AcademyService
+import compservice.model.protobuf.query
+import compservice.model.protobuf.query.QueryServiceResponse
 import org.mongodb.scala.MongoClient
 import zio.Tag
 import zio.logging.Logging
@@ -31,9 +32,9 @@ object AcademyApiActor {
   }
 
   final case class GetAcademies(searchString: Option[String], pagination: Option[Pagination])(
-    override val replyTo: ActorRef[List[FullAcademyInfoDTO]]
+    override val replyTo: ActorRef[QueryServiceResponse]
   ) extends AcademyApiCommand {
-    override type responseType = List[FullAcademyInfoDTO]
+    override type responseType = QueryServiceResponse
   }
 
   case class ActorState()
@@ -48,7 +49,8 @@ object AcademyApiActor {
           res <- command match {
             case c @ GetAcademies(_, _) => for {
                 res <- AcademyOperations.getAcademies
-                _   <- c.replyTo ! res.map(DtoMapping.toDtoFullAcademyInfo)
+                _ <- c.replyTo ! QueryServiceResponse()
+                  .withGetAcademiesResponse(query.GetAcademiesResponse(res.map(DtoMapping.toDtoFullAcademyInfo)))
               } yield state
           }
         } yield res

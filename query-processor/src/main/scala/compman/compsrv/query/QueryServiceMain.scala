@@ -10,7 +10,6 @@ import compman.compsrv.logic.actors.behavior.api.{AcademyApiActor, CompetitionAp
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.logError
 import compman.compsrv.query.config.AppConfig
-import compman.compsrv.query.serde.ObjectMapperFactory
 import compman.compsrv.query.service.{CompetitionHttpApiService, WebsocketService}
 import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO
 import fs2.concurrent.SignallingRef
@@ -33,7 +32,6 @@ object QueryServiceMain extends zio.App {
     ActorSystem("queryServiceActorSystem").use { actorSystem =>
       for {
         (config, mongodbConfig) <- AppConfig.load()
-        mapper = ObjectMapperFactory.createObjectMapper
         credential <- ZIO.effect(MongoCredential.createCredential(
           mongodbConfig.username,
           mongodbConfig.authenticationDb,
@@ -87,7 +85,6 @@ object QueryServiceMain extends zio.App {
           ActorConfig(),
           (),
           StatelessEventListener.behavior[ZEnv](
-            mapper,
             config.statelessEventListener,
             StatelessEventListener.Live(mongoClient = mongoDbSession, mongodbConfig = mongodbConfig),
             kafkaSupervisor

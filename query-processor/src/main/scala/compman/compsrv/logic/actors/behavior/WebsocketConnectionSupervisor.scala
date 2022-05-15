@@ -2,7 +2,7 @@ package compman.compsrv.logic.actors.behavior
 
 import compman.compsrv.logic.actors.{ActorBehavior, Behaviors}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.model.events.EventDTO
+import compservice.model.protobuf.event.Event
 import zio.{Queue, Tag, Task}
 import zio.clock.Clock
 import zio.console.Console
@@ -12,12 +12,12 @@ object WebsocketConnectionSupervisor {
 
   sealed trait ApiCommand
 
-  final case class WebsocketConnectionRequest(clientId: String, competitionId: String, queue: Queue[EventDTO])
+  final case class WebsocketConnectionRequest(clientId: String, competitionId: String, queue: Queue[Event])
       extends ApiCommand
 
   final case class WebsocketConnectionClosed(clientId: String, competitionId: String) extends ApiCommand
 
-  final case class EventReceived(event: EventDTO) extends ApiCommand
+  final case class EventReceived(event: Event) extends ApiCommand
 
   case class ActorState()
 
@@ -31,14 +31,14 @@ object WebsocketConnectionSupervisor {
         for {
           res <- command match {
             case EventReceived(event) =>
-              val competitionId = event.getCompetitionId
+              val competitionId = event.messageInfo.map(_.competitionId).get
               val handlerName   = CONNECTION_HANDLER_PREFIX + competitionId
               for {
                 childOption <- context.findChild[WebsocketConnection.ApiCommand](handlerName)
                 _ <- childOption match {
                   case Some(value) => Logging.info(s"Forwarding event $event to ws") *>
                       (value ! WebsocketConnection.ReceivedEvent(event))
-                  case None => Logging.info(s"Did not find any ws connection for competition ${event.getCompetitionId}")
+                  case None => Logging.info(s"Did not find any ws connection for competition $competitionId")
                 }
               } yield state
             case WebsocketConnectionRequest(clientId, competitionId, queue) =>

@@ -10,6 +10,27 @@ option (scalapb.options) = {
   enum_strip_prefix: true
 };
 
+message AdjacencyList {
+  int32 root = 1;
+  repeated AdjacencyListEntry vertices = 2;
+}
+message AdjacencyListEntry {
+  int32 id = 1;
+  repeated int32 children = 2;
+}
+
+message ManagedCompetition {
+  string id = 1;
+  optional string  competitionName = 2;
+  string  eventsTopic = 3;
+  optional string  creatorId = 4;
+  google.protobuf.Timestamp createdAt = 5;
+  google.protobuf.Timestamp startsAt = 6;
+  optional google.protobuf.Timestamp endsAt = 7;
+  string  timeZone = 8;
+  CompetitionStatus status = 9;
+}
+
 message StageDescriptor {
   string id = 1;
   optional string name = 2;

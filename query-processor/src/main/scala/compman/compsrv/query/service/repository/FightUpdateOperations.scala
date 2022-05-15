@@ -2,8 +2,8 @@ package compman.compsrv.query.service.repository
 
 import cats.implicits._
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compman.compsrv.model.dto.competition.FightStatus
 import compman.compsrv.query.model._
+import compservice.model.protobuf.model.FightStatus
 import org.mongodb.scala.MongoClient
 import org.mongodb.scala.model.UpdateOneModel
 import zio.{Ref, RIO, ZIO}
@@ -142,13 +142,13 @@ object FightUpdateOperations {
         writes = () =>
           updates.map(f =>
             UpdateOneModel(
-              and(equal(competitionIdField, f.competitionId), equal(idField, f.fightOrderUpdate.getFightId)),
+              and(equal(competitionIdField, f.competitionId), equal(idField, f.fightOrderUpdate.fightId)),
               combine(
-                set("matId", f.fightOrderUpdate.getMatId),
-                set("numberOnMat", f.fightOrderUpdate.getNumberOnMat),
+                set("matId", f.fightOrderUpdate.matId),
+                set("numberOnMat", f.fightOrderUpdate.numberOnMat),
                 set("matOrder", f.newMat.matOrder),
                 set("matName", f.newMat.name),
-                set("startTime", Date.from(f.fightOrderUpdate.getStartTime))
+                set("startTime", Date.from(f.fightOrderUpdate.getStartTime.asJavaInstant))
               )
             )
           )

@@ -1,14 +1,13 @@
 package compman.compsrv.query.model
 
-import compman.compsrv.model.dto.competition.{CompetitorDTO, FightDescriptionDTO}
-import compman.compsrv.model.dto.dashboard.MatStateDTO
+import compservice.model.protobuf.model.{Competitor, FightDescription, MatState}
 
 case class MatFightsQueryResult (
-  competitors: List[CompetitorDTO],
-  fights: List[FightDescriptionDTO]
+                                  competitors: List[Competitor],
+                                  fights: List[FightDescription]
                                 )
 
 case class MatsQueryResult (
-                                  competitors: List[CompetitorDTO],
-                                  mats: List[MatStateDTO]
+                                  competitors: List[Competitor],
+                                  mats: List[MatState]
                                 )

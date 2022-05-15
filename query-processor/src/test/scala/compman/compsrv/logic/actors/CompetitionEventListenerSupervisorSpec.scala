@@ -8,7 +8,7 @@ import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.CompetitionProcessingStarted
 import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.query.model._
-import compman.compsrv.query.serde.{ObjectMapperFactory, SerdeApi}
+import compman.compsrv.query.serde.SerdeApi
 import compman.compsrv.query.service.EmbeddedKafkaBroker
 import compman.compsrv.query.service.EmbeddedKafkaBroker.embeddedKafkaServer
 import zio._

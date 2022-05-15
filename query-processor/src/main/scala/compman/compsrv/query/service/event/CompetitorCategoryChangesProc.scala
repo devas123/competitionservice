@@ -2,23 +2,21 @@ package compman.compsrv.query.service.event
 
 import cats.Monad
 import cats.data.OptionT
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{CompetitorCategoryAddedEvent, CompetitorCategoryChangedEvent, Event}
 import compman.compsrv.query.service.repository.{CompetitionQueryOperations, CompetitionUpdateOperations}
 
 object CompetitorCategoryChangesProc {
   import cats.implicits._
-  def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations, P <: Payload]()
-    : PartialFunction[Event[P], F[Unit]] = {
-    case x: CompetitorCategoryChangedEvent => apply[F](x.competitionId, x.payload.flatMap(p => Option(p.getFighterId)), x.payload.flatMap(p => Option(p.getOldCategories)), x.payload.flatMap(p => Option(p.getNewCategories)))
-    case x: CompetitorCategoryAddedEvent => apply[F](x.competitionId, x.payload.flatMap(p => Option(p.getFighterId)), None, x.payload.flatMap(p => Option(Array(p.getNewCategoryId))))
+  def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations]()
+    : PartialFunction[Event[Any], F[Unit]] = {
+    case x: CompetitorCategoryChangedEvent => changeCategory[F](x.competitionId, x.payload.flatMap(p => Option(p.fighterId)), x.payload.flatMap(p => Option(p.newCategories)))
+    case x: CompetitorCategoryAddedEvent => changeCategory[F](x.competitionId, x.payload.flatMap(p => Option(p.fighterId)), x.payload.flatMap(p => Option(Array(p.newCategoryId))))
   }
 
-  private def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations](
+  private def changeCategory[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations](
                                                                                             competitionId: Option[String],
                                                                                             competitorId: Option[String],
-                                                                                            oldCategoryIds: Option[Array[String]],
-                                                                                            newCategoryIds: Option[Array[String]]
+                                                                                            newCategoryIds: Option[Seq[String]]
   ): F[Unit] = {
     for {
       competitionId <- OptionT.fromOption[F](competitionId)

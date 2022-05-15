@@ -3,14 +3,13 @@ package compman.compsrv.query.service.event
 import cats.Monad
 import cats.data.OptionT
 import cats.implicits._
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, ScheduleDropped}
 import compman.compsrv.query.model.FightStartTimeUpdate
 import compman.compsrv.query.service.repository.{CompetitionUpdateOperations, FightQueryOperations, FightUpdateOperations}
 
 object ScheduleDroppedProc {
-  def apply[F[+_]: Monad: CompetitionUpdateOperations: FightQueryOperations: FightUpdateOperations, P <: Payload]()
-    : PartialFunction[Event[P], F[Unit]] = { case x: ScheduleDropped => apply[F](x) }
+  def apply[F[+_]: Monad: CompetitionUpdateOperations: FightQueryOperations: FightUpdateOperations]()
+    : PartialFunction[Event[Any], F[Unit]] = { case x: ScheduleDropped => apply[F](x) }
 
   private def apply[F[+_]: Monad: CompetitionUpdateOperations: FightQueryOperations: FightUpdateOperations](
     event: ScheduleDropped

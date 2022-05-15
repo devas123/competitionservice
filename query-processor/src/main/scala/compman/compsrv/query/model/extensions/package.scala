@@ -1,35 +1,34 @@
 package compman.compsrv.query.model
 
-import compman.compsrv.model.dto.competition.CompetitionPropertiesDTO
-import compman.compsrv.model.dto.schedule.{MatIdAndSomeId, PeriodDTO}
-
-import java.util.Date
+import compman.compsrv.model.extensions.InstantOps
+import compman.compsrv.query.model.mapping.DtoMapping.toDate
+import compservice.model.protobuf.model
 
 package object extensions {
 
-  final implicit class PeriodOps(private val p: PeriodDTO) extends AnyVal {
-    def enrichWithFightsByScheduleEntries(fightsByScheduleEntries: List[FightByScheduleEntry]): PeriodDTO = {
-      val map = fightsByScheduleEntries.filter(e => e.matId.isDefined && e.periodId == p.getId)
+  final implicit class PeriodOps(private val p: model.Period) extends AnyVal {
+    def enrichWithFightsByScheduleEntries(fightsByScheduleEntries: List[FightByScheduleEntry]): model.Period = {
+      val map = fightsByScheduleEntries.filter(e => e.matId.isDefined && e.periodId == p.id)
         .groupMap(_.scheduleEntryId)(e =>
-          new MatIdAndSomeId(e.matId.orNull, e.startTime.map(_.toInstant).orNull, e.fightId)
+          model.StartTimeInfo(e.matId.orNull, e.startTime.map(_.toInstant.asTimestamp), e.fightId)
         )
-      p.setScheduleEntries(
-        Option(p.getScheduleEntries).map(_.map(se =>
-          se.setFightIds(map.get(se.getId).map(_.toArray).getOrElse(Array.empty))
+      p.withScheduleEntries(
+        Option(p.scheduleEntries).map(_.map(se =>
+          se.withFightScheduleInfo(map.get(se.id).map(_.toArray).getOrElse(Array.empty))
         )).getOrElse(Array.empty)
       )
     }
   }
 
   final implicit class CompetitionPropertiesOps(private val c: CompetitionProperties) extends AnyVal {
-    def applyProperties(props: CompetitionPropertiesDTO): CompetitionProperties = {
+    def applyProperties(props: model.CompetitionProperties): CompetitionProperties = {
       for { pr <- Option(props) } yield c.copy(
-        timeZone = pr.getTimeZone,
-        schedulePublished = pr.getSchedulePublished,
-        competitionName = pr.getCompetitionName,
-        bracketsPublished = pr.getBracketsPublished,
-        startDate = Date.from(pr.getStartDate),
-        endDate = Option(pr.getEndDate).map(Date.from)
+        timeZone = pr.timeZone,
+        schedulePublished = pr.schedulePublished,
+        competitionName = pr.competitionName,
+        bracketsPublished = pr.bracketsPublished,
+        startDate = pr.startDate.map(toDate).get,
+        endDate = pr.endDate.map(toDate),
       )
     }.getOrElse(c)
 

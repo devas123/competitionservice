@@ -3,12 +3,11 @@ package compman.compsrv.query.service.event
 import cats.Monad
 import cats.data.OptionT
 import cats.implicits.toFunctorOps
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{CategoryRegistrationStatusChanged, Event}
 import compman.compsrv.query.service.repository.CompetitionUpdateOperations
 
 object CategoryRegistrationStatusChangedProc {
-  def apply[F[+_]: Monad: CompetitionUpdateOperations, P <: Payload](): PartialFunction[Event[P], F[Unit]] = {
+  def apply[F[+_]: Monad: CompetitionUpdateOperations](): PartialFunction[Event[Any], F[Unit]] = {
     case x:  CategoryRegistrationStatusChanged => apply[F](x)
   }
 
@@ -17,7 +16,7 @@ object CategoryRegistrationStatusChangedProc {
       payload       <- OptionT.fromOption[F](event.payload)
       competitionId <- OptionT.fromOption[F](event.competitionId)
       categoryId <- OptionT.fromOption[F](event.categoryId)
-      newStatus           <- OptionT.fromOption[F](Option(payload.isNewStatus))
+      newStatus           <- OptionT.fromOption[F](Option(payload.newStatus))
       _             <- OptionT.liftF(CompetitionUpdateOperations[F].updateCategoryRegistrationStatus(competitionId)(categoryId, newStatus))
     } yield ()
   }.value.map(_ => ())

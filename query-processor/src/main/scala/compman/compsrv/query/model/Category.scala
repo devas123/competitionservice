@@ -1,6 +1,7 @@
 package compman.compsrv.query.model
 
-import compman.compsrv.model.dto.competition.CategoryRestrictionType
+import compservice.model.protobuf.model.CategoryRestrictionType
+
 
 case class Category(
   id: String,
