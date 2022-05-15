@@ -29,17 +29,17 @@ trait TestEntities {
 
   val totalNumberOfCompetitors: Int = groupRange.map(_ + startingCompetitorsSizeForGroup).sum
 
-  val inputDescriptor: StageInputDescriptor = StageInputDescriptor().withSelectors(Array.empty)
+  val inputDescriptor: StageInputDescriptor = StageInputDescriptor().withSelectors(Seq.empty)
     .withNumberOfCompetitors(totalNumberOfCompetitors).withDistributionType(DistributionType.AUTOMATIC)
 
   val resultDescriptor: StageResultDescriptor = StageResultDescriptor().withName(stageId)
-    .withCompetitorResults(Array.empty).withFightResultOptions(FightResultOptionConstants.values).withOutputSize(1)
+    .withCompetitorResults(Seq.empty).withFightResultOptions(FightResultOptionConstants.values).withOutputSize(1)
 
   val stageForGroupsGeneration: StageDescriptor = StageDescriptor().withId(stageId).withName(stageId)
     .withCompetitionId(competitionId).withStageType(StageType.FINAL).withStageOrder(0)
     .withBracketType(BracketType.GROUP).withFightDuration(600).withGroupDescriptors(groupDescriptors)
     .withInputDescriptor(inputDescriptor).withStageResultDescriptor(
-      resultDescriptor.withAdditionalGroupSortingDescriptors(Array.empty).withForceManualAssignment(false)
+      resultDescriptor.withAdditionalGroupSortingDescriptors(Seq.empty).withForceManualAssignment(false)
     ).withStageStatus(StageStatus.WAITING_FOR_APPROVAL).withWaitForPrevious(false)
 
   val singleEliminationBracketsStage: StageDescriptor = StageDescriptor().withId(stageId).withName(stageId)
@@ -48,9 +48,9 @@ trait TestEntities {
     .withStageResultDescriptor(resultDescriptor).withStageStatus(StageStatus.APPROVED).withWaitForPrevious(false)
 
   val competitors: Seq[Competitor] = List(
-    Competitor().withId("competitor1").withCategories(Array(categoryId)),
-    Competitor().withId("competitor2").withCategories(Array(categoryId)),
-    Competitor().withId("competitor3").withCategories(Array(categoryId))
+    Competitor().withId("competitor1").withCategories(Seq(categoryId)),
+    Competitor().withId("competitor2").withCategories(Seq(categoryId)),
+    Competitor().withId("competitor3").withCategories(Seq(categoryId))
   )
 
   val mat1: MatDescription = MatDescription().withId(mat1Id).withName("Mat 1").withMatOrder(0).withPeriodId(periodId)
@@ -62,11 +62,11 @@ trait TestEntities {
       Some("Semi-final"),
       Some(fight3),
       None,
-      Array(
+      Seq(
         CompScore(
           None,
           Some("competitor1"),
-          Some(Score(0, 0, 0, Array.empty)),
+          Some(Score(0, 0, 0, Seq.empty)),
           0,
           Some(FightReferenceType.PROPAGATED),
           None
@@ -74,7 +74,7 @@ trait TestEntities {
         CompScore(
           None,
           Some("competitor2"),
-          Some(Score(0, 0, 0, Array.empty)),
+          Some(Score(0, 0, 0, Seq.empty)),
           1,
           Some(FightReferenceType.PROPAGATED),
           None
@@ -86,11 +86,11 @@ trait TestEntities {
       StageRoundType.WINNER_BRACKETS,
       FightStatus.PENDING,
       None,
-      mat2,
+      Some(mat2),
       None,
-      0,
+      Some(0),
       competitionId,
-      periodId,
+      Some(periodId),
       None,
       stageId,
       None,
@@ -103,16 +103,16 @@ trait TestEntities {
       Some("Semi-final"),
       Some(fight3),
       None,
-      Array(
+      Seq(
         CompScore(
           None,
           Some("competitor3"),
-          Some(Score(0, 0, 0, Array.empty)),
+          Some(Score(0, 0, 0, Seq.empty)),
           0,
           Some(FightReferenceType.PROPAGATED),
           None
         ),
-        CompScore(None, None, Some(Score(0, 0, 0, Array.empty)), 1, Some(FightReferenceType.PROPAGATED), None)
+        CompScore(None, None, Some(Score(0, 0, 0, Seq.empty)), 1, Some(FightReferenceType.PROPAGATED), None)
       ),
       600,
       0,
@@ -120,9 +120,9 @@ trait TestEntities {
       StageRoundType.WINNER_BRACKETS,
       FightStatus.UNCOMPLETABLE,
       None,
-      mat1,
+      Some(mat1),
       None,
-      0,
+      Some(0),
       competitionId,
       None,
       None,

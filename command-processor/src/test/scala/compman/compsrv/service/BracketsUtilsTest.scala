@@ -3,11 +3,10 @@ package compman.compsrv.service
 import compman.compsrv.Utils
 import compman.compsrv.logic.competitor.CompetitorService
 import compman.compsrv.logic.fight.{BracketsUtils, FightUtils}
-import compman.compsrv.model.dto.competition.FightStatus
+import compservice.model.protobuf.model.FightStatus
 import zio.{Task, URIO, ZIO}
 import zio.interop.catz._
 import zio.test._
-import zio.test.Assertion._
 import zio.test.TestAspect.sequential
 
 object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
@@ -28,16 +27,16 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
           competitionId = competitionId
         ))
         res         = fights.fold(_ => List.empty, identity)
-        distributed = BracketsUtils.distributeCompetitors(fighters, Utils.groupById(res)(_.getId))
+        distributed = BracketsUtils.distributeCompetitors(fighters, Utils.groupById(res)(_.id))
         distribRes <- ZIO.fromEither(distributed)
           .onError(err => URIO(println(err.toString)))
-      } yield assert(res.size)(equalTo(7)) && assert(distribRes.size)(equalTo(7)) &&
-        assert(distribRes.values.filter(_.getRound == 0).forall(f =>
-          f.getScores != null && f.getScores.nonEmpty && f.getScores.forall(_.getCompetitorId != null)
-        ))(isTrue) &&
-        assert(distribRes.values.filter(f => f.getScores != null && !f.getScores.exists(_.getCompetitorId == null)).forall(f =>
-          f.getScores.map(_.getCompetitorId).toSet.size == 2
-        ))(isTrue)
+      } yield assertTrue(res.size == 7) && assertTrue(distribRes.size == 7) &&
+        assertTrue(distribRes.values.filter(_.round == 0).forall(f =>
+          f.scores != null && f.scores.nonEmpty && f.scores.forall(_.getCompetitorId != null)
+        )) &&
+        assertTrue(distribRes.values.filter(f => f.scores != null && !f.scores.exists(_.getCompetitorId == null)).forall(f =>
+          f.scores.map(_.getCompetitorId).toSet.size == 2
+        ))
     },
     testM("Should generate brackets for 10 fighters") {
       val compsSize = 10
@@ -55,14 +54,14 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
           competitionId = competitionId
         ))
         res         = fights.fold(_ => List.empty, identity)
-        distributed = BracketsUtils.distributeCompetitors(fighters, Utils.groupById(res)(_.getId))
+        distributed = BracketsUtils.distributeCompetitors(fighters, Utils.groupById(res)(_.id))
         distribRes <- ZIO.fromEither(distributed)
           .onError(err => URIO(println(err.toString)))
-      } yield assert(res.size)(equalTo(15)) && assert(distribRes.size)(equalTo(15)) &&
-        assert(distribRes.values.count(_.getRound == 0))(equalTo(8)) &&
-        assert(distribRes.values.filter(f => f.getScores != null && !f.getScores.exists(_.getCompetitorId == null)).forall(f =>
-          f.getScores.map(_.getCompetitorId).toSet.size == 2
-        ))(isTrue)
+      } yield assertTrue(res.size == 15) && assertTrue(distribRes.size == 15) &&
+        assertTrue(distribRes.values.count(_.round == 0) == 8) &&
+        assertTrue(distribRes.values.filter(f => f.scores != null && !f.scores.exists(_.getCompetitorId == null)).forall(f =>
+          f.scores.map(_.getCompetitorId).toSet.size == 2
+        ))
     },
 
     testM("should process uncompletable fights and advance competitors") {
@@ -81,18 +80,18 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
           competitionId = competitionId
         ))
         res         = fights.fold(_ => List.empty, identity)
-        distributed = BracketsUtils.distributeCompetitors(fighters, Utils.groupById(res)(_.getId))
+        distributed = BracketsUtils.distributeCompetitors(fighters, Utils.groupById(res)(_.id))
         distribRes <- ZIO.fromEither(distributed)
           .onError(err => URIO(println(err.toString)))
         marked <- FightUtils.markAndProcessUncompletableFights[Task](distribRes)
-      } yield assert(marked.size)(equalTo(15)) &&
-        assert(marked.count(_._2.getRound == 0))(equalTo(8)) &&
-        assert(marked.count(e => e._2.getRound == 0 && e._2.getStatus == FightStatus.UNCOMPLETABLE))(equalTo(6)) &&
-        assert(marked.count(e => e._2.getRound != 0 && e._2.getStatus == FightStatus.UNCOMPLETABLE))(equalTo(0)) &&
-        assert(marked.count(e => e._2.getRound == 1 && e._2.getScores != null && e._2.getScores.count(_.getCompetitorId != null) == 2))(isGreaterThanEqualTo(2)) &&
-        assert(marked.count(_._2.getRound == 1))(equalTo(4)) &&
-        assert(marked.count(_._2.getRound == 2))(equalTo(2)) &&
-        assert(marked.count(_._2.getRound == 3))(equalTo(1))
+      } yield assertTrue(marked.size == 15) &&
+        assertTrue(marked.count(_._2.round == 0) == 8) &&
+        assertTrue(marked.count(e => e._2.round == 0 && e._2.status == FightStatus.UNCOMPLETABLE) == 6) &&
+        assertTrue(marked.count(e => e._2.round != 0 && e._2.status == FightStatus.UNCOMPLETABLE) == 0) &&
+        assertTrue(marked.count(e => e._2.round == 1 && e._2.scores != null && e._2.scores.count(_.getCompetitorId != null) == 2) >= 2) &&
+        assertTrue(marked.count(_._2.round == 1) == 4) &&
+        assertTrue(marked.count(_._2.round == 2) == 2) &&
+        assertTrue(marked.count(_._2.round == 3) == 1)
     }
   ) @@ sequential
 }

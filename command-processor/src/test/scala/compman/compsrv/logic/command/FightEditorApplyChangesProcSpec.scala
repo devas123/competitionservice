@@ -4,13 +4,10 @@ import cats.Eval
 import compman.compsrv.Utils
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.model.command.Commands.FightEditorApplyChangesCommand
-import compman.compsrv.model.commands.payload.{FightEditorApplyChangesPayload, FightsCompetitorUpdated}
-import compman.compsrv.model.dto.brackets.StageDescriptorDTO
-import compman.compsrv.model.dto.competition._
-import compman.compsrv.model.events.EventType
-import compman.compsrv.model.events.payload.FightEditorChangesAppliedPayload
-import compman.compsrv.model.Payload
 import compman.compsrv.service.TestEntities
+import compservice.model.protobuf.commandpayload.{CompetitorsOfFightUpdated, FightEditorApplyChangesPayload}
+import compservice.model.protobuf.event.EventType
+import compservice.model.protobuf.model._
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -19,14 +16,11 @@ import java.util.UUID
 class FightEditorApplyChangesProcSpec extends AnyFunSuite with BeforeAndAfter with TestEntities {
   import Dependencies._
 
-
-  val stage: StageDescriptorDTO = new StageDescriptorDTO().setId(stageId)
+  val stage: StageDescriptor = StageDescriptor().withId(stageId)
 
   val initialState: CompetitionState = CompetitionState(
     id = competitionId,
-    competitors = Some(
-      Utils.groupById(competitors)(_.getId)
-    ),
+    competitors = Some(Utils.groupById(competitors)(_.id)),
     competitionProperties = None,
     stages = Some(Map(stageId -> stage)),
     fights = None,
@@ -37,9 +31,9 @@ class FightEditorApplyChangesProcSpec extends AnyFunSuite with BeforeAndAfter wi
   )
 
   val payload: Option[FightEditorApplyChangesPayload] =
-    Some(new FightEditorApplyChangesPayload().setStageId(stageId).setBracketsChanges(Array(
-      new FightsCompetitorUpdated().setFightId("fight1").setCompetitors(Array("competitor1")),
-      new FightsCompetitorUpdated().setFightId("fight2").setCompetitors(Array("competitor2", "competitor3"))
+    Some(FightEditorApplyChangesPayload().withStageId(stageId).withBracketsChanges(Seq(
+      CompetitorsOfFightUpdated().withFightId("fight1").withCompetitors(Seq("competitor1")),
+      CompetitorsOfFightUpdated().withFightId("fight2").withCompetitors(Seq("competitor2", "competitor3"))
     )))
 
   val command: FightEditorApplyChangesCommand = FightEditorApplyChangesCommand(
@@ -50,20 +44,18 @@ class FightEditorApplyChangesProcSpec extends AnyFunSuite with BeforeAndAfter wi
 
   test("Should set fight statuses") {
     val updatedFights = (for {
-      newFights <- Eval.later(Utils.groupById(fights)(_.getId))
-      result <- FightEditorApplyChangesProc[Eval, Payload](initialState.copy(fights = Some(newFights)))
-        .apply(command)
+      newFights <- Eval.later(Utils.groupById(fights)(_.id))
+      result    <- FightEditorApplyChangesProc[Eval](initialState.copy(fights = Some(newFights))).apply(command)
     } yield result).value
     assert(updatedFights.isRight)
     val events = updatedFights.getOrElse(List.empty)
     assert(events.nonEmpty)
-    assert(events.head.getType == EventType.FIGHTS_EDITOR_CHANGE_APPLIED)
-    assert(events.head.getPayload != null)
-    assert(events.head.getPayload.isInstanceOf[FightEditorChangesAppliedPayload])
-    val eventPayload = events.head.getPayload.asInstanceOf[FightEditorChangesAppliedPayload]
-    assert(eventPayload.getUpdates != null)
-    assert(eventPayload.getUpdates.find(_.getId == "fight1").map(_.getStatus).contains(FightStatus.UNCOMPLETABLE))
-    assert(eventPayload.getUpdates.find(_.getId == "fight2").map(_.getStatus).contains(FightStatus.PENDING))
+    assert(events.head.`type` == EventType.FIGHTS_EDITOR_CHANGE_APPLIED)
+    assert(events.head.messageInfo.flatMap(_.payload.fightEditorChangesAppliedPayload).isDefined)
+    val eventPayload = events.head.messageInfo.flatMap(_.payload.fightEditorChangesAppliedPayload).get
+    assert(eventPayload.updates.nonEmpty)
+    assert(eventPayload.updates.find(_.id == "fight1").map(_.status).contains(FightStatus.UNCOMPLETABLE))
+    assert(eventPayload.updates.find(_.id == "fight2").map(_.status).contains(FightStatus.PENDING))
   }
 
   object Deps {

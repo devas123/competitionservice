@@ -4,13 +4,13 @@ import cats.implicits._
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, PublishMessage, Subscribe}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.Operations
-import compman.compsrv.logic.logging.CompetitionLogging.{LIO, Live}
+import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
 import compman.compsrv.logic.logging.info
 import compservice.model.protobuf.command.Command
 import compservice.model.protobuf.common.{CommandCallback, CommandExecutionResult, ErrorCallback}
 import zio.clock.Clock
 import zio.console.Console
-import zio.logging.{LogAnnotation, Logging}
+import zio.logging.Logging
 
 import java.util.UUID
 import scala.util.Try
@@ -34,7 +34,7 @@ object StatelessCommandProcessor {
       message match {
         case AcademyCommandReceived(cmd) => for {
             processResult <- Live
-              .withContext(_.annotate(LogAnnotation.CorrelationId, cmd.messageInfo.map(_.correlationId).map(UUID.fromString))) {
+              .withContext(_.annotate(Annotations.correlationId, cmd.messageInfo.map(_.correlationId))) {
                 Operations.processStatelessCommand[LIO](cmd)
               }
             _ <- processResult match {

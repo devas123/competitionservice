@@ -1,19 +1,19 @@
 package compman.compsrv.logic.actors
 
+import compman.compsrv.logic.{CompetitionState, Operations}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
 import compman.compsrv.logic.actors.EventSourcedMessages._
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
-import compman.compsrv.logic.{CompetitionState, Operations}
 import compservice.model.protobuf.command
 import compservice.model.protobuf.event.Event
 import compservice.model.protobuf.model.{CompetitionProcessingStarted, CompetitionProcessingStopped, CompetitionProcessorNotification}
+import zio.{Fiber, Has, Promise, RIO, Task, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
+import zio.duration.durationInt
 import zio.kafka.consumer.Consumer
 import zio.kafka.producer.Producer
-import zio.logging.{LogAnnotation, Logging}
-import zio.{Fiber, Has, Promise, RIO, Task, ZIO}
-import zio.duration.durationInt
+import zio.logging.Logging
 
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -96,7 +96,7 @@ object CompetitionProcessorActor {
                     .when(cmd.messageInfo.map(_.id).isEmpty)
                   _ <- info(s"Processing command $command")
                   processResult <- Live.withContext(
-                    _.annotate(LogAnnotation.CorrelationId, cmd.messageInfo.map(_.id).map(UUID.fromString))
+                    _.annotate(Annotations.correlationId, cmd.messageInfo.map(_.id))
                       .annotate(Annotations.competitionId, cmd.messageInfo.map(_.competitionId))
                   ) { Operations.processStatefulCommand[LIO](state, cmd) }
                   _ <- info(s"Processing done. ")
@@ -118,7 +118,7 @@ object CompetitionProcessorActor {
         state: CompetitionState,
         event: Event
       ): RIO[Env with Logging with Clock, CompetitionState] = Live.withContext(
-        _.annotate(LogAnnotation.CorrelationId, event.messageInfo.map(_.correlationId).map(UUID.fromString))
+        _.annotate(Annotations.correlationId, event.messageInfo.map(_.correlationId))
           .annotate(Annotations.competitionId, event.messageInfo.map(_.competitionId))
       ) { Operations.applyEvent[LIO](state, event) }
 
