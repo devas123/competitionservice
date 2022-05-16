@@ -174,7 +174,7 @@ object Mapping {
               .UpdateAcademyCommand(payload = dto.messageInfo.map(_.getUpdateAcademyPayload))
           case REMOVE_ACADEMY_COMMAND => Commands
               .RemoveAcademyCommand(payload = dto.messageInfo.map(_.getRemoveAcademyPayload))
-          case COMMAND_TYPE_UNKNOWN  => Commands.UnknownCommand(dto.messageInfo.map(_.competitionId))
+          case CommandType.UNKNOWN  => Commands.UnknownCommand(dto.messageInfo.map(_.competitionId))
           case _: CommandType.Unrecognized  => Commands.UnknownCommand(dto.messageInfo.map(_.competitionId))
         }
       }
@@ -405,7 +405,7 @@ object Mapping {
             AcademyUpdatedEvent(payload = dto.messageInfo.map(_.getUpdateAcademyPayload), dto.localEventNumber)
           case ACADEMY_REMOVED =>
             AcademyRemovedEvent(payload = dto.messageInfo.map(_.getRemoveAcademyPayload), dto.localEventNumber)
-          case EVENT_TYPE_UNKNOWN => Events.UnknownEvent(dto.messageInfo.map(_.competitionId), dto.localEventNumber)
+          case EventType.UNKNOWN => Events.UnknownEvent(dto.messageInfo.map(_.competitionId), dto.localEventNumber)
           case _: EventType.Unrecognized => Events.UnknownEvent(dto.messageInfo.map(_.competitionId), dto.localEventNumber)
         }
       }

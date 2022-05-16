@@ -1,14 +1,6 @@
 syntax = "proto3";
 package compservice.model.protobuf;
 import "google/protobuf/timestamp.proto";
-import "scalapb/scalapb.proto";
-
-option (scalapb.options) = {
-  scope: FILE
-  lenses: true
-  getters: true
-  enum_strip_prefix: true
-};
 
 message AdjacencyList {
   int32 root = 1;

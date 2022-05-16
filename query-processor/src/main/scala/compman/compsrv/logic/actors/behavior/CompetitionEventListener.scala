@@ -92,7 +92,7 @@ object CompetitionEventListener {
             .fromOption(event.messageInfo.flatMap(_.payload.competitionPropertiesUpdatedPayload)).mapBoth(
               _ => new Exception("No payload"),
               { payload => competitionEventListenerSupervisor ! CompetitionUpdated(payload, topic) }
-            )
+            ).unit
         case CompetitionDeletedEvent(competitionId, _) => competitionId
             .map(id => competitionEventListenerSupervisor ! CompetitionDeletedMessage(id)).getOrElse(ZIO.unit)
         case _ => ZIO.unit

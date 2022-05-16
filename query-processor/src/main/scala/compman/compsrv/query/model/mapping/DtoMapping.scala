@@ -42,7 +42,7 @@ object DtoMapping {
   }
 
   def createEmptyScore: model.Score = model.Score().withAdvantages(0).withPenalties(0).withPoints(0)
-    .withPointGroups(Array.empty)
+    .withPointGroups(Seq.empty)
 
   def toDtoFightResultOption(fightResultOption: FightResultOption): model.FightResultOption = {
     model.FightResultOption().withId(fightResultOption.optionId).withDescription(fightResultOption.description.orNull)
@@ -55,21 +55,21 @@ object DtoMapping {
   def toDtoStageResultDescriptor(o: StageResultDescriptor): model.StageResultDescriptor = {
     model.StageResultDescriptor().withName(o.name.orNull).withForceManualAssignment(o.forceManualAssignment)
       .withOutputSize(o.outputSize)
-      .withFightResultOptions(o.fightResultOptions.map(DtoMapping.toDtoFightResultOption).toArray)
-      .withCompetitorResults(o.competitorResults.map(DtoMapping.toDtoCompetitorResult).toArray)
+      .withFightResultOptions(o.fightResultOptions.map(DtoMapping.toDtoFightResultOption))
+      .withCompetitorResults(o.competitorResults.map(DtoMapping.toDtoCompetitorResult))
       .withAdditionalGroupSortingDescriptors(
-        o.additionalGroupSortingDescriptors.map(DtoMapping.toDtoAdditionalGroupSortingDescriptor).toArray
+        o.additionalGroupSortingDescriptors.map(DtoMapping.toDtoAdditionalGroupSortingDescriptor)
       )
   }
 
   def toDtoCompetitorSelector(o: CompetitorSelector): model.CompetitorSelector = {
     model.CompetitorSelector().withApplyToStageId(o.applyToStageId).withLogicalOperator(o.logicalOperator)
-      .withClassifier(o.classifier).withOperator(o.operator).withSelectorValue(o.selectorValue.toArray)
+      .withClassifier(o.classifier).withOperator(o.operator).withSelectorValue(o.selectorValue.toSeq)
   }
 
   def toDtoStageInputDescriptor(o: StageInputDescriptor): model.StageInputDescriptor = {
     model.StageInputDescriptor().withNumberOfCompetitors(o.numberOfCompetitors)
-      .withSelectors(o.selectors.map(toDtoCompetitorSelector).toArray).withDistributionType(o.distributionType)
+      .withSelectors(o.selectors.map(toDtoCompetitorSelector)).withDistributionType(o.distributionType)
   }
 
   def toDtoGroupDescriptor(o: GroupDescriptor): model.GroupDescriptor = {
@@ -88,8 +88,8 @@ object DtoMapping {
       .withInputDescriptor(stageDescriptor.inputDescriptor.map(toDtoStageInputDescriptor).orNull)
       .withStageOrder(stageDescriptor.stageOrder).withWaitForPrevious(stageDescriptor.waitForPrevious)
       .withHasThirdPlaceFight(stageDescriptor.hasThirdPlaceFight)
-      .withGroupDescriptors(stageDescriptor.groupDescriptors.map(_.map(toDtoGroupDescriptor).toArray).getOrElse(
-        Array.empty
+      .withGroupDescriptors(stageDescriptor.groupDescriptors.map(_.map(toDtoGroupDescriptor)).getOrElse(
+        Seq.empty
       )).withNumberOfFights(stageDescriptor.numberOfFights.orElse(Option(0)).get)
       .withFightDuration(stageDescriptor.fightDuration.orElse(Option(0)).get)
   }
@@ -219,7 +219,7 @@ object DtoMapping {
   def toDtoCompetitor(competitor: Competitor): model.Competitor = {
     model.Competitor().withId(competitor.id).withEmail(competitor.email).withUserId(competitor.userId.getOrElse(""))
       .withFirstName(competitor.firstName).withLastName(competitor.lastName)
-      .withAcademy(competitor.academy.map(toDtoAcademy).orNull).withCategories(competitor.categories.toArray)
+      .withAcademy(competitor.academy.map(toDtoAcademy).orNull).withCategories(competitor.categories.toSeq)
       .withCompetitionId(competitor.competitionId).withRegistrationStatus(competitor.registrationStatus.orNull)
       .withPlaceholder(competitor.isPlaceholder).withPromo(competitor.promo.getOrElse(""))
       .update(_.birthDate.setIfDefined(competitor.birthDate.map(_.asTimestamp)))
@@ -234,7 +234,7 @@ object DtoMapping {
   def toDtoCategory(cat: Category): model.CategoryDescriptor = {
     model.CategoryDescriptor().withName(cat.name.getOrElse("")).withId(cat.id)
       .withRegistrationOpen(cat.registrationOpen)
-      .withRestrictions(Option(cat.restrictions).getOrElse(List.empty).map(toDtoRestriction).toArray)
+      .withRestrictions(Option(cat.restrictions).getOrElse(List.empty).map(toDtoRestriction))
   }
 
   def toDtoRestriction(restr: Restriction): model.CategoryRestriction = {
@@ -246,9 +246,9 @@ object DtoMapping {
 
   def toDtoCompetitionProperties(competitionProperties: CompetitionProperties): model.CompetitionProperties = {
     model.CompetitionProperties().withId(competitionProperties.id).withCreatorId(competitionProperties.creatorId)
-      .withStaffIds(competitionProperties.staffIds.getOrElse(Set.empty).toArray).withEmailNotificationsEnabled(false)
+      .withStaffIds(competitionProperties.staffIds.getOrElse(Set.empty).toSeq).withEmailNotificationsEnabled(false)
       .withCompetitionName(competitionProperties.competitionName)
-      .withEmailTemplate(new String(competitionProperties.infoTemplate.template)).withPromoCodes(Array.empty)
+      .withEmailTemplate(new String(competitionProperties.infoTemplate.template)).withPromoCodes(Seq.empty)
       .withStartDate(competitionProperties.startDate.toInstant.asTimestamp)
       .withSchedulePublished(competitionProperties.schedulePublished)
       .withBracketsPublished(competitionProperties.bracketsPublished).withTimeZone(competitionProperties.timeZone)
@@ -268,7 +268,7 @@ object DtoMapping {
             cs.score.pointGroups.map(pg =>
               model.PointGroup().withId(pg.id).withName(pg.name.orNull).withPriority(pg.priority.orElse(Option(0)).get)
                 .withValue(pg.value.orElse(Option(0)).get)
-            ).toArray
+            )
           )
       )
   }
@@ -505,7 +505,7 @@ object DtoMapping {
   def toDtoRegistrationGroup(r: RegistrationGroup): model.RegistrationGroup = {
     model.RegistrationGroup().withId(r.id).withDefaultGroup(r.isDefaultGroup)
       .withRegistrationFee(r.registrationFee.map(toDtoRegistrationFee).getOrElse(model.RegistrationFee()))
-      .withDisplayName(r.displayName.getOrElse("")).withCategories(r.categories.toArray)
+      .withDisplayName(r.displayName.getOrElse("")).withCategories(r.categories.toSeq)
   }
   def toDtoRegistrationPeriod(r: RegistrationPeriod): model.RegistrationPeriod = {
     model.RegistrationPeriod().withId(r.id).withName(r.name.getOrElse("")).withCompetitionId(r.competitionId)

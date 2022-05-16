@@ -1,14 +1,6 @@
 syntax = "proto3";
 package compservice.model.protobuf;
-import "scalapb/scalapb.proto";
 import "model.proto";
-
-option (scalapb.options) = {
-  scope: FILE
-  lenses: true
-  getters: true
-  enum_strip_prefix: true
-};
 
 message GenerateCategoriesFromRestrictionsRequest{
   repeated CategoryRestriction restrictions = 1;
@@ -100,7 +92,7 @@ message GetMatsResponse{
   repeated MatDescription mats = 1;
 }
 message GetPeriodMatsResponse{
-  repeated MatsQueryResult matsQueryResults = 1;
+  MatsQueryResult matsQueryResults = 1;
 }
 message GetMatResponse{
   optional MatDescription mat = 1;

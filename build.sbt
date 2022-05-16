@@ -82,7 +82,8 @@ lazy val queryProcessor = module("query-processor", "query-processor")
         testContainersKafkaDependency,
         testContainersDependency,
         testContainersMongoDependency,
-        scalaTestDependency
+        scalaTestDependency,
+        "com.thesamet.scalapb" %% "scalapb-json4s" % "0.12.0"
       ),
     dependencyOverrides  := Seq("dev.zio" %% "zio-test" % zioVersion % "test"),
     testFrameworks       := Seq(zTestFramework, TestFrameworks.ScalaTest),

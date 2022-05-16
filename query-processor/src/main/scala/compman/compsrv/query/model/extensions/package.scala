@@ -14,8 +14,8 @@ package object extensions {
         )
       p.withScheduleEntries(
         Option(p.scheduleEntries).map(_.map(se =>
-          se.withFightScheduleInfo(map.get(se.id).map(_.toArray).getOrElse(Array.empty))
-        )).getOrElse(Array.empty)
+          se.withFightScheduleInfo(map.getOrElse(se.id, Seq.empty))
+        )).getOrElse(Seq.empty)
       )
     }
   }

@@ -3,12 +3,9 @@ package compman.compsrv.query.service.event
 import cats.Monad
 import cats.data.OptionT
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.dto.competition.{RegistrationGroupDTO, RegistrationPeriodDTO}
 import compman.compsrv.model.event.Events.{CompetitionCreatedEvent, Event}
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.CompetitionUpdateOperations
-
-import scala.jdk.CollectionConverters._
 
 object CompetitionCreatedProc {
   import cats.implicits._

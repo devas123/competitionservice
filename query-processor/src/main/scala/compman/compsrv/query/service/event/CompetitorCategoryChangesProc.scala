@@ -10,7 +10,7 @@ object CompetitorCategoryChangesProc {
   def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations]()
     : PartialFunction[Event[Any], F[Unit]] = {
     case x: CompetitorCategoryChangedEvent => changeCategory[F](x.competitionId, x.payload.flatMap(p => Option(p.fighterId)), x.payload.flatMap(p => Option(p.newCategories)))
-    case x: CompetitorCategoryAddedEvent => changeCategory[F](x.competitionId, x.payload.flatMap(p => Option(p.fighterId)), x.payload.flatMap(p => Option(Array(p.newCategoryId))))
+    case x: CompetitorCategoryAddedEvent => changeCategory[F](x.competitionId, x.payload.flatMap(p => Option(p.fighterId)), x.payload.flatMap(p => Option(Seq(p.newCategoryId))))
   }
 
   private def changeCategory[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations](
