@@ -3,13 +3,21 @@ package compman.compsrv.logic.actors
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaTopicConfig}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.logic.actors.behavior.{CompetitionEventListener, CompetitionEventListenerSupervisor, WebsocketConnectionSupervisor}
+import compman.compsrv.logic.actors.behavior.{
+  CompetitionEventListener,
+  CompetitionEventListenerSupervisor,
+  WebsocketConnectionSupervisor
+}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.extensions.InstantOps
 import compman.compsrv.query.model._
 import compman.compsrv.query.service.EmbeddedKafkaBroker
 import compman.compsrv.query.service.EmbeddedKafkaBroker.embeddedKafkaServer
-import compservice.model.protobuf.model.{CompetitionProcessingStarted, CompetitionStatus}
+import compservice.model.protobuf.model.{
+  CompetitionProcessingStarted,
+  CompetitionProcessorNotification,
+  CompetitionStatus
+}
 import zio._
 import zio.blocking.Blocking
 import zio.clock.Clock
@@ -24,7 +32,7 @@ import java.time.Instant
 
 object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
   private val notificationTopic = "notifications"
-  private val loggingLayer = CompetitionLogging.Live.loggingLayer
+  private val loggingLayer      = CompetitionLogging.Live.loggingLayer
 
   override def spec: ZSpec[TestEnvironment, Any] = suite("Competition event listener") {
     testM("Should subscribe to topics") {
@@ -33,17 +41,17 @@ object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
           for {
             brokerUrl <- ZIO.effectTotal(EmbeddedKafkaBroker.bootstrapServers.get())
             producerSettings = ProducerSettings(List(brokerUrl))
-            producer = Producer.make(producerSettings)
-            competitions <- Ref.make(Map.empty[String, ManagedCompetition])
+            producer         = Producer.make(producerSettings)
+            competitions          <- Ref.make(Map.empty[String, ManagedCompetition])
             competitionProperties <- Ref.make(Map.empty[String, CompetitionProperties])
-            categories <- Ref.make(Map.empty[String, Category])
-            competitors <- Ref.make(Map.empty[String, Competitor])
-            fights <- Ref.make(Map.empty[String, Fight])
-            periods <- Ref.make(Map.empty[String, Period])
-            registrationPeriods <- Ref.make(Map.empty[String, RegistrationPeriod])
-            registrationGroups <- Ref.make(Map.empty[String, RegistrationGroup])
-            stages <- Ref.make(Map.empty[String, StageDescriptor])
-            websocketSupervisor <- TestKit[WebsocketConnectionSupervisor.ApiCommand](actorSystem)
+            categories            <- Ref.make(Map.empty[String, Category])
+            competitors           <- Ref.make(Map.empty[String, Competitor])
+            fights                <- Ref.make(Map.empty[String, Fight])
+            periods               <- Ref.make(Map.empty[String, Period])
+            registrationPeriods   <- Ref.make(Map.empty[String, RegistrationPeriod])
+            registrationGroups    <- Ref.make(Map.empty[String, RegistrationGroup])
+            stages                <- Ref.make(Map.empty[String, StageDescriptor])
+            websocketSupervisor   <- TestKit[WebsocketConnectionSupervisor.ApiCommand](actorSystem)
             kafkaSupervisor <- actorSystem
               .make("kafkaSupervisor", ActorConfig(), None, KafkaSupervisor.behavior[Any](List(brokerUrl)))
             _ <- kafkaSupervisor ! CreateTopicIfMissing(notificationTopic, KafkaTopicConfig())
@@ -71,7 +79,7 @@ object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
               )
             )
             competitionId = "competitionId"
-            notification = CompetitionProcessingStarted(
+            notification = CompetitionProcessorNotification().withStarted(CompetitionProcessingStarted(
               competitionId,
               competitionId + "name",
               competitionId + "events",
@@ -81,7 +89,7 @@ object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
               Some(Instant.now().asTimestamp),
               "UTC",
               CompetitionStatus.CREATED
-            )
+            ))
             _ <- ZIO.sleep(10.seconds)
             _ <- producer.use(p =>
               Producer.produce(
