@@ -50,21 +50,21 @@ object AgeDivision {
 
 object DefaultRestrictions {
   private val bjj = CategoryRestriction().withRestrictionId(UUID.randomUUID().toString)
-    .withType(CategoryRestrictionType.CategoryRestrictionType_Value).withName("Sport").withValue("BJJ")
+    .withType(CategoryRestrictionType.VALUE).withName("Sport").withValue("BJJ")
 
   private def weightRestriction(alias: String, maxValue: String, minValue: String = "0") = CategoryRestriction()
-    .withRestrictionId(UUID.randomUUID().toString).withType(CategoryRestrictionType.CategoryRestrictionType_Range)
+    .withRestrictionId(UUID.randomUUID().toString).withType(CategoryRestrictionType.RANGE)
     .withName("Weight").withMaxValue(maxValue).withMinValue(minValue).withAlias(alias).withUnit("kg")
 
   private def ageRestriction(alias: String, minValue: String, maxValue: Option[String] = None) = CategoryRestriction()
-    .withRestrictionId(UUID.randomUUID().toString).withType(CategoryRestrictionType.CategoryRestrictionType_Range)
+    .withRestrictionId(UUID.randomUUID().toString).withType(CategoryRestrictionType.RANGE)
     .withName("Age").withMaxValue(maxValue.getOrElse(minValue)).withMinValue(minValue).withAlias(alias).withUnit("y.o.")
 
   private def beltRestriction(value: String) = CategoryRestriction().withRestrictionId(UUID.randomUUID().toString)
-    .withType(CategoryRestrictionType.CategoryRestrictionType_Value).withValue(value).withName("Belt")
+    .withType(CategoryRestrictionType.VALUE).withValue(value).withName("Belt")
 
   private def genderRestriction(value: String) = CategoryRestriction().withRestrictionId(UUID.randomUUID().toString)
-    .withType(CategoryRestrictionType.CategoryRestrictionType_Value).withValue(value).withName("Gender")
+    .withType(CategoryRestrictionType.VALUE).withValue(value).withName("Gender")
 
   private val male   = genderRestriction("MALE")
   private val female = genderRestriction("FEMALE")

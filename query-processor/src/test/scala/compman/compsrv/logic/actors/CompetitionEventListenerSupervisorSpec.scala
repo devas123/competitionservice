@@ -5,18 +5,17 @@ import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.behavior.{CompetitionEventListener, CompetitionEventListenerSupervisor, WebsocketConnectionSupervisor}
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.CompetitionProcessingStarted
-import compman.compsrv.model.dto.competition.CompetitionStatus
+import compman.compsrv.model.extensions.InstantOps
 import compman.compsrv.query.model._
-import compman.compsrv.query.serde.SerdeApi
 import compman.compsrv.query.service.EmbeddedKafkaBroker
 import compman.compsrv.query.service.EmbeddedKafkaBroker.embeddedKafkaServer
+import compservice.model.protobuf.model.{CompetitionProcessingStarted, CompetitionStatus}
 import zio._
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
 import zio.kafka.producer.{Producer, ProducerSettings}
-import zio.kafka.serde.Serde
+import zio.kafka.serde
 import zio.test.TestAspect._
 import zio.test._
 import zio.test.environment._
@@ -26,7 +25,6 @@ import java.time.Instant
 object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
   private val notificationTopic = "notifications"
   private val loggingLayer = CompetitionLogging.Live.loggingLayer
-  private val mapper            = ObjectMapperFactory.createObjectMapper
 
   override def spec: ZSpec[TestEnvironment, Any] = suite("Competition event listener") {
     testM("Should subscribe to topics") {
@@ -78,9 +76,9 @@ object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
               competitionId + "name",
               competitionId + "events",
               "creator",
-              Instant.now(),
-              Instant.now(),
-              Instant.now(),
+              Some(Instant.now().asTimestamp),
+              Some(Instant.now().asTimestamp),
+              Some(Instant.now().asTimestamp),
               "UTC",
               CompetitionStatus.CREATED
             )
@@ -89,9 +87,9 @@ object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
               Producer.produce(
                 notificationTopic,
                 competitionId,
-                mapper.writeValueAsBytes(notification),
-                Serde.string,
-                SerdeApi.byteSerializer
+                notification.toByteArray,
+                serde.Serde.string,
+                serde.Serde.byteArray
               ).provide(Has(p))
             )
             _ <- ZIO.sleep(10.seconds)

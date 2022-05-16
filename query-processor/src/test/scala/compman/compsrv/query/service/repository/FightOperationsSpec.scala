@@ -2,9 +2,10 @@ package compman.compsrv.query.service.repository
 
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compman.compsrv.model.dto.competition.FightStatus
-import compman.compsrv.model.events.payload.FightOrderUpdate
+import compman.compsrv.model.extensions.InstantOps
 import compman.compsrv.query.model.{FightOrderUpdateExtended, Mat}
+import compservice.model.protobuf.eventpayload.FightOrderUpdate
+import compservice.model.protobuf.model.FightStatus
 import org.testcontainers.containers.MongoDBContainer
 import zio.logging.Logging
 import zio.test.Assertion._
@@ -39,7 +40,7 @@ object FightOperationsSpec extends DefaultRunnableSpec with TestEntities with Em
         import context._
         (for {
           _ <- FightUpdateOperations[LIO].addFight(fight)
-          _ <- FightUpdateOperations[LIO].updateFightScoresAndResultAndStatus(competitionId)(fightId, scores, fightResult, FightStatus.FINISHED)
+          _ <- FightUpdateOperations[LIO].updateFightScoresAndResultAndStatus(competitionId)(fightId, scores.toList, fightResult, FightStatus.FINISHED)
           loadedFight <- FightQueryOperations[LIO].getFightById(competitionId)(categoryId, fightId)
           _ <- FightUpdateOperations[LIO].removeFightsForCompetition(competitionId)
         } yield assert(loadedFight)(isSome) && assertTrue(loadedFight.get.scores.nonEmpty) &&
@@ -80,10 +81,10 @@ object FightOperationsSpec extends DefaultRunnableSpec with TestEntities with Em
           newStartTime = Instant.now().plus(10, ChronoUnit.HOURS)
           newNumberOnMat = 50
           updates = fights.map(f => {
-            FightOrderUpdateExtended(competitionId, new FightOrderUpdate().setFightId(f.id)
-              .setMatId(newMat.matId)
-              .setStartTime(newStartTime)
-              .setNumberOnMat(newNumberOnMat), newMat)
+            FightOrderUpdateExtended(competitionId, FightOrderUpdate().withFightId(f.id)
+              .withMatId(newMat.matId)
+              .withStartTime(newStartTime.asTimestamp)
+              .withNumberOnMat(newNumberOnMat), newMat)
           })
           _ <- FightUpdateOperations[LIO].updateFightOrderAndMat(updates)
           updatedFights <- FightQueryOperations[LIO].getFightsByIds(competitionId)(fight.categoryId, fights.map(_.id).toSet)

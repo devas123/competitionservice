@@ -9,6 +9,7 @@ import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO
 import compman.compsrv.query.service.repository.TestEntities
+import compservice.model.protobuf.query.QueryServiceResponse
 import org.http4s._
 import org.http4s.implicits._
 import zio._
@@ -20,7 +21,6 @@ import zio.test._
 import zio.test.TestAspect._
 
 object CompetitionHttpApiServiceTest extends DefaultRunnableSpec with TestEntities {
-  private val mapper = ObjectMapperFactory.createObjectMapper
   override def spec: ZSpec[Any, Throwable] =
     (suite("routes suite")(
       testM("root request returns Ok") {
@@ -39,8 +39,8 @@ object CompetitionHttpApiServiceTest extends DefaultRunnableSpec with TestEntiti
               .run(Request[ServiceIO](Method.GET, uri"/competition"))
             body <- response.body.compile.toVector
             _ <- Logging.info(new String(body.toArray))
-            comp = mapper.readValue(body.toArray, classOf[Array[ManagedCompetition]])
-          } yield assertTrue(response.status == Status.Ok) && assertTrue(comp.length == 1)
+            comp = QueryServiceResponse.parseFrom(body.toArray)
+          } yield assertTrue(response.status == Status.Ok) && assertTrue(comp.getGetAllCompetitionsResponse.managedCompetitions.size == 1)
         }
       }
     ) @@ sequential)

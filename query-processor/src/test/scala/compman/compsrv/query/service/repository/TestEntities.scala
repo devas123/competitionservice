@@ -1,9 +1,8 @@
 package compman.compsrv.query.service.repository
 
-import compman.compsrv.model.dto.brackets._
-import compman.compsrv.model.dto.competition.{CategoryRestrictionType, CompetitionStatus, FightStatus}
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
+import compservice.model.protobuf.model.{BracketType, CategoryRestrictionType, CompetitionStatus, DistributionType, FightReferenceType, FightStatus, GroupSortDirection, GroupSortSpecifier, LogicalOperator, OperatorType, SelectorClassifier, StageRoundType, StageStatus, StageType}
 
 import java.time.Instant
 import java.util.Date
@@ -102,7 +101,7 @@ trait TestEntities {
     winnerId = Option("competitor1"), resultTypeId = Option("WinByPoints"), reason = Some("For some reason")
   )
 
-  val scores = List(CompScore(
+  val scores: Seq[CompScore] = List(CompScore(
     placeholderId = None,
     competitorId = Some("competitor1"),
     competitorFirstName = Some("Vasya"),
@@ -129,7 +128,7 @@ trait TestEntities {
 
   val restriction: Restriction = Restriction(
     "restrictionId",
-    CategoryRestrictionType.Range,
+    CategoryRestrictionType.RANGE,
     Some("name"),
     Some("a"),
     Some("b"),

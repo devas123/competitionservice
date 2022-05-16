@@ -311,8 +311,8 @@ message CategoryRestriction {
 }
 
 enum CategoryRestrictionType {
-  CategoryRestrictionType_Value = 0;
-  CategoryRestrictionType_Range = 1;
+  CATEGORY_RESTRICTION_TYPE_VALUE = 0;
+  CATEGORY_RESTRICTION_TYPE_RANGE = 1;
 }
 
 message CategoryState {
