@@ -1,12 +1,11 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.config.CommandProcessorConfig
-import compman.compsrv.jackson.ObjectMapperFactory
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.KafkaSupervisorCommand
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorActor.ProcessCommand
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.commands.CommandDTO
+import compservice.model.protobuf.command.Command
 import zio.{Tag, ZIO}
 import zio.clock.Clock
 import zio.console.Console
@@ -39,13 +38,12 @@ object CompetitionProcessorSupervisorActor {
                     commandProcessorOperations <- commandProcessorOperationsFactory.getCommandProcessorOperations[Env]
                     initialState <- commandProcessorOperations.getStateSnapshot(competitionId) >>= {
                       case None => Logging
-                          .info(s"State snapshot not found, creating initial state with payload ${fa.getPayload}") *>
+                          .info(s"State snapshot not found, creating initial state with payload ${fa.messageInfo.map(_.payload)}") *>
                           ZIO
-                            .effect(commandProcessorOperations.createInitialState(competitionId, Option(fa.getPayload)))
+                            .effect(commandProcessorOperations.createInitialState(competitionId, fa.messageInfo.map(_.payload)))
                       case Some(value) => ZIO.effect(value)
                     }
                     _      <- Logging.info(s"Resolved initial state of the competition is $initialState")
-                    mapper <- ZIO.effectTotal(ObjectMapperFactory.createObjectMapper)
                     a <- context.make(
                       actorName,
                       ActorConfig(),
@@ -55,7 +53,6 @@ object CompetitionProcessorSupervisorActor {
                         s"$competitionId-${commandProcessorConfig.eventsTopicPrefix}",
                         kafkaSupervisor,
                         commandProcessorConfig.competitionNotificationsTopic,
-                        mapper,
                         commandProcessorConfig.actorIdleTimeoutMillis.getOrElse(30 * 60000)
                       )
                     )
@@ -73,5 +70,5 @@ object CompetitionProcessorSupervisorActor {
 
   sealed trait Message
 
-  final case class CommandReceived(competitionId: String, fa: CommandDTO) extends Message
+  final case class CommandReceived(competitionId: String, fa: Command) extends Message
 }

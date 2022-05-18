@@ -3,7 +3,7 @@ package compman.compsrv.logic.actors
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.behavior.WebsocketConnection
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.events.EventDTO
+import compservice.model.protobuf.event.Event
 import compman.compsrv.query.service.repository.TestEntities
 import zio._
 import zio.blocking.Blocking
@@ -23,14 +23,14 @@ object WebsocketConnectionTest extends DefaultRunnableSpec with TestEntities {
           for {
             wsActor <- actorSystem
               .make("WsActor", ActorConfig(), WebsocketConnection.initialState, WebsocketConnection.behavior)
-            queue <- Queue.unbounded[EventDTO]
+            queue <- Queue.unbounded[Event]
             clientId <- ZIO.effect(UUID.randomUUID().toString)
             _ <- wsActor ! WebsocketConnection.AddWebSocketConnection(clientId, queue)
             test <- (for {
               msg <- queue.takeN(1)
               _ <- Logging.info(msg.mkString("\n"))
             } yield ()).fork
-            _ <- wsActor ! WebsocketConnection.ReceivedEvent(new EventDTO())
+            _ <- wsActor ! WebsocketConnection.ReceivedEvent(new Event())
             _ <- wsActor ? ((actor: ActorRef[Boolean]) => WebsocketConnection.Stop(Some(actor)))
             _ <- test.join
             shutdown <- queue.isShutdown

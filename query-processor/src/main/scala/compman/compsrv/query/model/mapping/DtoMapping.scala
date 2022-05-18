@@ -1,136 +1,154 @@
 package compman.compsrv.query.model.mapping
 
 import cats.Monad
-import compman.compsrv.model.dto.brackets._
-import compman.compsrv.model.dto.competition._
-import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.dto.schedule.{PeriodDTO, ScheduleEntryDTO, ScheduleRequirementDTO}
-import compman.compsrv.model.dto.schedule
+import com.google.protobuf.timestamp.Timestamp
+import com.google.protobuf.timestamp.Timestamp.toJavaProto
+import com.google.protobuf.util.Timestamps
+import compman.compsrv.model.extensions.InstantOps
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import compman.compsrv.query.model.academy.FullAcademyInfo
+import compservice.model.protobuf.model
 
+import java.time.Instant
 import java.util.Date
-import scala.jdk.CollectionConverters.MapHasAsJava
 
 object DtoMapping {
+  def toDtoManagedCompetition(o: ManagedCompetition): model.ManagedCompetition = {
+    model.ManagedCompetition().update(
+      _.id := o.id,
+      _.competitionName.setIfDefined(o.competitionName),
+      _.eventsTopic := o.eventsTopic,
+      _.creatorId.setIfDefined(o.creatorId),
+      _.createdAt := o.createdAt.asTimestamp,
+      _.startsAt  := o.startsAt.asTimestamp,
+      _.endsAt.setIfDefined(o.endsAt.map(_.asTimestamp)),
+      _.timeZone := o.timeZone,
+      _.status   := o.status
+    )
+  }
+
   def toDtoAdditionalGroupSortingDescriptor(
     o: AdditionalGroupSortingDescriptor
-  ): AdditionalGroupSortingDescriptorDTO = {
-    new AdditionalGroupSortingDescriptorDTO().setGroupSortDirection(o.groupSortDirection)
-      .setGroupSortSpecifier(o.groupSortSpecifier)
+  ): model.AdditionalGroupSortingDescriptor = {
+    model.AdditionalGroupSortingDescriptor().withGroupSortDirection(o.groupSortDirection)
+      .withGroupSortSpecifier(o.groupSortSpecifier)
   }
 
-  def toDtoCompetitorResult(o: CompetitorStageResult): CompetitorStageResultDTO = {
-    new CompetitorStageResultDTO().setCompetitorId(o.competitorId).setPoints(o.points).setRound(o.round)
-      .setRoundType(o.roundType).setPlace(o.place).setStageId(o.stageId).setGroupId(o.groupId.orNull)
-      .setConflicting(o.conflicting)
+  def toDtoCompetitorResult(o: CompetitorStageResult): model.CompetitorStageResult = {
+    model.CompetitorStageResult().withCompetitorId(o.competitorId).withPoints(o.points).withRound(o.round)
+      .withRoundType(o.roundType).withPlace(o.place).withStageId(o.stageId).withGroupId(o.groupId.orNull)
+      .withConflicting(o.conflicting)
   }
 
-  def createEmptyScore: ScoreDTO = new ScoreDTO().setAdvantages(0).setPenalties(0).setPoints(0)
-    .setPointGroups(Array.empty)
+  def createEmptyScore: model.Score = model.Score().withAdvantages(0).withPenalties(0).withPoints(0)
+    .withPointGroups(Seq.empty)
 
-  def toDtoFightResultOption(fightResultOption: FightResultOption): FightResultOptionDTO = {
-    new FightResultOptionDTO().setId(fightResultOption.optionId).setDescription(fightResultOption.description.orNull)
-      .setShortName(fightResultOption.shortName.orNull).setDraw(fightResultOption.draw)
-      .setWinnerPoints(fightResultOption.winnerPoints)
-      .setWinnerAdditionalPoints(fightResultOption.winnerAdditionalPoints).setLoserPoints(fightResultOption.loserPoints)
-      .setLoserAdditionalPoints(fightResultOption.loserAdditionalPoints)
+  def toDtoFightResultOption(fightResultOption: FightResultOption): model.FightResultOption = {
+    model.FightResultOption().withId(fightResultOption.optionId).withDescription(fightResultOption.description.orNull)
+      .withShortName(fightResultOption.shortName.orNull).withDraw(fightResultOption.draw)
+      .withWinnerPoints(fightResultOption.winnerPoints)
+      .withWinnerAdditionalPoints(fightResultOption.winnerAdditionalPoints)
+      .withLoserPoints(fightResultOption.loserPoints).withLoserAdditionalPoints(fightResultOption.loserAdditionalPoints)
   }
 
-  def toDtoStageResultDescriptor(o: StageResultDescriptor): StageResultDescriptorDTO = {
-    new StageResultDescriptorDTO().setName(o.name.orNull).setForceManualAssignment(o.forceManualAssignment)
-      .setOutputSize(o.outputSize)
-      .setFightResultOptions(o.fightResultOptions.map(DtoMapping.toDtoFightResultOption).toArray)
-      .setCompetitorResults(o.competitorResults.map(DtoMapping.toDtoCompetitorResult).toArray)
-      .setAdditionalGroupSortingDescriptors(
-        o.additionalGroupSortingDescriptors.map(DtoMapping.toDtoAdditionalGroupSortingDescriptor).toArray
+  def toDtoStageResultDescriptor(o: StageResultDescriptor): model.StageResultDescriptor = {
+    model.StageResultDescriptor().withName(o.name.orNull).withForceManualAssignment(o.forceManualAssignment)
+      .withOutputSize(o.outputSize)
+      .withFightResultOptions(o.fightResultOptions.map(DtoMapping.toDtoFightResultOption))
+      .withCompetitorResults(o.competitorResults.map(DtoMapping.toDtoCompetitorResult))
+      .withAdditionalGroupSortingDescriptors(
+        o.additionalGroupSortingDescriptors.map(DtoMapping.toDtoAdditionalGroupSortingDescriptor)
       )
   }
 
-  def toDtoCompetitorSelector(o: CompetitorSelector): CompetitorSelectorDTO = {
-    new CompetitorSelectorDTO().setApplyToStageId(o.applyToStageId).setLogicalOperator(o.logicalOperator)
-      .setClassifier(o.classifier).setOperator(o.operator).setSelectorValue(o.selectorValue.toArray)
+  def toDtoCompetitorSelector(o: CompetitorSelector): model.CompetitorSelector = {
+    model.CompetitorSelector().withApplyToStageId(o.applyToStageId).withLogicalOperator(o.logicalOperator)
+      .withClassifier(o.classifier).withOperator(o.operator).withSelectorValue(o.selectorValue.toSeq)
   }
 
-  def toDtoStageInputDescriptor(o: StageInputDescriptor): StageInputDescriptorDTO = {
-    new StageInputDescriptorDTO().setNumberOfCompetitors(o.numberOfCompetitors)
-      .setSelectors(o.selectors.map(toDtoCompetitorSelector).toArray).setDistributionType(o.distributionType)
+  def toDtoStageInputDescriptor(o: StageInputDescriptor): model.StageInputDescriptor = {
+    model.StageInputDescriptor().withNumberOfCompetitors(o.numberOfCompetitors)
+      .withSelectors(o.selectors.map(toDtoCompetitorSelector)).withDistributionType(o.distributionType)
   }
 
-  def toDtoGroupDescriptor(o: GroupDescriptor): GroupDescriptorDTO = {
-    new GroupDescriptorDTO().setId(o.groupId).setName(o.name.orNull).setSize(o.size)
+  def toDtoGroupDescriptor(o: GroupDescriptor): model.GroupDescriptor = {
+    model.GroupDescriptor().withId(o.groupId).withName(o.name.orNull).withSize(o.size)
   }
 
-  def toDtoStageDescriptor(stageDescriptor: StageDescriptor): StageDescriptorDTO = {
-    new StageDescriptorDTO().setId(stageDescriptor.id).setName(stageDescriptor.name.orNull)
-      .setCategoryId(stageDescriptor.categoryId).setCompetitionId(stageDescriptor.competitionId)
-      .setBracketType(stageDescriptor.bracketType).setStageType(stageDescriptor.stageType)
-      .setStageStatus(stageDescriptor.stageStatus)
-      .setStageResultDescriptor(stageDescriptor.stageResultDescriptor.map(toDtoStageResultDescriptor).orNull)
-      .setInputDescriptor(stageDescriptor.inputDescriptor.map(toDtoStageInputDescriptor).orNull)
-      .setStageOrder(stageDescriptor.stageOrder).setWaitForPrevious(stageDescriptor.waitForPrevious)
-      .setHasThirdPlaceFight(stageDescriptor.hasThirdPlaceFight)
-      .setGroupDescriptors(stageDescriptor.groupDescriptors.map(_.map(toDtoGroupDescriptor).toArray).getOrElse(
-        Array.empty
-      )).setNumberOfFights(stageDescriptor.numberOfFights.orElse(Option(0)).map(_.intValue()).get)
-      .setFightDuration(stageDescriptor.fightDuration.orElse(Option(0)).map(_.intValue()).get)
+  val toDate: Timestamp => Date       = (ts: Timestamp) => new Date(Timestamps.toMillis(toJavaProto(ts)))
+  val toInstant: Timestamp => Instant = (ts: Timestamp) => Instant.ofEpochMilli(Timestamps.toMillis(toJavaProto(ts)))
+
+  def toDtoStageDescriptor(stageDescriptor: StageDescriptor): model.StageDescriptor = {
+    model.StageDescriptor().withId(stageDescriptor.id).withName(stageDescriptor.name.orNull)
+      .withCategoryId(stageDescriptor.categoryId).withCompetitionId(stageDescriptor.competitionId)
+      .withBracketType(stageDescriptor.bracketType).withStageType(stageDescriptor.stageType)
+      .withStageStatus(stageDescriptor.stageStatus)
+      .withStageResultDescriptor(stageDescriptor.stageResultDescriptor.map(toDtoStageResultDescriptor).orNull)
+      .withInputDescriptor(stageDescriptor.inputDescriptor.map(toDtoStageInputDescriptor).orNull)
+      .withStageOrder(stageDescriptor.stageOrder).withWaitForPrevious(stageDescriptor.waitForPrevious)
+      .withHasThirdPlaceFight(stageDescriptor.hasThirdPlaceFight)
+      .withGroupDescriptors(stageDescriptor.groupDescriptors.map(_.map(toDtoGroupDescriptor)).getOrElse(
+        Seq.empty
+      )).withNumberOfFights(stageDescriptor.numberOfFights.orElse(Option(0)).get)
+      .withFightDuration(stageDescriptor.fightDuration.orElse(Option(0)).get)
   }
 
-  def mapScheduleEntry(competitionId: String)(dto: ScheduleEntryDTO): ScheduleEntry = {
+  def mapScheduleEntry(competitionId: String)(dto: model.ScheduleEntry): ScheduleEntry = {
     ScheduleEntry(
-      entryId = dto.getId,
+      entryId = dto.id,
       competitionId = competitionId,
-      categoryIds = Option(dto.getCategoryIds).map(_.toSet).getOrElse(Set.empty),
-      fightIds = Option(dto.getFightIds).map(_.toList).orElse(Option(List.empty))
-        .map(_.map(d => MatIdAndSomeId(d.getMatId, d.getSomeId, Option(d.getStartTime).map(Date.from)))).get,
-      periodId = dto.getPeriodId,
-      description = Option(dto.getDescription),
-      name = Option(dto.getName),
-      color = Option(dto.getColor),
-      entryType = dto.getEntryType,
-      requirementIds = Option(dto.getRequirementIds).map(_.toSet).getOrElse(Set.empty),
-      startTime = Option(dto.getStartTime).map(Date.from),
-      endTime = Option(dto.getEndTime).map(Date.from),
-      numberOfFights = Option(dto.getNumberOfFights).map(_.intValue()),
-      entryDuration = Option(dto.getDuration),
-      entryOrder = dto.getOrder
+      categoryIds = Option(dto.categoryIds).map(_.toSet).getOrElse(Set.empty),
+      fightIds = Option(dto.fightScheduleInfo).map(_.toList).orElse(Option(List.empty)).map(_.map(d =>
+        MatIdAndSomeId(d.matId, d.someId, d.startTime.map(ts => new Date(Timestamps.toMillis(toJavaProto(ts)))))
+      )).get,
+      periodId = dto.periodId,
+      description = dto.description,
+      name = dto.name,
+      color = dto.color,
+      entryType = dto.entryType,
+      requirementIds = Option(dto.requirementIds).map(_.toSet).getOrElse(Set.empty),
+      startTime = dto.startTime.map(toDate),
+      endTime = dto.endTime.map(toDate),
+      numberOfFights = Option(dto.numberOfFights),
+      entryDuration = Option(dto.duration),
+      entryOrder = dto.order
     )
   }
 
-  def mapScheduleRequirement(competitionId: String)(dto: ScheduleRequirementDTO): ScheduleRequirement = {
+  def mapScheduleRequirement(competitionId: String)(dto: model.ScheduleRequirement): ScheduleRequirement = {
     ScheduleRequirement(
-      dto.getId,
+      dto.id,
       competitionId,
-      Option(dto.getCategoryIds).map(_.toSet).getOrElse(Set.empty),
-      Option(dto.getFightIds).map(_.toSet).getOrElse(Set.empty),
-      Option(dto.getMatId),
-      Option(dto.getPeriodId),
-      Option(dto.getName),
-      Option(dto.getColor),
-      dto.getEntryType,
-      dto.isForce,
-      Option(dto.getStartTime).map(Date.from),
-      Option(dto.getEndTime).map(Date.from),
-      Option(dto.getDurationSeconds),
-      Option(dto.getEntryOrder).map(_.intValue())
+      Option(dto.categoryIds).map(_.toSet).getOrElse(Set.empty),
+      Option(dto.fightIds).map(_.toSet).getOrElse(Set.empty),
+      dto.matId,
+      Option(dto.periodId),
+      dto.name,
+      dto.color,
+      dto.entryType,
+      dto.force,
+      dto.startTime.map(toDate),
+      dto.endTime.map(toDate),
+      dto.durationSeconds,
+      Option(dto.entryOrder)
     )
   }
 
-  def mapCompScore(o: CompScoreDTO, cd: Option[CompetitorDisplayInfo]): CompScore = {
+  def mapCompScore(o: model.CompScore, cd: Option[CompetitorDisplayInfo]): CompScore = {
     CompScore(
       Option(o.getPlaceholderId),
-      Option(o.getCompetitorId),
+      o.competitorId,
       cd.flatMap(_.competitorFirstName),
       cd.flatMap(_.competitorLastName),
       cd.flatMap(_.competitorAcademyName),
       Option(o.getScore).orElse(Some(createEmptyScore)).map(s =>
         Score(
-          s.getPoints,
-          s.getAdvantages,
-          s.getPenalties,
-          Option(s.getPointGroups).map(_.toList).map(_.map(pg =>
-            PointGroup(pg.getId, Option(pg.getName), Option(pg.getPriority.intValue()), Option(pg.getValue.intValue()))
+          s.points,
+          s.advantages,
+          s.penalties,
+          Option(s.pointGroups).map(_.toList).map(_.map(pg =>
+            PointGroup(pg.id, Option(pg.name), Option(pg.priority.intValue()), Option(pg.value.intValue()))
           )).getOrElse(List.empty)
         )
       ).get,
@@ -139,360 +157,383 @@ object DtoMapping {
     )
   }
 
-  def mapCompetitor[F[+_]: Monad](dto: CompetitorDTO): F[Competitor] = Monad[F].pure {
+  def mapCompetitor[F[+_]: Monad](dto: model.Competitor): F[Competitor] = Monad[F].pure {
     Competitor(
-      dto.getCompetitionId,
-      Option(dto.getUserId),
-      dto.getEmail,
-      dto.getId,
-      dto.getFirstName,
-      dto.getLastName,
-      Option(dto.getBirthDate),
-      Option(dto.getAcademy).map(a => Academy(a.getId, a.getName)),
-      Option(dto.getCategories).map(_.toSet).getOrElse(Set.empty),
-      dto.isPlaceholder,
-      Option(dto.getPromo),
-      Option(dto.getRegistrationStatus)
+      dto.competitionId,
+      Option(dto.userId),
+      dto.email,
+      dto.id,
+      dto.firstName,
+      dto.lastName,
+      dto.birthDate.map(toInstant),
+      dto.academy.map(a => Academy(a.id, a.name)),
+      Option(dto.categories).map(_.toSet).getOrElse(Set.empty),
+      dto.placeholder,
+      Option(dto.promo),
+      Option(dto.registrationStatus)
     )
   }
 
-  def mapCategoryDescriptor[F[+_]: Monad](competitionId: String)(dto: CategoryDescriptorDTO): F[Category] = {
+  def mapCategoryDescriptor[F[+_]: Monad](competitionId: String)(dto: model.CategoryDescriptor): F[Category] = {
     Monad[F].pure(Category(
-      dto.getId,
+      dto.id,
       competitionId,
-      Option(dto.getRestrictions).map(_.toList).map(_.map(d => mapRestriction(d))).getOrElse(List.empty),
-      Option(dto.getName),
-      dto.getRegistrationOpen
+      Option(dto.restrictions).map(_.toList).map(_.map(d => mapRestriction(d))).getOrElse(List.empty),
+      dto.name,
+      dto.registrationOpen
     ))
   }
 
-  def mapAcademy(dto: FullAcademyInfoDTO): FullAcademyInfo = {
-    FullAcademyInfo(dto.getId, Option(dto.getName), Option(dto.getCoaches).map(_.toSet))
+  def mapAcademy(dto: model.FullAcademyInfo): FullAcademyInfo = {
+    FullAcademyInfo(dto.id, Option(dto.name), Option(dto.coaches).map(_.toSet))
   }
 
-  def mapRestriction(d: CategoryRestrictionDTO): Restriction = {
+  def mapRestriction(d: model.CategoryRestriction): Restriction = {
     Restriction(
-      d.getRestrictionId,
-      d.getType,
-      Option(d.getName),
-      Option(d.getValue),
+      d.restrictionId,
+      d.`type`,
+      Option(d.name),
+      d.value,
       Option(d.getAlias),
       Option(d.getMinValue),
       Option(d.getMaxValue),
-      Option(d.getName),
-      d.getRestrictionOrder
+      Option(d.name),
+      d.restrictionOrder
     )
   }
 
-  def mapStageResultDescriptor(dto: StageResultDescriptorDTO): StageResultDescriptor = {
+  def mapStageResultDescriptor(dto: model.StageResultDescriptor): StageResultDescriptor = {
     StageResultDescriptor(
-      Option(dto.getName),
-      dto.isForceManualAssignment,
-      dto.getOutputSize,
-      Option(dto.getFightResultOptions).map(_.toList).map(_.map(mapFightResultOption)).getOrElse(List.empty),
-      Option(dto.getCompetitorResults).map(_.toList).map(_.map(mapCompetitorStageResult)).getOrElse(List.empty),
-      Option(dto.getAdditionalGroupSortingDescriptors).map(_.toList).map(_.map(mapAdditionalGroupSortingDescriptor))
+      dto.name,
+      dto.forceManualAssignment,
+      dto.outputSize.getOrElse(0),
+      Option(dto.fightResultOptions).map(_.toList).map(_.map(mapFightResultOption)).getOrElse(List.empty),
+      Option(dto.competitorResults).map(_.toList).map(_.map(mapCompetitorStageResult)).getOrElse(List.empty),
+      Option(dto.additionalGroupSortingDescriptors).map(_.toList).map(_.map(mapAdditionalGroupSortingDescriptor))
         .getOrElse(List.empty)
     )
   }
 
-  def toDtoAcademy(a: Academy): AcademyDTO = new AcademyDTO().setName(a.academyName).setId(a.academyId)
+  def toDtoAcademy(a: Academy): model.Academy = model.Academy().withName(a.academyName).withId(a.academyId)
 
-  def toDtoCompetitor(competitor: Competitor): CompetitorDTO = {
-    new CompetitorDTO().setId(competitor.id).setEmail(competitor.email).setUserId(competitor.userId.getOrElse(""))
-      .setFirstName(competitor.firstName).setLastName(competitor.lastName).setBirthDate(competitor.birthDate.orNull)
-      .setAcademy(competitor.academy.map(toDtoAcademy).orNull).setCategories(competitor.categories.toArray)
-      .setCompetitionId(competitor.competitionId).setRegistrationStatus(competitor.registrationStatus.orNull)
-      .setPlaceholder(competitor.isPlaceholder).setPromo(competitor.promo.getOrElse(""))
+  def toDtoCompetitor(competitor: Competitor): model.Competitor = {
+    model.Competitor().withId(competitor.id).withEmail(competitor.email).withUserId(competitor.userId.getOrElse(""))
+      .withFirstName(competitor.firstName).withLastName(competitor.lastName)
+      .withAcademy(competitor.academy.map(toDtoAcademy).orNull).withCategories(competitor.categories.toSeq)
+      .withCompetitionId(competitor.competitionId).withRegistrationStatus(competitor.registrationStatus.orNull)
+      .withPlaceholder(competitor.isPlaceholder).withPromo(competitor.promo.getOrElse(""))
+      .update(_.birthDate.setIfDefined(competitor.birthDate.map(_.asTimestamp)))
   }
-  def toDtoCompetitor(competitorDisplayInfo: CompetitorDisplayInfo): CompetitorDTO = {
-    new CompetitorDTO().setId(competitorDisplayInfo.competitorId)
-      .setFirstName(competitorDisplayInfo.competitorFirstName.orNull)
-      .setLastName(competitorDisplayInfo.competitorLastName.orNull)
-      .setAcademy(new AcademyDTO().setName(competitorDisplayInfo.competitorAcademyName.orNull))
-  }
-
-  def toDtoCategory(cat: Category): CategoryDescriptorDTO = {
-    new CategoryDescriptorDTO().setName(cat.name.getOrElse("")).setId(cat.id).setRegistrationOpen(cat.registrationOpen)
-      .setRestrictions(Option(cat.restrictions).getOrElse(List.empty).map(toDtoRestriction).toArray)
+  def toDtoCompetitor(competitorDisplayInfo: CompetitorDisplayInfo): model.Competitor = {
+    model.Competitor().withId(competitorDisplayInfo.competitorId)
+      .withFirstName(competitorDisplayInfo.competitorFirstName.orNull)
+      .withLastName(competitorDisplayInfo.competitorLastName.orNull)
+      .withAcademy(model.Academy().withName(competitorDisplayInfo.competitorAcademyName.orNull))
   }
 
-  def toDtoRestriction(restr: Restriction): CategoryRestrictionDTO = {
-    new CategoryRestrictionDTO().setName(restr.name.getOrElse("")).setRestrictionId(restr.restrictionId)
-      .setType(restr.restrictionType).setUnit(restr.unit.getOrElse("")).setRestrictionOrder(restr.restrictionOrder)
-      .setAlias(restr.alias.getOrElse("")).setMaxValue(restr.maxValue.getOrElse(""))
-      .setMinValue(restr.minValue.getOrElse("")).setValue(restr.value.getOrElse(""))
+  def toDtoCategory(cat: Category): model.CategoryDescriptor = {
+    model.CategoryDescriptor().withName(cat.name.getOrElse("")).withId(cat.id)
+      .withRegistrationOpen(cat.registrationOpen)
+      .withRestrictions(Option(cat.restrictions).getOrElse(List.empty).map(toDtoRestriction))
   }
 
-  def toDtoCompetitionProperties(competitionProperties: CompetitionProperties): CompetitionPropertiesDTO = {
-    new CompetitionPropertiesDTO().setId(competitionProperties.id).setCreatorId(competitionProperties.creatorId)
-      .setStaffIds(competitionProperties.staffIds.getOrElse(Set.empty).toArray).setEmailNotificationsEnabled(false)
-      .setCompetitionName(competitionProperties.competitionName)
-      .setEmailTemplate(new String(competitionProperties.infoTemplate.template)).setPromoCodes(Array.empty)
-      .setStartDate(competitionProperties.startDate.toInstant)
-      .setSchedulePublished(competitionProperties.schedulePublished)
-      .setBracketsPublished(competitionProperties.bracketsPublished)
-      .setEndDate(competitionProperties.endDate.map(_.toInstant).orNull).setTimeZone(competitionProperties.timeZone)
-      .setCreationTimestamp(competitionProperties.creationTimestamp.toInstant).setStatus(competitionProperties.status)
+  def toDtoRestriction(restr: Restriction): model.CategoryRestriction = {
+    model.CategoryRestriction().withName(restr.name.getOrElse("")).withRestrictionId(restr.restrictionId)
+      .withType(restr.restrictionType).withUnit(restr.unit.getOrElse("")).withRestrictionOrder(restr.restrictionOrder)
+      .withAlias(restr.alias.getOrElse("")).withMaxValue(restr.maxValue.getOrElse(""))
+      .withMinValue(restr.minValue.getOrElse("")).withValue(restr.value.getOrElse(""))
   }
 
-  def mapMat(dto: MatDescriptionDTO): Mat = { Mat(dto.getId, dto.getName, dto.getMatOrder) }
+  def toDtoCompetitionProperties(competitionProperties: CompetitionProperties): model.CompetitionProperties = {
+    model.CompetitionProperties().withId(competitionProperties.id).withCreatorId(competitionProperties.creatorId)
+      .withStaffIds(competitionProperties.staffIds.getOrElse(Set.empty).toSeq).withEmailNotificationsEnabled(false)
+      .withCompetitionName(competitionProperties.competitionName)
+      .withEmailTemplate(new String(competitionProperties.infoTemplate.template)).withPromoCodes(Seq.empty)
+      .withStartDate(competitionProperties.startDate.toInstant.asTimestamp)
+      .withSchedulePublished(competitionProperties.schedulePublished)
+      .withBracketsPublished(competitionProperties.bracketsPublished).withTimeZone(competitionProperties.timeZone)
+      .withCreationTimestamp(competitionProperties.creationTimestamp.toInstant.asTimestamp)
+      .withStatus(competitionProperties.status)
+      .update(_.endDate.setIfDefined(competitionProperties.endDate.map(_.toInstant.asTimestamp)))
+  }
 
-  def toDtoCompScore(cs: CompScore, order: Int): CompScoreDTO = {
-    new CompScoreDTO().setOrder(order).setCompetitorId(cs.competitorId.orNull).setPlaceholderId(cs.placeholderId.orNull)
-      .setParentFightId(cs.parentFightId.orNull).setParentReferenceType(cs.parentReferenceType.orNull).setScore(
-        new ScoreDTO().setAdvantages(cs.score.advantages).setPoints(cs.score.points).setPenalties(cs.score.penalties)
-          .setPointGroups(
+  def mapMat(dto: model.MatDescription): Mat = { Mat(dto.id, dto.name, dto.matOrder) }
+
+  def toDtoCompScore(cs: CompScore, order: Int): model.CompScore = {
+    model.CompScore().withOrder(order).withCompetitorId(cs.competitorId.orNull)
+      .withPlaceholderId(cs.placeholderId.orNull).withParentFightId(cs.parentFightId.orNull)
+      .withParentReferenceType(cs.parentReferenceType.orNull).withScore(
+        model.Score().withAdvantages(cs.score.advantages).withPoints(cs.score.points).withPenalties(cs.score.penalties)
+          .withPointGroups(
             cs.score.pointGroups.map(pg =>
-              new PointGroupDTO().setId(pg.id).setName(pg.name.orNull)
-                .setPriority(pg.priority.orElse(Option(0)).map(_.intValue()).get)
-                .setValue(pg.value.orElse(Option(0)).map(_.intValue()).get)
-            ).toArray
+              model.PointGroup().withId(pg.id).withName(pg.name.orNull).withPriority(pg.priority.orElse(Option(0)).get)
+                .withValue(pg.value.orElse(Option(0)).get)
+            )
           )
       )
   }
 
-  def toDtoFightResult(fr: FightResult): FightResultDTO = {
-    new FightResultDTO().setReason(fr.reason.orNull).setWinnerId(fr.winnerId.orNull)
-      .setResultTypeId(fr.resultTypeId.orNull)
+  def toDtoFightResult(fr: FightResult): model.FightResult = {
+    model.FightResult().withReason(fr.reason.orNull).withWinnerId(fr.winnerId.orNull)
+      .withResultTypeId(fr.resultTypeId.orNull)
   }
 
-  def toDtoFight(f: Fight): FightDescriptionDTO = {
+  def toDtoFight(f: Fight): model.FightDescription = {
     import cats.implicits._
-    new FightDescriptionDTO().setId(f.id).setCategoryId(f.categoryId).setFightName(f.id)
-      .setWinFight(f.bracketsInfo.flatMap(_.winFight).orNull).setLoseFight(f.bracketsInfo.flatMap(_.loseFight).orNull)
-      .setScores(f.scores.mapWithIndex((c, i) => toDtoCompScore(c, i)).toArray).setDuration(f.durationSeconds)
-      .setRound(f.bracketsInfo.flatMap(_.round).map(Integer.valueOf).orNull)
-      .setInvalid(f.invalid.map(java.lang.Boolean.valueOf).getOrElse(false))
-      .setRoundType(f.bracketsInfo.map(_.roundType).orNull).setStatus(f.status.orNull)
-      .setFightResult(f.fightResult.map(toDtoFightResult).orNull).setMat(
-        f.matId.map(m =>
-          new MatDescriptionDTO().setId(m).setName(f.matName.orNull).setPeriodId(f.periodId.orNull)
-            .setMatOrder(f.matOrder.map(Integer.valueOf).orNull)
-        ).orNull
-      ).setNumberOnMat(f.numberOnMat.map(Integer.valueOf).orNull).setPriority(f.priority.map(Integer.valueOf).orNull)
-      .setCompetitionId(f.competitionId).setPeriod(f.periodId.orNull).setStartTime(f.startTime.map(_.toInstant).orNull)
-      .setStageId(f.stageId).setGroupId(f.bracketsInfo.flatMap(_.groupId).orNull)
-      .setScheduleEntryId(f.scheduleEntryId.orNull)
-      .setNumberInRound(f.bracketsInfo.flatMap(_.numberInRound).map(Integer.valueOf).orNull)
+    model.FightDescription().withId(f.id).withCategoryId(f.categoryId).withFightName(f.id)
+      .withScores(f.scores.mapWithIndex((c, i) => toDtoCompScore(c, i))).withDuration(f.durationSeconds)
+      .withInvalid(f.invalid.getOrElse(false)).withCompetitionId(f.competitionId).withStageId(f.stageId).update(
+        _.numberOnMat.setIfDefined(f.numberOnMat),
+        _.numberInRound.setIfDefined(f.bracketsInfo.flatMap(_.numberInRound)),
+        _.scheduleEntryId.setIfDefined(f.scheduleEntryId),
+        _.groupId.setIfDefined(f.bracketsInfo.flatMap(_.groupId)),
+        _.startTime.setIfDefined(f.startTime.map(_.toInstant.asTimestamp)),
+        _.period.setIfDefined(f.periodId),
+        _.priority.setIfDefined(f.priority),
+        _.winFight.setIfDefined(f.bracketsInfo.flatMap(_.winFight)),
+        _.loseFight.setIfDefined(f.bracketsInfo.flatMap(_.loseFight)),
+        _.round.setIfDefined(f.bracketsInfo.flatMap(_.round)),
+        _.roundType.setIfDefined(f.bracketsInfo.map(_.roundType)),
+        _.status.setIfDefined(f.status),
+        _.fightResult.setIfDefined(f.fightResult.map(toDtoFightResult)),
+        _.mat.setIfDefined(f.matId.map(m =>
+          model.MatDescription().withId(m).update(
+            _.name.setIfDefined(f.matName),
+            _.periodId.setIfDefined(f.periodId),
+            _.matOrder.setIfDefined(f.matOrder)
+          )
+        ))
+      )
   }
 
-  def mapFight(coms: Map[String, CompetitorDisplayInfo])(dto: FightDescriptionDTO): Fight = {
+  def mapFight(coms: Map[String, CompetitorDisplayInfo])(dto: model.FightDescription): Fight = {
     Fight(
-      dto.getId,
-      dto.getCompetitionId,
-      dto.getStageId,
-      dto.getCategoryId,
-      Option(dto.getMat).flatMap(m => Option(m.getId)),
-      Option(dto.getMat).flatMap(m => Option(m.getName)),
-      Option(dto.getMat).flatMap(m => Option(m.getMatOrder).map(_.intValue())),
-      Option(dto.getDuration).map(_.intValue()).getOrElse(0),
-      Option(dto.getStatus),
-      Option(dto.getNumberOnMat).map(_.toInt),
-      Option(dto.getPeriod),
-      Option(dto.getStartTime).map(Date.from),
-      Option(dto.getInvalid).map(_.booleanValue()),
-      Option(dto.getScheduleEntryId),
-      Option(dto.getPriority).map(_.intValue()),
+      dto.id,
+      dto.competitionId,
+      dto.stageId,
+      dto.categoryId,
+      dto.mat.flatMap(m => Option(m.id)),
+      dto.mat.flatMap(m => Option(m.name)),
+      dto.mat.flatMap(m => Option(m.matOrder)),
+      Option(dto.duration).getOrElse(0),
+      Option(dto.status),
+      dto.numberOnMat,
+      dto.period,
+      dto.startTime.map(toDate),
+      Option(dto.invalid),
+      dto.scheduleEntryId,
+      dto.priority,
       Some(BracketsInfo(
-        Option(dto.getRound).map(_.intValue()),
-        Option(dto.getNumberInRound).map(_.intValue()),
-        Option(dto.getGroupId),
-        Option(dto.getWinFight),
-        Option(dto.getLoseFight),
-        dto.getRoundType
+        Option(dto.round),
+        Option(dto.numberInRound),
+        dto.groupId,
+        dto.winFight,
+        dto.loseFight,
+        dto.roundType
       )),
-      Option(dto.getFightResult).map(mapFightResult),
-      Option(dto.getScores).map(_.toList).map(_.map(cs => mapCompScore(cs, coms.get(cs.getCompetitorId))))
+      dto.fightResult.map(mapFightResult),
+      Option(dto.scores).map(_.toList).map(_.map(cs => mapCompScore(cs, cs.competitorId.flatMap(coms.get))))
         .getOrElse(List.empty)
     )
   }
 
-  def mapFightResult(d: FightResultDTO): FightResult = {
+  def mapFightResult(d: model.FightResult): FightResult = {
     FightResult(Option(d.getWinnerId), Option(d.getResultTypeId), Option(d.getReason))
   }
 
-  def mapFightResultOption(dto: FightResultOptionDTO): FightResultOption = FightResultOption(
-    dto.getId,
-    description = Option(dto.getDescription),
-    shortName = Option(dto.getShortName),
-    draw = dto.isDraw,
-    winnerPoints = dto.getWinnerPoints,
-    winnerAdditionalPoints = dto.getWinnerAdditionalPoints,
-    loserPoints = dto.getLoserPoints,
-    loserAdditionalPoints = dto.getLoserAdditionalPoints
+  def mapFightResultOption(dto: model.FightResultOption): FightResultOption = FightResultOption(
+    dto.id,
+    description = dto.description,
+    shortName = Option(dto.shortName),
+    draw = dto.draw,
+    winnerPoints = dto.winnerPoints,
+    winnerAdditionalPoints = dto.winnerAdditionalPoints.getOrElse(0),
+    loserPoints = dto.loserPoints,
+    loserAdditionalPoints = dto.loserAdditionalPoints.getOrElse(0)
   )
 
-  def mapAdditionalGroupSortingDescriptor(dto: AdditionalGroupSortingDescriptorDTO): AdditionalGroupSortingDescriptor =
-    AdditionalGroupSortingDescriptor(dto.getGroupSortDirection, dto.getGroupSortSpecifier)
+  def mapAdditionalGroupSortingDescriptor(
+    dto: model.AdditionalGroupSortingDescriptor
+  ): AdditionalGroupSortingDescriptor = AdditionalGroupSortingDescriptor(dto.groupSortDirection, dto.groupSortSpecifier)
 
-  def mapCompetitorStageResult(dto: CompetitorStageResultDTO): CompetitorStageResult = CompetitorStageResult(
-    dto.getCompetitorId,
-    dto.getPoints,
+  def mapCompetitorStageResult(dto: model.CompetitorStageResult): CompetitorStageResult = CompetitorStageResult(
+    dto.competitorId,
+    dto.points.getOrElse(0),
     dto.getRound,
-    dto.getRoundType,
+    dto.roundType,
     dto.getPlace,
-    dto.getStageId,
-    Option(dto.getGroupId),
-    dto.getConflicting
+    dto.stageId,
+    dto.groupId,
+    dto.conflicting
   )
 
-  def mapStageInputDescriptor(d: StageInputDescriptorDTO): StageInputDescriptor = StageInputDescriptor(
-    d.getNumberOfCompetitors,
-    Option(d.getSelectors).map(_.toList).map(_.map(mapCompetitorSelector)).getOrElse(List.empty),
-    d.getDistributionType
+  def mapStageInputDescriptor(d: model.StageInputDescriptor): StageInputDescriptor = StageInputDescriptor(
+    d.numberOfCompetitors,
+    Option(d.selectors).map(_.toList).map(_.map(mapCompetitorSelector)).getOrElse(List.empty),
+    d.distributionType
   )
 
-  def mapCompetitorSelector(dto: CompetitorSelectorDTO): CompetitorSelector = {
+  def mapCompetitorSelector(dto: model.CompetitorSelector): CompetitorSelector = {
     CompetitorSelector(
-      dto.getId,
-      dto.getApplyToStageId,
-      dto.getLogicalOperator,
-      dto.getClassifier,
-      dto.getOperator,
-      dto.getSelectorValue.toSet
+      dto.id,
+      dto.applyToStageId,
+      dto.logicalOperator,
+      dto.classifier,
+      dto.operator,
+      dto.selectorValue.toSet
     )
   }
 
-  def mapStageDescriptor[F[+_]: Monad](s: StageDescriptorDTO): F[StageDescriptor] = Monad[F].pure {
+  def mapStageDescriptor[F[+_]: Monad](s: model.StageDescriptor): F[StageDescriptor] = Monad[F].pure {
     StageDescriptor(
-      s.getId,
-      Option(s.getName),
-      s.getCategoryId,
-      s.getCompetitionId,
-      s.getBracketType,
-      s.getStageType,
-      s.getStageStatus,
+      s.id,
+      s.name,
+      s.categoryId,
+      s.competitionId,
+      s.bracketType,
+      s.stageType,
+      s.stageStatus,
       Option(s.getStageResultDescriptor).map(mapStageResultDescriptor),
       Option(s.getInputDescriptor).map(mapStageInputDescriptor),
-      s.getStageOrder,
-      s.getWaitForPrevious,
-      s.getHasThirdPlaceFight,
-      Option(s.getGroupDescriptors).map(_.toList)
-        .map(_.map(dto => GroupDescriptor(dto.getId, Option(dto.getName), dto.getSize))).orElse(Option(List.empty)),
-      Option(s.getNumberOfFights).map(_.intValue()),
-      Option(s.getFightDuration).map(_.intValue()).orElse(Option(0))
+      s.stageOrder,
+      s.waitForPrevious,
+      s.hasThirdPlaceFight,
+      Option(s.groupDescriptors).map(_.toList).map(_.map(dto => GroupDescriptor(dto.id, Option(dto.name), dto.size)))
+        .orElse(Option(List.empty)),
+      Option(s.numberOfFights),
+      Option(s.fightDuration).orElse(Option(0))
     )
   }
 
-  def mapPeriod(competitionId: String)(dto: PeriodDTO)(mats: Seq[Mat]): Period = {
+  def mapPeriod(competitionId: String)(dto: model.Period)(mats: Seq[Mat]): Period = {
     Period(
       competitionId,
-      Option(dto.getName),
-      dto.getId,
+      Option(dto.name),
+      dto.id,
       mats.toList,
-      Option(dto.getStartTime).map(Date.from),
-      Option(dto.getEndTime).map(Date.from),
-      dto.getIsActive,
-      dto.getTimeBetweenFights,
-      dto.getRiskPercent.intValue(),
-      Option(dto.getScheduleEntries).map(_.map(mapScheduleEntry(competitionId))).map(_.toList)
-        .orElse(Option(List.empty)).get,
-      Option(dto.getScheduleRequirements).map(_.map(mapScheduleRequirement(competitionId))).map(_.toList)
+      dto.startTime.map(toDate),
+      dto.endTime.map(toDate),
+      dto.isActive,
+      dto.timeBetweenFights,
+      dto.riskPercent.intValue(),
+      Option(dto.scheduleEntries).map(_.map(mapScheduleEntry(competitionId))).map(_.toList).orElse(Option(List.empty))
+        .get,
+      Option(dto.scheduleRequirements).map(_.map(mapScheduleRequirement(competitionId))).map(_.toList)
         .orElse(Option(List.empty)).get
     )
   }
 
-  def toDtoPeriod(o: Period): PeriodDTO = {
-    new PeriodDTO().setId(o.id).setName(o.name.orNull).setStartTime(o.startTime.map(_.toInstant).orNull)
-      .setEndTime(o.endTime.map(_.toInstant).orNull)
-      .setScheduleEntries(o.scheduleEntries.map(toDtopScheduleEntry(o.id)).toArray)
-      .setScheduleRequirements(o.scheduleRequirements.map(toDtopScheduleRequirement).toArray).setIsActive(o.active)
-      .setRiskPercent(o.riskCoefficient).setTimeBetweenFights(o.timeBetweenFights)
+  def toDtoPeriod(o: Period): model.Period = {
+    model.Period().withId(o.id).withScheduleEntries(o.scheduleEntries.map(toDtopScheduleEntry(o.id)))
+      .withScheduleRequirements(o.scheduleRequirements.map(toDtopScheduleRequirement)).withIsActive(o.active)
+      .withRiskPercent(o.riskCoefficient).withTimeBetweenFights(o.timeBetweenFights).update(
+        _.name.setIfDefined(o.name),
+        _.startTime.setIfDefined(o.startTime.map(_.toInstant.asTimestamp)),
+        _.endTime.setIfDefined(o.endTime.map(_.toInstant.asTimestamp))
+      )
   }
 
-  def toDtopScheduleEntry(periodId: String)(o: ScheduleEntry): ScheduleEntryDTO = {
-    new ScheduleEntryDTO().setId(o.entryId).setDescription(o.description.orNull).setEntryType(o.entryType)
-      .setName(o.name.orNull).setPeriodId(periodId).setOrder(o.entryOrder).setEndTime(o.endTime.map(_.toInstant).orNull)
-      .setStartTime(o.startTime.map(_.toInstant).orNull).setColor(o.color.orNull)
-      .setDuration(o.entryDuration.getOrElse(0)).setFightIds(o.fightIds.map(toDtoMatIdAndSomeId).toArray)
-      .setNumberOfFights(o.numberOfFights.getOrElse(0).intValue()).setCategoryIds(o.categoryIds.toArray)
-      .setRequirementIds(o.requirementIds.toArray)
-  }
-
-  def toDtoMatIdAndSomeId(m: MatIdAndSomeId): schedule.MatIdAndSomeId = {
-    new schedule.MatIdAndSomeId(m.matId, m.startTime.map(_.toInstant).orNull, m.someId)
-  }
-
-  def toDtopScheduleRequirement(o: ScheduleRequirement): ScheduleRequirementDTO = {
-    new ScheduleRequirementDTO().setId(o.entryId).setCategoryIds(o.categoryIds.toArray).setFightIds(o.fightIds.toArray)
-      .setMatId(o.matId.orNull).setPeriodId(o.periodId.get).setName(o.name.orNull).setColor(o.color.orNull)
-      .setEntryType(o.entryType).setForce(o.force).setStartTime(o.startTime.map(_.toInstant).orNull)
-      .setEndTime(o.endTime.map(_.toInstant).orNull).setDurationSeconds(o.durationSeconds.getOrElse(0))
-      .setEntryOrder(o.entryOrder.getOrElse(0).intValue())
+  def toDtopScheduleEntry(periodId: String)(o: ScheduleEntry): model.ScheduleEntry = {
+    model.ScheduleEntry().withId(o.entryId).withEntryType(o.entryType).withPeriodId(periodId).withOrder(o.entryOrder)
+      .withColor(o.color.orNull).withDuration(o.entryDuration.getOrElse(0))
+      .withFightScheduleInfo(o.fightIds.map(toDtoMatIdAndSomeId))
+      .withNumberOfFights(o.numberOfFights.getOrElse(0).intValue()).withCategoryIds(o.categoryIds.toSeq)
+      .withRequirementIds(o.requirementIds.toSeq).update(
+        _.startTime.setIfDefined(o.startTime.map(_.toInstant.asTimestamp)),
+        _.endTime.setIfDefined(o.endTime.map(_.toInstant.asTimestamp)),
+        _.name.setIfDefined(o.name),
+        _.description.setIfDefined(o.description)
+      )
 
   }
 
-  def toDtoMat(periodId: String)(o: Mat): MatDescriptionDTO = new MatDescriptionDTO().setId(o.matId).setName(o.name)
-    .setMatOrder(o.matOrder).setPeriodId(periodId)
+  def toDtoMatIdAndSomeId(m: MatIdAndSomeId): model.StartTimeInfo = {
+    model.StartTimeInfo(m.matId, m.startTime.map(_.toInstant.asTimestamp), m.someId)
+  }
 
-  def toDtoFullAcademyInfo(o: FullAcademyInfo): FullAcademyInfoDTO = new FullAcademyInfoDTO().setId(o.id)
-    .setName(o.name.orNull).setCoaches(o.coaches.map(_.toArray).orNull)
+  def toDtopScheduleRequirement(o: ScheduleRequirement): model.ScheduleRequirement = {
+    model.ScheduleRequirement().withId(o.entryId).withCategoryIds(o.categoryIds.toSeq).withFightIds(o.fightIds.toSeq)
+      .withPeriodId(o.periodId.get).withEntryType(o.entryType).withForce(o.force)
+      .withDurationSeconds(o.durationSeconds.getOrElse(0)).withEntryOrder(o.entryOrder.getOrElse(0)).update(
+        _.matId.setIfDefined(o.matId),
+        _.name.setIfDefined(o.name),
+        _.color.setIfDefined(o.color),
+        _.startTime.setIfDefined(o.startTime.map(_.toInstant.asTimestamp)),
+        _.endTime.setIfDefined(o.endTime.map(_.toInstant.asTimestamp))
+      )
+  }
 
-  def mapRegistrationPeriod(competitionId: String)(r: RegistrationPeriodDTO): RegistrationPeriod = RegistrationPeriod(
+  def toDtoMat(periodId: String)(o: Mat): model.MatDescription = model.MatDescription().withId(o.matId).withName(o.name)
+    .withMatOrder(o.matOrder).withPeriodId(periodId)
+
+  def toDtoFullAcademyInfo(o: FullAcademyInfo): model.FullAcademyInfo = model.FullAcademyInfo().withId(o.id)
+    .update(_.name.setIfDefined(o.name), _.coaches.setIfDefined(o.coaches.map(_.toSeq)))
+
+  def mapRegistrationPeriod(competitionId: String)(r: model.RegistrationPeriod): RegistrationPeriod =
+    RegistrationPeriod(
+      competitionId,
+      r.id,
+      Option(r.name),
+      r.start.map(toInstant),
+      r.end.map(toInstant),
+      Option(r.registrationGroupIds).map(_.toSet).getOrElse(Set.empty)
+    )
+
+  def mapRegistrationGroup(competitionId: String)(r: model.RegistrationGroup): RegistrationGroup = RegistrationGroup(
     competitionId,
-    r.getId,
-    Option(r.getName),
-    Option(r.getStart),
-    Option(r.getEnd),
-    Option(r.getRegistrationGroupIds).map(_.toSet).getOrElse(Set.empty)
-  )
-
-  def mapRegistrationGroup(competitionId: String)(r: RegistrationGroupDTO): RegistrationGroup = RegistrationGroup(
-    competitionId,
-    r.getId,
-    Option(r.getDisplayName),
-    r.getDefaultGroup,
+    r.id,
+    Option(r.displayName),
+    r.defaultGroup,
     Some(RegistrationFee(
-      currency = r.getRegistrationFee.getCurrency,
-      r.getRegistrationFee.getAmount,
-      Option(r.getRegistrationFee.getRemainder)
+      currency = r.getRegistrationFee.currency,
+      r.getRegistrationFee.amount,
+      Option(r.getRegistrationFee.remainder)
     )),
-    categories = Option(r.getCategories).map(_.toSet).getOrElse(Set.empty)
+    categories = Option(r.categories).map(_.toSet).getOrElse(Set.empty)
   )
 
   def toDtoRegistrationInfo(registrationOpen: Boolean, competitionId: String)(
     r: RegistrationInfo
-  ): RegistrationInfoDTO = {
-    new RegistrationInfoDTO().setId(competitionId).setRegistrationOpen(registrationOpen)
-      .setRegistrationGroups(r.registrationGroups.map { case (key, group) => key -> toDtoRegistrationGroup(group) }
-        .asJava).setRegistrationPeriods(r.registrationPeriods.map { case (key, period) =>
+  ): model.RegistrationInfo = {
+    model.RegistrationInfo().withId(competitionId).withRegistrationOpen(registrationOpen)
+      .withRegistrationGroups(r.registrationGroups.map { case (key, group) => key -> toDtoRegistrationGroup(group) })
+      .withRegistrationPeriods(r.registrationPeriods.map { case (key, period) =>
         key -> toDtoRegistrationPeriod(period)
-      }.asJava)
+      })
   }
 
-  def toDtoRegistrationGroup(r: RegistrationGroup): RegistrationGroupDTO = {
-    new RegistrationGroupDTO().setId(r.id).setDefaultGroup(r.isDefaultGroup)
-      .setRegistrationFee(r.registrationFee.map(toDtoRegistrationFee).getOrElse(new RegistrationFeeDTO()))
-      .setDisplayName(r.displayName.getOrElse("")).setCategories(r.categories.toArray)
+  def toDtoRegistrationGroup(r: RegistrationGroup): model.RegistrationGroup = {
+    model.RegistrationGroup().withId(r.id).withDefaultGroup(r.isDefaultGroup)
+      .withRegistrationFee(r.registrationFee.map(toDtoRegistrationFee).getOrElse(model.RegistrationFee()))
+      .withDisplayName(r.displayName.getOrElse("")).withCategories(r.categories.toSeq)
   }
-  def toDtoRegistrationPeriod(r: RegistrationPeriod): RegistrationPeriodDTO = {
-    new RegistrationPeriodDTO().setId(r.id).setName(r.name.getOrElse("")).setCompetitionId(r.competitionId)
-      .setEnd(r.end.orNull).setStart(r.start.orNull).setRegistrationGroupIds(r.registrationGroupIds.toArray)
-
+  def toDtoRegistrationPeriod(r: RegistrationPeriod): model.RegistrationPeriod = {
+    model.RegistrationPeriod().withId(r.id).withName(r.name.getOrElse("")).withCompetitionId(r.competitionId)
+      .withRegistrationGroupIds(r.registrationGroupIds.toSeq)
+      .update(_.end.setIfDefined(r.end.map(_.asTimestamp)), _.start.setIfDefined(r.start.map(_.asTimestamp)))
   }
 
-  def toDtoRegistrationFee(r: RegistrationFee): RegistrationFeeDTO = {
-    new RegistrationFeeDTO().setAmount(r.amount).setCurrency(r.currency).setRemainder(r.remainder.getOrElse(0))
+  def toDtoRegistrationFee(r: RegistrationFee): model.RegistrationFee = {
+    model.RegistrationFee().withAmount(r.amount).withCurrency(r.currency).withRemainder(r.remainder.getOrElse(0))
   }
 
   def mapCompetitionProperties[F[+_]: Monad](
     registrationOpen: Boolean
-  )(r: CompetitionPropertiesDTO): F[CompetitionProperties] = Monad[F].pure {
+  )(r: model.CompetitionProperties): F[CompetitionProperties] = Monad[F].pure {
     CompetitionProperties(
-      r.getId,
-      r.getCreatorId,
-      Option(r.getStaffIds).map(_.toSet).orElse(Option(Set.empty)),
-      r.getCompetitionName,
-      CompetitionInfoTemplate(Option(r.getEmailTemplate).map(_.getBytes).getOrElse(Array.empty)),
-      Date.from(r.getStartDate),
-      r.getSchedulePublished,
-      r.getBracketsPublished,
-      Option(r.getEndDate).map(Date.from),
-      r.getTimeZone,
+      r.id,
+      r.creatorId,
+      Option(r.staffIds).map(_.toSet).orElse(Option(Set.empty)),
+      r.competitionName,
+      CompetitionInfoTemplate(r.emailTemplate.map(_.getBytes).getOrElse(Array.empty)),
+      toDate(r.getStartDate),
+      r.schedulePublished,
+      r.bracketsPublished,
+      Option(r.getEndDate).map(toDate),
+      r.timeZone,
       registrationOpen,
-      Date.from(r.getCreationTimestamp),
-      r.getStatus
+      toDate(r.getCreationTimestamp),
+      r.status
     )
   }
 }

@@ -1,6 +1,6 @@
 package compman.compsrv.query.model
 
-import compman.compsrv.model.dto.brackets._
+import compservice.model.protobuf.model._
 
 case class StageDescriptor(
   id: String,

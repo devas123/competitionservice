@@ -2,20 +2,18 @@ package compman.compsrv.query.service.repository
 
 import com.mongodb.client.model.{IndexOptions, ReplaceOptions}
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compman.compsrv.model.dto.brackets._
-import compman.compsrv.model.dto.competition.{CategoryRestrictionType, CompetitionStatus, CompetitorRegistrationStatus, FightStatus}
-import compman.compsrv.model.dto.schedule.{ScheduleEntryType, ScheduleRequirementType}
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import compman.compsrv.query.model.academy.FullAcademyInfo
+import compservice.model.protobuf.model.{BracketType, CategoryRestrictionType, CompetitionStatus, CompetitorRegistrationStatus, DistributionType, FightReferenceType, FightStatus, GroupSortDirection, GroupSortSpecifier, LogicalOperator, OperatorType, ScheduleEntryType, ScheduleRequirementType, SelectorClassifier, StageRoundType, StageStatus, StageType}
 import org.bson.{BsonReader, BsonWriter}
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
-import org.bson.codecs.configuration.CodecRegistries.fromCodecs
 import org.mongodb.scala.{MongoClient, MongoCollection, MongoDatabase}
 import org.mongodb.scala.bson.conversions.Bson
-import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.{Filters, Indexes}
+import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.Updates.{set, unset}
+import scalapb.{GeneratedEnum, GeneratedEnumCompanion}
 import zio.{RIO, Task, ZIO}
 
 import scala.reflect.ClassTag
@@ -26,59 +24,48 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
   private final val competitorsCollectionName        = "competitor"
   private final val fightsCollectionName             = "fight"
   private final val managedCompetitionCollectionName = "managed_competition"
-  private final val academyCollectionName = "academy"
+  private final val academyCollectionName            = "academy"
 
-  import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
+  import org.bson.codecs.configuration.CodecRegistries.{fromCodecs, fromProviders, fromRegistries}
   import org.mongodb.scala.bson.codecs.Macros._
   import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
 
-  class EnumCodec[T <: Enum[T]](val clazz: Class[T]) extends Codec[T] {
-    override def encode(writer: BsonWriter, value: T, encoderContext: EncoderContext): Unit = {
-      writer.writeString(value.name)
-    }
-    override def getEncoderClass: Class[T]                                     = clazz
-    override def decode(reader: BsonReader, decoderContext: DecoderContext): T = Enum.valueOf(clazz, reader.readString)
-  }
-
-  val competitionStatusCodec       = new EnumCodec[CompetitionStatus](classOf[CompetitionStatus])
-  val distributionTypeCodec        = new EnumCodec[DistributionType](classOf[DistributionType])
-  val stageRoundTypeCodec          = new EnumCodec[StageRoundType](classOf[StageRoundType])
-  val groupSortDirectionCodec      = new EnumCodec[GroupSortDirection](classOf[GroupSortDirection])
-  val logicalOperatorCodec         = new EnumCodec[LogicalOperator](classOf[LogicalOperator])
-  val groupSortSpecifierCodec      = new EnumCodec[GroupSortSpecifier](classOf[GroupSortSpecifier])
-  val selectorClassifierCodec      = new EnumCodec[SelectorClassifier](classOf[SelectorClassifier])
-  val operatorTypeCodec            = new EnumCodec[OperatorType](classOf[OperatorType])
-  val bracketTypeCodec             = new EnumCodec[BracketType](classOf[BracketType])
-  val stageTypeCodec               = new EnumCodec[StageType](classOf[StageType])
-  val stageStatusCodec             = new EnumCodec[StageStatus](classOf[StageStatus])
-  val categoryRestrictionTypeCodec = new EnumCodec[CategoryRestrictionType](classOf[CategoryRestrictionType])
-  val fightReferenceTypeCodec      = new EnumCodec[FightReferenceType](classOf[FightReferenceType])
-  val scheduleEntryTypeCodec       = new EnumCodec[ScheduleEntryType](classOf[ScheduleEntryType])
-  val scheduleRequirementTypeCodec = new EnumCodec[ScheduleRequirementType](classOf[ScheduleRequirementType])
-  val competitorRegistrationStatusCodec =
-    new EnumCodec[CompetitorRegistrationStatus](classOf[CompetitorRegistrationStatus])
-  val fightStatusCodec = new EnumCodec[FightStatus](classOf[FightStatus])
+  val competitionStatusCodec: Seq[Codec[CompetitionStatus]] = cd[CompetitionStatus](classOf[CompetitionStatus], CompetitionStatus)
+  val distributionTypeCodec: Seq[Codec[DistributionType]] = cd[DistributionType](classOf[DistributionType], DistributionType)
+  val stageRoundTypeCodec: Seq[Codec[StageRoundType]] = cd[StageRoundType](classOf[StageRoundType], StageRoundType)
+  val groupSortDirectionCodec: Seq[Codec[GroupSortDirection]] = cd[GroupSortDirection](classOf[GroupSortDirection], GroupSortDirection)
+  val logicalOperatorCodec: Seq[Codec[LogicalOperator]] = cd[LogicalOperator](classOf[LogicalOperator], LogicalOperator)
+  val groupSortSpecifierCodec: Seq[Codec[GroupSortSpecifier]] = cd[GroupSortSpecifier](classOf[GroupSortSpecifier], GroupSortSpecifier)
+  val selectorClassifierCodec: Seq[Codec[SelectorClassifier]] = cd[SelectorClassifier](classOf[SelectorClassifier], SelectorClassifier)
+  val operatorTypeCodec: Seq[Codec[OperatorType]] = cd[OperatorType](classOf[OperatorType], OperatorType)
+  val bracketTypeCodec: Seq[Codec[BracketType]] = cd[BracketType](classOf[BracketType], BracketType)
+  val stageTypeCodec: Seq[Codec[StageType]] = cd[StageType](classOf[StageType], StageType)
+  val stageStatusCodec: Seq[Codec[StageStatus]] = cd[StageStatus](classOf[StageStatus], StageStatus)
+  val categoryRestrictionTypeCodec: Seq[Codec[CategoryRestrictionType]] = cd[CategoryRestrictionType](classOf[CategoryRestrictionType], CategoryRestrictionType)
+  val fightReferenceTypeCodec: Seq[Codec[FightReferenceType]] = cd[FightReferenceType](classOf[FightReferenceType], FightReferenceType)
+  val scheduleEntryTypeCodec: Seq[Codec[ScheduleEntryType]] = cd[ScheduleEntryType](classOf[ScheduleEntryType], ScheduleEntryType)
+  val scheduleRequirementTypeCodec: Seq[Codec[ScheduleRequirementType]] = cd[ScheduleRequirementType](classOf[ScheduleRequirementType], ScheduleRequirementType)
+  val competitorRegistrationStatusCodec: Seq[Codec[CompetitorRegistrationStatus]] = cd[CompetitorRegistrationStatus](classOf[CompetitorRegistrationStatus], CompetitorRegistrationStatus)
+  val fightStatusCodec: Seq[Codec[FightStatus]] = cd[FightStatus](classOf[FightStatus], FightStatus)
 
   private val caseClassRegistry = fromRegistries(
-    fromCodecs(
-      competitionStatusCodec,
-      distributionTypeCodec,
-      stageRoundTypeCodec,
-      groupSortDirectionCodec,
-      logicalOperatorCodec,
-      groupSortSpecifierCodec,
-      selectorClassifierCodec,
-      operatorTypeCodec,
-      bracketTypeCodec,
-      stageTypeCodec,
-      stageStatusCodec,
-      categoryRestrictionTypeCodec,
-      fightReferenceTypeCodec,
-      scheduleEntryTypeCodec,
-      scheduleRequirementTypeCodec,
-      competitorRegistrationStatusCodec,
-      fightStatusCodec
-    ),
+      fromCodecs(competitionStatusCodec: _*),
+      fromCodecs(distributionTypeCodec: _*),
+      fromCodecs(stageRoundTypeCodec: _*),
+      fromCodecs(groupSortDirectionCodec: _*),
+      fromCodecs(logicalOperatorCodec: _*),
+      fromCodecs(groupSortSpecifierCodec: _*),
+      fromCodecs(selectorClassifierCodec: _*),
+      fromCodecs(operatorTypeCodec: _*),
+      fromCodecs(bracketTypeCodec: _*),
+      fromCodecs(stageTypeCodec: _*),
+      fromCodecs(stageStatusCodec: _*),
+      fromCodecs(categoryRestrictionTypeCodec: _*),
+      fromCodecs(fightReferenceTypeCodec: _*),
+      fromCodecs(scheduleEntryTypeCodec: _*),
+      fromCodecs(scheduleRequirementTypeCodec: _*),
+      fromCodecs(competitorRegistrationStatusCodec: _*),
+      fromCodecs(fightStatusCodec: _*),
     fromProviders(classOf[FullAcademyInfo]),
     fromProviders(classOf[CompetitionState]),
     fromProviders(classOf[Period]),
@@ -135,8 +122,7 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
   } yield coll
   val managedCompetitionCollection: Task[MongoCollection[ManagedCompetition]] =
     createCollection(managedCompetitionCollectionName, idField)
-  val academyCollection: Task[MongoCollection[FullAcademyInfo]] =
-    createCollection(academyCollectionName, idField)
+  val academyCollection: Task[MongoCollection[FullAcademyInfo]] = createCollection(academyCollectionName, idField)
 
   protected def setOption[T](name: String, opt: Option[T]): Bson = opt.map(v => set(name, v)).getOrElse(unset(name))
   protected def deleteById[T](collectionTask: Task[MongoCollection[T]])(id: String): LIO[Unit] = {
@@ -152,5 +138,21 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
       insert = collection.replaceOne(Filters.eq(idField, id), element, new ReplaceOptions().upsert(true))
       _ <- RIO.fromFuture(_ => insert.toFuture())
     } yield ()
+  }
+
+  def cd[T <: GeneratedEnum: ClassTag](clazz: Class[T], companion: GeneratedEnumCompanion[T]): Seq[Codec[T]] = {
+    companion.values.map(v => new EnumCodec(v.getClass.asInstanceOf[Class[T]], companion).asInstanceOf[Codec[T]]) :+
+      new EnumCodec[T](clazz, companion)
+  }
+
+  class EnumCodec[T <: GeneratedEnum: ClassTag](val clazz: Class[T], companion: GeneratedEnumCompanion[T])
+      extends Codec[T] {
+    override def encode(writer: BsonWriter, value: T, encoderContext: EncoderContext): Unit = {
+      writer.writeString(value.value.toString)
+    }
+    override def getEncoderClass: Class[T] = clazz
+    override def decode(reader: BsonReader, decoderContext: DecoderContext): T = {
+      companion.fromValue(reader.readString().toInt)
+    }
   }
 }

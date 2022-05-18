@@ -1,0 +1,10 @@
+syntax = "proto3";
+package compservice.model.protobuf;
+import "scalapb/scalapb.proto";
+
+option (scalapb.options) = {
+  scope: PACKAGE
+  lenses: true
+  getters: true
+  enum_strip_prefix: true
+};

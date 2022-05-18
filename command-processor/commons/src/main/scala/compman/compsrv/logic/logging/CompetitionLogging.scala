@@ -59,11 +59,17 @@ object CompetitionLogging {
       combine = (_, newValue) => newValue,
       render = _.getOrElse("undefined")
     )
+    val correlationId: LogAnnotation[Option[String]] = LogAnnotation[Option[String]](
+      name = "correlation-id",
+      initialValue = None,
+      combine = (_, newValue) => newValue,
+      render = _.getOrElse("undefined")
+    )
   }
   object Live {
 
     val loggingLayer: ZLayer[Any, Nothing, Logging] = Slf4jLogger.make { (context, message) =>
-      val correlationId = LogAnnotation.CorrelationId.render(context.get(LogAnnotation.CorrelationId))
+      val correlationId = Annotations.correlationId.render(context.get(Annotations.correlationId))
       val competitionId = Annotations.competitionId.render(context.get(Annotations.competitionId))
       "[competition-id = %s, correlation-id = %s] %s".format(competitionId, correlationId, message)
     }

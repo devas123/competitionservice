@@ -56,7 +56,7 @@ object CompetitionOperationsTest extends DefaultRunnableSpec with TestEntities w
             )
             (loadedCompetitorsByCompetitionId, pagination) <- CompetitionQueryOperations[LIO]
               .getCompetitorsByCompetitionId(competitionId)(None)
-            loadedCompetitorsByIds <- competitors.traverse(c => CompetitionQueryOperations[LIO].getCompetitorById(competitionId)(c.getId)).map(_.mapFilter(identity))
+            loadedCompetitorsByIds <- competitors.traverse(c => CompetitionQueryOperations[LIO].getCompetitorById(competitionId)(c.id)).map(_.mapFilter(identity))
           } yield
             assert(loadedCompetitorsByCompetitionId)(hasSize(equalTo(competitors.size))) &&
             assertTrue(loadedCompetitorsByCompetitionId.forall(c => c.lastName.nonEmpty && c.firstName.nonEmpty)) &&

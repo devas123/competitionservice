@@ -5,22 +5,23 @@ import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Behaviors}
 import compman.compsrv.logic.category.CategoryGenerateService
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compman.compsrv.model.PageResponse
-import compman.compsrv.model.commands.payload.AdjacencyList
-import compman.compsrv.model.dto.brackets.{FightResultOptionDTO, StageDescriptorDTO}
-import compman.compsrv.model.dto.competition._
-import compman.compsrv.model.dto.dashboard.{MatDescriptionDTO, MatStateDTO}
-import compman.compsrv.model.dto.schedule.ScheduleDTO
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model.mapping.DtoMapping
-import compman.compsrv.query.service.repository.{CompetitionQueryOperations, FightQueryOperations, ManagedCompetitionsOperations, Pagination}
+import compman.compsrv.query.service.repository.{
+  CompetitionQueryOperations,
+  FightQueryOperations,
+  ManagedCompetitionsOperations,
+  Pagination
+}
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
 import compman.compsrv.Utils
+import compman.compsrv.logic.fight.FightResultOptionConstants
 import compman.compsrv.query.model._
+import compservice.model.protobuf.model
+import compservice.model.protobuf.query.{MatFightsQueryResult, MatsQueryResult, _}
 import org.mongodb.scala.MongoClient
 import zio.{Ref, Tag, ZIO}
 import zio.logging.Logging
-import scala.jdk.CollectionConverters._
 
 object CompetitionApiActor {
 
@@ -61,145 +62,96 @@ object CompetitionApiActor {
   }
 
   sealed trait CompetitionApiCommand {
-    type responseType
+    type responseType = QueryServiceResponse
     val replyTo: ActorRef[responseType]
   }
 
-  final case class GetDefaultRestrictions(override val replyTo: ActorRef[Seq[CategoryRestrictionDTO]])
-      extends CompetitionApiCommand {
-    override type responseType = Seq[CategoryRestrictionDTO]
-  }
-  final case class GetDefaultFightResults(override val replyTo: ActorRef[List[FightResultOptionDTO]])
-      extends CompetitionApiCommand {
-    override type responseType = List[FightResultOptionDTO]
-  }
-  final case class GetAllCompetitions(override val replyTo: ActorRef[List[ManagedCompetition]]) extends CompetitionApiCommand {
-    override type responseType = List[ManagedCompetition]
-  }
+  final case class GetDefaultRestrictions(override val replyTo: ActorRef[QueryServiceResponse])
+      extends CompetitionApiCommand {}
+  final case class GetDefaultFightResults(override val replyTo: ActorRef[QueryServiceResponse])
+      extends CompetitionApiCommand {}
+  final case class GetAllCompetitions(override val replyTo: ActorRef[QueryServiceResponse])
+      extends CompetitionApiCommand {}
 
   final case class GenerateCategoriesFromRestrictions(
-    restrictions: List[CategoryRestrictionDTO],
-    idTrees: List[AdjacencyList],
+    restrictions: List[model.CategoryRestriction],
+    idTrees: List[model.AdjacencyList],
     restrictionNames: List[String]
-  )(override val replyTo: ActorRef[List[CategoryDescriptorDTO]])
-      extends CompetitionApiCommand {
-    override type responseType = List[CategoryDescriptorDTO]
-  }
+  )(override val replyTo: ActorRef[QueryServiceResponse])
+      extends CompetitionApiCommand {}
 
-  final case class GetCompetitionProperties(id: String)(
-    override val replyTo: ActorRef[Option[CompetitionPropertiesDTO]]
-  ) extends CompetitionApiCommand {
-    override type responseType = Option[CompetitionPropertiesDTO]
-  }
+  final case class GetCompetitionProperties(id: String)(override val replyTo: ActorRef[QueryServiceResponse])
+      extends CompetitionApiCommand {}
 
-  final case class GetCompetitionInfoTemplate(competitionId: String)(override val replyTo: ActorRef[String])
-      extends CompetitionApiCommand {
-    override type responseType = String
-  }
+  final case class GetCompetitionInfoTemplate(competitionId: String)(
+    override val replyTo: ActorRef[QueryServiceResponse]
+  ) extends CompetitionApiCommand {}
 
-  final case class GetSchedule(competitionId: String)(override val replyTo: ActorRef[ScheduleDTO]) extends CompetitionApiCommand {
-    override type responseType = ScheduleDTO
-  }
+  final case class GetSchedule(competitionId: String)(override val replyTo: ActorRef[QueryServiceResponse])
+      extends CompetitionApiCommand {}
 
   final case class GetCompetitors(
     competitionId: String,
     categoryId: Option[String],
     searchString: Option[String],
     pagination: Option[Pagination]
-  )(override val replyTo: ActorRef[PageResponse[CompetitorDTO]])
-      extends CompetitionApiCommand {
-    override type responseType = PageResponse[CompetitorDTO]
-  }
+  )(override val replyTo: ActorRef[QueryServiceResponse])
+      extends CompetitionApiCommand {}
 
   final case class GetCompetitor(competitionId: String, competitorId: String)(
-    override val replyTo: ActorRef[Option[CompetitorDTO]]
-  ) extends CompetitionApiCommand {
-    override type responseType = Option[CompetitorDTO]
-  }
+    override val replyTo: ActorRef[QueryServiceResponse]
+  ) extends CompetitionApiCommand {}
 
-  final case class GetDashboard(competitionId: String)(override val replyTo: ActorRef[List[Period]])
-      extends CompetitionApiCommand {
-    override type responseType = List[Period]
-  }
+  final case class GetDashboard(competitionId: String)(override val replyTo: ActorRef[QueryServiceResponse])
+      extends CompetitionApiCommand {}
 
-  final case class GetMats(competitionId: String)(override val replyTo: ActorRef[List[MatDescriptionDTO]])
-      extends CompetitionApiCommand {
-    override type responseType = List[MatDescriptionDTO]
-  }
+  final case class GetMats(competitionId: String)(override val replyTo: ActorRef[QueryServiceResponse])
+      extends CompetitionApiCommand {}
 
   final case class GetPeriodMats(competitionId: String, periodId: String)(
-    override val replyTo: ActorRef[MatsQueryResult]
-  ) extends CompetitionApiCommand {
-    override type responseType = MatsQueryResult
-  }
+    override val replyTo: ActorRef[QueryServiceResponse]
+  ) extends CompetitionApiCommand {}
 
-  final case class GetMat(competitionId: String, matId: String)(
-    override val replyTo: ActorRef[Option[MatDescriptionDTO]]
-  ) extends CompetitionApiCommand {
-    override type responseType = Option[MatDescriptionDTO]
-  }
+  final case class GetMat(competitionId: String, matId: String)(override val replyTo: ActorRef[QueryServiceResponse])
+      extends CompetitionApiCommand {}
 
   final case class GetMatFights(competitionId: String, matId: String)(
-    override val replyTo: ActorRef[MatFightsQueryResult]
-  ) extends CompetitionApiCommand {
-    override type responseType = MatFightsQueryResult
-  }
+    override val replyTo: ActorRef[QueryServiceResponse]
+  ) extends CompetitionApiCommand {}
 
-  final case class GetRegistrationInfo(competitionId: String)(
-    override val replyTo: ActorRef[Option[RegistrationInfoDTO]]
-  ) extends CompetitionApiCommand {
-    override type responseType = Option[RegistrationInfoDTO]
-  }
+  final case class GetRegistrationInfo(competitionId: String)(override val replyTo: ActorRef[QueryServiceResponse])
+      extends CompetitionApiCommand {}
 
-  final case class GetCategories(competitionId: String)(override val replyTo: ActorRef[List[CategoryStateDTO]])
-      extends CompetitionApiCommand {
-    override type responseType = List[CategoryStateDTO]
-  }
+  final case class GetCategories(competitionId: String)(override val replyTo: ActorRef[QueryServiceResponse])
+      extends CompetitionApiCommand {}
 
   final case class GetFightById(competitionId: String, categoryId: String, fightId: String)(
-    override val replyTo: ActorRef[Option[FightDescriptionDTO]]
-  ) extends CompetitionApiCommand {
-    override type responseType = Option[FightDescriptionDTO]
-  }
-  final case class GetFightIdsByCategoryIds(competitionId: String)(
-    override val replyTo: ActorRef[Option[Map[String, List[String]]]]
-  ) extends CompetitionApiCommand {
-    override type responseType = Option[Map[String, List[String]]]
-  }
+    override val replyTo: ActorRef[QueryServiceResponse]
+  ) extends CompetitionApiCommand {}
+  final case class GetFightIdsByCategoryIds(competitionId: String)(override val replyTo: ActorRef[QueryServiceResponse])
+      extends CompetitionApiCommand {}
 
   final case class GetCategory(competitionId: String, categoryId: String)(
-    override val replyTo: ActorRef[Option[CategoryStateDTO]]
-  ) extends CompetitionApiCommand {
-    override type responseType = Option[CategoryStateDTO]
-  }
+    override val replyTo: ActorRef[QueryServiceResponse]
+  ) extends CompetitionApiCommand {}
 
   final case class GetPeriodFightsByMats(competitionId: String, periodId: String, limit: Int)(
-    override val replyTo: ActorRef[Map[String, List[String]]]
-  ) extends CompetitionApiCommand {
-    override type responseType = Map[String, List[String]]
-  }
+    override val replyTo: ActorRef[QueryServiceResponse]
+  ) extends CompetitionApiCommand {}
 
   final case class GetFightResulOptions(competitionId: String, categoryId: String, stageId: String)(
-    override val replyTo: ActorRef[List[FightResultOptionDTO]]
-  ) extends CompetitionApiCommand {
-    override type responseType = List[FightResultOptionDTO]
-  }
+    override val replyTo: ActorRef[QueryServiceResponse]
+  ) extends CompetitionApiCommand {}
 
   final case class GetStagesForCategory(competitionId: String, categoryId: String)(
-    override val replyTo: ActorRef[List[StageDescriptorDTO]]
-  ) extends CompetitionApiCommand {
-    override type responseType = List[StageDescriptorDTO]
-  }
+    override val replyTo: ActorRef[QueryServiceResponse]
+  ) extends CompetitionApiCommand {}
   final case class GetStageById(competitionId: String, categoryId: String, stageId: String)(
-    override val replyTo: ActorRef[Option[StageDescriptorDTO]]
-  ) extends CompetitionApiCommand {
-    override type responseType = Option[StageDescriptorDTO]
-  }
+    override val replyTo: ActorRef[QueryServiceResponse]
+  ) extends CompetitionApiCommand {}
   final case class GetStageFights(competitionId: String, categoryId: String, stageId: String)(
-    override val replyTo: ActorRef[List[FightDescriptionDTO]]
-  ) extends CompetitionApiCommand {
-    override type responseType = List[FightDescriptionDTO]
-  }
+    override val replyTo: ActorRef[QueryServiceResponse]
+  ) extends CompetitionApiCommand {}
 
   case class ActorState()
   val initialState: ActorState = ActorState()
@@ -221,49 +173,71 @@ object CompetitionApiActor {
                       .generateCategoriesFromRestrictions(restrictions.toArray, tree, restrictionNamesOrder)
                   )
                 )
-                _ <- c.replyTo ! res.flatten
+                _ <- c.replyTo ! QueryServiceResponse().withGenerateCategoriesFromRestrictionsResponse(
+                  GenerateCategoriesFromRestrictionsResponse(res.flatten)
+                )
               } yield state
-            case c: GetDefaultRestrictions => ZIO.effect(DefaultRestrictions.restrictions)
-                .flatMap(res => c.replyTo ! res).as(state)
-            case c: GetDefaultFightResults => ZIO.effect(FightResultOptionDTO.values.asScala)
-                .flatMap(res => c.replyTo ! res.toList).as(state)
-            case c: GetAllCompetitions => ManagedCompetitionsOperations.getActiveCompetitions[LIO]
-                .flatMap(res => c.replyTo ! res).as(state)
+            case c: GetDefaultRestrictions => ZIO.effect(DefaultRestrictions.restrictions).flatMap(res =>
+                c.replyTo ! QueryServiceResponse()
+                  .withGetDefaultRestrictionsResponse(GetDefaultRestrictionsResponse(res))
+              ).as(state)
+            case c: GetDefaultFightResults => ZIO.effect(FightResultOptionConstants.values).flatMap(res =>
+                c.replyTo ! QueryServiceResponse()
+                  .withGetDefaultFightResultsResponse(GetDefaultFightResultsResponse(res))
+              ).as(state)
+            case c: GetAllCompetitions => ManagedCompetitionsOperations.getActiveCompetitions[LIO].flatMap(res =>
+                c.replyTo ! QueryServiceResponse().withGetAllCompetitionsResponse(GetAllCompetitionsResponse(
+                  res.map(DtoMapping.toDtoManagedCompetition)
+                ))
+              ).as(state)
             case c @ GetCompetitionProperties(id) => CompetitionQueryOperations[LIO].getCompetitionProperties(id)
-                .map(_.map(DtoMapping.toDtoCompetitionProperties)).flatMap(res => c.replyTo ! res).as(state)
+                .map(_.map(DtoMapping.toDtoCompetitionProperties)).flatMap(res =>
+                  c.replyTo ! QueryServiceResponse()
+                    .withGetCompetitionPropertiesResponse(GetCompetitionPropertiesResponse(res))
+                ).as(state)
             case c @ GetCompetitionInfoTemplate(competitionId) => CompetitionQueryOperations[LIO]
                 .getCompetitionInfoTemplate(competitionId).map(ci => ci.map(c => new String(c.template)).getOrElse(""))
-                .flatMap(res => c.replyTo ! res).as(state)
+                .flatMap(res =>
+                  c.replyTo ! QueryServiceResponse()
+                    .withGetCompetitionInfoTemplateResponse(GetCompetitionInfoTemplateResponse(Option(res)))
+                ).as(state)
             case c @ GetSchedule(competitionId) =>
               import extensions._
               for {
                 periods                <- CompetitionQueryOperations[LIO].getPeriodsByCompetitionId(competitionId)
                 fighsByScheduleEntries <- FightQueryOperations[LIO].getFightsByScheduleEntries(competitionId)
-                mats = periods.flatMap(period => period.mats.map(DtoMapping.toDtoMat(period.id))).toArray
+                mats = periods.flatMap(period => period.mats.map(DtoMapping.toDtoMat(period.id)))
                 dtoPeriods = periods.map(DtoMapping.toDtoPeriod)
-                  .map(_.enrichWithFightsByScheduleEntries(fighsByScheduleEntries)).toArray
-                _ <- c.replyTo ! new ScheduleDTO().setId(competitionId).setMats(mats).setPeriods(dtoPeriods)
+                  .map(_.enrichWithFightsByScheduleEntries(fighsByScheduleEntries))
+                _ <- c.replyTo ! QueryServiceResponse().withGetScheduleResponse(GetScheduleResponse(
+                  Some(model.Schedule().withId(competitionId).withMats(mats).withPeriods(dtoPeriods))
+                ))
               } yield state
             case c @ GetCompetitors(competitionId, categoryId, searchString, pagination) => categoryId match {
                 case Some(value) => CompetitionQueryOperations[LIO]
                     .getCompetitorsByCategoryId(competitionId)(value, pagination, searchString)
-                    .map(res => createPageResponse(competitionId, res)).flatMap(res => c.replyTo ! res).as(state)
+                    .flatMap(res => c.replyTo ! createGetCompetitorsResponse(res)).as(state)
                 case None => CompetitionQueryOperations[LIO]
                     .getCompetitorsByCompetitionId(competitionId)(pagination, searchString)
-                    .map(res => createPageResponse(competitionId, res)).flatMap(res => c.replyTo ! res).as(state)
+                    .flatMap(res => c.replyTo ! createGetCompetitorsResponse(res)).as(state)
               }
             case c @ GetCompetitor(competitionId, competitorId) => CompetitionQueryOperations[LIO]
-                .getCompetitorById(competitionId)(competitorId)
-                .flatMap(res => c.replyTo ! res.map(DtoMapping.toDtoCompetitor)).as(state)
+                .getCompetitorById(competitionId)(competitorId).flatMap(res =>
+                  c.replyTo ! QueryServiceResponse()
+                    .withGetCompetitorResponse(GetCompetitorResponse(res.map(DtoMapping.toDtoCompetitor)))
+                ).as(state)
             case c @ GetDashboard(competitionId) => CompetitionQueryOperations[LIO]
-                .getPeriodsByCompetitionId(competitionId).flatMap(res => c.replyTo ! res).as(state)
+                .getPeriodsByCompetitionId(competitionId).flatMap(res =>
+                  c.replyTo ! QueryServiceResponse()
+                    .withGetDashboardResponse(GetDashboardResponse(res.map(DtoMapping.toDtoPeriod)))
+                ).as(state)
             case c @ GetMats(competitionId) => CompetitionQueryOperations[LIO].getPeriodsByCompetitionId(competitionId)
-                .map(_.flatMap(p => p.mats.map(DtoMapping.toDtoMat(p.id)))).flatMap(res => c.replyTo ! res).as(state)
+                .map(_.flatMap(p => p.mats.map(DtoMapping.toDtoMat(p.id))))
+                .flatMap(res => c.replyTo ! QueryServiceResponse().withGetMatsResponse(GetMatsResponse(res))).as(state)
             case c @ GetMat(competitionId, matId) => CompetitionQueryOperations[LIO]
                 .getPeriodsByCompetitionId(competitionId)
-                .map(_.flatMap(p => p.mats.map(DtoMapping.toDtoMat(p.id))).find(_.getId == matId))
-                .flatMap(res => c.replyTo ! res).as(state)
-
+                .map(_.flatMap(p => p.mats.map(DtoMapping.toDtoMat(p.id))).find(_.id == matId))
+                .flatMap(res => c.replyTo ! QueryServiceResponse().withGetMatResponse(GetMatResponse(res))).as(state)
             case c @ GetMatFights(competitionId, matId) => for {
                 fights <- FightQueryOperations[LIO].getFightsByMat(competitionId)(matId, 20)
                 fightDtos = fights.map(DtoMapping.toDtoFight)
@@ -275,14 +249,17 @@ object CompetitionApiActor {
                     cs.competitorAcademyName
                   )
                 ).map(DtoMapping.toDtoCompetitor)
-                _ <- c.replyTo ! MatFightsQueryResult(competitors, fightDtos)
+                _ <- c.replyTo ! QueryServiceResponse()
+                  .withGetMatFightsResponse(GetMatFightsResponse(Some(MatFightsQueryResult(competitors, fightDtos))))
               } yield state
             case c @ GetRegistrationInfo(competitionId) => for {
                 properties <- CompetitionQueryOperations[LIO].getCompetitionProperties(competitionId)
                 groups     <- CompetitionQueryOperations[LIO].getRegistrationGroups(competitionId)
                 periods    <- CompetitionQueryOperations[LIO].getRegistrationPeriods(competitionId)
-                _ <- c.replyTo ! Option(RegistrationInfo(Utils.groupById(groups)(_.id), Utils.groupById(periods)(_.id)))
-                  .map(DtoMapping.toDtoRegistrationInfo(properties.exists(_.registrationOpen), competitionId))
+                _ <- c.replyTo ! QueryServiceResponse().withGetRegistrationInfoResponse(GetRegistrationInfoResponse(
+                  Option(RegistrationInfo(Utils.groupById(groups)(_.id), Utils.groupById(periods)(_.id)))
+                    .map(DtoMapping.toDtoRegistrationInfo(properties.exists(_.registrationOpen), competitionId))
+                ))
               } yield state
             case c @ GetCategories(competitionId) => for {
                 categories <- CompetitionQueryOperations[LIO].getCategoriesByCompetitionId(competitionId)
@@ -293,13 +270,18 @@ object CompetitionApiActor {
                       .getNumberOfCompetitorsForCategory(competitionId)(category.id)
                   } yield createCategoryState(competitionId, category, numberOfFights, numberOfCompetitors)
                 }
-                _ <- c.replyTo ! categoryStates
+                _ <- c.replyTo ! QueryServiceResponse().withGetCategoriesResponse(GetCategoriesResponse(categoryStates))
               } yield state
             case c @ GetFightById(competitionId, categoryId, fightId) => FightQueryOperations[LIO]
                 .getFightById(competitionId)(categoryId, fightId).map(_.map(DtoMapping.toDtoFight))
-                .flatMap(res => c.replyTo ! res).as(state)
+                .flatMap(res => c.replyTo ! QueryServiceResponse().withGetFightByIdResponse(GetFightByIdResponse(res)))
+                .as(state)
             case c @ GetFightIdsByCategoryIds(competitionId) => FightQueryOperations[LIO]
-                .getFightIdsByCategoryIds(competitionId).flatMap(res => c.replyTo ! Option(res)).as(state)
+                .getFightIdsByCategoryIds(competitionId).flatMap(res =>
+                  c.replyTo ! QueryServiceResponse().withGetFightIdsByCategoryIdsResponse(
+                    GetFightIdsByCategoryIdsResponse(res.view.mapValues(ls => ListOfString(ls)).toMap)
+                  )
+                ).as(state)
             case c @ GetCategory(competitionId, categoryId) => for {
                 res <- (for {
                   category <- OptionT(CompetitionQueryOperations[LIO].getCategoryById(competitionId)(categoryId))
@@ -309,7 +291,7 @@ object CompetitionApiActor {
                     CompetitionQueryOperations[LIO].getNumberOfCompetitorsForCategory(competitionId)(category.id)
                   )
                 } yield createCategoryState(competitionId, category, numberOfFights, numberOfCompetitors)).value
-                _ <- c.replyTo ! res
+                _ <- c.replyTo ! QueryServiceResponse().withGetCategoryResponse(GetCategoryResponse(res))
               } yield state
 
             case c @ GetPeriodMats(competitionId, periodId) =>
@@ -329,13 +311,16 @@ object CompetitionApiActor {
                         cs.competitorAcademyName
                       )
                     ).map(DtoMapping.toDtoCompetitor)
-                    matState = new MatStateDTO().setMatDescription(DtoMapping.toDtoMat(period.id)(mat))
-                      .setTopFiveFights(fights.map(DtoMapping.toDtoFight).toArray).setNumberOfFights(numberOfFights)
+                    matState = model.MatState().withMatDescription(DtoMapping.toDtoMat(period.id)(mat))
+                      .withTopFiveFights(fights.map(DtoMapping.toDtoFight)).withNumberOfFights(numberOfFights)
                   } yield (matState, competitors)
                 )
               } yield MatsQueryResult(res.flatMap(_._2), res.map(_._1))
-              optionRes.value.flatMap(res => c.replyTo ! res.getOrElse(MatsQueryResult(List.empty, List.empty)))
-                .as(state)
+              optionRes.value.flatMap(res =>
+                c.replyTo ! QueryServiceResponse().withGetPeriodMatsResponse(GetPeriodMatsResponse(
+                  Option(res.getOrElse(MatsQueryResult(List.empty, List.empty)))
+                ))
+              ).as(state)
             case c @ GetPeriodFightsByMats(competitionId, periodId, limit) =>
               import cats.implicits._
               import zio.interop.catz._
@@ -344,34 +329,44 @@ object CompetitionApiActor {
                 mats = period.map(_.mats).getOrElse(List.empty).map(_.matId)
                 fights <- mats
                   .traverse(mat => FightQueryOperations[LIO].getFightsByMat(competitionId)(mat, limit).map(mat -> _))
-                _ <- c.replyTo ! fights.map(entry => (entry._1, entry._2.map(_.id))).toMap
+                _ <- c.replyTo ! QueryServiceResponse().withGetPeriodFightsByMatsResponse(GetPeriodFightsByMatsResponse(
+                  fights.map(entry => (entry._1, ListOfString(entry._2.map(_.id)))).toMap
+                ))
               } yield state
             case c @ GetFightResulOptions(competitionId, categoryId, stageId) => for {
                 stage <- CompetitionQueryOperations[LIO].getStageById(competitionId)(categoryId, stageId)
                 fightResultOptions = stage.flatMap(_.stageResultDescriptor)
                   .map(_.fightResultOptions.map(DtoMapping.toDtoFightResultOption)).getOrElse(List.empty)
-                _ <- c.replyTo ! fightResultOptions
+                _ <- c.replyTo ! QueryServiceResponse()
+                  .withGetFightResulOptionsResponse(GetFightResulOptionsResponse(fightResultOptions))
               } yield state
             case c @ GetStagesForCategory(competitionId, categoryId) => CompetitionQueryOperations[LIO]
-                .getStagesByCategory(competitionId)(categoryId)
-                .flatMap(res => c.replyTo ! res.map(DtoMapping.toDtoStageDescriptor)).as(state)
+                .getStagesByCategory(competitionId)(categoryId).flatMap(res =>
+                  c.replyTo ! QueryServiceResponse().withGetStagesForCategoryResponse(GetStagesForCategoryResponse(
+                    res.map(DtoMapping.toDtoStageDescriptor)
+                  ))
+                ).as(state)
             case c @ GetStageById(competitionId, categoryId, stageId) => CompetitionQueryOperations[LIO]
-                .getStageById(competitionId)(categoryId, stageId)
-                .flatMap(res => c.replyTo ! res.map(DtoMapping.toDtoStageDescriptor)).as(state)
+                .getStageById(competitionId)(categoryId, stageId).flatMap(res =>
+                  c.replyTo ! QueryServiceResponse()
+                    .withGetStageByIdResponse(GetStageByIdResponse(res.map(DtoMapping.toDtoStageDescriptor)))
+                ).as(state)
             case c @ GetStageFights(competitionId, categoryId, stageId) => FightQueryOperations[LIO]
-                .getFightsByStage(competitionId)(categoryId, stageId).map(_.map(DtoMapping.toDtoFight))
-                .flatMap(res => c.replyTo ! res).as(state)
+                .getFightsByStage(competitionId)(categoryId, stageId).map(_.map(DtoMapping.toDtoFight)).flatMap(res =>
+                  c.replyTo ! QueryServiceResponse().withGetStageFightsResponse(GetStageFightsResponse(res))
+                ).as(state)
           }
         } yield res
       }
     }
 
-  private def createPageResponse(competitionId: String, res: (List[Competitor], Pagination)) = {
-    new PageResponse[CompetitorDTO](
-      competitionId,
-      res._2.totalResults.toLong,
-      Integer.signum(Integer.bitCount(res._2.maxResults)) * res._2.offset / Math.max(res._2.maxResults, 1),
-      res._1.map(DtoMapping.toDtoCompetitor).toArray
+  private def createGetCompetitorsResponse(res: (List[Competitor], Pagination)) = {
+    QueryServiceResponse().withGetCompetitorsResponse(
+      GetCompetitorsResponse().withCompetitors(res._1.map(DtoMapping.toDtoCompetitor)).withPageInfo(
+        PageInfo().withPage(
+          Integer.signum(Integer.bitCount(res._2.maxResults)) * res._2.offset / Math.max(res._2.maxResults, 1)
+        ).withTotal(res._2.totalResults)
+      )
     )
   }
 
@@ -381,7 +376,7 @@ object CompetitionApiActor {
     numberOfFights: Int,
     numberOfCompetitors: Int
   ) = {
-    new CategoryStateDTO().setCategory(DtoMapping.toDtoCategory(category)).setId(category.id)
-      .setCompetitionId(competitionId).setNumberOfCompetitors(numberOfCompetitors).setFightsNumber(numberOfFights)
+    model.CategoryState().withCategory(DtoMapping.toDtoCategory(category)).withId(category.id)
+      .withCompetitionId(competitionId).withNumberOfCompetitors(numberOfCompetitors).withFightsNumber(numberOfFights)
   }
 }

@@ -1,6 +1,7 @@
 package compman.compsrv.query.model
 
-import compman.compsrv.model.dto.competition.CompetitorRegistrationStatus
+
+import compservice.model.protobuf.model.CompetitorRegistrationStatus
 
 import java.time.Instant
 

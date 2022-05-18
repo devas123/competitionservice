@@ -3,14 +3,13 @@ package compman.compsrv.query.service.event
 import cats.Monad
 import cats.data.OptionT
 import compman.compsrv.Utils
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, FightCompetitorsAssignedEvent}
 import compman.compsrv.query.service.repository.{FightQueryOperations, FightUpdateOperations}
 
 object FightCompetitorsAssignedProc {
   import cats.implicits._
-  def apply[F[+_]: Monad: FightUpdateOperations: FightQueryOperations, P <: Payload]()
-    : PartialFunction[Event[P], F[Unit]] = { case x: FightCompetitorsAssignedEvent => apply[F](x) }
+  def apply[F[+_]: Monad: FightUpdateOperations: FightQueryOperations]()
+    : PartialFunction[Event[Any], F[Unit]] = { case x: FightCompetitorsAssignedEvent => apply[F](x) }
 
   private def apply[F[+_]: Monad: FightUpdateOperations: FightQueryOperations](
     event: FightCompetitorsAssignedEvent
@@ -19,8 +18,8 @@ object FightCompetitorsAssignedProc {
       payload       <- OptionT.fromOption[F](event.payload)
       competitionId <- OptionT.fromOption[F](event.competitionId)
       categoryId    <- OptionT.fromOption[F](event.categoryId)
-      assignments   <- OptionT.fromOption[F](Option(payload.getAssignments))
-      value = assignments.toList.flatMap(ass => List(ass.getToFightId, ass.getFromFightId))
+      assignments   <- OptionT.fromOption[F](Option(payload.assignments))
+      value = assignments.toList.flatMap(ass => List(ass.toFightId, ass.fromFightId))
       fightIds = value
         .filter(f => f != null)
         .toSet
@@ -28,16 +27,16 @@ object FightCompetitorsAssignedProc {
       fights = Utils.groupById(fightsList)(_.id)
       updates = assignments.toList.mapFilter(ass =>
         for {
-          fromFight <- fights.get(ass.getFromFightId)
-          toFight   <- fights.get(ass.getToFightId)
+          fromFight <- fights.get(ass.fromFightId)
+          toFight   <- fights.get(ass.toFightId)
         } yield (ass, fromFight, toFight)
       ).mapFilter { case (ass, fromFight, toFight) =>
         for {
           scores              <- Option(toFight.scores)
-          compId <- Option(ass.getCompetitorId)
+          compId <- Option(ass.competitorId)
           fromFightScore <- fromFight.scores.find(_.competitorId.contains(compId))
           score               <- scores.find(_.parentFightId.contains(fromFight.id))
-          parentReferenceType <- score.parentReferenceType.orElse(Option(ass.getReferenceType))
+          parentReferenceType <- score.parentReferenceType.orElse(Option(ass.referenceType))
           newScore = score
             .copy(competitorId = Option(compId),
               competitorFirstName = fromFightScore.competitorFirstName,

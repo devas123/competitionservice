@@ -1,12 +1,15 @@
 package compman.compsrv.logic.fight
 
-import compman.compsrv.model.commands.payload.ChangeFightOrderPayload
-import compman.compsrv.model.dto.competition.FightDescriptionDTO
-import compman.compsrv.model.dto.dashboard.MatDescriptionDTO
-import compman.compsrv.model.events.payload.FightOrderUpdate
+import com.google.protobuf.timestamp.Timestamp
+import com.google.protobuf.timestamp.Timestamp.toJavaProto
+import com.google.protobuf.util.Timestamps
+import compservice.model.protobuf.commandpayload.ChangeFightOrderPayload
+import compservice.model.protobuf.eventpayload.FightOrderUpdate
+import compservice.model.protobuf.model.{FightDescription, MatDescription}
 
 import java.time.temporal.ChronoUnit
 import java.time.Instant
+import java.util.Date
 import scala.collection.mutable.ListBuffer
 import scala.language.implicitConversions
 
@@ -21,18 +24,17 @@ object CommonFightUtils {
     startTime: Instant
   )
 
-  implicit def asMatView(mat: MatDescriptionDTO): MatView =
-    MatView(mat.getId, Option(mat.getName), mat.getPeriodId, mat.getMatOrder)
-  implicit def asFightView(fight: FightDescriptionDTO): FightView = FightView(
-    fight.getId,
-    fight.getMat,
-    fight.getNumberOnMat,
-    fight.getDuration.longValue(),
-    fight.getCategoryId,
-    fight.getStartTime
+  implicit def asMatView(mat: MatDescription): MatView = MatView(mat.id, Option(mat.name), mat.periodId, mat.matOrder)
+  implicit def asFightView(fight: FightDescription): FightView = FightView(
+    fight.id,
+    fight.mat.map(asMatView).orNull,
+    fight.numberOnMat.getOrElse(0),
+    fight.duration.longValue(),
+    fight.categoryId,
+    fight.startTime.map(st => Instant.ofEpochMilli(Timestamps.toMillis(toJavaProto(st)))).get
   )
 
-  implicit def asFightViews(fights: Map[String, FightDescriptionDTO]): Map[String, FightView] = fights.view
+  implicit def asFightViews(fights: Map[String, FightDescription]): Map[String, FightView] = fights.view
     .mapValues(asFightView).toMap
 
   def generateUpdates(
@@ -40,7 +42,7 @@ object CommonFightUtils {
     fight: FightView,
     fights: Map[String, FightView]
   ): Seq[(String, FightOrderUpdate)] = {
-    val newOrderOnMat                 = Math.max(payload.getNewOrderOnMat, 0)
+    val newOrderOnMat                 = Math.max(payload.newOrderOnMat, 0)
     var startTime: Option[Instant]    = None
     var maxStartTime: Option[Instant] = None
     val currentMat                    = fight.mat
@@ -56,17 +58,17 @@ object CommonFightUtils {
     }.getOrElse(m1 == null && m2 == null)
 
     def sameMatAsTargetFight(f: FightView) = {
-      f.id != payload.getFightId && matsEqual(f.mat, currentMat) && f.numberOnMat >= currentNumberOnMat
+      f.id != payload.fightId && matsEqual(f.mat, currentMat) && f.numberOnMat >= currentNumberOnMat
     }
 
     def isOnNewMat(f: FightView) = {
-      f.id != payload.getFightId && fightMatIdMatchesNewMatId(f, payload) && f.numberOnMat >= payload.getNewOrderOnMat
+      f.id != payload.fightId && fightMatIdMatchesNewMatId(f, payload) && f.numberOnMat >= payload.newOrderOnMat
     }
 
     def shouldUpdatePosition(f: FightView) = {
-      f.id != payload.getFightId && matsEqual(f.mat, currentMat) &&
-      f.numberOnMat >= Math.min(currentNumberOnMat, payload.getNewOrderOnMat) &&
-      f.numberOnMat <= Math.max(currentNumberOnMat, payload.getNewOrderOnMat)
+      f.id != payload.fightId && matsEqual(f.mat, currentMat) &&
+      f.numberOnMat >= Math.min(currentNumberOnMat, payload.newOrderOnMat) &&
+      f.numberOnMat <= Math.max(currentNumberOnMat, payload.newOrderOnMat)
     }
 
     if (!fightMatIdMatchesNewMatId(fight, payload)) {
@@ -88,7 +90,7 @@ object CommonFightUtils {
         startTime = sm
         if (shouldUpdatePosition(f)) {
           //first reduce numbers on the current mat
-          if (currentNumberOnMat > payload.getNewOrderOnMat) { updates.addOne(moveLater(duration, f)) }
+          if (currentNumberOnMat > payload.newOrderOnMat) { updates.addOne(moveLater(duration, f)) }
           else {
             //update fight
             updates.addOne(moveEarlier(duration, f))
@@ -98,8 +100,9 @@ object CommonFightUtils {
     }
     updates.addOne((
       fight.categoryId,
-      new FightOrderUpdate().setFightId(fight.id).setMatId(payload.getNewMatId)
-        .setStartTime(startTime.orElse(maxStartTime).orNull).setNumberOnMat(newOrderOnMat)
+      FightOrderUpdate().withFightId(fight.id).withMatId(payload.newMatId).withStartTime(
+        startTime.orElse(maxStartTime).map(Date.from).map(Timestamps.fromDate).map(Timestamp.fromJavaProto).orNull
+      ).withNumberOnMat(newOrderOnMat)
     ))
     updates.toSeq
   }
@@ -109,8 +112,9 @@ object CommonFightUtils {
   }
 
   private def createUpdate(f: FightView, newNumberOnMat: Int, newStarTime: Instant) = {
-    new FightOrderUpdate().setFightId(f.id).setMatId(Option(f.mat).flatMap(m => Option(m.id)).orNull)
-      .setNumberOnMat(newNumberOnMat).setStartTime(newStarTime)
+    FightOrderUpdate().withFightId(f.id).withMatId(Option(f.mat).flatMap(m => Option(m.id)).orNull)
+      .withNumberOnMat(newNumberOnMat)
+      .withStartTime(Timestamp.fromJavaProto(Timestamps.fromDate(Date.from(newStarTime))))
   }
 
   private def moveLater(duration: Long, f: FightView) = {
@@ -126,18 +130,17 @@ object CommonFightUtils {
   ): (Option[Instant], Option[Instant]) = {
     var startTime1    = startTime
     var maxStartTime1 = maxStartTime
-    if (f.id != payload.getFightId && fightMatIdMatchesNewMatId(f, payload) && f.numberOnMat == newOrderOnMat) {
+    if (f.id != payload.fightId && fightMatIdMatchesNewMatId(f, payload) && f.numberOnMat == newOrderOnMat) {
       startTime1 = Option(f.startTime)
     }
     if (
-      f.id != payload.getFightId && fightMatIdMatchesNewMatId(f, payload) &&
-      !maxStartTime1.exists(_.isAfter(f.startTime))
+      f.id != payload.fightId && fightMatIdMatchesNewMatId(f, payload) && !maxStartTime1.exists(_.isAfter(f.startTime))
     ) { maxStartTime1 = Option(f.startTime) }
     (maxStartTime1, startTime1)
   }
 
   private def fightMatIdMatchesNewMatId(f: FightView, payload: ChangeFightOrderPayload) = {
-    Option(f.mat).flatMap(m => Option(m.id)).contains(payload.getNewMatId)
+    Option(f.mat).flatMap(m => Option(m.id)).contains(payload.newMatId)
   }
 
 }

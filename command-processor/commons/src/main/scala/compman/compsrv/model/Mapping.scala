@@ -3,420 +3,410 @@ package compman.compsrv.model
 import cats.Monad
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.command.Commands
-import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.commands.payload._
-import compman.compsrv.model.commands.CommandType._
 import compman.compsrv.model.event.Events
 import compman.compsrv.model.event.Events._
-import compman.compsrv.model.events.EventDTO
-import compman.compsrv.model.events.EventType._
-import compman.compsrv.model.events.payload._
+import compservice.model.protobuf.command.{Command, CommandType}
+import compservice.model.protobuf.command.CommandType._
+import compservice.model.protobuf.event.{Event, EventType}
+import compservice.model.protobuf.event.EventType._
 import zio.Task
-
-import scala.util.Try
 
 object Mapping {
   trait CommandMapping[F[_]] {
-    def mapCommandDto(commandDTO: CommandDTO): F[Commands.Command[Payload]]
+    def mapCommandDto(commandDTO: Command): F[Commands.InternalCommandProcessorCommand[Any]]
   }
 
   object CommandMapping {
     def apply[F[_]](implicit F: CommandMapping[F]): CommandMapping[F] = F
 
-    val live: CommandMapping[LIO] = (commandDTO: CommandDTO) =>
+    val live: CommandMapping[LIO] = (dto: Command) =>
       Task {
-        commandDTO.getType match {
+        dto.`type` match {
           case CHANGE_COMPETITOR_CATEGORY_COMMAND => Commands.ChangeCompetitorCategoryCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[ChangeCompetitorCategoryPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getChangeCompetitorCategoryPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case SAVE_ABSOLUTE_CATEGORY_COMMAND => Commands.GenerateAbsoluteCategoryCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[GenerateAbsoluteCategoryPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getGenerateAbsoluteCategoryPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case GENERATE_SCHEDULE_COMMAND => Commands.GenerateScheduleCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[GenerateSchedulePayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getGenerateSchedulePayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case GENERATE_BRACKETS_COMMAND => Commands.GenerateBracketsCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[GenerateBracketsPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getGenerateBracketsPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case DROP_SCHEDULE_COMMAND => Commands
-              .DropScheduleCommand(competitionId = Option(commandDTO.getCompetitionId))
+              .DropScheduleCommand(competitionId = dto.messageInfo.map(_.competitionId))
           case DROP_ALL_BRACKETS_COMMAND => Commands
-              .DropAllBracketsCommand(competitionId = Option(commandDTO.getCompetitionId))
+              .DropAllBracketsCommand(competitionId = dto.messageInfo.map(_.competitionId))
           case DROP_CATEGORY_BRACKETS_COMMAND => Commands.DropBracketsCommand(
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case START_COMPETITION_COMMAND => Commands
-              .StartCompetition(competitionId = Option(commandDTO.getCompetitionId))
-          case STOP_COMPETITION_COMMAND => Commands.StopCompetition(competitionId = Option(commandDTO.getCompetitionId))
+              .StartCompetition(competitionId = dto.messageInfo.map(_.competitionId))
+          case STOP_COMPETITION_COMMAND => Commands
+              .StopCompetition(competitionId = dto.messageInfo.map(_.competitionId))
           case UPDATE_COMPETITION_PROPERTIES_COMMAND => Commands.UpdateCompetitionProperties(
-              payload = Try { commandDTO.getPayload.asInstanceOf[UpdateCompetionPropertiesPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId)
+              payload = dto.messageInfo.map(_.getUpdateCompetionPropertiesPayload),
+              competitionId = dto.messageInfo.map(_.competitionId)
             )
           case CREATE_COMPETITION_COMMAND => Commands.CreateCompetitionCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[CreateCompetitionPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getCreateCompetitionPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case PUBLISH_COMPETITION_COMMAND => Commands
-              .PublishCompetition(competitionId = Option(commandDTO.getCompetitionId))
+              .PublishCompetition(competitionId = dto.messageInfo.map(_.competitionId))
           case UNPUBLISH_COMPETITION_COMMAND => Commands
-              .UnpublishCompetition(competitionId = Option(commandDTO.getCompetitionId))
+              .UnpublishCompetition(competitionId = dto.messageInfo.map(_.competitionId))
 
           case DELETE_COMPETITION_COMMAND => Commands
-              .DeleteCompetition(competitionId = Option(commandDTO.getCompetitionId))
+              .DeleteCompetition(competitionId = dto.messageInfo.map(_.competitionId))
 
           case ADD_CATEGORY_COMMAND => Commands.AddCategory(
-              payload = Try { commandDTO.getPayload.asInstanceOf[AddCategoryPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId)
+              payload = dto.messageInfo.map(_.getAddCategoryPayload),
+              competitionId = dto.messageInfo.map(_.competitionId)
             )
           case GENERATE_CATEGORIES_COMMAND => Commands.GenerateCategoriesFromRestrictionsCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[GenerateCategoriesFromRestrictionsPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getGenerateCategoriesFromRestrictionsPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case DELETE_CATEGORY_COMMAND => Commands.DeleteCategoryCommand(
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case FIGHTS_EDITOR_APPLY_CHANGE => Commands.FightEditorApplyChangesCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[FightEditorApplyChangesPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getFightEditorApplyChangesPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case ADD_REGISTRATION_PERIOD_COMMAND => Commands.AddRegistrationPeriodCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[AddRegistrationPeriodPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getAddRegistrationPeriodPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case ADD_REGISTRATION_GROUP_COMMAND => Commands.AddRegistrationGroupCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[AddRegistrationGroupPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getAddRegistrationGroupPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case ADD_REGISTRATION_GROUP_TO_REGISTRATION_PERIOD_COMMAND => Commands
               .RegistrationPeriodAddRegistrationGroupCommand(
-                payload = Try { commandDTO.getPayload.asInstanceOf[RegistrationPeriodAddRegistrationGroupPayload] }
-                  .toOption,
-                competitionId = Option(commandDTO.getCompetitionId),
-                categoryId = Option(commandDTO.getCategoryId)
+                payload = dto.messageInfo.map(_.getRegistrationPeriodAddRegistrationGroupPayload),
+                competitionId = dto.messageInfo.map(_.competitionId),
+                categoryId = dto.messageInfo.map(_.categoryId)
               )
           case DELETE_REGISTRATION_GROUP_COMMAND => Commands.DeleteRegistrationGroupCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[DeleteRegistrationGroupPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getDeleteRegistrationGroupPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case DELETE_REGISTRATION_PERIOD_COMMAND => Commands.DeleteRegistrationPeriodCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[DeleteRegistrationPeriodPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getDeleteRegistrationPeriodPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case ASSIGN_REGISTRATION_GROUP_CATEGORIES_COMMAND => Commands.AssignRegistrationGroupCategoriesCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[AssignRegistrationGroupCategoriesPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getAssignRegistrationGroupCategoriesPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case UPDATE_REGISTRATION_INFO_COMMAND => Commands.UpdateRegistrationInfoCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[UpdateRegistrationInfoPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getUpdateRegistrationInfoPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case UPDATE_STAGE_STATUS_COMMAND => Commands.UpdateStageStatusCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[UpdateStageStatusPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getUpdateStageStatusPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case CHANGE_CATEGORY_REGISTRATION_STATUS_COMMAND => Commands.CategoryRegistrationStatusChangeCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[CategoryRegistrationStatusChangePayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getCategoryRegistrationStatusChangePayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case DASHBOARD_FIGHT_ORDER_CHANGE_COMMAND => Commands.ChangeFightOrderCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[ChangeFightOrderPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getChangeFightOrderPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case DASHBOARD_SET_FIGHT_RESULT_COMMAND => Commands.SetFightResultCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[SetFightResultPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getSetFightResultPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case ADD_COMPETITOR_COMMAND => Commands.AddCompetitorCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[AddCompetitorPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getAddCompetitorPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case CREATE_FAKE_COMPETITORS_COMMAND => Commands.CreateFakeCompetitors(
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case UPDATE_COMPETITOR_COMMAND => Commands.UpdateCompetitorCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[UpdateCompetitorPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getUpdateCompetitorPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case REMOVE_COMPETITOR_COMMAND => Commands.RemoveCompetitorCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[RemoveCompetitorPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getRemoveCompetitorPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
           case PROPAGATE_COMPETITORS_COMMAND => Commands.PropagateCompetitorsCommand(
-              payload = Try { commandDTO.getPayload.asInstanceOf[PropagateCompetitorsPayload] }.toOption,
-              competitionId = Option(commandDTO.getCompetitionId),
-              categoryId = Option(commandDTO.getCategoryId)
+              payload = dto.messageInfo.map(_.getPropagateCompetitorsPayload),
+              competitionId = dto.messageInfo.map(_.competitionId),
+              categoryId = dto.messageInfo.map(_.categoryId)
             )
-          case ADD_ACADEMY_COMMAND => Commands.AddAcademyCommand(
-            payload = Try { commandDTO.getPayload.asInstanceOf[AddAcademyPayload] }.toOption
-          )
-          case UPDATE_ACADEMY_COMMAND => Commands.UpdateAcademyCommand(
-            payload = Try { commandDTO.getPayload.asInstanceOf[UpdateAcademyPayload] }.toOption
-          )
-          case REMOVE_ACADEMY_COMMAND => Commands.RemoveAcademyCommand(
-            payload = Try { commandDTO.getPayload.asInstanceOf[RemoveAcademyPayload] }.toOption
-          )
+          case ADD_ACADEMY_COMMAND => Commands.AddAcademyCommand(payload = dto.messageInfo.map(_.getAddAcademyPayload))
+          case UPDATE_ACADEMY_COMMAND => Commands
+              .UpdateAcademyCommand(payload = dto.messageInfo.map(_.getUpdateAcademyPayload))
+          case REMOVE_ACADEMY_COMMAND => Commands
+              .RemoveAcademyCommand(payload = dto.messageInfo.map(_.getRemoveAcademyPayload))
+          case CommandType.UNKNOWN  => Commands.UnknownCommand(dto.messageInfo.map(_.competitionId))
+          case _: CommandType.Unrecognized  => Commands.UnknownCommand(dto.messageInfo.map(_.competitionId))
         }
       }
 
   }
   trait EventMapping[F[+_]] {
-    def mapEventDto(eventDto: EventDTO): F[Events.Event[Payload]]
+    def mapEventDto(dto: Event): F[Events.Event[Any]]
   }
 
   object EventMapping {
     def apply[F[+_]](implicit F: EventMapping[F]): EventMapping[F] = F
 
-    def create[F[+_]: Monad]: EventMapping[F] = (eventDto: EventDTO) =>
+    def create[F[+_]: Monad]: EventMapping[F] = (dto: Event) =>
       Monad[F].pure {
-        eventDto.getType match {
+        dto.`type` match {
           case FIGHT_ORDER_CHANGED => FightOrderChangedEvent(
-              Try { eventDto.getPayload.asInstanceOf[ChangeFightOrderPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getChangeFightOrderPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
           case BRACKETS_GENERATED => BracketsGeneratedEvent(
-              Try { eventDto.getPayload.asInstanceOf[BracketsGeneratedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getBracketsGeneratedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
           case SCHEDULE_GENERATED => ScheduleGeneratedEvent(
-              Try { eventDto.getPayload.asInstanceOf[ScheduleGeneratedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getScheduleGeneratedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case FIGHTS_ADDED_TO_STAGE => FightsAddedToStageEvent(
-              Try { eventDto.getPayload.asInstanceOf[FightsAddedToStagePayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getFightsAddedToStagePayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case STAGE_STATUS_UPDATED => StageStatusUpdatedEvent(
-              Try { eventDto.getPayload.asInstanceOf[StageStatusUpdatedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getStageStatusUpdatedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case COMPETITOR_ADDED => CompetitorAddedEvent(
-              Try { eventDto.getPayload.asInstanceOf[CompetitorAddedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getCompetitorAddedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case COMPETITOR_REMOVED => CompetitorRemovedEvent(
-              Try { eventDto.getPayload.asInstanceOf[CompetitorRemovedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getCompetitorRemovedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case COMPETITOR_UPDATED => CompetitorUpdatedEvent(
-              Try { eventDto.getPayload.asInstanceOf[CompetitorUpdatedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getCompetitorUpdatedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case COMPETITOR_CATEGORY_CHANGED => CompetitorCategoryChangedEvent(
-              Try { eventDto.getPayload.asInstanceOf[ChangeCompetitorCategoryPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getChangeCompetitorCategoryPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.localEventNumber
             )
 
           case COMPETITOR_CATEGORY_ADDED => CompetitorCategoryAddedEvent(
-              Try { eventDto.getPayload.asInstanceOf[CompetitorCategoryAddedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getCompetitorCategoryAddedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.localEventNumber
             )
 
           case CATEGORY_ADDED => CategoryAddedEvent(
-              Try { eventDto.getPayload.asInstanceOf[CategoryAddedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getCategoryAddedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case CATEGORY_DELETED => CategoryDeletedEvent(
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case CATEGORY_BRACKETS_DROPPED => CategoryBracketsDropped(
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case CATEGORY_REGISTRATION_STATUS_CHANGED => CategoryRegistrationStatusChanged(
-              Try { eventDto.getPayload.asInstanceOf[CategoryRegistrationStatusChangePayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getCategoryRegistrationStatusChangePayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case COMPETITION_CREATED => CompetitionCreatedEvent(
-              Try { eventDto.getPayload.asInstanceOf[CompetitionCreatedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getCompetitionCreatedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case COMPETITION_DELETED =>
-            CompetitionDeletedEvent(Option(eventDto.getCompetitionId), eventDto.getLocalEventNumber)
+            CompetitionDeletedEvent(dto.messageInfo.map(_.competitionId), dto.localEventNumber)
 
           case COMPETITION_PROPERTIES_UPDATED => CompetitionPropertiesUpdatedEvent(
-              Try { eventDto.getPayload.asInstanceOf[CompetitionPropertiesUpdatedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getCompetitionPropertiesUpdatedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.localEventNumber
             )
 
           case COMPETITORS_PROPAGATED_TO_STAGE => CompetitorsPropagatedToStageEvent(
-              Try { eventDto.getPayload.asInstanceOf[CompetitorsPropagatedToStagePayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getCompetitorsPropagatedToStagePayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case FIGHTS_START_TIME_UPDATED => FightStartTimeUpdatedEvent(
-              Try { eventDto.getPayload.asInstanceOf[FightStartTimeUpdatedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getFightStartTimeUpdatedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case FIGHTS_START_TIME_CLEANED => FightStartTimeCleaned(
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
               None,
-              eventDto.getLocalEventNumber
+              dto.localEventNumber
             )
 
           case FIGHTS_EDITOR_CHANGE_APPLIED => FightEditorChangesAppliedEvent(
-              Try { eventDto.getPayload.asInstanceOf[FightEditorChangesAppliedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getFightEditorChangesAppliedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
-          case SCHEDULE_DROPPED => ScheduleDropped(Option(eventDto.getCompetitionId), eventDto.getLocalEventNumber)
+          case SCHEDULE_DROPPED => ScheduleDropped(dto.messageInfo.map(_.competitionId), dto.localEventNumber)
 
           case REGISTRATION_PERIOD_ADDED => RegistrationPeriodAddedEvent(
-              Try { eventDto.getPayload.asInstanceOf[RegistrationPeriodAddedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getRegistrationPeriodAddedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case REGISTRATION_INFO_UPDATED => RegistrationInfoUpdatedEvent(
-              Try { eventDto.getPayload.asInstanceOf[RegistrationInfoUpdatedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getRegistrationInfoUpdatedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case REGISTRATION_PERIOD_DELETED => RegistrationPeriodDeletedEvent(
-              Try { eventDto.getPayload.asInstanceOf[RegistrationPeriodDeletedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getRegistrationPeriodDeletedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case REGISTRATION_GROUP_ADDED => RegistrationGroupAddedEvent(
-              Try { eventDto.getPayload.asInstanceOf[RegistrationGroupAddedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getRegistrationGroupAddedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case REGISTRATION_GROUP_DELETED => RegistrationGroupDeletedEvent(
-              Try { eventDto.getPayload.asInstanceOf[RegistrationGroupDeletedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getRegistrationGroupDeletedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case REGISTRATION_GROUP_CATEGORIES_ASSIGNED => RegistrationGroupCategoriesAssignedEvent(
-              Try { eventDto.getPayload.asInstanceOf[RegistrationGroupCategoriesAssignedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getRegistrationGroupCategoriesAssignedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case DASHBOARD_FIGHT_RESULT_SET => FightResultSet(
-              Try { eventDto.getPayload.asInstanceOf[SetFightResultPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
+              dto.messageInfo.map(_.getSetFightResultPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
               None,
-              eventDto.getLocalEventNumber
+              dto.localEventNumber
             )
 
           case DASHBOARD_FIGHT_COMPETITORS_ASSIGNED => FightCompetitorsAssignedEvent(
-              Try { eventDto.getPayload.asInstanceOf[FightCompetitorsAssignedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getFightCompetitorsAssignedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case DASHBOARD_STAGE_RESULT_SET => StageResultSetEvent(
-              Try { eventDto.getPayload.asInstanceOf[StageResultSetPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getStageResultSetPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
           case MATS_UPDATED => MatsUpdatedEvent(
-              Try { eventDto.getPayload.asInstanceOf[MatsUpdatedPayload] }.toOption,
-              Option(eventDto.getCompetitionId),
-              Option(eventDto.getCategoryId),
-              eventDto.getLocalEventNumber
+              dto.messageInfo.map(_.getMatsUpdatedPayload),
+              dto.messageInfo.map(_.competitionId),
+              dto.messageInfo.map(_.categoryId),
+              dto.localEventNumber
             )
 
-          case ACADEMY_ADDED => AcademyAddedEvent(
-            payload = Try { eventDto.getPayload.asInstanceOf[AddAcademyPayload] }.toOption,
-            eventDto.getLocalEventNumber
-          )
-          case ACADEMY_UPDATED => AcademyUpdatedEvent(
-            payload = Try { eventDto.getPayload.asInstanceOf[UpdateAcademyPayload] }.toOption,
-            eventDto.getLocalEventNumber
-          )
-          case ACADEMY_REMOVED => AcademyRemovedEvent(
-            payload = Try { eventDto.getPayload.asInstanceOf[RemoveAcademyPayload] }.toOption,
-            eventDto.getLocalEventNumber
-          )
+          case ACADEMY_ADDED =>
+            AcademyAddedEvent(payload = dto.messageInfo.map(_.getAddAcademyPayload), dto.localEventNumber)
+          case ACADEMY_UPDATED =>
+            AcademyUpdatedEvent(payload = dto.messageInfo.map(_.getUpdateAcademyPayload), dto.localEventNumber)
+          case ACADEMY_REMOVED =>
+            AcademyRemovedEvent(payload = dto.messageInfo.map(_.getRemoveAcademyPayload), dto.localEventNumber)
+          case EventType.UNKNOWN => Events.UnknownEvent(dto.messageInfo.map(_.competitionId), dto.localEventNumber)
+          case _: EventType.Unrecognized => Events.UnknownEvent(dto.messageInfo.map(_.competitionId), dto.localEventNumber)
         }
       }
 
@@ -425,10 +415,9 @@ object Mapping {
       create[LIO]
     }
 
-    def mapEventDto[F[+_]: EventMapping](eventDto: EventDTO): F[Events.Event[Payload]] = EventMapping[F]
-      .mapEventDto(eventDto)
+    def mapEventDto[F[+_]: EventMapping](dto: Event): F[Events.Event[Any]] = EventMapping[F].mapEventDto(dto)
   }
 
-  def mapCommandDto[F[+_]: CommandMapping](commandDTO: CommandDTO): F[Commands.Command[Payload]] = CommandMapping[F]
-    .mapCommandDto(commandDTO)
+  def mapCommandDto[F[+_]: CommandMapping](command: Command): F[Commands.InternalCommandProcessorCommand[Any]] =
+    CommandMapping[F].mapCommandDto(command)
 }

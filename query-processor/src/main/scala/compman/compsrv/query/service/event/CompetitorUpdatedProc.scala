@@ -2,15 +2,14 @@ package compman.compsrv.query.service.event
 
 import cats.Monad
 import cats.data.OptionT
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{CompetitorUpdatedEvent, Event}
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.{CompetitionQueryOperations, CompetitionUpdateOperations}
 
 object CompetitorUpdatedProc {
   import cats.implicits._
-  def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations, P <: Payload]()
-    : PartialFunction[Event[P], F[Unit]] = { case x: CompetitorUpdatedEvent => apply[F](x) }
+  def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations]()
+    : PartialFunction[Event[Any], F[Unit]] = { case x: CompetitorUpdatedEvent => apply[F](x) }
 
   private def apply[F[+_]: Monad: CompetitionUpdateOperations: CompetitionQueryOperations](
     event: CompetitorUpdatedEvent
@@ -18,8 +17,8 @@ object CompetitorUpdatedProc {
     for {
       payload       <- OptionT.fromOption[F](event.payload)
       competitionId <- OptionT.fromOption[F](event.competitionId)
-      dto           <- OptionT.fromOption[F](Option(payload.getFighter))
-      existing      <- OptionT(CompetitionQueryOperations[F].getCompetitorById(competitionId)(dto.getId))
+      dto           <- OptionT.fromOption[F](payload.competitor)
+      existing      <- OptionT(CompetitionQueryOperations[F].getCompetitorById(competitionId)(dto.id))
       newComp       <- OptionT.liftF(DtoMapping.mapCompetitor[F](dto))
       updated = existing.copy(
         email = newComp.email,

@@ -1,6 +1,5 @@
 package compman.compsrv.logic.actors.behavior
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, MessageReceived}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors._
@@ -8,18 +7,17 @@ import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model
-import compman.compsrv.model.{Mapping, Payload}
+import compman.compsrv.model.Mapping
 import compman.compsrv.model.Mapping.EventMapping
 import compman.compsrv.model.event.Events
 import compman.compsrv.model.event.Events.{CompetitionDeletedEvent, CompetitionPropertiesUpdatedEvent}
-import compman.compsrv.model.events.EventDTO
-import compman.compsrv.model.events.payload.CompetitionPropertiesUpdatedPayload
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.repository._
+import compservice.model.protobuf.event.Event
 import org.mongodb.scala.MongoClient
-import zio.{Cause, Queue, Ref, RIO, Tag, ZIO}
+import zio.{Cause, Queue, Ref, RIO, Tag, Task, ZIO}
 import zio.clock.Clock
 import zio.console.Console
 import zio.kafka.consumer.Offset
@@ -81,18 +79,20 @@ object CompetitionEventListener {
   val initialState: ActorState = ActorState()
 
   def behavior[R: Tag](
-    mapper: ObjectMapper,
-    competitionId: String,
+                        competitionId: String,
     topic: String,
     context: ActorContext,
     kafkaSupervisorActor: ActorRef[KafkaSupervisorCommand],
     competitionEventListenerSupervisor: ActorRef[CompetitionEventListenerSupervisor.ActorMessages],
     websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
   ): ActorBehavior[R with Logging with Clock with Console, ActorState, ApiCommand] = {
-    def notifyEventListenerSupervisor[A](topic: String, event: EventDTO, mapped: Events.Event[Payload]) = {
+    def notifyEventListenerSupervisor(topic: String, event: Event, mapped: Events.Event[Any]): Task[Unit] = {
       mapped match {
-        case CompetitionPropertiesUpdatedEvent(_, _, _) => competitionEventListenerSupervisor !
-            CompetitionUpdated(event.getPayload.asInstanceOf[CompetitionPropertiesUpdatedPayload], topic)
+        case CompetitionPropertiesUpdatedEvent(_, _, _) => ZIO
+            .fromOption(event.messageInfo.flatMap(_.payload.competitionPropertiesUpdatedPayload)).mapBoth(
+              _ => new Exception("No payload"),
+              { payload => competitionEventListenerSupervisor ! CompetitionUpdated(payload, topic) }
+            ).unit
         case CompetitionDeletedEvent(competitionId, _) => competitionId
             .map(id => competitionEventListenerSupervisor ! CompetitionDeletedMessage(id)).getOrElse(ZIO.unit)
         case _ => ZIO.unit
@@ -114,10 +114,10 @@ object CompetitionEventListener {
                     .as(state)
                 case MessageReceived(topic, record) => {
                     for {
-                      event  <- ZIO.effect(mapper.readValue(record.value, classOf[EventDTO]))
+                      event  <- ZIO.effect(Event.parseFrom(record.value))
                       mapped <- EventMapping.mapEventDto[LIO](event)
                       _      <- Logging.info(s"Received event: $mapped")
-                      _      <- EventProcessors.applyEvent[LIO, Payload](mapped)
+                      _      <- EventProcessors.applyEvent[LIO](mapped)
                       _      <- notifyEventListenerSupervisor(topic, event, mapped)
                       _ <- (websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)).fork
                       _ <- context.self ! CommitOffset(record.offset)
@@ -125,7 +125,7 @@ object CompetitionEventListener {
                   }.onError(cause => logError(cause.squash))
               }
 
-            case Stop                 => Logging.info("Received stop command. Stopping...") *> context.stopSelf.as(state)
+            case Stop => Logging.info("Received stop command. Stopping...") *> context.stopSelf.as(state)
             case CommitOffset(offset) => state.queue.map(_.offer(offset)).getOrElse(RIO.unit).as(state)
             case SetQueue(queue) => Logging.info("Setting queue.") *> ZIO.effectTotal(state.copy(queue = Some(queue)))
           }

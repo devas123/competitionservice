@@ -1,33 +1,33 @@
 package compman.compsrv.jackson
 
-import compman.compsrv.model.commands.{CommandDTO, CommandType}
-import compman.compsrv.model.commands.payload.CreateCompetitionPayload
-import compman.compsrv.model.dto.competition.{CompetitionPropertiesDTO, RegistrationInfoDTO}
-import zio.{Task, ZIO}
+import compservice.model.protobuf.command.{Command, CommandType}
+import compservice.model.protobuf.commandpayload.CreateCompetitionPayload
+import compservice.model.protobuf.common.MessageInfo
+import compservice.model.protobuf.model.{CompetitionProperties, RegistrationInfo}
+import zio.Task
 import zio.test._
 
 object SerdeApiTest extends DefaultRunnableSpec {
   override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
     suite("Command serializer")(testM("Command serializer should deserialize command") {
       for {
-        mapper <- ZIO.effectTotal(ObjectMapperFactory.createObjectMapper)
-        competitionId = "CompetitionId"
+        competitionId <- Task("CompetitionId")
         command <- Task {
-          val cmd = new CommandDTO()
-          cmd.setType(CommandType.CREATE_COMPETITION_COMMAND)
-          cmd.setCompetitionId(competitionId)
-          cmd.setPayload(
-            new CreateCompetitionPayload().setReginfo(new RegistrationInfoDTO().setId(competitionId))
-              .setProperties(new CompetitionPropertiesDTO().setId(competitionId))
+          Command().withType(CommandType.CREATE_COMPETITION_COMMAND).withMessageInfo(
+            MessageInfo().withCompetitionId(competitionId).withPayload(MessageInfo.Payload.CreateCompetitionPayload(
+              CreateCompetitionPayload().withReginfo(RegistrationInfo().withId(competitionId))
+                .withProperties(CompetitionProperties().withId(competitionId))
+            ))
           )
-          cmd
         }
-        bytes = mapper.writeValueAsBytes(command)
+        bytes = command.toByteArray
         _ <- Task(println(new String(bytes)))
-        deser = mapper.readValue(bytes, classOf[CommandDTO])
+        deser = Command.parseFrom(bytes)
 
-      } yield assertTrue(deser.getPayload != null) &&
-        assertTrue(deser.getPayload.isInstanceOf[CreateCompetitionPayload]) &&
-        assertTrue(deser.getPayload.asInstanceOf[CreateCompetitionPayload].getProperties.getId == competitionId)
+      } yield assertTrue(deser.messageInfo.map(_.payload).isDefined) &&
+        assertTrue(deser.messageInfo.map(_.payload).exists(_.isCreateCompetitionPayload)) &&
+        assertTrue(deser.messageInfo.map(_.payload).exists(p =>
+          p.createCompetitionPayload.flatMap(_.properties).exists(_.id == competitionId)
+        ))
     })
 }

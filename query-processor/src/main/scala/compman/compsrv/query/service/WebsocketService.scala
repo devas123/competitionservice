@@ -1,11 +1,9 @@
 package compman.compsrv.query.service
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import compman.compsrv.logic.actors.behavior.WebsocketConnectionSupervisor
 import compman.compsrv.logic.actors.ActorRef
-import compman.compsrv.model.events.EventDTO
-import compman.compsrv.query.serde.ObjectMapperFactory
 import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO
+import compservice.model.protobuf.event.Event
 import org.http4s.HttpRoutes
 import org.http4s.dsl.Http4sDsl
 import org.http4s.server.websocket.WebSocketBuilder
@@ -20,8 +18,6 @@ import scala.concurrent.duration.DurationInt
 
 object WebsocketService {
 
-  val decoder: ObjectMapper = ObjectMapperFactory.createObjectMapper
-
   private val dsl = Http4sDsl[ServiceIO]
 
   import dsl._
@@ -32,11 +28,11 @@ object WebsocketService {
     HttpRoutes.of[ServiceIO] { case GET -> Root / "events" / competitionId =>
       for {
         clientId <- ZIO.effect(UUID.randomUUID().toString)
-        queue    <- Queue.unbounded[EventDTO]
+        queue    <- Queue.unbounded[Event]
         stream = zio.stream.Stream.fromQueue(queue)
-        fs2S   = stream.toFs2Stream.asInstanceOf[fs2.Stream[ServiceIO, EventDTO]]
+        fs2S   = stream.toFs2Stream.asInstanceOf[fs2.Stream[ServiceIO, Event]]
         ws <- WebSocketBuilder[ServiceIO].build(
-          fs2S.map(event => WebSocketFrame.Binary(ByteVector(decoder.writeValueAsBytes(event)))),
+          fs2S.map(event => WebSocketFrame.Binary(ByteVector(event.toByteArray))),
           s =>
             s.evalMap({
               case Close(_) => Logging.info(s"Connection closed. Finishing") *>

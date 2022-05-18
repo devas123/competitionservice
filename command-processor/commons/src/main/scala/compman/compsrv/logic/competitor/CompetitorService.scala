@@ -1,10 +1,12 @@
 package compman.compsrv.logic.competitor
 
-import compman.compsrv.model.dto.competition.{AcademyDTO, CompetitorDTO, CompetitorRegistrationStatus}
+import com.google.protobuf.timestamp.Timestamp
+import com.google.protobuf.util.Timestamps
+import compservice.model.protobuf.model.{Academy, Competitor, CompetitorRegistrationStatus}
 
-import java.time.Instant
 import java.util.UUID
 import scala.annotation.tailrec
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.util.Random
 
@@ -45,15 +47,15 @@ object CompetitorService {
 
   private def generateRandomString(chars: Array[Char], random: Random, length: Int): String = {
     @tailrec
-    def loop(result: StringBuilder, chars: Array[Char], length: Int, random: Random): String = {
+    def loop(result: mutable.StringBuilder, chars: Array[Char], length: Int, random: Random): String = {
       if (result.length >= length) { result.toString() }
       else { loop(result.append(chars(random.nextInt(chars.length))), chars, length, random) }
     }
-    loop(new StringBuilder(), chars, length, random)
+    loop(new mutable.StringBuilder(), chars, length, random)
   }
 
   private def generateEmail(random: Random): String = {
-    val emailBuilder = new StringBuilder()
+    val emailBuilder = new mutable.StringBuilder()
     emailBuilder.append(generateRandomString(validChars, random, 10)).append("@")
       .append(generateRandomString(validChars, random, 7)).append(".")
       .append(generateRandomString(validChars, random, 4)).toString()
@@ -64,17 +66,22 @@ object CompetitorService {
     academies: Int = 20,
     categoryId: String,
     competitionId: String
-  ): List[CompetitorDTO] = {
+  ): List[Competitor] = {
     val random = new Random()
-    val result = ListBuffer.empty[CompetitorDTO]
+    val result = ListBuffer.empty[Competitor]
     for (_ <- 1 to size) {
       val email = generateEmail(random)
       result.addOne(
-        new CompetitorDTO().setId(UUID.randomUUID().toString).setEmail(email)
-          .setFirstName(names(random.nextInt(names.length))).setLastName(surnames(random.nextInt(surnames.length)))
-          .setBirthDate(Instant.now()).setRegistrationStatus(CompetitorRegistrationStatus.SUCCESS_CONFIRMED)
-          .setAcademy(new AcademyDTO(UUID.randomUUID().toString, s"Academy${random.nextInt(academies)}"))
-          .setCategories(Array(categoryId)).setCompetitionId(competitionId)
+        Competitor()
+          .withId(UUID.randomUUID().toString)
+          .withEmail(email)
+          .withFirstName(names(random.nextInt(names.length)))
+          .withLastName(surnames(random.nextInt(surnames.length)))
+          .withBirthDate(Timestamp.fromJavaProto(Timestamps.fromMillis(System.currentTimeMillis())))
+          .withRegistrationStatus(CompetitorRegistrationStatus.SUCCESS_CONFIRMED)
+          .withAcademy(Academy(UUID.randomUUID().toString, s"Academy${random.nextInt(academies)}"))
+          .withCategories(Seq(categoryId))
+          .withCompetitionId(competitionId)
       )
     }
     result.toList

@@ -4,17 +4,18 @@ import cats.data.EitherT
 import cats.Monad
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.model.{Errors, Payload}
-import compman.compsrv.model.command.Commands.{AddCompetitorCommand, Command}
-import compman.compsrv.model.events.{EventDTO, EventType}
-import compman.compsrv.model.events.payload.CompetitorAddedPayload
+import compman.compsrv.model.command.Commands.{AddCompetitorCommand, InternalCommandProcessorCommand}
+import compman.compsrv.model.Errors
 import compman.compsrv.model.Errors.{CompetitorAlreadyExists, InternalError}
+import compservice.model.protobuf.common.MessageInfo
+import compservice.model.protobuf.event.{Event, EventType}
+import compservice.model.protobuf.eventpayload.CompetitorAddedPayload
 
 object AddCompetitorProc {
 
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
       state: CompetitionState
-  ): PartialFunction[Command[P], F[Either[Errors.Error, Seq[EventDTO]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ AddCompetitorCommand(_, _, _) =>
       addCompetitor(x, state)
   }
@@ -22,8 +23,8 @@ object AddCompetitorProc {
   private def addCompetitor[F[+_]: Monad: IdOperations: EventOperations](
       command: AddCompetitorCommand,
       state: CompetitionState
-  ): F[Either[Errors.Error, Seq[EventDTO]]] = {
-    val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] =
+  ): F[Either[Errors.Error, Seq[Event]]] = {
+    val eventT: EitherT[F, Errors.Error, Seq[Event]] =
       for {
         payload <- EitherT.fromOption(command.payload, InternalError())
         id <- EitherT
@@ -32,18 +33,18 @@ object AddCompetitorProc {
           .fromOption(state.competitors.map(_.contains(id)), Errors.InternalError())
         event <-
           if (exists) {
-            EitherT.liftF[F, Errors.Error, EventDTO](
-              CommandEventOperations[F, EventDTO, EventType].create(
+            EitherT.liftF[F, Errors.Error, Event](
+              CommandEventOperations[F, Event].create(
                 `type` = EventType.COMPETITOR_ADDED,
                 competitorId = Some(id),
                 competitionId = command.competitionId,
                 categoryId = command.categoryId,
-                payload = Some(new CompetitorAddedPayload(payload.getCompetitor))
+                payload = Some(MessageInfo.Payload.CompetitorAddedPayload(CompetitorAddedPayload(payload.competitor)))
               )
             )
           } else {
             EitherT(
-              CommandEventOperations[F, EventDTO, EventType]
+              CommandEventOperations[F, Event]
                 .error(CompetitorAlreadyExists(id, payload.getCompetitor))
             )
           }

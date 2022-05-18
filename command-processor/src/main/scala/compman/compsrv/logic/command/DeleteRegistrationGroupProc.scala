@@ -4,60 +4,45 @@ import cats.Monad
 import cats.data.EitherT
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.model.{Errors, Payload}
-import compman.compsrv.model.command.Commands.{Command, DeleteRegistrationGroupCommand}
-import compman.compsrv.model.events.{EventDTO, EventType}
+import compman.compsrv.model.Errors
+import compman.compsrv.model.command.Commands.{DeleteRegistrationGroupCommand, InternalCommandProcessorCommand}
 import compman.compsrv.model.Errors.NoPayloadError
-import compman.compsrv.model.events.payload.RegistrationGroupDeletedPayload
+import compservice.model.protobuf.common.MessageInfo
+import compservice.model.protobuf.event.{Event, EventType}
+import compservice.model.protobuf.eventpayload.RegistrationGroupDeletedPayload
 
 object DeleteRegistrationGroupProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
-      state: CompetitionState
-  ): PartialFunction[Command[P], F[Either[Errors.Error, Seq[EventDTO]]]] = {
-    case x @ DeleteRegistrationGroupCommand(_, _, _) =>
-      process(x, state)
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
+    state: CompetitionState
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
+    case x @ DeleteRegistrationGroupCommand(_, _, _) => process(x, state)
   }
 
   private def process[F[+_]: Monad: IdOperations: EventOperations](
-      command: DeleteRegistrationGroupCommand,
-      state: CompetitionState
-  ): F[Either[Errors.Error, Seq[EventDTO]]] = {
-    val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] =
-      for {
-        payload <- EitherT.fromOption(command.payload, NoPayloadError())
-        groupExists = state
-          .registrationInfo
-          .exists(_.getRegistrationGroups.containsKey(payload.getGroupId))
-        periodExists = state
-          .registrationInfo
-          .exists(_.getRegistrationPeriods.containsKey(payload.getPeriodId))
-        event <-
-          if (!groupExists) {
-            EitherT.fromEither(
-              Left[Errors.Error, EventDTO](Errors.RegistrationGroupDoesNotExist(payload.getGroupId))
-            )
-          } else if (!periodExists) {
-            EitherT.fromEither(
-              Left[Errors.Error, EventDTO](
-                Errors.RegistrationPeriodDoesNotExist(payload.getPeriodId)
-              )
-            )
-          } else {
-            EitherT.liftF[F, Errors.Error, EventDTO](
-              CommandEventOperations[F, EventDTO, EventType].create(
-                `type` = EventType.REGISTRATION_GROUP_DELETED,
-                competitorId = None,
-                competitionId = command.competitionId,
-                categoryId = command.categoryId,
-                payload = Some(
-                  new RegistrationGroupDeletedPayload()
-                    .setGroupId(payload.getGroupId)
-                    .setPeriodId(payload.getPeriodId)
-                )
-              )
-            )
-          }
-      } yield Seq(event)
+    command: DeleteRegistrationGroupCommand,
+    state: CompetitionState
+  ): F[Either[Errors.Error, Seq[Event]]] = {
+    val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
+      payload <- EitherT.fromOption(command.payload, NoPayloadError())
+      groupExists  = state.registrationInfo.exists(_.registrationGroups.contains(payload.groupId))
+      periodExists = state.registrationInfo.exists(_.registrationPeriods.contains(payload.periodId))
+      event <-
+        if (!groupExists) {
+          EitherT.fromEither(Left[Errors.Error, Event](Errors.RegistrationGroupDoesNotExist(payload.groupId)))
+        } else if (!periodExists) {
+          EitherT.fromEither(Left[Errors.Error, Event](Errors.RegistrationPeriodDoesNotExist(payload.periodId)))
+        } else {
+          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
+            `type` = EventType.REGISTRATION_GROUP_DELETED,
+            competitorId = None,
+            competitionId = command.competitionId,
+            categoryId = command.categoryId,
+            payload = Some(MessageInfo.Payload.RegistrationGroupDeletedPayload(
+              RegistrationGroupDeletedPayload().withGroupId(payload.groupId).withPeriodId(payload.periodId)
+            ))
+          ))
+        }
+    } yield Seq(event)
     eventT.value
   }
 }

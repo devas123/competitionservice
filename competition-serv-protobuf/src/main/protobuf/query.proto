@@ -1,0 +1,136 @@
+syntax = "proto3";
+package compservice.model.protobuf;
+import "model.proto";
+
+message GenerateCategoriesFromRestrictionsRequest{
+  repeated CategoryRestriction restrictions = 1;
+  repeated AdjacencyList idTrees = 2;
+  repeated string restrictionNames = 3;
+}
+
+message ListOfString {
+  repeated string ids = 1;
+}
+
+message MatFightsQueryResult {
+  repeated Competitor competitors = 1;
+  repeated FightDescription fights = 2;
+}
+
+message PageInfo {
+  int32 total = 1;
+  int32 page = 2;
+}
+
+message MatsQueryResult {
+  repeated Competitor competitors = 1;
+  repeated MatState mats = 2;
+}
+
+message QueryServiceResponse {
+  oneof payload {
+    GetDefaultRestrictionsResponse     getDefaultRestrictionsResponse = 1;
+    GetDefaultFightResultsResponse         getDefaultFightResultsResponse = 2;
+    GetAllCompetitionsResponse     getAllCompetitionsResponse = 3;
+    GenerateCategoriesFromRestrictionsResponse         generateCategoriesFromRestrictionsResponse = 4;
+    GetCompetitionPropertiesResponse     getCompetitionPropertiesResponse = 5;
+    GetCompetitionInfoTemplateResponse         getCompetitionInfoTemplateResponse = 6;
+    GetScheduleResponse     getScheduleResponse = 7;
+    GetCompetitorsResponse         getCompetitorsResponse = 8;
+    GetCompetitorResponse     getCompetitorResponse = 9;
+    GetDashboardResponse         getDashboardResponse = 10;
+    GetMatsResponse     getMatsResponse = 11;
+    GetPeriodMatsResponse         getPeriodMatsResponse = 12;
+    GetMatResponse     getMatResponse = 13;
+    GetMatFightsResponse         getMatFightsResponse = 14;
+    GetRegistrationInfoResponse     getRegistrationInfoResponse = 15;
+    GetCategoriesResponse         getCategoriesResponse = 16;
+    GetFightByIdResponse     getFightByIdResponse = 17;
+    GetFightIdsByCategoryIdsResponse         getFightIdsByCategoryIdsResponse = 18;
+    GetCategoryResponse     getCategoryResponse = 19;
+    GetPeriodFightsByMatsResponse         getPeriodFightsByMatsResponse = 20;
+    GetFightResulOptionsResponse     getFightResulOptionsResponse = 21;
+    GetStagesForCategoryResponse         getStagesForCategoryResponse = 22;
+    GetStageByIdResponse     getStageByIdResponse = 23;
+    GetStageFightsResponse         getStageFightsResponse = 24 ;
+    GetAcademiesResponse getAcademiesResponse = 25;
+  }
+}
+
+message GetDefaultRestrictionsResponse{
+  repeated CategoryRestriction restrictions = 1;
+}
+message GetDefaultFightResultsResponse{
+  repeated FightResultOption fightResultOptions = 1;
+}
+message GetAllCompetitionsResponse{
+  repeated ManagedCompetition managedCompetitions = 1;
+}
+message GenerateCategoriesFromRestrictionsResponse {
+  repeated CategoryDescriptor categories = 1;
+}
+message GetCompetitionPropertiesResponse{
+  optional CompetitionProperties competitionProperties = 1;
+}
+message GetCompetitionInfoTemplateResponse{
+  optional string template = 1;
+}
+message GetScheduleResponse{
+  optional Schedule schedule = 1;
+}
+message GetCompetitorsResponse{
+  PageInfo pageInfo = 1;
+  repeated Competitor competitors = 2;
+}
+message GetCompetitorResponse {
+  optional Competitor competitor = 1;
+}
+message GetDashboardResponse{
+  repeated Period periods = 1;
+}
+message GetMatsResponse{
+  repeated MatDescription mats = 1;
+}
+message GetPeriodMatsResponse{
+  MatsQueryResult matsQueryResults = 1;
+}
+message GetMatResponse{
+  optional MatDescription mat = 1;
+}
+message GetMatFightsResponse {
+  MatFightsQueryResult matFights = 1;
+}
+message GetRegistrationInfoResponse{
+  optional RegistrationInfo registrationInfo = 1;
+}
+message GetCategoriesResponse{
+  repeated CategoryState categoryState = 1;
+}
+message GetFightByIdResponse{
+  optional FightDescription   fightDescription = 1;
+}
+message GetFightIdsByCategoryIdsResponse{
+  map<string, ListOfString> fightIdsByCategoryId = 1;
+}
+message GetCategoryResponse{
+  optional CategoryState categoryState = 1;
+}
+message GetPeriodFightsByMatsResponse{
+  map<string, ListOfString> fightIdsByMatId = 1;
+}
+message GetFightResulOptionsResponse{
+  repeated FightResultOption fightResultOptions = 1;
+}
+message GetStagesForCategoryResponse{
+  repeated StageDescriptor stages = 1;
+}
+message GetStageByIdResponse{
+  optional StageDescriptor stage = 1;
+}
+message GetStageFightsResponse{
+  repeated FightDescription fights = 1;
+}
+
+message GetAcademiesResponse {
+  repeated FullAcademyInfo academies = 1;
+}

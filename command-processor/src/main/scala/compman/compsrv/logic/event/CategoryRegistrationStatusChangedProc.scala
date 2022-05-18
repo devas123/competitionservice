@@ -3,13 +3,12 @@ package compman.compsrv.logic.event
 import cats.Monad
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{CategoryRegistrationStatusChanged, Event}
 
 object CategoryRegistrationStatusChangedProc {
-  def apply[F[+_] : Monad : IdOperations : EventOperations, P <: Payload](
+  def apply[F[+_] : Monad : IdOperations : EventOperations](
                                                                            state: CompetitionState
-                                                                         ): PartialFunction[Event[P], F[Option[CompetitionState]]] = {
+                                                                         ): PartialFunction[Event[Any], F[Option[CompetitionState]]] = {
     case x: CategoryRegistrationStatusChanged =>
       apply[F](x, state)
   }
@@ -21,7 +20,7 @@ object CategoryRegistrationStatusChangedProc {
     val eventT = for {
       payload <- event.payload
       comProps <- state.registrationInfo
-      newState = state.copy(registrationInfo = Some(comProps.setRegistrationOpen(payload.isNewStatus)))
+      newState = state.copy(registrationInfo = Some(comProps.withRegistrationOpen(payload.newStatus)))
     } yield newState
     Monad[F].pure(eventT)
   }

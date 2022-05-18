@@ -1,7 +1,7 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.logic.actors.EventSourcedMessages.Command
+import compman.compsrv.logic.actors.EventSourcedMessages.EventSourcingCommand
 import zio.{Fiber, RIO, ZIO}
 import zio.clock.Clock
 import zio.console.putStrLn
@@ -63,14 +63,14 @@ object Utils {
 
   def mainActorBehaviorEventSourced(): EventSourcedBehavior[TestEnvironment, Unit, Msg, Events] =
     new EventSourcedBehavior[TestEnvironment, Unit, Msg, Events]("123") {
-      private val u: (EventSourcedMessages.Command[Events], Unit => Unit) = (Command.ignore, _ => ())
+      private val u: (EventSourcedMessages.EventSourcingCommand[Events], Unit => Unit) = (EventSourcingCommand.ignore, _ => ())
       override def receive(
         context: Context[Msg],
         actorConfig: ActorConfig,
         state: Unit,
         command: Msg,
         timers: Timers[TestEnvironment, Msg]
-      ): RIO[TestEnvironment, (EventSourcedMessages.Command[Events], Unit => Unit)] = command match {
+      ): RIO[TestEnvironment, (EventSourcedMessages.EventSourcingCommand[Events], Unit => Unit)] = command match {
         case Stop => (putStrLn("Main Stopping").unit *> context.stopSelf.unit).as(u)
         case Test => putStrLn("Main Failing") *> ZIO.fail(new RuntimeException("Test exception"))
         case Fail => putStrLn("Main Interrupting") *> ZIO.interrupt

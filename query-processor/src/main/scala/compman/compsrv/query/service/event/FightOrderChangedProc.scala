@@ -2,7 +2,6 @@ package compman.compsrv.query.service.event
 
 import cats.Monad
 import cats.data.OptionT
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, FightOrderChangedEvent}
 import compman.compsrv.query.model.{Fight, FightOrderUpdateExtended, Mat}
 import compman.compsrv.query.service.repository.{CompetitionQueryOperations, FightQueryOperations, FightUpdateOperations}
@@ -26,8 +25,8 @@ object FightOrderChangedProc {
     .mapValues(asFightView).toMap
 
 
-  def apply[F[+_]: Monad: FightQueryOperations: FightUpdateOperations: CompetitionQueryOperations, P <: Payload]()
-    : PartialFunction[Event[P], F[Unit]] = { case x: FightOrderChangedEvent => apply[F](x) }
+  def apply[F[+_]: Monad: FightQueryOperations: FightUpdateOperations: CompetitionQueryOperations]()
+    : PartialFunction[Event[Any], F[Unit]] = { case x: FightOrderChangedEvent => apply[F](x) }
 
   private def apply[F[+_]: Monad: FightUpdateOperations: FightQueryOperations: CompetitionQueryOperations](
     event: FightOrderChangedEvent
@@ -36,11 +35,11 @@ object FightOrderChangedProc {
       payload       <- OptionT.fromOption[F](event.payload)
       competitionId <- OptionT.fromOption[F](event.competitionId)
       categoryId    <- OptionT.fromOption[F](event.categoryId)
-      fight         <- OptionT(FightQueryOperations[F].getFightById(competitionId)(categoryId, payload.getFightId))
+      fight         <- OptionT(FightQueryOperations[F].getFightById(competitionId)(categoryId, payload.fightId))
       oldMatId      <- OptionT.fromOption[F](fight.matId)
-      newMatFights  <- OptionT.liftF(FightQueryOperations[F].getFightsByMat(competitionId)(payload.getNewMatId, 1000))
+      newMatFights  <- OptionT.liftF(FightQueryOperations[F].getFightsByMat(competitionId)(payload.newMatId, 1000))
       oldMatFights <-
-        if (oldMatId == payload.getNewMatId) OptionT.fromOption[F](Some(List.empty[Fight]))
+        if (oldMatId == payload.newMatId) OptionT.fromOption[F](Some(List.empty[Fight]))
         else OptionT.liftF(FightQueryOperations[F].getFightsByMat(competitionId)(oldMatId, 1000))
       matFights = Utils.groupById(oldMatFights ++ newMatFights)(_.id)
       updates = CommonFightUtils.generateUpdates(payload, asFightView(fight), asFightViews(matFights))

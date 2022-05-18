@@ -1,6 +1,7 @@
 package compman.compsrv.query.model
 
-import compman.compsrv.model.dto.schedule.ScheduleRequirementType
+
+import compservice.model.protobuf.model.ScheduleRequirementType
 
 import java.util.Date
 

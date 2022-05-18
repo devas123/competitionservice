@@ -2,7 +2,6 @@ package compman.compsrv.query.service.event
 
 import cats.Monad
 import cats.data.OptionT
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{Event, FightResultSet}
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.model.CompetitorDisplayInfo
@@ -11,18 +10,18 @@ import compman.compsrv.Utils
 
 object FightResultSetProc {
   import cats.implicits._
-  def apply[F[+_]: Monad: FightUpdateOperations: CompetitionQueryOperations, P <: Payload]()
-    : PartialFunction[Event[P], F[Unit]] = { case x: FightResultSet => apply[F](x) }
+  def apply[F[+_]: Monad: FightUpdateOperations: CompetitionQueryOperations]()
+    : PartialFunction[Event[Any], F[Unit]] = { case x: FightResultSet => apply[F](x) }
 
   private def apply[F[+_]: Monad: FightUpdateOperations: CompetitionQueryOperations](event: FightResultSet): F[Unit] = {
     for {
       payload        <- OptionT.fromOption[F](event.payload)
-      fightId        <- OptionT.fromOption[F](Option(payload.getFightId))
+      fightId        <- OptionT.fromOption[F](Option(payload.fightId))
       competitionId  <- OptionT.fromOption[F](event.competitionId)
-      fightResultDto <- OptionT.fromOption[F](Option(payload.getFightResult))
-      fightStatus <- OptionT.fromOption[F](Option(payload.getStatus))
-      scoresDto      <- OptionT.fromOption[F](Option(payload.getScores))
-      competitorIds = scoresDto.map(_.getCompetitorId).filter(_ != null)
+      fightResultDto <- OptionT.fromOption[F](payload.fightResult)
+      fightStatus <- OptionT.fromOption[F](Option(payload.status))
+      scoresDto      <- OptionT.fromOption[F](Option(payload.scores))
+      competitorIds = scoresDto.mapFilter(_.competitorId).filter(_ != null)
       competitors <- competitorIds.toList
         .traverse(id => OptionT(CompetitionQueryOperations[F].getCompetitorById(competitionId)(id)))
       competitorsMap = Utils.groupById(competitors)(_.id)

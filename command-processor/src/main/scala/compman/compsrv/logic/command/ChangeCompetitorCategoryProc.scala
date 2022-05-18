@@ -4,44 +4,44 @@ import cats.Monad
 import cats.data.EitherT
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.model.{Errors, Payload}
-import compman.compsrv.model.command.Commands.{ChangeCompetitorCategoryCommand, Command}
-import compman.compsrv.model.events.{EventDTO, EventType}
+import compman.compsrv.model.Errors
+import compman.compsrv.model.command.Commands.{ChangeCompetitorCategoryCommand, InternalCommandProcessorCommand}
 import compman.compsrv.model.Errors.NoPayloadError
+import compservice.model.protobuf.common.MessageInfo
+import compservice.model.protobuf.event.{Event, EventType}
 
 object ChangeCompetitorCategoryProc {
-  def apply[F[+_]: Monad: IdOperations: EventOperations, P <: Payload](
+  def apply[F[+_]: Monad: IdOperations: EventOperations](
     state: CompetitionState
-  ): PartialFunction[Command[P], F[Either[Errors.Error, Seq[EventDTO]]]] = {
+  ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ ChangeCompetitorCategoryCommand(_, _, _) => process(x, state)
   }
 
   private def process[F[+_]: Monad: IdOperations: EventOperations](
     command: ChangeCompetitorCategoryCommand,
     state: CompetitionState
-  ): F[Either[Errors.Error, Seq[EventDTO]]] = {
-    val eventT: EitherT[F, Errors.Error, Seq[EventDTO]] = for {
+  ): F[Either[Errors.Error, Seq[Event]]] = {
+    val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption(command.payload, NoPayloadError())
       newCategoryExists = state.categories
-        .exists(_.keySet.intersect(payload.getNewCategories.toSet) == payload.getNewCategories.toSet)
-      fighterExists = state.competitors.exists(_.contains(payload.getFighterId))
+        .exists(_.keySet.intersect(payload.newCategories.toSet) == payload.newCategories.toSet)
+      fighterExists = state.competitors.exists(_.contains(payload.fighterId))
       event <-
-        if (payload.getNewCategories.isEmpty) {
-          EitherT.fromEither(Left[Errors.Error, EventDTO](Errors.CategoryListIsEmpty()))
-        }
-        else if (!fighterExists) {
-          EitherT.fromEither(Left[Errors.Error, EventDTO](Errors.CompetitorDoesNotExist(payload.getFighterId)))
+        if (payload.newCategories.isEmpty) {
+          EitherT.fromEither(Left[Errors.Error, Event](Errors.CategoryListIsEmpty()))
+        } else if (!fighterExists) {
+          EitherT.fromEither(Left[Errors.Error, Event](Errors.CompetitorDoesNotExist(payload.fighterId)))
         } else if (!newCategoryExists) {
-          EitherT.fromEither(Left[Errors.Error, EventDTO](Errors.CategoryDoesNotExist(
-            state.categories.map(cs => payload.getNewCategories.toSet.diff(cs.keySet).toArray).getOrElse(Array.empty)
+          EitherT.fromEither(Left[Errors.Error, Event](Errors.CategoryDoesNotExist(
+            state.categories.map(cs => payload.newCategories.toSet.diff(cs.keySet)).getOrElse(Set.empty).toSeq
           )))
         } else {
-          EitherT.liftF[F, Errors.Error, EventDTO](CommandEventOperations[F, EventDTO, EventType].create(
+          EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
             `type` = EventType.COMPETITOR_CATEGORY_CHANGED,
             competitorId = None,
             competitionId = command.competitionId,
             categoryId = command.categoryId,
-            payload = Some(payload)
+            payload = Some(MessageInfo.Payload.ChangeCompetitorCategoryPayload(payload))
           ))
         }
     } yield Seq(event)

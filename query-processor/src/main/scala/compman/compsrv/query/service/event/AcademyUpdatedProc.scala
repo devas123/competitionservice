@@ -4,15 +4,14 @@ import cats.Monad
 import cats.data.OptionT
 import cats.implicits._
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{AcademyUpdatedEvent, Event}
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.AcademyOperations
 import compman.compsrv.query.service.repository.AcademyOperations.AcademyService
 
 object AcademyUpdatedProc {
-  def apply[F[+_] : CompetitionLogging.Service : Monad : AcademyService, P <: Payload]()
-  : PartialFunction[Event[P], F[Unit]] = {
+  def apply[F[+_] : CompetitionLogging.Service : Monad : AcademyService]()
+  : PartialFunction[Event[Any], F[Unit]] = {
     case x: AcademyUpdatedEvent => apply[F](x)
   }
 

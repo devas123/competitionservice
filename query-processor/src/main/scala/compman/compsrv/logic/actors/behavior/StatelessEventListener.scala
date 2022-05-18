@@ -1,21 +1,25 @@
 package compman.compsrv.logic.actors.behavior
 
 import cats.implicits.catsSyntaxApplicativeError
-import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, MessageReceived, PublishMessage}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
+  KafkaConsumerApi,
+  KafkaSupervisorCommand,
+  MessageReceived,
+  PublishMessage
+}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors._
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model
-import compman.compsrv.model.{Mapping, Payload}
+import compman.compsrv.model.Mapping
 import compman.compsrv.model.Mapping.EventMapping
-import compman.compsrv.model.callback.{CommandCallbackDTO, CommandExecutionResult, ErrorCallbackDTO}
-import compman.compsrv.model.events.EventDTO
 import compman.compsrv.query.config.{MongodbConfig, StatelessEventListenerConfig}
 import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.repository._
 import compman.compsrv.query.service.repository.AcademyOperations.AcademyService
+import compservice.model.protobuf.common.{CommandCallback, CommandExecutionResult, ErrorCallback}
+import compservice.model.protobuf.event.Event
 import org.mongodb.scala.MongoClient
 import zio.{Cause, Tag, ZIO}
 import zio.clock.Clock
@@ -44,7 +48,6 @@ object StatelessEventListener {
   }
 
   def behavior[R: Tag](
-    mapper: ObjectMapper,
     config: StatelessEventListenerConfig,
     context: StatelessEventListenerContext,
     kafkaSupervisorActor: ActorRef[KafkaSupervisorCommand]
@@ -65,28 +68,28 @@ object StatelessEventListener {
                     .as(state)
                 case MessageReceived(key, record) => {
                     for {
-                      event  <- ZIO.effect(mapper.readValue(record.value, classOf[EventDTO]))
+                      event  <- ZIO.effect(Event.parseFrom(record.value))
                       mapped <- EventMapping.mapEventDto[LIO](event)
                       _      <- Logging.info(s"Received event: $mapped")
-                      result <- EventProcessors.applyStatelessEvent[LIO, Payload](mapped).attempt
+                      result <- EventProcessors.applyStatelessEvent[LIO](mapped).attempt
                       message = result match {
-                        case Left(value) => new CommandCallbackDTO().setId(UUID.randomUUID().toString)
-                            .setCorrelationId(event.getCorrelationId).setResult(CommandExecutionResult.FAIL)
-                            .setErrorInfo(new ErrorCallbackDTO().setMessage(s"Error: ${value.getMessage}"))
+                        case Left(value) => CommandCallback().withId(UUID.randomUUID().toString)
+                            .withCorrelationId(event.messageInfo.map(_.correlationId).getOrElse(""))
+                            .withResult(CommandExecutionResult.FAIL)
+                            .withErrorInfo(ErrorCallback().withMessage(s"Error: ${value.getMessage}"))
 
-                        case Right(_) => new CommandCallbackDTO().setId(UUID.randomUUID().toString)
-                            .setCorrelationId(event.getCorrelationId).setResult(CommandExecutionResult.SUCCESS)
+                        case Right(_) => new CommandCallback().withId(UUID.randomUUID().toString)
+                            .withCorrelationId(event.messageInfo.map(_.correlationId).getOrElse(""))
+                            .withResult(CommandExecutionResult.SUCCESS)
                       }
-                      _ <- kafkaSupervisorActor !
-                        PublishMessage(config.commandCallbackTopic, key, mapper.writeValueAsBytes(message))
+                      _ <- kafkaSupervisorActor ! PublishMessage(config.commandCallbackTopic, key, message.toByteArray)
                     } yield state
                   }.onError(cause => logError(cause.squash))
               }
             case Stop => Logging.info("Received stop command. Stopping...") *> context.stopSelf.as(state)
           }
         }
-    }
-      .withInit { (_, context, initState, _) =>
+    }.withInit { (_, context, initState, _) =>
       for {
         adapter <- context.messageAdapter[KafkaConsumerApi](fa => Some(EventReceived(fa)))
         groupId = s"query-service-stateless-listener"

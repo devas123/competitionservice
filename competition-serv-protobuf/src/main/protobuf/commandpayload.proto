@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+package compservice.model.protobuf;
+
 import "model.proto";
 
 message AddAcademyPayload {
@@ -18,14 +20,6 @@ message AddRegistrationGroupPayload {
 }
 message AddRegistrationPeriodPayload {
   RegistrationPeriod period = 1;
-}
-message AdjacencyList {
-  int32 root = 1;
-  repeated AdjacencyListEntry vertices = 2;
-}
-message AdjacencyListEntry {
-  int32 id = 1;
-  repeated int32 children = 2;
 }
 message AssignRegistrationGroupCategoriesPayload {
   string periodId = 1;
@@ -97,8 +91,7 @@ message GenerateSchedulePayload {
   repeated MatDescription mats = 2;
 }
 enum GroupChangeType {
-  GROUP_CHANGE_TYPE_UNKNOWN = 0;
-  GROUP_CHANGE_TYPE_ADD = 1;
+  GROUP_CHANGE_TYPE_ADD = 0;
   GROUP_CHANGE_TYPE_REMOVE = 2;
 }
 message PropagateCompetitorsPayload {

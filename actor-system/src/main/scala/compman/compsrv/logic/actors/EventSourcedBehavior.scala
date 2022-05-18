@@ -2,7 +2,7 @@ package compman.compsrv.logic.actors
 
 import cats.implicits._
 import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
-import compman.compsrv.logic.actors.EventSourcedMessages.Command
+import compman.compsrv.logic.actors.EventSourcedMessages.EventSourcingCommand
 import compman.compsrv.logic.actors.dungeon.DeathWatch
 import zio.clock.Clock
 import zio.console.Console
@@ -22,7 +22,7 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
                state: S,
                command: Msg,
     timers: Timers[R, Msg]
-  ): RIO[R, (Command[Ev], S => Unit)]
+  ): RIO[R, (EventSourcingCommand[Ev], S => Unit)]
 
   def sourceEvent(state: S, event: Ev): RIO[R, S]
   def getEvents(persistenceId: String, state: S): RIO[R, Seq[Ev]]
@@ -55,19 +55,19 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
         fa = msg
         receiver = fa match {
           case Left(value) => processSystemMessage(context, watching, watchedBy)(value)
-              .as((Command.Ignore, (_: S) => ()))
+              .as((EventSourcingCommand.Ignore, (_: S) => ()))
           case Right(value) => receive(context, actorConfig, s, value, timers)
         }
         effectfulCompleter  = (s: S) => state.set(s)
         idempotentCompleter = () => RIO.unit
         fullCompleter = (
           (
-            ev: Command[Ev],
+            ev: EventSourcingCommand[Ev],
             sa: S => Unit
           ) =>
             ev match {
-              case Command.Ignore => sa(s); idempotentCompleter()
-              case Command.Persist(ev) => for {
+              case EventSourcingCommand.Ignore => sa(s); idempotentCompleter()
+              case EventSourcingCommand.Persist(ev) => for {
                   _            <- persistEvents(persistenceId, ev)
                   updatedState <- applyEvents(ev, s)
                   _            <- RIO(sa(updatedState))

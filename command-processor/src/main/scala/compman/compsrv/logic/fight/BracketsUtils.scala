@@ -5,30 +5,28 @@ import cats.data.EitherT
 import compman.compsrv.Utils.groupById
 import compman.compsrv.logic._
 import compman.compsrv.model.Errors
-import compman.compsrv.model.dto.brackets._
-import compman.compsrv.model.dto.competition.{CompetitorDTO, CompScoreDTO, FightDescriptionDTO, FightStatus}
 import compman.compsrv.Utils
-
+import compservice.model.protobuf.model._
 import scala.util.Random
 
 object BracketsUtils {
   import cats.implicits._
   import compman.compsrv.model.extensions._
 
-  def getLastRoundFightForCompetitor(fights: List[FightDescriptionDTO], cid: String): CanFail[FightDescriptionDTO] = {
-    val a = fights.filter(f => f.containsFighter(cid) && !f.winnerId.contains(cid)).maxByOption(_.getRound)
-    val b = fights.filter(f => f.getStatus == FightStatus.UNCOMPLETABLE && f.containsFighter(cid))
-      .maxByOption(_.getRound)
+  def getLastRoundFightForCompetitor(fights: List[FightDescription], cid: String): CanFail[FightDescription] = {
+    val a = fights.filter(f => f.containsFighter(cid) && !f.winnerId.contains(cid)).maxByOption(_.round)
+    val b = fights.filter(f => f.status == FightStatus.UNCOMPLETABLE && f.containsFighter(cid))
+      .maxByOption(_.round)
     a.orElse(b).toRight(Errors.InternalError(Some(s"Cannot find the last round fight for competitor $cid")))
   }
 
-  private def getCompetitorsSetFromFights(fights: List[FightDescriptionDTO]): Set[String] = {
-    fights.mapFilter(_.scores).flatten.mapFilter(cs => Option(cs.getCompetitorId)).toSet
+  private def getCompetitorsSetFromFights(fights: List[FightDescription]): Set[String] = {
+    fights.flatMap(_.scores).mapFilter(cs => cs.competitorId).toSet
   }
 
   private def connectPreviousAndCurrentRound(
-    previousRoundFights: List[FightDescriptionDTO],
-    currentRoundFights: List[FightDescriptionDTO],
+    previousRoundFights: List[FightDescription],
+    currentRoundFights: List[FightDescription],
     connectFun: ThreeFights => CanFail[ThreeFights]
   ): CanFail[List[ThreeFights]] = {
     val indexedFights              = previousRoundFights.zipWithIndex
@@ -44,12 +42,12 @@ object BracketsUtils {
     stageId: String,
     compssize: Int,
     durationSeconds: Int
-  ): F[CanFail[List[FightDescriptionDTO]]] = {
+  ): F[CanFail[List[FightDescription]]] = {
     val numberOfRounds = Integer.numberOfTrailingZeros(Integer.highestOneBit(nextPowerOfTwo(compssize)))
 
     val iteration = (
-      result: List[FightDescriptionDTO],
-      previousRoundFights: List[FightDescriptionDTO],
+      result: List[FightDescription],
+      previousRoundFights: List[FightDescription],
       currentRound: Int,
       totalRounds: Int
     ) => {
@@ -70,7 +68,7 @@ object BracketsUtils {
           if (currentRound == totalRounds - 1) {
             //this is the final round, it means there's only one fight.
             Monad[F]
-              .pure(Right(Right(crfs.map(it => it.copy(fightName = FINAL, roundType = StageRoundType.GRAND_FINAL)))))
+              .pure(Right(Right(crfs.map(it => it.copy(fightName = Some(FINAL), roundType = StageRoundType.GRAND_FINAL)))))
           } else { Monad[F].pure(Left((result, crfs, currentRound + 1, totalRounds))) }
         } else {
           val either = for {
@@ -80,9 +78,9 @@ object BracketsUtils {
                 //    assert(connectedFights.size == 1) { "Connected fights size is not 1 in the last round, but (${connectedFights.size})." }
                 Right(result ++ connectedFights.flatMap { it =>
                   List(
-                    it._1.copy(fightName = SEMI_FINAL),
-                    it._2.copy(fightName = SEMI_FINAL),
-                    it._3.copy(fightName = FINAL, roundType = StageRoundType.GRAND_FINAL)
+                    it._1.copy(fightName = Some(SEMI_FINAL)),
+                    it._2.copy(fightName = Some(SEMI_FINAL)),
+                    it._3.copy(fightName = Some(FINAL), roundType = StageRoundType.GRAND_FINAL)
                   )
                 })
               } else {
@@ -99,27 +97,27 @@ object BracketsUtils {
       }
     }
 
-    (List.empty[FightDescriptionDTO], List.empty[FightDescriptionDTO], 0, numberOfRounds)
-      .tailRecM[F, CanFail[List[FightDescriptionDTO]]](iteration.tupled)
+    (List.empty[FightDescription], List.empty[FightDescription], 0, numberOfRounds)
+      .tailRecM[F, CanFail[List[FightDescription]]](iteration.tupled)
   }
 
   def generateStageResultForCompetitor(
     stageId: String,
-    fights: List[FightDescriptionDTO],
+    fights: List[FightDescription],
     maxRound: Int
-  )(cid: String): CanFail[CompetitorStageResultDTO] = {
+  )(cid: String): CanFail[CompetitorStageResult] = {
     for { lastFight <- getLastRoundFightForCompetitor(fights, cid) } yield competitorStageResult(
       stageId,
       cid,
       lastFight.roundOrZero,
-      lastFight.getRoundType,
+      lastFight.roundType,
       calculateLoserPlaceForFinalStage(lastFight.roundOrZero, maxRound)
     )
   }
   def distributeCompetitors(
-    competitors: List[CompetitorDTO],
-    fights: Map[String, FightDescriptionDTO]
-  ): CanFail[Map[String, FightDescriptionDTO]] = {
+    competitors: List[Competitor],
+    fights: Map[String, FightDescription]
+  ): CanFail[Map[String, FightDescription]] = {
     def checkAllFightsWereUpdated(secondLoopPairsWithFightsSize: Int, secondLoopUpdatedFightsSize: Int) = {
       assertE(
         secondLoopPairsWithFightsSize == secondLoopUpdatedFightsSize,
@@ -131,7 +129,7 @@ object BracketsUtils {
 
     for {
       firstRoundFights <- Right {
-        fights.values.filter { it => it.roundOrZero == 0 && !it.roundType.contains(StageRoundType.LOSER_BRACKETS) }
+        fights.values.filter { it => it.roundOrZero == 0 && it.roundType != StageRoundType.LOSER_BRACKETS }
       }
       _ <- assertE(
         firstRoundFights.size * 2 >= competitors.size,
@@ -140,43 +138,54 @@ object BracketsUtils {
         )
       )
       firstRoundFightsEnriched = firstRoundFights.map(f =>
-        if (f.getScores == null || f.getScores.isEmpty) f.setScores(Array(0, 1).map(i =>
-          new CompScoreDTO().setCompetitorId(null).setPlaceholderId(null).setOrder(i).setScore(createEmptyScore)
-            .setParentFightId(null).setParentReferenceType(FightReferenceType.PROPAGATED)
+        if (f.scores.isEmpty) f.withScores(Seq(0, 1).map(i =>
+          CompScore()
+            .clearCompetitorId
+            .clearPlaceholderId
+            .withOrder(i)
+            .withScore(createEmptyScore)
+            .clearParentFightId
+            .withParentReferenceType(FightReferenceType.PROPAGATED)
         ))
         else f
       )
 
       coms                    = Random.shuffle(competitors)
       pairsWithFights         = coms.take(firstRoundFightsEnriched.size).zip(firstRoundFightsEnriched)
-      updatedFirstRoundFights = pairsWithFights.mapFilter { case (c1, f) => f.pushCompetitor(c1.getId) }
+      updatedFirstRoundFights = pairsWithFights.mapFilter { case (c1, f) => f.pushCompetitor(c1.id) }
       _ <- checkAllFightsWereUpdated(pairsWithFights.size, updatedFirstRoundFights.size)
       secondLoopPairsWithFights = updatedFirstRoundFights.take(coms.size - updatedFirstRoundFights.size)
         .zip(coms.drop(updatedFirstRoundFights.size))
-      secondLoopUpdatedFights = secondLoopPairsWithFights.mapFilter { case (f, c1) => f.pushCompetitor(c1.getId) }
+      secondLoopUpdatedFights = secondLoopPairsWithFights.mapFilter { case (f, c1) => f.pushCompetitor(c1.id) }
       _ <- checkAllFightsWereUpdated(secondLoopPairsWithFights.size, secondLoopUpdatedFights.size)
       result = secondLoopUpdatedFights ++ updatedFirstRoundFights.drop(secondLoopUpdatedFights.size)
-    } yield fights ++ groupById(result)(_.getId)
+    } yield fights ++ groupById(result)(_.id)
   }
 
   def buildStageResults(
     bracketType: BracketType,
     stageStatus: StageStatus,
     stageType: StageType,
-    fights: List[FightDescriptionDTO],
+    fights: List[FightDescription],
     stageId: String
-  ): CanFail[List[CompetitorStageResultDTO]] = {
+  ): CanFail[List[CompetitorStageResult]] = {
     stageStatus match {
       case StageStatus.FINISHED => bracketType match {
           case BracketType.SINGLE_ELIMINATION => stageType match {
               case StageType.PRELIMINARY => generatePreliminarySingleElimination(fights, stageId)
               case StageType.FINAL       => generateFinalSingleElimination(fights, stageId)
+              case x => Left(Errors.InternalError(Some(
+                s"Unknown stage type $x"
+              )))
             }
           case BracketType.DOUBLE_ELIMINATION => stageType match {
               case StageType.PRELIMINARY => Left(Errors.InternalError(Some(
                   "Preliminary double elimination is not supported. Returning all the competitors."
                 )))
               case StageType.FINAL => generateFinalDoubleElimination(fights, stageId)
+              case x => Left(Errors.InternalError(Some(
+                s"Unknown stage type $x"
+              )))
             }
           case _ => Left(Errors.InternalError(Some(s"$bracketType is not supported. Returning all the competitors.")))
         }
@@ -186,7 +195,7 @@ object BracketsUtils {
 
   def getNumberOfFightsInCurrentRound(
     loserBracketsSize: Int,
-    previousLoserRoundFights: List[FightDescriptionDTO],
+    previousLoserRoundFights: List[FightDescription],
     currentLoserRound: Int
   ): Int = {
     if (currentLoserRound % 2 == 0) { loserBracketsSize / 1 << (currentLoserRound / 2) }
@@ -194,9 +203,9 @@ object BracketsUtils {
   }
 
   def connectWinnerAndLoserFights(
-    previousLoserRoundFights: List[FightDescriptionDTO],
-    currentLoserRoundFights: List[FightDescriptionDTO],
-    winnerFights: List[FightDescriptionDTO],
+    previousLoserRoundFights: List[FightDescription],
+    currentLoserRoundFights: List[FightDescription],
+    winnerFights: List[FightDescription],
     currentWinnerRound: Int,
     currentLoserRound: Int
   ): CanFail[List[ThreeFights]] = {
@@ -206,11 +215,11 @@ object BracketsUtils {
     } else {
       //we need to merge the winners of fights from the previous loser rounds
       //and the losers of the fights from the previous winner round
-      val winnerRoundFights = winnerFights.filter { it => it.round.contains(currentWinnerRound) }
+      val winnerRoundFights = winnerFights.filter { it => it.round == currentWinnerRound }
       for {
         _ <- assertE(winnerRoundFights.size == previousLoserRoundFights.size)
         allFights = (winnerRoundFights ++ previousLoserRoundFights).sortBy { it =>
-          it.getNumberInRound * 10 + it.roundType.map(priority).getOrElse(Int.MaxValue)
+          it.numberInRound * 10 + priority(it.roundType)
         }
         res <- connectPreviousAndCurrentRound(allFights, currentLoserRoundFights, connectLoseWin)
       } yield res
@@ -218,41 +227,41 @@ object BracketsUtils {
   }
 
   def connectLastLoserRound(
-    grandFinal: FightDescriptionDTO,
-    result: List[FightDescriptionDTO],
+    grandFinal: FightDescription,
+    result: List[FightDescription],
     lastTuple: ThreeFights
-  ): CanFail[List[FightDescriptionDTO]] = {
+  ): CanFail[List[FightDescription]] = {
     for {
-      sc <- createScores(List(lastTuple._1.getId, lastTuple._3.getId), List(FightReferenceType.WINNER))
-      connectedGrandFinal = grandFinal.copy(scores = sc.toArray)
-    } yield result :+ lastTuple._1.copy(winFight = connectedGrandFinal.getId) :+ lastTuple._2 :+
-      lastTuple._3.copy(winFight = connectedGrandFinal.getId) :+ connectedGrandFinal
+      sc <- createScores(List(lastTuple._1.id, lastTuple._3.id), List(FightReferenceType.WINNER))
+      connectedGrandFinal = grandFinal.copy(scores = sc)
+    } yield result :+ lastTuple._1.copy(winFight = Option(connectedGrandFinal.id)) :+ lastTuple._2 :+
+      lastTuple._3.copy(winFight = Option(connectedGrandFinal.id)) :+ connectedGrandFinal
   }
 
   private def generateLoserBracketAndGrandFinalForWinnerBracket[F[+_]: Monad](
     competitionId: String,
     categoryId: String,
     stageId: String,
-    winnerFightsAndGrandFinal: List[FightDescriptionDTO],
+    winnerFightsAndGrandFinal: List[FightDescription],
     durationSeconds: Int
-  ): F[CanFail[List[FightDescriptionDTO]]] = {
+  ): F[CanFail[List[FightDescription]]] = {
 
     val eitherT = for {
       _ <- EitherT.fromEither[F](assertSingleFinal(winnerFightsAndGrandFinal))
       _ <- assertET[F](
-        winnerFightsAndGrandFinal.filter { it => !it.roundType.contains(StageRoundType.GRAND_FINAL) }.forall { it =>
-          it.roundType.contains(StageRoundType.WINNER_BRACKETS) && it.round != null
+        winnerFightsAndGrandFinal.filter { it => it.roundType != StageRoundType.GRAND_FINAL }.forall { it =>
+          it.roundType == StageRoundType.WINNER_BRACKETS
         },
         Some("Winner brackets fights contain not winner-brackets round types.")
       )
       _ <- assertET[F](
         !winnerFightsAndGrandFinal.exists { it =>
-          it.scores.exists(_.exists { dto => dto.getParentReferenceType == FightReferenceType.LOSER })
+          it.scores.exists { dto => dto.parentReferenceType.contains(FightReferenceType.LOSER) }
         },
         Some("Winner brackets fights contain contain references from loser brackets.")
       )
-      winnerFights = winnerFightsAndGrandFinal.filter { it => !it.roundType.contains(StageRoundType.GRAND_FINAL) } :+
-        winnerFightsAndGrandFinal.find { it => it.roundType.contains(StageRoundType.GRAND_FINAL) }
+      winnerFights = winnerFightsAndGrandFinal.filter { it => it.roundType != StageRoundType.GRAND_FINAL } :+
+        winnerFightsAndGrandFinal.find { it => it.roundType == StageRoundType.GRAND_FINAL }
           .map(_.copy(roundType = StageRoundType.WINNER_BRACKETS)).get
       totalWinnerRounds = getMaxRound(winnerFights) + 1
       grandFinal = fightDescription(
@@ -264,19 +273,19 @@ object BracketsUtils {
         0,
         durationSeconds,
         GRAND_FINAL,
-        null
+        None
       )
       totalLoserRounds       = 2 * (totalWinnerRounds - 1)
-      firstWinnerRoundFights = winnerFights.filter { it => it.round.contains(0) }
+      firstWinnerRoundFights = winnerFights.filter { it => it.round == 0 }
       loserBracketsSize      = firstWinnerRoundFights.size / 2
       _ <- assertET[F](
         (loserBracketsSize & (loserBracketsSize - 1)) == 0,
         Some(s"Loser brackets size should be a power of two, but it is $loserBracketsSize")
       )
       createLoserFightNodes = (
-        result: List[FightDescriptionDTO],
-        previousLoserRoundFights: List[FightDescriptionDTO],
-        winnerFights: List[FightDescriptionDTO],
+        result: List[FightDescription],
+        previousLoserRoundFights: List[FightDescription],
+        winnerFights: List[FightDescription],
         currentLoserRound: Int,
         currentWinnerRound: Int
       ) =>
@@ -328,8 +337,8 @@ object BracketsUtils {
           errorOrEither.fold(err => Monad[F].pure(Right(Left(err))), e => Monad[F].pure(e))
         }
       res <- EitherT(
-        (List.empty[FightDescriptionDTO], List.empty[FightDescriptionDTO], winnerFights, 0, 0)
-          .tailRecM[F, CanFail[List[FightDescriptionDTO]]](createLoserFightNodes.tupled)
+        (List.empty[FightDescription], List.empty[FightDescription], winnerFights, 0, 0)
+          .tailRecM[F, CanFail[List[FightDescription]]](createLoserFightNodes.tupled)
       )
     } yield res
     eitherT.value
@@ -341,7 +350,7 @@ object BracketsUtils {
     stageId: String,
     compssize: Int,
     durationSeconds: Int
-  ): F[CanFail[List[FightDescriptionDTO]]] = {
+  ): F[CanFail[List[FightDescription]]] = {
     (for {
       winnerRounds <-
         EitherT(generateEmptyWinnerRoundsForCategory[F](competitionId, categoryId, stageId, compssize, durationSeconds))
@@ -359,8 +368,8 @@ object BracketsUtils {
     competitionId: String,
     categoryId: String,
     stageId: String,
-    winnerFights: List[FightDescriptionDTO]
-  ): CanFail[List[FightDescriptionDTO]] =
+    winnerFights: List[FightDescription]
+  ): CanFail[List[FightDescription]] =
     if (winnerFights.isEmpty) { Right(winnerFights) }
     else {
       for {
@@ -379,40 +388,40 @@ object BracketsUtils {
           semiFinal + 1,
           StageRoundType.THIRD_PLACE_FIGHT,
           0,
-          semiFinalFights.head.getDuration,
+          semiFinalFights.head.duration,
           THIRD_PLACE_FIGHT,
-          null
+          None
         )
-        sc <- createScores(semiFinalFights.map { f => f.getId }, List(FightReferenceType.LOSER))
+        sc <- createScores(semiFinalFights.map { f => f.id }, List(FightReferenceType.LOSER))
         updatedFights = List(
-          semiFinalFights.head.copy(loseFight = thirdPlaceFight.getId),
-          semiFinalFights(1).copy(loseFight = thirdPlaceFight.getId),
-          thirdPlaceFight.copy(scores = sc.toArray)
+          semiFinalFights.head.copy(loseFight = Option(thirdPlaceFight.id)),
+          semiFinalFights(1).copy(loseFight = Option(thirdPlaceFight.id)),
+          thirdPlaceFight.copy(scores = sc)
         )
       } yield winnerFights.map { it =>
-        if (it.getId == updatedFights.head.getId) updatedFights.head
-        else if (it.getId == updatedFights(1).getId) updatedFights(1)
+        if (it.id == updatedFights.head.id) updatedFights.head
+        else if (it.id == updatedFights(1).id) updatedFights(1)
         else it
       } :+ updatedFights(2)
     }
 
   private def generateFinalDoubleElimination(
-    fights: List[FightDescriptionDTO],
+    fights: List[FightDescription],
     stageId: String
-  ): CanFail[List[CompetitorStageResultDTO]] = {
+  ): CanFail[List[CompetitorStageResult]] = {
     for {
-      finalRoundFight <- fights.find(_.getRoundType == StageRoundType.GRAND_FINAL)
+      finalRoundFight <- fights.find(_.roundType == StageRoundType.GRAND_FINAL)
         .toRight(Errors.InternalError(Some("Could not find the grand final.")))
       finalists = List(
         finalRoundFight.winnerId.map { wid =>
-          competitorStageResult(stageId, wid, finalRoundFight.roundOrZero, finalRoundFight.getRoundType, 1)
+          competitorStageResult(stageId, wid, finalRoundFight.roundOrZero, finalRoundFight.roundType, 1)
         },
         finalRoundFight.loserId.map { lid =>
-          competitorStageResult(stageId, lid, finalRoundFight.roundOrZero, finalRoundFight.getRoundType, 2)
+          competitorStageResult(stageId, lid, finalRoundFight.roundOrZero, finalRoundFight.roundType, 2)
         }
       ).mapFilter(identity)
-      competitorIds   = getCompetitorsSetFromFights(fights) -- finalists.mapFilter(cs => Option(cs.getCompetitorId))
-      loserFights     = fights.filter(it => it.roundType.contains(StageRoundType.LOSER_BRACKETS))
+      competitorIds   = getCompetitorsSetFromFights(fights) -- finalists.map(_.competitorId)
+      loserFights     = fights.filter(it => it.roundType == StageRoundType.LOSER_BRACKETS)
       finalLoserRound = getMaxRound(loserFights)
       others <- competitorIds.toList.traverse { cid =>
         for {
@@ -422,27 +431,27 @@ object BracketsUtils {
           stageId,
           cid,
           lastLostRoundFight.roundOrZero,
-          lastLostRoundFight.getRoundType,
+          lastLostRoundFight.roundType,
           place
         )
       }
-      placesChunks = others.groupBy(_.getPlace).toList.sortBy(_._1)
+      placesChunks = others.groupBy(_.place).toList.sortBy(_._1)
       otherPlaces = placesChunks.flatMap { it =>
         val place = placesChunks.filter(pc => pc._1 < it._1).foldLeft(0)((acc, p) => acc + p._2.size)
-        it._2.map { c => c.setPlace(place + 3) }
+        it._2.map { c => c.withPlace(place + 3) }
       }
     } yield finalists ++ otherPlaces
   }
 
   private def generateFinalSingleElimination(
-    inputFights: List[FightDescriptionDTO],
+    inputFights: List[FightDescription],
     stageId: String
-  ): CanFail[List[CompetitorStageResultDTO]] = {
+  ): CanFail[List[CompetitorStageResult]] = {
     for {
-      fights <- FightUtils.markAndProcessUncompletableFights[CanFail](Utils.groupById(inputFights)(_.getId))
-      grandFinal <- fights.find(it => it._2.getRoundType == StageRoundType.GRAND_FINAL)
+      fights <- FightUtils.markAndProcessUncompletableFights[CanFail](Utils.groupById(inputFights)(_.id))
+      grandFinal <- fights.find(it => it._2.roundType == StageRoundType.GRAND_FINAL)
         .toRight(Errors.InternalError(Some("The stage is a final stage but has no grand final."))).map(_._2)
-      thirdPlaceFight         = fights.find(it => it._2.getRoundType == StageRoundType.THIRD_PLACE_FIGHT).map(_._2)
+      thirdPlaceFight         = fights.find(it => it._2.roundType == StageRoundType.THIRD_PLACE_FIGHT).map(_._2)
       grandFinalAndThirdPlace = getCompetitorsSetFromFights(List(Some(grandFinal), thirdPlaceFight).mapFilter(identity))
       competitors             = getCompetitorsSetFromFights(fights.values.toList) -- grandFinalAndThirdPlace
       thirdPlaceResults       = createResultForFight(stageId, thirdPlaceFight, 3)
@@ -465,12 +474,12 @@ object BracketsUtils {
   }
 
   private def generatePreliminarySingleElimination(
-    fights: List[FightDescriptionDTO],
+    fights: List[FightDescription],
     stageId: String
-  ): CanFail[List[CompetitorStageResultDTO]] = Right {
+  ): CanFail[List[CompetitorStageResult]] = Right {
     import cats.implicits._
     val lastRound        = getMaxRound(fights)
-    val lastRoundFights  = fights.filter { it => it.getRound == lastRound }
+    val lastRoundFights  = fights.filter { it => it.round == lastRound }
     val lastRoundWinners = lastRoundFights.mapFilter(f => f.winnerId).toSet
     val lastRoundLosers  = lastRoundFights.mapFilter(f => f.loserId).toSet
     val competitorIds    = getCompetitorsSetFromFights(fights)
@@ -479,7 +488,7 @@ object BracketsUtils {
       val diff = lastRound - round
       diff * lastRoundFights.size + 1
     }
-    val winnerRoundType = lastRoundFights.headOption.flatMap(_.roundType).getOrElse(StageRoundType.WINNER_BRACKETS)
+    val winnerRoundType = lastRoundFights.headOption.map(_.roundType).getOrElse(StageRoundType.WINNER_BRACKETS)
 
     def compStageResult(cid: String, place: Int) =
       competitorStageResult(stageId, cid, lastRound, winnerRoundType, place)
@@ -491,8 +500,8 @@ object BracketsUtils {
           stageId,
           it,
           lastLostRoundFight.roundOrZero,
-          lastLostRoundFight.getRoundType,
-          calculateLoserPlace(lastLostRoundFight.getRound)
+          lastLostRoundFight.roundType,
+          calculateLoserPlace(lastLostRoundFight.round)
         )).toOption
       }
   }.map(_.toList)

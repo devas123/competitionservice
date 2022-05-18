@@ -3,14 +3,13 @@ package compman.compsrv.logic.event
 import cats.Monad
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{CompetitionPropertiesUpdatedEvent, Event}
 import compman.compsrv.model.extensions._
 
 object CompetitionPropertiesUpdatedProc {
-  def apply[F[+_] : Monad : IdOperations : EventOperations, P <: Payload](
+  def apply[F[+_] : Monad : IdOperations : EventOperations](
                                                                            state: CompetitionState
-                                                                         ): PartialFunction[Event[P], F[Option[CompetitionState]]] = {
+                                                                         ): PartialFunction[Event[Any], F[Option[CompetitionState]]] = {
     case x: CompetitionPropertiesUpdatedEvent =>
       apply[F](x, state)
   }

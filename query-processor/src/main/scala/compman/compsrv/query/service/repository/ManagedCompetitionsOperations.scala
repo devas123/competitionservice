@@ -1,8 +1,8 @@
 package compman.compsrv.query.service.repository
 
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.query.model.ManagedCompetition
+import compservice.model.protobuf.model.CompetitionStatus
 import org.mongodb.scala.{MongoClient, Observable}
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.Updates.set

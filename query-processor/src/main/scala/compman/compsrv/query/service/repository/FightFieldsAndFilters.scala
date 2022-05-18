@@ -1,6 +1,6 @@
 package compman.compsrv.query.service.repository
 
-import compman.compsrv.model.dto.competition.FightStatus
+import compservice.model.protobuf.model.FightStatus
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.Filters.{equal, or}
 import org.mongodb.scala.model.Indexes

@@ -1,27 +1,18 @@
 package compman.compsrv.gateway.json
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import compman.compsrv.model.commands.CommandDTO
-import compman.compsrv.model.events.EventDTO
+import compservice.model.protobuf.command.Command
+import compservice.model.protobuf.event.Event
 import org.apache.kafka.common.header.Headers
 import zio.RIO
-import zio.kafka.serde.{Deserializer, Serializer}
+import zio.kafka.serde.Deserializer
 
 object SerdeApi {
-
-  val objectMapper: ObjectMapper = ObjectMapperFactory.createObjectMapper
-
-  val byteSerializer: Serializer[Any, Array[Byte]] =
-    (_: String, _: Headers, value: Array[Byte]) => RIO {
-      value
-    }
-  val commandDeserializer: Deserializer[Any, CommandDTO] =
+  val commandDeserializer: Deserializer[Any, Command] =
     (_: String, _: Headers, data: Array[Byte]) => RIO {
-      objectMapper.readValue(data, classOf[CommandDTO])
+      Command.parseFrom(data)
     }
-  val eventDeserializer: Deserializer[Any, EventDTO] =
+  val eventDeserializer: Deserializer[Any, Event] =
     (_: String, _: Headers, data: Array[Byte]) => RIO {
-      objectMapper.readValue(data, classOf[EventDTO])
+      Event.parseFrom(data)
     }
-
 }

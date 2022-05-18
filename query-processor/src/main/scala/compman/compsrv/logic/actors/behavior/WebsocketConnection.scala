@@ -2,7 +2,7 @@ package compman.compsrv.logic.actors.behavior
 
 import compman.compsrv.logic.actors._
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.model.events.EventDTO
+import compservice.model.protobuf.event.Event
 import zio.{Queue, ZIO}
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -12,12 +12,12 @@ object WebsocketConnection {
 
   sealed trait ApiCommand
 
-  final case class AddWebSocketConnection(clientId: String, queue: Queue[EventDTO]) extends ApiCommand
+  final case class AddWebSocketConnection(clientId: String, queue: Queue[Event]) extends ApiCommand
   final case class WebSocketConnectionTerminated(clientId: String)                  extends ApiCommand
-  final case class ReceivedEvent(event: EventDTO)                                   extends ApiCommand
+  final case class ReceivedEvent(event: Event)                                   extends ApiCommand
   final case class Stop(replyTo: Option[ActorRef[Boolean]] = None)                  extends ApiCommand
 
-  case class ActorState(queues: Map[String, Queue[EventDTO]])
+  case class ActorState(queues: Map[String, Queue[Event]])
 
   val initialState: ActorState = ActorState(Map.empty)
 

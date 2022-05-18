@@ -34,6 +34,7 @@ object Libraries {
   val javaPoetDependency = "com.squareup" % "javapoet" % "1.13.0"
   val autoServiceDependency = "com.google.auto.service" % "auto-service" % "1.0.1"
   val lombokDependency = "org.projectlombok" % "lombok" % "1.18.24"
+  val protobufUtilsVersion = "3.20.1"
 
   val disruptorDependency = "com.lmax" % "disruptor" % disruptor
 
@@ -91,7 +92,11 @@ object Libraries {
   )
 
   val scalapbProtobufDepenedency: Seq[ModuleID] = Seq(
-    "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf"
+    "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
+  )
+
+  val protobufUtils: Seq[ModuleID] = Seq(
+    "com.google.protobuf" % "protobuf-java-util" % protobufUtilsVersion
   )
 
 }

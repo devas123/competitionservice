@@ -1,25 +1,18 @@
 package compman.compsrv.logic.actors
 
+import com.google.protobuf.timestamp.Timestamp
+import com.google.protobuf.util.Timestamps
 import compman.compsrv.config.CommandProcessorConfig
 import compman.compsrv.logic.CompetitionState
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
-  CreateTopicIfMissing,
-  KafkaSupervisorCommand,
-  PublishMessage,
-  QuerySync
-}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaSupervisorCommand, PublishMessage, QuerySync}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorSupervisorActor.CommandReceived
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.commands.payload.CreateCompetitionPayload
-import compman.compsrv.model.commands.{CommandDTO, CommandType}
-import compman.compsrv.model.dto.competition.{
-  CompetitionPropertiesDTO,
-  CompetitionStatus,
-  RegistrationGroupDTO,
-  RegistrationInfoDTO,
-  RegistrationPeriodDTO
-}
+import compservice.model.protobuf.command.{Command, CommandType}
+import compservice.model.protobuf.commandpayload.CreateCompetitionPayload
+import compservice.model.protobuf.common.MessageInfo
+import compservice.model.protobuf.model.{CompetitionProperties, CompetitionStatus, RegistrationInfo}
+import zio.{Layer, Ref}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -27,11 +20,8 @@ import zio.kafka.consumer.ConsumerSettings
 import zio.kafka.producer.ProducerSettings
 import zio.logging.Logging
 import zio.test._
-import zio.{Layer, Ref}
 
-import java.time.Instant
 import java.util.UUID
-import scala.jdk.CollectionConverters.MapHasAsJava
 
 object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
   object Deps {
@@ -74,22 +64,34 @@ object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
             )
           )
           command = {
-            val cmd = new CommandDTO()
-            cmd.setId(UUID.randomUUID().toString)
-            cmd.setType(CommandType.CREATE_COMPETITION_COMMAND)
-            cmd.setCompetitionId(competitionId)
-            cmd.setPayload(
-              new CreateCompetitionPayload().setReginfo(
-                new RegistrationInfoDTO().setId(competitionId)
-                  .setRegistrationGroups(Map.empty[String, RegistrationGroupDTO].asJava)
-                  .setRegistrationPeriods(Map.empty[String, RegistrationPeriodDTO].asJava).setRegistrationOpen(true)
-              ).setProperties(
-                new CompetitionPropertiesDTO().setId(competitionId).setCompetitionName("Test competition")
-                  .setStatus(CompetitionStatus.CREATED).setTimeZone("UTC").setStartDate(Instant.now())
-                  .setEndDate(Instant.now())
+            Command()
+              .withMessageInfo(MessageInfo()
+                .withId(UUID.randomUUID().toString)
+                .withCompetitionId(competitionId)
+                .withPayload(
+                  MessageInfo.Payload.CreateCompetitionPayload(
+                    CreateCompetitionPayload().withReginfo(
+                      RegistrationInfo()
+                        .withId(competitionId)
+                        .withRegistrationGroups(Map.empty)
+                        .withRegistrationPeriods(Map.empty)
+                        .withRegistrationOpen(true)
+                    )
+                      .withProperties(
+                      CompetitionProperties()
+                        .withId(competitionId)
+                        .withCompetitionName("Test competition")
+                        .withStatus(CompetitionStatus.CREATED)
+                        .withTimeZone("UTC")
+                        .withStartDate(Timestamp.fromJavaProto(Timestamps.fromMillis(System.currentTimeMillis())))
+                        .withEndDate(Timestamp.fromJavaProto(Timestamps.fromMillis(System.currentTimeMillis())))
+                    )
+                  )
+
+                )
               )
-            )
-            cmd
+            .withType(CommandType.CREATE_COMPETITION_COMMAND)
+
           }
           _   <- processor ! CommandReceived(competitionId, command)
           _   <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[CreateTopicIfMissing])

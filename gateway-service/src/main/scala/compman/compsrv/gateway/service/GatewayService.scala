@@ -1,7 +1,6 @@
 package compman.compsrv.gateway.service
 
 import compman.compsrv.gateway.GatewayServiceMain.ServiceIO
-import compman.compsrv.gateway.json.SerdeApi.byteSerializer
 import org.http4s.HttpRoutes
 import org.http4s.dsl.Http4sDsl
 import zio.{Task, ZIO}
@@ -36,7 +35,7 @@ object GatewayService {
         body    <- req.body.covary[ServiceIO].chunkAll.compile.toList
         command <- Task(body.flatMap(_.toList).toArray)
         _       <- Logging.info(s"Sending command for $competitionId")
-        _       <- Producer.produce("competition-commands", competitionId.get, command, Serde.string, byteSerializer)
+        _       <- Producer.produce("competition-commands", competitionId.get, command, Serde.string, Serde.byteArray)
         resp    <- Ok()
       } yield resp
     }

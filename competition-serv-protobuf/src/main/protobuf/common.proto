@@ -1,4 +1,5 @@
 syntax = "proto3";
+package compservice.model.protobuf;
 
 import "eventpayload.proto";
 import "commandpayload.proto";
@@ -11,10 +12,6 @@ message MessageInfo {
   string competitorId = 4;
   string categoryId = 5;
   string matId = 6;
-  Payload payload = 7;
-}
-
-message Payload {
   oneof payload {
     AddAcademyPayload addAcademyPayload = 11;
     AddCategoryPayload     addCategoryPayload = 12;

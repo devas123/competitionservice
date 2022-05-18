@@ -1,6 +1,6 @@
 package compman.compsrv.query.model
 
-import compman.compsrv.model.dto.competition._
+import compservice.model.protobuf.model.{CategoryRestriction, CategoryRestrictionType}
 
 import java.util.UUID
 
@@ -49,23 +49,22 @@ object AgeDivision {
 }
 
 object DefaultRestrictions {
-  private val bjj = new CategoryRestrictionDTO().setRestrictionId(UUID.randomUUID().toString)
-    .setType(CategoryRestrictionType.Value).setName("Sport").setValue("BJJ")
+  private val bjj = CategoryRestriction().withRestrictionId(UUID.randomUUID().toString)
+    .withType(CategoryRestrictionType.VALUE).withName("Sport").withValue("BJJ")
 
-  private def weightRestriction(alias: String, maxValue: String, minValue: String = "0") = new CategoryRestrictionDTO()
-    .setRestrictionId(UUID.randomUUID().toString).setType(CategoryRestrictionType.Range).setName("Weight")
-    .setMaxValue(maxValue).setMinValue(minValue).setAlias(alias).setUnit("kg")
+  private def weightRestriction(alias: String, maxValue: String, minValue: String = "0") = CategoryRestriction()
+    .withRestrictionId(UUID.randomUUID().toString).withType(CategoryRestrictionType.RANGE)
+    .withName("Weight").withMaxValue(maxValue).withMinValue(minValue).withAlias(alias).withUnit("kg")
 
-  private def ageRestriction(alias: String, minValue: String, maxValue: Option[String] = None) =
-    new CategoryRestrictionDTO().setRestrictionId(UUID.randomUUID().toString).setType(CategoryRestrictionType.Range)
-      .setName("Age").setMaxValue(maxValue.getOrElse(minValue)).setMinValue(minValue).setAlias(alias).setUnit("y.o.")
+  private def ageRestriction(alias: String, minValue: String, maxValue: Option[String] = None) = CategoryRestriction()
+    .withRestrictionId(UUID.randomUUID().toString).withType(CategoryRestrictionType.RANGE)
+    .withName("Age").withMaxValue(maxValue.getOrElse(minValue)).withMinValue(minValue).withAlias(alias).withUnit("y.o.")
 
-  private def beltRestriction(value: String) = new CategoryRestrictionDTO().setRestrictionId(UUID.randomUUID().toString)
-    .setType(CategoryRestrictionType.Value).setValue(value).setName("Belt")
+  private def beltRestriction(value: String) = CategoryRestriction().withRestrictionId(UUID.randomUUID().toString)
+    .withType(CategoryRestrictionType.VALUE).withValue(value).withName("Belt")
 
-  private def genderRestriction(value: String) = new CategoryRestrictionDTO()
-    .setRestrictionId(UUID.randomUUID().toString).setType(CategoryRestrictionType.Value).setValue(value)
-    .setName("Gender")
+  private def genderRestriction(value: String) = CategoryRestriction().withRestrictionId(UUID.randomUUID().toString)
+    .withType(CategoryRestrictionType.VALUE).withValue(value).withName("Gender")
 
   private val male   = genderRestriction("MALE")
   private val female = genderRestriction("FEMALE")
@@ -134,7 +133,7 @@ object DefaultRestrictions {
   private val jfmediumHeavy   = weightRestriction(Weight.MEDIUM_HEAVY, "65")
   private val fheavy          = weightRestriction(Weight.HEAVY, "300")
 
-  val restrictions: Seq[CategoryRestrictionDTO] = List(
+  val restrictions: Seq[CategoryRestriction] = List(
     bjj,
     male,
     female,

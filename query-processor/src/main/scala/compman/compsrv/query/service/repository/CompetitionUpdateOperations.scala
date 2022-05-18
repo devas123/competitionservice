@@ -2,9 +2,9 @@ package compman.compsrv.query.service.repository
 
 import com.mongodb.client.model.{ReplaceOptions, UpdateOptions}
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compman.compsrv.model.dto.brackets.StageStatus
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
+import compservice.model.protobuf.model.StageStatus
 import org.mongodb.scala.{Document, MongoClient}
 import org.mongodb.scala.model.{Filters, Updates}
 import zio.{Ref, RIO, ZIO}

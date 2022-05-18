@@ -1,7 +1,7 @@
 package compman.compsrv.query.model
 
-import compman.compsrv.model.dto.competition.CompetitionStatus
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
+import compservice.model.protobuf.model.CompetitionStatus
 
 import java.util.Date
 

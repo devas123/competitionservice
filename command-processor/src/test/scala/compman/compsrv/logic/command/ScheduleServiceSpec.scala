@@ -4,14 +4,11 @@ import cats.Eval
 import compman.compsrv.Utils
 import compman.compsrv.logic.CompetitionState
 import compman.compsrv.model.command.Commands.GenerateScheduleCommand
-import compman.compsrv.model.commands.payload.GenerateSchedulePayload
-import compman.compsrv.model.dto.brackets._
-import compman.compsrv.model.dto.competition._
-import compman.compsrv.model.dto.schedule.{PeriodDTO, ScheduleRequirementDTO, ScheduleRequirementType}
-import compman.compsrv.model.events.EventType
-import compman.compsrv.model.events.payload.ScheduleGeneratedPayload
-import compman.compsrv.model.Payload
+import compman.compsrv.model.extensions._
 import compman.compsrv.service.TestEntities
+import compservice.model.protobuf.commandpayload.GenerateSchedulePayload
+import compservice.model.protobuf.event.EventType
+import compservice.model.protobuf.model._
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -22,45 +19,42 @@ class ScheduleServiceSpec extends AnyFunSuite with BeforeAndAfter with TestEntit
 
   import Dependencies._
 
-  val stage: StageDescriptorDTO = new StageDescriptorDTO().setId(stageId).setCategoryId(categoryId)
-    .setStageType(StageType.FINAL).setBracketType(BracketType.SINGLE_ELIMINATION).setStageOrder(0).setInputDescriptor(
-      new StageInputDescriptorDTO().setSelectors(Array.empty)
-        .setDistributionType(DistributionType.AUTOMATIC).setNumberOfCompetitors(competitors.size)
+  val stage: StageDescriptor = new StageDescriptor().withId(stageId).withCategoryId(categoryId)
+    .withStageType(StageType.FINAL).withBracketType(BracketType.SINGLE_ELIMINATION).withStageOrder(0)
+    .withInputDescriptor(
+      StageInputDescriptor().withSelectors(Seq.empty).withDistributionType(DistributionType.AUTOMATIC)
+        .withNumberOfCompetitors(competitors.size)
     )
 
   private val category2 = s"$categoryId-2"
-  val payload: Option[GenerateSchedulePayload] = Some(
-    new GenerateSchedulePayload().setMats(Array(testMat)).setPeriods(Array(
-      new PeriodDTO().setId(periodId).setName("period").setStartTime(Instant.now()).setIsActive(false)
-        .setRiskPercent(10).setScheduleRequirements(Array(
-          new ScheduleRequirementDTO().setId("schedReq1").setCategoryIds(Array(categoryId)).setMatId(matId)
-            .setPeriodId(periodId).setEntryOrder(0).setEntryType(ScheduleRequirementType.CATEGORIES),
-          new ScheduleRequirementDTO().setId("schedReq2").setCategoryIds(Array(category2)).setMatId(matId)
-            .setPeriodId(periodId).setEntryOrder(1).setEntryType(ScheduleRequirementType.CATEGORIES)
-        )).setTimeBetweenFights(1)
-    ))
-  )
+  val payload: Option[GenerateSchedulePayload] = Some(GenerateSchedulePayload().withMats(Seq(testMat)).withPeriods(Seq(
+    Period().withId(periodId).withName("period").withStartTime(Instant.now().asTimestamp).withIsActive(false)
+      .withRiskPercent(10).withScheduleRequirements(Seq(
+        ScheduleRequirement().withId("schedReq1").withCategoryIds(Seq(categoryId)).withMatId(matId)
+          .withPeriodId(periodId).withEntryOrder(0).withEntryType(ScheduleRequirementType.CATEGORIES),
+        ScheduleRequirement().withId("schedReq2").withCategoryIds(Seq(category2)).withMatId(matId)
+          .withPeriodId(periodId).withEntryOrder(1).withEntryType(ScheduleRequirementType.CATEGORIES)
+      )).withTimeBetweenFights(1)
+  )))
 
   private val stage2: String = stageId + "2"
-  import compman.compsrv.model.extensions._
 
-  private val fights2: List[FightDescriptionDTO] = fights.map(f =>
-    f.copy(id = f.getId + "2").setStageId(stage2).setCategoryId(category2)
-      .setWinFight(Option(f.getWinFight).map(_ + "2").orNull).setScores(
-        Option(f.getScores).map(_.map(cs => cs.setParentFightId(Option(cs.getParentFightId).map(_ + "2").orNull)))
-          .orNull
+  private val fights2: Seq[FightDescription] = fights.map(f =>
+    f.copy(id = f.id + "2").withStageId(stage2).withCategoryId(category2)
+      .withWinFight(Option(f.getWinFight).map(_ + "2").orNull).withScores(
+        Option(f.scores).map(_.map(cs => cs.update(_.parentFightId.setIfDefined(cs.parentFightId.map(_ + "2")))))
+          .getOrElse(Seq.empty)
       )
   )
   val initialState: CompetitionState = CompetitionState(
     id = competitionId,
-    competitors = Some(Utils.groupById(competitors)(_.getId)),
-    competitionProperties = Some(new CompetitionPropertiesDTO().setId(competitionId).setTimeZone("UTC")),
-    stages = Some(Map(stageId -> stage, stage2 -> stage.copy().setId(stage2).setCategoryId(category2))),
-    fights = Some(fights ++ fights2).map(fs => Utils.groupById(fs)(_.getId)),
-    categories = Some(Map(
-      categoryId -> new CategoryDescriptorDTO().copy().setId(categoryId),
-      category2  -> new CategoryDescriptorDTO().copy().setId(category2)
-    )),
+    competitors = Some(Utils.groupById(competitors)(_.id)),
+    competitionProperties = Some(CompetitionProperties().withId(competitionId).withTimeZone("UTC")),
+    stages = Some(Map(stageId -> stage, stage2 -> stage.copy().withId(stage2).withCategoryId(category2))),
+    fights = Some(fights ++ fights2).map(fs => Utils.groupById(fs)(_.id)),
+    categories = Some(
+      Map(categoryId -> CategoryDescriptor().withId(categoryId), category2 -> CategoryDescriptor().withId(category2))
+    ),
     registrationInfo = None,
     schedule = None,
     revision = 0
@@ -70,19 +64,17 @@ class ScheduleServiceSpec extends AnyFunSuite with BeforeAndAfter with TestEntit
     GenerateScheduleCommand(payload = payload, competitionId = Some(competitionId), categoryId = None)
 
   test("Should generate Schedule") {
-    val generatedEvents =
-      (for { result <- GenerateScheduleProc[Eval, Payload](initialState).apply(command) } yield result).value
+    val generatedEvents = (for { result <- GenerateScheduleProc[Eval](initialState).apply(command) } yield result).value
     assert(generatedEvents.isRight)
     val events = generatedEvents.getOrElse(List.empty)
     assert(events.nonEmpty)
-    assert(events.head.getType == EventType.SCHEDULE_GENERATED)
-    assert(events.head.getPayload != null)
-    assert(events.head.getPayload.isInstanceOf[ScheduleGeneratedPayload])
-    val receivedPayload = events.head.getPayload.asInstanceOf[ScheduleGeneratedPayload]
-    assert(receivedPayload.getSchedule != null)
-    assert(receivedPayload.getSchedule.getMats.length == 1)
-    assert(receivedPayload.getSchedule.getPeriods.length == 1)
-    assert(receivedPayload.getSchedule.getPeriods.head.getScheduleEntries.length == 2)
+    assert(events.head.`type` == EventType.SCHEDULE_GENERATED)
+    assert(events.head.messageInfo.flatMap(_.payload.scheduleGeneratedPayload).isDefined)
+    val receivedPayload = events.head.messageInfo.flatMap(_.payload.scheduleGeneratedPayload).get
+    assert(receivedPayload.schedule.isDefined)
+    assert(receivedPayload.getSchedule.mats.length == 1)
+    assert(receivedPayload.getSchedule.periods.length == 1)
+    assert(receivedPayload.getSchedule.periods.head.scheduleEntries.length == 2)
   }
 
   object Deps {

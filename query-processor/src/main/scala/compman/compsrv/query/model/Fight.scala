@@ -1,8 +1,8 @@
 package compman.compsrv.query.model
 
-import compman.compsrv.model.dto.brackets.{FightReferenceType, StageRoundType}
-import compman.compsrv.model.dto.competition.FightStatus
-import compman.compsrv.model.events.payload.FightOrderUpdate
+
+import compservice.model.protobuf.eventpayload.FightOrderUpdate
+import compservice.model.protobuf.model._
 
 import java.util.Date
 

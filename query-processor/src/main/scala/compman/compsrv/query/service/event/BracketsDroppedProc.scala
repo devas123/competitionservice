@@ -3,12 +3,11 @@ package compman.compsrv.query.service.event
 import cats.Monad
 import cats.data.OptionT
 import cats.implicits._
-import compman.compsrv.model.Payload
 import compman.compsrv.model.event.Events.{CategoryBracketsDropped, Event}
 import compman.compsrv.query.service.repository.{CompetitionUpdateOperations, FightUpdateOperations}
 
 object BracketsDroppedProc {
-  def apply[F[+_]: Monad: CompetitionUpdateOperations: FightUpdateOperations, P <: Payload](): PartialFunction[Event[P], F[Unit]] = {
+  def apply[F[+_]: Monad: CompetitionUpdateOperations: FightUpdateOperations](): PartialFunction[Event[Any], F[Unit]] = {
     case x: CategoryBracketsDropped => apply[F](x)
   }
 
