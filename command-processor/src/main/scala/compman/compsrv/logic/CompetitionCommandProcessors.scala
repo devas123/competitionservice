@@ -4,14 +4,14 @@ import cats.Monad
 import compman.compsrv.logic.command._
 import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.model.{Errors, Payload}
+import compman.compsrv.model.Errors
 import compman.compsrv.model.command.Commands.InternalCommandProcessorCommand
 import compservice.model.protobuf.event.Event
 
 object CompetitionCommandProcessors {
   import Operations._
 
-  def process[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations: Interpreter, P <: Payload](
+  def process[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations: Interpreter, P](
                                                                                                                    command: InternalCommandProcessorCommand[Any],
                                                                                                                    state: CompetitionState
   ): F[Either[Errors.Error, Seq[Event]]] = {

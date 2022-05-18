@@ -5,7 +5,6 @@ import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Behaviors}
 import compman.compsrv.logic.category.CategoryGenerateService
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compman.compsrv.model.PageResponse
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.{
@@ -217,11 +216,9 @@ object CompetitionApiActor {
             case c @ GetCompetitors(competitionId, categoryId, searchString, pagination) => categoryId match {
                 case Some(value) => CompetitionQueryOperations[LIO]
                     .getCompetitorsByCategoryId(competitionId)(value, pagination, searchString)
-                    .map(res => createPageResponse(competitionId, res))
                     .flatMap(res => c.replyTo ! createGetCompetitorsResponse(res)).as(state)
                 case None => CompetitionQueryOperations[LIO]
                     .getCompetitorsByCompetitionId(competitionId)(pagination, searchString)
-                    .map(res => createPageResponse(competitionId, res))
                     .flatMap(res => c.replyTo ! createGetCompetitorsResponse(res)).as(state)
               }
             case c @ GetCompetitor(competitionId, competitorId) => CompetitionQueryOperations[LIO]
@@ -363,20 +360,15 @@ object CompetitionApiActor {
       }
     }
 
-  private def createGetCompetitorsResponse(
-    res: _root_.compman.compsrv.model.PageResponse[_root_.compservice.model.protobuf.model.Competitor]
-  ) = {
+  private def createGetCompetitorsResponse(res: (List[Competitor], Pagination)) = {
     QueryServiceResponse().withGetCompetitorsResponse(
-      GetCompetitorsResponse(Option(PageInfo(res.total().toInt, res.page())), res.data().toSeq)
+      GetCompetitorsResponse().withCompetitors(res._1.map(DtoMapping.toDtoCompetitor)).withPageInfo(
+        PageInfo().withPage(
+          Integer.signum(Integer.bitCount(res._2.maxResults)) * res._2.offset / Math.max(res._2.maxResults, 1)
+        ).withTotal(res._2.totalResults)
+      )
     )
   }
-  private def createPageResponse(competitionId: String, res: (List[Competitor], Pagination)) =
-    new PageResponse[model.Competitor](
-      competitionId,
-      res._2.totalResults.toLong,
-      Integer.signum(Integer.bitCount(res._2.maxResults)) * res._2.offset / Math.max(res._2.maxResults, 1),
-      res._1.map(DtoMapping.toDtoCompetitor).toArray
-    )
 
   private def createCategoryState(
     competitionId: String,

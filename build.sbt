@@ -23,18 +23,6 @@ val zTestFramework = TestFramework("zio.test.sbt.ZTestFramework")
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
-lazy val competitionServiceAnnotations = module("compservice-annotations", "compservice-annotations")
-
-lazy val competitionServiceAnnotationProcessor =
-  module("compservice-annotation-processor", "compservice-annotation-processor")
-    .settings(libraryDependencies ++= Seq(guavaDependency, javaPoetDependency, autoServiceDependency))
-    .dependsOn(competitionServiceAnnotations)
-
-lazy val competitionServiceModel = module("competition-serv-model", "competition-serv-model")
-  .settings(libraryDependencies ++= jacksonDependencies ++ Seq(lombokDependency))
-  .enablePlugins(AnnotationProcessorPlugin)
-  .dependsOn(competitionServiceAnnotations, competitionServiceAnnotationProcessor)
-
 lazy val competitionServiceModelProtobuf = module("competition-serv-protobuf", "competition-serv-protobuf").settings(
   libraryDependencies ++= scalapbProtobufDepenedency,
   Compile / PB.targets := Seq(scalapb.gen() -> (Compile / sourceManaged).value / "scalapb")
@@ -56,7 +44,7 @@ lazy val commons = module("commons", "command-processor/commons").settings(
   libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioLoggingDependencies ++ zioTestDependencies ++
     protobufUtils,
   testFrameworks := Seq(zTestFramework)
-).dependsOn(competitionServiceModel, competitionServiceModelProtobuf)
+).dependsOn(competitionServiceModelProtobuf)
 
 lazy val competitionservice = project.in(file(".")).settings(publish / skip := true)
   .aggregate(commandProcessor, queryProcessor, gatewayService, kafkaCommons, actorSystem)
