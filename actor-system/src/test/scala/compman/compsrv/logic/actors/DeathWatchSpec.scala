@@ -21,7 +21,7 @@ object DeathWatchSpec extends DefaultRunnableSpec {
   final case object Unwatch extends WatcherDsl
 
   val logging: ZLayer[Console with Clock, Nothing, Logging] = Logging.console()
-  final val dieAfterSeconds                                 = 1
+  final val dieAfterSeconds                                 = 2
 
   import Behaviors._
 
@@ -51,7 +51,7 @@ object DeathWatchSpec extends DefaultRunnableSpec {
       putStrLn(s"Terminated msg: $x").unit *> context.stopSelf.unit
     })
 
-  private val timeDeltaPlusSeconds = 1
+  private val timeDeltaPlusSeconds = 2
 
   override def spec: ZSpec[TestEnvironment, Any] = suite("DeathWatch")(
     testM("Should react to actor death with custom message.") {
