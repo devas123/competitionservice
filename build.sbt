@@ -12,12 +12,11 @@ inThisBuild(List(
   scmInfo := Some(ScmInfo(
     url("https://github.com/devas123/competitionservice"),
     "scm:git:git@github.com:devas123/competitionservice.git"
-  ))
+  )),
+  Test / parallelExecution      := false,
+  Global / onChangedBuildSource := ReloadOnSourceChanges,
 ))
 
-Global / onChangedBuildSource := ReloadOnSourceChanges
-Test / parallelExecution      := false
-Compile / logLevel            := Level.Debug
 val zTestFramework = TestFramework("zio.test.sbt.ZTestFramework")
 
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")

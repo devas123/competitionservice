@@ -32,10 +32,11 @@ object BuildHelper {
       buildInfoObject := "BuildInfo"
     )
 
-  def stdSettings(prjName: String, extra: Seq[String] = extraOptions): Seq[Def.Setting[_ >: String with Task[Seq[String]] with Seq[ModuleID] with Task[IncOptions] <: Object]] =
+  def stdSettings(prjName: String, extra: Seq[String] = extraOptions): Seq[Def.Setting[_ >: Seq[ModuleID] with Task[Seq[String]] with String with Boolean with Task[IncOptions]]] =
     Seq(
       name := s"$prjName",
       ThisBuild / scalaVersion := Scala213,
+      ThisBuild / Test / parallelExecution := false,
       scalacOptions := stdOptions ++ extra,
       libraryDependencies ++=
         Seq(
