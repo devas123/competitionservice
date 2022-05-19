@@ -58,6 +58,7 @@ object QueryServiceMain extends zio.App {
           (),
           CompetitionEventListenerSupervisor.behavior[ZEnv](
             config.competitionEventListener.competitionNotificationsTopic,
+            config.statelessEventListener.commandCallbackTopic,
             CompetitionEventListenerSupervisor.Live(mongoDbSession, mongodbConfig),
             kafkaSupervisor,
             CompetitionEventListener.Live(mongoDbSession, mongodbConfig),

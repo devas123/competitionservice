@@ -252,11 +252,18 @@ object Commands {
     override val fightId: Option[String]      = None
   }
 
-  def createErrorCommandCallbackMessageParameters(commandCallbackTopic: String, cmd: Command, value: Errors.Error): (String, String, Array[Byte]) = {
+  def createErrorCommandCallbackMessageParameters(commandCallbackTopic: String, correlationId: Option[String], value: Errors.Error): (String, String, Array[Byte]) = {
     (
       commandCallbackTopic,
-      cmd.messageInfo.map(_.id).orNull,
-      createErrorCallback(correlationId(cmd), value).toByteArray
+      correlationId.orNull,
+      createErrorCallback(correlationId, value).toByteArray
+    )
+  }
+  def createSuccessCallbackMessageParameters(commandCallbackTopic: String, correlationId: Option[String]): (String, String, Array[Byte]) = {
+    (
+      commandCallbackTopic,
+      correlationId.orNull,
+      createSuccessCallback(correlationId).toByteArray
     )
   }
 
@@ -267,6 +274,11 @@ object Commands {
     CommandCallback().withId(UUID.randomUUID().toString)
       .withResult(CommandExecutionResult.FAIL)
       .withErrorInfo(ErrorCallback().withMessage(s"Error: $value"))
+      .update(_.correlationId.setIfDefined(correlationId))
+  }
+  def createSuccessCallback(correlationId: Option[String]): CommandCallback = {
+    CommandCallback().withId(UUID.randomUUID().toString)
+      .withResult(CommandExecutionResult.SUCCESS)
       .update(_.correlationId.setIfDefined(correlationId))
   }
 }

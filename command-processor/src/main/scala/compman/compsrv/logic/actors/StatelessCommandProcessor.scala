@@ -1,7 +1,12 @@
 package compman.compsrv.logic.actors
 
 import cats.implicits._
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, PublishMessage, Subscribe}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
+  KafkaConsumerApi,
+  KafkaSupervisorCommand,
+  PublishMessage,
+  Subscribe
+}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.Operations
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
@@ -22,11 +27,11 @@ object StatelessCommandProcessor {
 
   import Behaviors._
   def behavior(
-                statelessCommandsTopic: String,
-                groupId: String,
-                statelessEventsTopic: String,
-                commandCallbackTopic: String,
-                kafkaSupervisor: ActorRef[KafkaSupervisorCommand]
+    statelessCommandsTopic: String,
+    groupId: String,
+    statelessEventsTopic: String,
+    commandCallbackTopic: String,
+    kafkaSupervisor: ActorRef[KafkaSupervisorCommand]
   ): ActorBehavior[AcademyCommandProcessorSupervisorEnv, Unit, AcademyCommandProcessorMessage] = Behaviors
     .behavior[AcademyCommandProcessorSupervisorEnv, Unit, AcademyCommandProcessorMessage]
     .withReceive { (_, _, _, message, _) =>
@@ -38,9 +43,14 @@ object StatelessCommandProcessor {
               }
             _ <- processResult match {
               case Left(value) => info(s"Error: $value") *>
-                  (kafkaSupervisor ! PublishMessage(Commands.createErrorCommandCallbackMessageParameters(commandCallbackTopic, cmd, value)))
+                  (kafkaSupervisor ! PublishMessage(Commands.createErrorCommandCallbackMessageParameters(
+                    commandCallbackTopic,
+                    Commands.correlationId(cmd),
+                    value
+                  )))
               case Right(events) => events.traverse(e =>
-                  kafkaSupervisor ! PublishMessage(statelessEventsTopic, cmd.messageInfo.map(_.id).orNull, e.toByteArray)
+                  kafkaSupervisor !
+                    PublishMessage(statelessEventsTopic, cmd.messageInfo.map(_.id).orNull, e.toByteArray)
                 ).unit
             }
           } yield ()

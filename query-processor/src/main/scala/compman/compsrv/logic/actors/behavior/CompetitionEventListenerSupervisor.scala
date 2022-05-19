@@ -51,6 +51,7 @@ object CompetitionEventListenerSupervisor {
 
   def behavior[R: Tag](
     notificationStopic: String,
+    callbackTopic: String,
     context: ActorContext,
     kafkaSupervisorActor: ActorRef[KafkaSupervisorCommand],
     eventListenerContext: CompetitionEventListener.ActorContext,
@@ -93,6 +94,7 @@ object CompetitionEventListenerSupervisor {
                   CompetitionEventListener.behavior[R](
                     competition.id,
                     competition.eventsTopic,
+                    callbackTopic,
                     eventListenerContext,
                     kafkaSupervisorActor,
                     context.self,
@@ -136,6 +138,7 @@ object CompetitionEventListenerSupervisor {
                     CompetitionEventListener.behavior[R](
                       s.id,
                       s.topic,
+                      callbackTopic,
                       eventListenerContext,
                       kafkaSupervisorActor,
                       context.self,

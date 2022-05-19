@@ -32,6 +32,7 @@ import java.time.Instant
 
 object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
   private val notificationTopic = "notifications"
+  private val callbackTopic = "callback"
   private val loggingLayer      = CompetitionLogging.Live.loggingLayer
 
   override def spec: ZSpec[TestEnvironment, Any] = suite("Competition event listener") {
@@ -55,6 +56,7 @@ object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
             kafkaSupervisor <- actorSystem
               .make("kafkaSupervisor", ActorConfig(), None, KafkaSupervisor.behavior[Any](List(brokerUrl)))
             _ <- kafkaSupervisor ! CreateTopicIfMissing(notificationTopic, KafkaTopicConfig())
+            _ <- kafkaSupervisor ! CreateTopicIfMissing(callbackTopic, KafkaTopicConfig())
             supervisorContext = CompetitionEventListenerSupervisor.Test(competitions)
             eventListenerContext = CompetitionEventListener.Test(
               Some(competitionProperties),
@@ -72,6 +74,7 @@ object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
               (),
               CompetitionEventListenerSupervisor.behavior[Any](
                 notificationTopic,
+                callbackTopic,
                 supervisorContext,
                 kafkaSupervisor,
                 eventListenerContext,
