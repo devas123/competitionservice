@@ -1,6 +1,12 @@
 package compman.compsrv.model.command
 
+import compman.compsrv.model.Errors
+import compservice.model.protobuf.command.Command
 import compservice.model.protobuf.commandpayload._
+import compservice.model.protobuf.common.{CommandCallback, CommandExecutionResult, ErrorCallback}
+import compservice.model.protobuf.event.Event
+
+import java.util.UUID
 
 object Commands {
   sealed trait InternalCommandProcessorCommand[+P] {
@@ -244,5 +250,23 @@ object Commands {
   ) extends InternalCommandProcessorCommand[UpdateStageStatusPayload] {
     override val competitorId: Option[String] = None
     override val fightId: Option[String]      = None
+  }
+
+  def createErrorCommandCallbackMessageParameters(commandCallbackTopic: String, cmd: Command, value: Errors.Error): (String, String, Array[Byte]) = {
+    (
+      commandCallbackTopic,
+      cmd.messageInfo.map(_.id).orNull,
+      createErrorCallback(correlationId(cmd), value).toByteArray
+    )
+  }
+
+  def correlationId(cmd: Command): Option[String] = cmd.messageInfo.map(_.id)
+  def correlationId(event: Event): Option[String] = event.messageInfo.map(_.id)
+
+  def createErrorCallback(correlationId: Option[String], value: Errors.Error): CommandCallback = {
+    CommandCallback().withId(UUID.randomUUID().toString)
+      .withResult(CommandExecutionResult.FAIL)
+      .withErrorInfo(ErrorCallback().withMessage(s"Error: $value"))
+      .update(_.correlationId.setIfDefined(correlationId))
   }
 }

@@ -58,6 +58,7 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
             CompetitionProcessorActor.behavior[Clock with Blocking with Logging](
               competitionId,
               "test-events",
+              "test-commands-callback",
               kafkaSupervisor.ref,
               "test-notifications",
               actorIdleTimeoutMillis = 10000L

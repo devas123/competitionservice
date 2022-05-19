@@ -6,13 +6,12 @@ import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.Operations
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
 import compman.compsrv.logic.logging.info
+import compman.compsrv.model.command.Commands
 import compservice.model.protobuf.command.Command
-import compservice.model.protobuf.common.{CommandCallback, CommandExecutionResult, ErrorCallback}
 import zio.clock.Clock
 import zio.console.Console
 import zio.logging.Logging
 
-import java.util.UUID
 import scala.util.Try
 
 object StatelessCommandProcessor {
@@ -23,11 +22,11 @@ object StatelessCommandProcessor {
 
   import Behaviors._
   def behavior(
-    statelessCommandsTopic: String,
-    groupId: String,
-    statelessEventsTopic: String,
-    statelessCommandCallbackTopic: String,
-    kafkaSupervisor: ActorRef[KafkaSupervisorCommand]
+                statelessCommandsTopic: String,
+                groupId: String,
+                statelessEventsTopic: String,
+                commandCallbackTopic: String,
+                kafkaSupervisor: ActorRef[KafkaSupervisorCommand]
   ): ActorBehavior[AcademyCommandProcessorSupervisorEnv, Unit, AcademyCommandProcessorMessage] = Behaviors
     .behavior[AcademyCommandProcessorSupervisorEnv, Unit, AcademyCommandProcessorMessage]
     .withReceive { (_, _, _, message, _) =>
@@ -39,13 +38,7 @@ object StatelessCommandProcessor {
               }
             _ <- processResult match {
               case Left(value) => info(s"Error: $value") *>
-                  (kafkaSupervisor ! PublishMessage(
-                    statelessCommandCallbackTopic,
-                    cmd.messageInfo.map(_.id).orNull,
-                    CommandCallback().withId(UUID.randomUUID().toString).withCorrelationId(cmd.messageInfo.map(_.id).orNull)
-                      .withResult(CommandExecutionResult.FAIL)
-                      .withErrorInfo(ErrorCallback().withMessage(s"Error: $value")).toByteArray
-                  ))
+                  (kafkaSupervisor ! PublishMessage(Commands.createErrorCommandCallbackMessageParameters(commandCallbackTopic, cmd, value)))
               case Right(events) => events.traverse(e =>
                   kafkaSupervisor ! PublishMessage(statelessEventsTopic, cmd.messageInfo.map(_.id).orNull, e.toByteArray)
                 ).unit

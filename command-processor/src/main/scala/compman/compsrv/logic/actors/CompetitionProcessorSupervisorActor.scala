@@ -51,6 +51,7 @@ object CompetitionProcessorSupervisorActor {
                       CompetitionProcessorActor.behavior[Env](
                         competitionId,
                         s"$competitionId-${commandProcessorConfig.eventsTopicPrefix}",
+                        commandProcessorConfig.commandCallbackTopic,
                         kafkaSupervisor,
                         commandProcessorConfig.competitionNotificationsTopic,
                         commandProcessorConfig.actorIdleTimeoutMillis.getOrElse(30 * 60000)

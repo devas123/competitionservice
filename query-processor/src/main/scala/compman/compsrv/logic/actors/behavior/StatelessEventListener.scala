@@ -1,24 +1,20 @@
 package compman.compsrv.logic.actors.behavior
 
 import cats.implicits.catsSyntaxApplicativeError
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
-  KafkaConsumerApi,
-  KafkaSupervisorCommand,
-  MessageReceived,
-  PublishMessage
-}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, MessageReceived, PublishMessage}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors._
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model
-import compman.compsrv.model.Mapping
+import compman.compsrv.model.{Errors, Mapping}
 import compman.compsrv.model.Mapping.EventMapping
+import compman.compsrv.model.command.Commands
 import compman.compsrv.query.config.{MongodbConfig, StatelessEventListenerConfig}
 import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.repository._
 import compman.compsrv.query.service.repository.AcademyOperations.AcademyService
-import compservice.model.protobuf.common.{CommandCallback, CommandExecutionResult, ErrorCallback}
+import compservice.model.protobuf.common.{CommandCallback, CommandExecutionResult}
 import compservice.model.protobuf.event.Event
 import org.mongodb.scala.MongoClient
 import zio.{Cause, Tag, ZIO}
@@ -73,11 +69,7 @@ object StatelessEventListener {
                       _      <- Logging.info(s"Received event: $mapped")
                       result <- EventProcessors.applyStatelessEvent[LIO](mapped).attempt
                       message = result match {
-                        case Left(value) => CommandCallback().withId(UUID.randomUUID().toString)
-                            .withCorrelationId(event.messageInfo.map(_.correlationId).getOrElse(""))
-                            .withResult(CommandExecutionResult.FAIL)
-                            .withErrorInfo(ErrorCallback().withMessage(s"Error: ${value.getMessage}"))
-
+                        case Left(value) => Commands.createErrorCallback(Commands.correlationId(event), Errors.InternalException(value))
                         case Right(_) => new CommandCallback().withId(UUID.randomUUID().toString)
                             .withCorrelationId(event.messageInfo.map(_.correlationId).getOrElse(""))
                             .withResult(CommandExecutionResult.SUCCESS)

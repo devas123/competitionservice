@@ -54,7 +54,11 @@ object KafkaSupervisor {
   case class Subscribe(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi])
       extends KafkaSupervisorCommand
 
-  case class PublishMessage(topic: String, key: String, message: Array[Byte]) extends KafkaSupervisorCommand
+  case class PublishMessage(topic: String, key: String, message: Array[Byte]) extends KafkaSupervisorCommand {
+  }
+  object PublishMessage {
+    def apply(tuple: (String, String, Array[Byte])): PublishMessage = PublishMessage(tuple._1, tuple._2, tuple._3)
+  }
 
   case object Stop extends KafkaSupervisorCommand
 

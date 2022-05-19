@@ -4,6 +4,7 @@ import compman.compsrv.logic.{CompetitionState, Operations}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
 import compman.compsrv.logic.actors.EventSourcedMessages._
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
+import compman.compsrv.model.command.Commands.createErrorCommandCallbackMessageParameters
 import compservice.model.protobuf.command
 import compservice.model.protobuf.event.Event
 import compservice.model.protobuf.model.{CompetitionProcessingStarted, CompetitionProcessingStopped, CompetitionProcessorNotification}
@@ -27,6 +28,7 @@ object CompetitionProcessorActor {
   def behavior[Env](
     competitionId: String,
     eventTopic: String,
+    commandCallbackTopic: String,
     kafkaSupervisor: ActorRef[KafkaSupervisorCommand],
     competitionNotificationsTopic: String,
     actorIdleTimeoutMillis: Long
@@ -101,7 +103,7 @@ object CompetitionProcessorActor {
                   ) { Operations.processStatefulCommand[LIO](state, cmd) }
                   _ <- info(s"Processing done. ")
                   res <- processResult match {
-                    case Left(value)  => info(s"Error: $value") *> ZIO.effect((EventSourcingCommand.ignore, unit))
+                    case Left(value)  => info(s"Error: $value") *> (kafkaSupervisor ! PublishMessage(createErrorCommandCallbackMessageParameters(commandCallbackTopic, cmd, value))) *> ZIO.effect((EventSourcingCommand.ignore, unit))
                     case Right(value) => ZIO.effect((EventSourcingCommand.persist(value), unit))
                   }
                 } yield res
