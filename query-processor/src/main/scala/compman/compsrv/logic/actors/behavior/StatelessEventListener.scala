@@ -14,7 +14,7 @@ import compman.compsrv.query.config.{MongodbConfig, StatelessEventListenerConfig
 import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.repository._
 import compman.compsrv.query.service.repository.AcademyOperations.AcademyService
-import compservice.model.protobuf.common.{CommandCallback, CommandExecutionResult}
+import compservice.model.protobuf.callback.{CommandCallback, CommandExecutionResult}
 import compservice.model.protobuf.event.Event
 import org.mongodb.scala.MongoClient
 import zio.{Cause, Tag, ZIO}

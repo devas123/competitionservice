@@ -1,5 +1,4 @@
 package compman.compsrv.query
-import cats.effect
 import com.mongodb.connection.ClusterSettings
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaTopicConfig}
@@ -12,23 +11,20 @@ import compman.compsrv.logic.logging.CompetitionLogging.logError
 import compman.compsrv.query.config.AppConfig
 import compman.compsrv.query.service.{CompetitionHttpApiService, WebsocketService}
 import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO
-import fs2.concurrent.SignallingRef
 import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.server.Router
 import zio._
 import zio.clock.Clock
-import zio.duration.durationInt
 import zio.interop.catz._
 import zio.logging.Logging
 
-import java.nio.file.{Files, Path}
 import scala.jdk.CollectionConverters._
 
 object QueryServiceMain extends zio.App {
 
   import org.mongodb.scala._
 
-  def server(args: List[String]): ZIO[zio.ZEnv with Clock with Logging, Throwable, Unit] =
+  def server(): ZIO[zio.ZEnv with Clock with Logging, Throwable, Unit] =
     ActorSystem("queryServiceActorSystem").use { actorSystem =>
       for {
         (config, mongodbConfig) <- AppConfig.load()
@@ -91,13 +87,7 @@ object QueryServiceMain extends zio.App {
             kafkaSupervisor
           )
         )
-        signal <- SignallingRef[ServiceIO, Boolean](false)
-        _ <- (for {
-          _ <- args.headOption.map(f => signal.set(true).unless(Files.exists(Path.of(f)))).getOrElse(ZIO.unit)
-          _ <- ZIO.sleep(5.seconds)
-        } yield ()).forever.fork
         _        <- Logging.debug("Starting server...")
-        exitCode <- effect.Ref.of[ServiceIO, effect.ExitCode](effect.ExitCode.Success)
         serviceVersion = "v1"
         httpApp = Router[ServiceIO](
           s"/query/$serviceVersion"    -> CompetitionHttpApiService.service(competitionApiActor, academyApiActor),
@@ -105,11 +95,11 @@ object QueryServiceMain extends zio.App {
         ).orNotFound
         srv <- ZIO.runtime[ZEnv] *> {
           BlazeServerBuilder[ServiceIO].bindHttp(9000, "0.0.0.0").withWebSockets(true).withSocketKeepAlive(true)
-            .withHttpApp(httpApp).serveWhile(signal, exitCode).compile.drain
+            .withHttpApp(httpApp).serve.compile.drain
         }
       } yield srv
     }
 
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = server(args).tapError(logError).exitCode
+  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = server().tapError(logError).exitCode
     .provideLayer(CompetitionLogging.Live.loggingLayer ++ ZEnv.live)
 }

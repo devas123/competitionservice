@@ -1,9 +1,9 @@
 package compman.compsrv.model.command
 
 import compman.compsrv.model.Errors
+import compservice.model.protobuf.callback.{CommandCallback, CommandExecutionResult, ErrorCallback}
 import compservice.model.protobuf.command.Command
 import compservice.model.protobuf.commandpayload._
-import compservice.model.protobuf.common.{CommandCallback, CommandExecutionResult, ErrorCallback}
 import compservice.model.protobuf.event.Event
 
 import java.util.UUID

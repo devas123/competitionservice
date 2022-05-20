@@ -24,7 +24,7 @@ case class Context[-F](
   def watch[F1](actorRef: ActorRef[F1]): Task[Unit] = { self sendSystemMessage Watch(actorRef, self, None) }
   def unwatch[F1](actorRef: ActorRef[F1]): Task[Unit] = { self sendSystemMessage Unwatch(actorRef, self) }
 
-  def messageAdapter[In](mapping: In => Option[F]): ZIO[Any with Clock with Console, Throwable, ActorRef[In]] =
+  def messageAdapter[In](mapping: In => Option[F]): ZIO[Clock with Console, Throwable, ActorRef[In]] =
     make[Any, Unit, In](
       s"message-adapter-${UUID.randomUUID()}",
       ActorConfig(),

@@ -5,6 +5,7 @@ import compman.compsrv.logic.actor.kafka.KafkaSupervisor.KafkaSupervisorCommand
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorActor.ProcessCommand
 import compman.compsrv.logic.logging.CompetitionLogging
+import compman.compsrv.CompetitionEventsTopic
 import compservice.model.protobuf.command.Command
 import zio.{Tag, ZIO}
 import zio.clock.Clock
@@ -50,7 +51,7 @@ object CompetitionProcessorSupervisorActor {
                       initialState,
                       CompetitionProcessorActor.behavior[Env](
                         competitionId,
-                        s"$competitionId-${commandProcessorConfig.eventsTopicPrefix}",
+                        CompetitionEventsTopic(commandProcessorConfig.eventsTopicPrefix)(competitionId),
                         commandProcessorConfig.commandCallbackTopic,
                         kafkaSupervisor,
                         commandProcessorConfig.competitionNotificationsTopic,

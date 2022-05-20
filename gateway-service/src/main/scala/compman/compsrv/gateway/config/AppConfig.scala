@@ -6,9 +6,11 @@ import zio.config.magnolia.DeriveConfigDescriptor
 import zio.config.read
 import zio.config.typesafe.TypesafeConfigSource
 
-final case class AppConfig(producer: ProducerConfig)
+final case class AppConfig(producer: ProducerConfig, consumer: ConsumerConfig, callbackTimeoutMs: Int)
 
-final case class ProducerConfig(bootstrapServers: String) {
+final case class ConsumerConfig(callbackTopic: String, eventsTopicPrefix: String, groupId: String, academyNotificationsTopic: String)
+
+final case class ProducerConfig(bootstrapServers: String, globalCommandsTopic: String) {
   def brokers: List[String] = bootstrapServers.split(",").toList
 }
 

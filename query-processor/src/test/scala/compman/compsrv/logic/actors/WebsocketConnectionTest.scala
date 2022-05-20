@@ -3,19 +3,22 @@ package compman.compsrv.logic.actors
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.behavior.WebsocketConnection
 import compman.compsrv.logic.logging.CompetitionLogging
-import compservice.model.protobuf.event.Event
 import compman.compsrv.query.service.repository.TestEntities
+import compservice.model.protobuf.event.Event
 import zio._
 import zio.blocking.Blocking
 import zio.clock.Clock
+import zio.duration.{durationInt, Duration}
 import zio.logging.Logging
-import zio.test.TestAspect._
 import zio.test._
+import zio.test.TestAspect._
 
 import java.util.UUID
 
 object WebsocketConnectionTest extends DefaultRunnableSpec with TestEntities {
   import compman.compsrv.logic.actors.patterns.Patterns._
+  implicit val timeout: Duration = 10.seconds
+
   override def spec: ZSpec[Any, Throwable] =
     (suite("Websocket connection actor suite")(
       testM("should handle connect and receive messages and stop") {
