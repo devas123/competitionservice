@@ -67,7 +67,8 @@ object CompetitionEventListenerSupervisor {
           case CompetitionDeletedMessage(competitionId) => ManagedCompetitionsOperations
               .deleteManagedCompetition[LIO](competitionId).unit
           case CompetitionUpdated(update, eventTopic) => for {
-              props <- ZIO.effect(update.getProperties)
+            _ <- Logging.info(s"Competition properties updated $update")
+            props <- ZIO.effect(update.getProperties)
               _ <- ManagedCompetitionsOperations.updateManagedCompetition[LIO](ManagedCompetition(
                 props.id,
                 Option(props.competitionName),
@@ -79,7 +80,6 @@ object CompetitionEventListenerSupervisor {
                 props.timeZone,
                 props.status
               ))
-              _ <- Logging.info(s"Competition properties updated $update")
             } yield ()
           case ActiveCompetition(competition) => for {
               res <- context

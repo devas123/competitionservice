@@ -7,8 +7,9 @@
         </Console>
     </Appenders>
     <Loggers>
-        <logger name="compman.compsrv.query.QueryServiceMain" level="info" />
-        <AsyncRoot level="debug" additivity="false">
+        <logger name="compman.compsrv.gateway" level="info" />
+        <logger name="org.apache.kafka" level="ERROR" />
+        <AsyncRoot level="info" additivity="false">
             <AppenderRef ref="console" />
         </AsyncRoot>
     </Loggers>

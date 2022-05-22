@@ -30,7 +30,7 @@ object CompetitionCommandProcessors {
       AddRegistrationPeriodProc(state),
       ChangeCompetitorCategoryProc(state),
       ChangeFightOrderProc(state),
-      CreateCompetitionProc(state),
+      CreateCompetitionProc(),
       DeleteRegistrationGroupProc(state),
       DeleteRegistrationPeriodProc(state),
       FightEditorApplyChangesProc(state),

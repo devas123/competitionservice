@@ -48,7 +48,7 @@ object CompetitionProcessorSupervisorActor {
                     a <- context.make(
                       actorName,
                       ActorConfig(),
-                      initialState,
+                      CompetitionProcessorActor.initialState(initialState),
                       CompetitionProcessorActor.behavior[Env](
                         competitionId,
                         CompetitionEventsTopic(commandProcessorConfig.eventsTopicPrefix)(competitionId),

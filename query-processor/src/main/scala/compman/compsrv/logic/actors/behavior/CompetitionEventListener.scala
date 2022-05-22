@@ -20,12 +20,17 @@ import compman.compsrv.model.{Errors, Mapping}
 import compman.compsrv.model.Mapping.EventMapping
 import compman.compsrv.model.command.Commands
 import compman.compsrv.model.event.Events
-import compman.compsrv.model.event.Events.{CompetitionDeletedEvent, CompetitionPropertiesUpdatedEvent}
+import compman.compsrv.model.event.Events.{
+  CompetitionCreatedEvent,
+  CompetitionDeletedEvent,
+  CompetitionPropertiesUpdatedEvent
+}
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.repository._
 import compservice.model.protobuf.event.Event
+import compservice.model.protobuf.eventpayload.CompetitionPropertiesUpdatedPayload
 import org.mongodb.scala.MongoClient
 import zio.{Cause, Queue, Ref, RIO, Tag, Task, ZIO}
 import zio.clock.Clock
@@ -99,6 +104,17 @@ object CompetitionEventListener {
   ): ActorBehavior[R with Logging with Clock with Console, ActorState, ApiCommand] = {
     def notifyEventListenerSupervisor(topic: String, event: Event, mapped: Events.Event[Any]): Task[Unit] = {
       mapped match {
+        case CompetitionCreatedEvent(_, _, _, _) => ZIO
+          .fromOption(event.messageInfo.flatMap(_.payload.competitionCreatedPayload)).mapBoth(
+          _ => new Exception("No payload"),
+          { payload =>
+            competitionEventListenerSupervisor ! CompetitionUpdated(
+              CompetitionPropertiesUpdatedPayload().update(_.properties.setIfDefined(payload.properties)),
+              topic
+            )
+          }
+        ).unit
+
         case CompetitionPropertiesUpdatedEvent(_, _, _) => ZIO
             .fromOption(event.messageInfo.flatMap(_.payload.competitionPropertiesUpdatedPayload)).mapBoth(
               _ => new Exception("No payload"),
@@ -117,20 +133,17 @@ object CompetitionEventListener {
     def sendSuccessfulExecutionCallbacks(event: Event) = {
       for {
         _ <- websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)
-        _ <- kafkaSupervisorActor ! PublishMessage(Commands.createSuccessCallbackMessageParameters(
-          callbackTopic,
-          Commands.correlationId(event)
-        ))
+        _ <- kafkaSupervisorActor !
+          PublishMessage(Commands.createSuccessCallbackMessageParameters(callbackTopic, Commands.correlationId(event)))
       } yield ()
     }
 
     def sendErrorCallback(event: Event, value: Throwable) = {
-      kafkaSupervisorActor !
-        PublishMessage(Commands.createErrorCommandCallbackMessageParameters(
-          callbackTopic,
-          Commands.correlationId(event),
-          Errors.InternalException(value)
-        ))
+      kafkaSupervisorActor ! PublishMessage(Commands.createErrorCommandCallbackMessageParameters(
+        callbackTopic,
+        Commands.correlationId(event),
+        Errors.InternalException(value)
+      ))
     }
 
     Behaviors.behavior[R with Logging with Clock with Console, ActorState, ApiCommand].withReceive {
@@ -151,7 +164,7 @@ object CompetitionEventListener {
                       _      <- notifyEventListenerSupervisor(topic, event, mapped)
                       _ <- res match {
                         case Left(value) => sendErrorCallback(event, value)
-                        case Right(_) => sendSuccessfulExecutionCallbacks(event)
+                        case Right(_)    => sendSuccessfulExecutionCallbacks(event)
                       }
                       _ <- context.self ! CommitOffset(record.offset)
                     } yield state

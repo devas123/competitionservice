@@ -11,6 +11,8 @@ object Errors {
     def apply(msg: String) = new InternalError(Option(msg))
   }
   final case class NoPayloadError() extends Error
+  final case class NoRegistrationInfoError() extends Error
+  final case class NoCompetitionPropertiesError() extends Error
   final case class TimeoutError() extends Error
   final case class InvalidPayload(payload: Any) extends Error
   final case class RegistrationPeriodAlreadyExistsError(id: String) extends Error

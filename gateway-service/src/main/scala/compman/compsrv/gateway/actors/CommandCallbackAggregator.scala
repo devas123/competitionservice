@@ -71,7 +71,7 @@ object CommandCallbackAggregator {
           res <- command match {
             case Stop => for {
                 _ <- replyTo ! CommandCallback().update(
-                  _.id.setIfDefined(commandToWaitCallbackFor.messageInfo.map(_.id)),
+                  _.id.setIfDefined(commandToWaitCallbackFor.messageInfo.flatMap(_.id)),
                   _.command   := commandToWaitCallbackFor,
                   _.result    := CommandExecutionResult.TIMEOUT,
                   _.errorInfo := ErrorCallback().withMessage(s"Timeout: $timeoutMs milliseconds.")
@@ -86,7 +86,7 @@ object CommandCallbackAggregator {
             case EventReceived(event) => ZIO.effect(state.copy(receivedEvents = state.receivedEvents :+ event))
             case Error(ex) =>
               for {
-                _ <- replyTo ! Commands.createErrorCallback(commandToWaitCallbackFor.messageInfo.map(_.id), Errors.InternalException(ex))
+                _ <- replyTo ! Commands.createErrorCallback(commandToWaitCallbackFor.messageInfo.flatMap(_.id), Errors.InternalException(ex))
                 _ <- ctx.stopSelf
               } yield state
           }

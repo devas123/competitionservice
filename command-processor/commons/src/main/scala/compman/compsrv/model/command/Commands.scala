@@ -267,8 +267,8 @@ object Commands {
     )
   }
 
-  def correlationId(cmd: Command): Option[String] = cmd.messageInfo.map(_.id)
-  def correlationId(event: Event): Option[String] = event.messageInfo.map(_.id)
+  def correlationId(cmd: Command): Option[String] = cmd.messageInfo.flatMap(_.id)
+  def correlationId(event: Event): Option[String] = event.messageInfo.flatMap(_.id)
 
   def createErrorCallback(correlationId: Option[String], value: Errors.Error): CommandCallback = {
     CommandCallback().withId(UUID.randomUUID().toString)

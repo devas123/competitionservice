@@ -5,12 +5,12 @@ import "eventpayload.proto";
 import "commandpayload.proto";
 
 message MessageInfo {
-  string id = 1;
-  string correlationId = 2;
-  string competitionId = 3;
-  string competitorId = 4;
-  string categoryId = 5;
-  string matId = 6;
+  optional string id = 1;
+  optional string correlationId = 2;
+  optional string competitionId = 3;
+  optional string competitorId = 4;
+  optional string categoryId = 5;
+  optional string matId = 6;
   oneof payload {
     AddAcademyPayload addAcademyPayload = 11;
     AddCategoryPayload     addCategoryPayload = 12;

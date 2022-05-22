@@ -106,7 +106,7 @@ object Operations {
       _             <- EitherT.liftF(info(s"Received events: $eventsToApply"))
       enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) => {
         ev.withLocalEventNumber(ind).update(_.messageInfo.setIfDefined(
-          ev.messageInfo.map(_.update(_.correlationId.setIfDefined(command.messageInfo.map(_.id))))
+          ev.messageInfo.map(_.update(_.correlationId.setIfDefined(command.messageInfo.flatMap(_.id))))
         ))
         ev
       })
@@ -131,7 +131,7 @@ object Operations {
       n = latestState.revision
       enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) =>
         ev.withLocalEventNumber(n + ind)
-          .withMessageInfo(ev.getMessageInfo.update(_.correlationId.setIfDefined(command.messageInfo.map(_.id))))
+          .withMessageInfo(ev.getMessageInfo.update(_.correlationId.setIfDefined(command.messageInfo.flatMap(_.id))))
       )
       _ <- EitherT.liftF(info(s"Returning events: $enrichedEvents"))
     } yield enrichedEvents

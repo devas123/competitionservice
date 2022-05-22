@@ -13,8 +13,6 @@ object Libraries {
   val guava = "30.1.1-jre"
   val log4j = "2.17.2"
   val disruptor = "3.4.4"
-  val jackson = "2.13.2"
-  val jacksonDatabind = "2.13.2.2"
   val kafka = "2.8.1"
   val rocksdb: String = "7.1.2"
   val http4s: String = "1.0.0-M27"
@@ -80,15 +78,6 @@ object Libraries {
     "org.http4s"                    %% "http4s-dsl"                     % http4s,
     "org.http4s"                    %% "http4s-blaze-server"            % http4s,
     "org.http4s"                    %% "http4s-blaze-client"            % http4s
-  )
-
-  val jacksonDependencies: Seq[ModuleID] = Seq(
-    "com.fasterxml.jackson.core"     % "jackson-databind"               % jacksonDatabind,
-    "com.fasterxml.jackson.core"     % "jackson-annotations"            % jackson,
-    "com.fasterxml.jackson.module"   % "jackson-module-parameter-names" % jackson,
-    "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8"          % jackson,
-    "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310"        % jackson,
-    "com.fasterxml.jackson.module"  %% "jackson-module-scala"           % jackson
   )
 
   val scalapbProtobufDepenedency: Seq[ModuleID] = Seq(

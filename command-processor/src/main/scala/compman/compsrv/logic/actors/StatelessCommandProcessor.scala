@@ -38,7 +38,7 @@ object StatelessCommandProcessor {
       message match {
         case AcademyCommandReceived(cmd) => for {
             processResult <- Live
-              .withContext(_.annotate(Annotations.correlationId, cmd.messageInfo.map(_.correlationId))) {
+              .withContext(_.annotate(Annotations.correlationId, cmd.messageInfo.flatMap(_.correlationId))) {
                 Operations.processStatelessCommand[LIO](cmd)
               }
             _ <- processResult match {
@@ -50,7 +50,7 @@ object StatelessCommandProcessor {
                   )))
               case Right(events) => events.traverse(e =>
                   kafkaSupervisor !
-                    PublishMessage(statelessEventsTopic, cmd.messageInfo.map(_.id).orNull, e.toByteArray)
+                    PublishMessage(statelessEventsTopic, cmd.messageInfo.flatMap(_.id).orNull, e.toByteArray)
                 ).unit
             }
           } yield ()

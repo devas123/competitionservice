@@ -54,7 +54,7 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
           processor <- actorSystem.make(
             s"CompetitionProcessor-$competitionId",
             ActorConfig(),
-            initialState,
+            CompetitionProcessorActor.initialState(initialState),
             CompetitionProcessorActor.behavior[Clock with Blocking with Logging](
               competitionId,
               "test-events",

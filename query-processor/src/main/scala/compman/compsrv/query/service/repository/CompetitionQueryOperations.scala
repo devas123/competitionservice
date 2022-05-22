@@ -188,8 +188,8 @@ object CompetitionQueryOperations {
       for {
         collection <- competitionStateCollection
         select = collection.find(equal(idField, competitionId)).map(_.categories)
-        res <- RIO.fromFuture(_ => select.head())
-      } yield res.values.toList
+        res <- RIO.fromFuture(_ => select.toFuture())
+      } yield res.headOption.map(_.values.toList).getOrElse(List.empty)
     }
 
     override def getCompetitionInfoTemplate(competitionId: String): LIO[Option[CompetitionInfoTemplate]] = {

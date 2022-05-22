@@ -34,7 +34,6 @@ lazy val actorSystem = module("actor-system", "actor-system").settings(
 
 lazy val kafkaCommons = module("kafka-common", "kafka-common").settings(
   libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioLoggingDependencies ++ zioTestDependencies ++
-    jacksonDependencies ++ zioConfigDependencies ++
     Seq(zioKafkaDependency, disruptorDependency, testContainersKafkaDependency),
   testFrameworks := Seq(zTestFramework)
 ).dependsOn(actorSystem, commons)
@@ -52,7 +51,7 @@ lazy val commandProcessor = module("command-processor", "command-processor")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv"))
   .settings(
     libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
-      zioLoggingDependencies ++ monocleDependencies ++ jacksonDependencies ++
+      zioLoggingDependencies ++ monocleDependencies ++
       Seq(zioKafkaDependency, guavaDependency, rocksDbDependency, disruptorDependency, scalaTestDependency),
     testFrameworks       := Seq(zTestFramework, TestFrameworks.ScalaTest),
     Docker / packageName := "command-processor"
@@ -62,7 +61,7 @@ lazy val queryProcessor = module("query-processor", "query-processor")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.logic"))
   .settings(
     libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
-      zioLoggingDependencies ++ monocleDependencies ++ http4sDependencies ++ jacksonDependencies ++ Seq(
+      zioLoggingDependencies ++ monocleDependencies ++ http4sDependencies ++ Seq(
         zioKafkaDependency,
         mongoDbScalaDriver,
         disruptorDependency,
@@ -81,7 +80,7 @@ lazy val gatewayService = module("gateway-service", "gateway-service")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.gateway"))
   .settings(
     libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
-      zioLoggingDependencies ++ http4sDependencies ++ jacksonDependencies ++
+      zioLoggingDependencies ++ http4sDependencies ++
       Seq(zioKafkaDependency, scalaTestDependency),
     testFrameworks       := Seq(zTestFramework),
     Docker / packageName := "gateway-service"

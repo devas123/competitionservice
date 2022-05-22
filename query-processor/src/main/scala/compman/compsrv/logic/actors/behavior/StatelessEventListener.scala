@@ -71,7 +71,7 @@ object StatelessEventListener {
                       message = result match {
                         case Left(value) => Commands.createErrorCallback(Commands.correlationId(event), Errors.InternalException(value))
                         case Right(_) => new CommandCallback().withId(UUID.randomUUID().toString)
-                            .withCorrelationId(event.messageInfo.map(_.correlationId).getOrElse(""))
+                            .withCorrelationId(event.messageInfo.flatMap(_.correlationId).getOrElse(""))
                             .withResult(CommandExecutionResult.SUCCESS)
                       }
                       _ <- kafkaSupervisorActor ! PublishMessage(config.commandCallbackTopic, key, message.toByteArray)

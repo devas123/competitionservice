@@ -5,6 +5,7 @@ import compman.compsrv.gateway.actors.CommandForwardingActor
 import compman.compsrv.gateway.actors.CommandForwardingActor.GatewayApiCommand
 import compman.compsrv.logic.actors.ActorRef
 import compservice.model.protobuf.callback.CommandCallback
+import compservice.model.protobuf.command.Command
 import org.http4s.{HttpRoutes, Response}
 import org.http4s.dsl.Http4sDsl
 import zio.{Task, ZIO}
@@ -30,16 +31,17 @@ object GatewayService {
 
   def service(apiActor: ActorRef[GatewayApiCommand]): HttpRoutes[ServiceIO] = HttpRoutes.of[ServiceIO] {
     case req @ POST -> Root / "competition" / "command" :? CompetitionIdParamMatcher(competitionId) => for {
-        _ <- ZIO.fail(new RuntimeException("competition id missing"))
+      _ <- ZIO.fail(new RuntimeException("competition id missing"))
           .when(competitionId.isEmpty && !competitionId.contains(null))
-        body    <- req.body.covary[ServiceIO].chunkAll.compile.toList
-        command <- Task(body.flatMap(_.toList).toArray)
-        _       <- Logging.info(s"Sending command for $competitionId")
-        _ <- sendApiCommandAndReturnResponse(
+      body    <- req.body.covary[ServiceIO].chunkAll.compile.toList
+      commandBytes <- Task(body.flatMap(_.toList).toArray)
+      command = Command.parseFrom(commandBytes)
+      _       <- Logging.info(s"Sending command for $competitionId, $command")
+      _ <- sendApiCommandAndReturnResponse(
           apiActor,
-          _ => CommandForwardingActor.ForwardCommand(competitionId.get, command)
+          _ => CommandForwardingActor.ForwardCommand(competitionId.get, commandBytes)
         )
-        resp <- Ok()
+      resp <- Ok()
       } yield resp
     case req @ POST -> Root / "competition" / "command" / "synchronous" :? CompetitionIdParamMatcher(competitionId) =>
       for {
