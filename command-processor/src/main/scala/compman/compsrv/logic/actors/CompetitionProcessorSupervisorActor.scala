@@ -6,6 +6,7 @@ import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorActor.ProcessCommand
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.CompetitionEventsTopic
+import compman.compsrv.logic.Operations.IdOperations
 import compservice.model.protobuf.command.Command
 import zio.{Tag, ZIO}
 import zio.clock.Clock
@@ -22,8 +23,7 @@ object CompetitionProcessorSupervisorActor {
     commandProcessorConfig: CommandProcessorConfig,
     kafkaSupervisor: ActorRef[KafkaSupervisorCommand]
   ): ActorBehavior[CompetitionProcessorSupervisorEnv[Env], Unit, Message] = Behaviors
-    .behavior[CompetitionProcessorSupervisorEnv[Env], Unit, Message]
-    .withReceive { (context, _, _, command, _) =>
+    .behavior[CompetitionProcessorSupervisorEnv[Env], Unit, Message].withReceive { (context, _, _, command, _) =>
       {
         command match {
           case CommandReceived(competitionId, fa) =>
@@ -38,13 +38,14 @@ object CompetitionProcessorSupervisorActor {
                     _                          <- Logging.info(s"Creating new actor for competition: $competitionId")
                     commandProcessorOperations <- commandProcessorOperationsFactory.getCommandProcessorOperations[Env]
                     initialState <- commandProcessorOperations.getStateSnapshot(competitionId) >>= {
-                      case None => Logging
-                          .info(s"State snapshot not found, creating initial state with payload ${fa.messageInfo.map(_.payload)}") *>
-                          ZIO
-                            .effect(commandProcessorOperations.createInitialState(competitionId, fa.messageInfo.map(_.payload)))
+                      case None => Logging.info(
+                          s"State snapshot not found, creating initial state with payload ${fa.messageInfo.map(_.payload)}"
+                        ) *> ZIO.effect(
+                          commandProcessorOperations.createInitialState(competitionId, fa.messageInfo.map(_.payload))
+                        )
                       case Some(value) => ZIO.effect(value)
                     }
-                    _      <- Logging.info(s"Resolved initial state of the competition is $initialState")
+                    _ <- Logging.info(s"Resolved initial state of the competition is $initialState")
                     a <- context.make(
                       actorName,
                       ActorConfig(),
@@ -63,7 +64,9 @@ object CompetitionProcessorSupervisorActor {
               } yield act
               _ <- for {
                 _ <- Logging.info(s"Sending command $fa to actor $actor")
-                _ <- actor ! ProcessCommand(fa)
+                _ <- actor ! ProcessCommand(fa.update(_.messageInfo.setIfDefined(
+                  fa.messageInfo.map(_.update(_.id := fa.messageInfo.flatMap(_.id).getOrElse(IdOperations.uid)))
+                )))
               } yield ()
             } yield ()).onError(err => CompetitionLogging.logError(err.squashTrace))
         }

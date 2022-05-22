@@ -61,7 +61,8 @@ object CommandForwardingActor {
                     x.replyTo
                   )(callbackTimeoutMs)
                 )
-              } yield state
+                _ <- kafkaSupervisorActor ! KafkaSupervisor.PublishMessage(producerConfig.globalCommandsTopic, x.competitionId, x.body)
+            } yield state
             case x: SendAcademyCommandAndWaitForResult =>
               for {
                 cmd <- ZIO.effect(Command.parseFrom(x.body))

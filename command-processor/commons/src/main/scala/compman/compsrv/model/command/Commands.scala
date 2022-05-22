@@ -6,8 +6,6 @@ import compservice.model.protobuf.command.Command
 import compservice.model.protobuf.commandpayload._
 import compservice.model.protobuf.event.Event
 
-import java.util.UUID
-
 object Commands {
   sealed trait InternalCommandProcessorCommand[+P] {
     def payload: Option[P]
@@ -259,26 +257,29 @@ object Commands {
       createErrorCallback(correlationId, value).toByteArray
     )
   }
-  def createSuccessCallbackMessageParameters(commandCallbackTopic: String, correlationId: Option[String]): (String, String, Array[Byte]) = {
+  def createSuccessCallbackMessageParameters(commandCallbackTopic: String, correlationId: String, numberOfEvents: Int): (String, String, Array[Byte]) = {
     (
       commandCallbackTopic,
-      correlationId.orNull,
-      createSuccessCallback(correlationId).toByteArray
+      correlationId,
+      createSuccessCallback(correlationId, numberOfEvents).toByteArray
     )
   }
 
   def correlationId(cmd: Command): Option[String] = cmd.messageInfo.flatMap(_.id)
-  def correlationId(event: Event): Option[String] = event.messageInfo.flatMap(_.id)
+  def correlationId(event: Event): Option[String] = event.messageInfo.flatMap(_.correlationId)
 
   def createErrorCallback(correlationId: Option[String], value: Errors.Error): CommandCallback = {
-    CommandCallback().withId(UUID.randomUUID().toString)
+    CommandCallback()
       .withResult(CommandExecutionResult.FAIL)
       .withErrorInfo(ErrorCallback().withMessage(s"Error: $value"))
       .update(_.correlationId.setIfDefined(correlationId))
   }
-  def createSuccessCallback(correlationId: Option[String]): CommandCallback = {
-    CommandCallback().withId(UUID.randomUUID().toString)
+  def createSuccessCallback(correlationId: String, numberOfEvents: Int): CommandCallback = {
+    CommandCallback()
       .withResult(CommandExecutionResult.SUCCESS)
-      .update(_.correlationId.setIfDefined(correlationId))
+      .update(
+        _.correlationId := correlationId,
+        _.numberOfEvents := numberOfEvents
+      )
   }
 }

@@ -87,7 +87,7 @@ object CompetitionProcessorActor {
                   _ <-
                   (info(s"Command $cmd has no ID") *> RIO.fail(new IllegalArgumentException(s"Command $cmd has no ID")))
                     .when(cmd.messageInfo.map(_.id).isEmpty)
-                  _ <- info(s"Processing command $command")
+                  _ <- info(s"Command id is ${cmd.messageInfo.flatMap(_.id).get}")
                   processResult <- Live.withContext(
                     _.annotate(Annotations.correlationId, cmd.messageInfo.flatMap(_.id))
                       .annotate(Annotations.competitionId, cmd.messageInfo.flatMap(_.competitionId))

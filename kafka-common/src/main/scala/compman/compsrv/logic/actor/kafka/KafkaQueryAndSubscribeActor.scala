@@ -96,12 +96,16 @@ private[kafka] object KafkaQueryAndSubscribeActor {
           _ <-
             if (numberOfEventsToTake > 0) {
               Consumer.subscribeAnd(Subscription.manual(off.map(_._1).toIndexedSeq: _*))
-                .plainStream(Serde.string, Serde.byteArray).take(numberOfEventsToTake)
-                .mapM(e => (replyTo ! MessageReceived(topic = topic, committableRecord = e)).as(e)).runDrain
+                .plainStream(Serde.string, Serde.byteArray)
+                .take(numberOfEventsToTake)
+                .mapM(e => (replyTo ! MessageReceived(topic = topic, committableRecord = e)).as(e))
+                .map(_.offset)
+                .aggregateAsync(Consumer.offsetBatches)
+                .mapM(_.commit).runDrain
             } else {
               RIO.effect(Chunk.empty)
             }
-        } yield ()).when(filteredOffsets.nonEmpty)
+        } yield numberOfEventsToTake).when(filteredOffsets.nonEmpty)
       } yield res
     }.onError(err => CompetitionLogging.logError(err.squashTrace)).provideSomeLayer[Clock with Blocking with Logging](
       Consumer.make(ConsumerSettings(brokers).withGroupId(groupId).withOffsetRetrieval(Consumer.OffsetRetrieval.Auto(

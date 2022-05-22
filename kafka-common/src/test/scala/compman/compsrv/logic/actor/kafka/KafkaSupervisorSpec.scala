@@ -68,7 +68,7 @@ object KafkaSupervisorSpec extends DefaultRunnableSpec {
             _ <- messageReceiver.expectMessageClass(15.seconds, classOf[MessageReceived])
             _ <- messageReceiver.expectMessageClass(15.seconds, classOf[MessageReceived])
             _ <- messageReceiver.expectMessageClass(15.seconds, classOf[QueryFinished])
-            _ <- (0 until messagesCount - 2).toList
+            _ <- (0 until messagesCount).toList
               .traverse(_ => kafkaSupervisor ! PublishMessage(topic, competitionId, notification))
             _ <- ZIO.sleep(1.seconds)
             msgs <- (0 until messagesCount).toList

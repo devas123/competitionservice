@@ -2,6 +2,8 @@ package compman.compsrv.logic
 
 import cats.data.EitherT
 import cats.Monad
+import com.google.protobuf.timestamp.Timestamp
+import com.google.protobuf.util.Timestamps
 import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.{info, CompetitionLogging}
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
@@ -72,6 +74,8 @@ object Operations {
     def apply[F[+_], A](implicit F: CommandEventOperations[F, A]): CommandEventOperations[F, A] = F
   }
   object IdOperations {
+    def uid: String = UUID.randomUUID().toString
+
     def apply[F[_]](implicit F: IdOperations[F]): IdOperations[F] = F
 
     val live: IdOperations[LIO] = new IdOperations[LIO] {
@@ -128,9 +132,11 @@ object Operations {
       _             <- EitherT.liftF(info(s"Mapped command: $mapped"))
       eventsToApply <- EitherT(CompetitionCommandProcessors.process(mapped, latestState))
       _             <- EitherT.liftF(info(s"Received events: $eventsToApply"))
-      n = latestState.revision
+      n              = latestState.revision
+      numberOfEvents = eventsToApply.size
       enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) =>
-        ev.withLocalEventNumber(n + ind)
+        ev.withVersion(n + ind).withLocalEventNumber(ind).withNumberOfEventsInBatch(numberOfEvents)
+          .withTimestamp(Timestamp.fromJavaProto(Timestamps.fromNanos(System.currentTimeMillis())))
           .withMessageInfo(ev.getMessageInfo.update(_.correlationId.setIfDefined(command.messageInfo.flatMap(_.id))))
       )
       _ <- EitherT.liftF(info(s"Returning events: $enrichedEvents"))

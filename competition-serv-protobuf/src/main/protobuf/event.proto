@@ -10,6 +10,7 @@ message Event {
   int32 localEventNumber = 3;
   EventType type = 4;
   MessageInfo messageInfo = 5;
+  int32 numberOfEventsInBatch = 6;
 }
 
 enum EventType {

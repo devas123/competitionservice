@@ -1,7 +1,12 @@
 package compman.compsrv.logic.actors.behavior
 
 import cats.implicits.catsSyntaxApplicativeError
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, MessageReceived, PublishMessage}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
+  KafkaConsumerApi,
+  KafkaSupervisorCommand,
+  MessageReceived,
+  PublishMessage
+}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors._
 import compman.compsrv.logic.logging.CompetitionLogging
@@ -69,12 +74,19 @@ object StatelessEventListener {
                       _      <- Logging.info(s"Received event: $mapped")
                       result <- EventProcessors.applyStatelessEvent[LIO](mapped).attempt
                       message = result match {
-                        case Left(value) => Commands.createErrorCallback(Commands.correlationId(event), Errors.InternalException(value))
-                        case Right(_) => new CommandCallback().withId(UUID.randomUUID().toString)
-                            .withCorrelationId(event.messageInfo.flatMap(_.correlationId).getOrElse(""))
+                        case Left(value) => Commands
+                            .createErrorCallback(Commands.correlationId(event), Errors.InternalException(value))
+                        case Right(_) => new CommandCallback()
+                            .withCorrelationId(event.messageInfo.flatMap(_.correlationId).get)
                             .withResult(CommandExecutionResult.SUCCESS)
+                          .withNumberOfEvents(event.numberOfEventsInBatch)
                       }
-                      _ <- kafkaSupervisorActor ! PublishMessage(config.commandCallbackTopic, key, message.toByteArray)
+                      _ <-
+                      (kafkaSupervisorActor ! PublishMessage(config.commandCallbackTopic, key, message.toByteArray))
+                        .when(
+                          event.numberOfEventsInBatch - 1 == event.localEventNumber ||
+                            message.result != CommandExecutionResult.SUCCESS
+                        )
                     } yield state
                   }.onError(cause => logError(cause.squash))
               }

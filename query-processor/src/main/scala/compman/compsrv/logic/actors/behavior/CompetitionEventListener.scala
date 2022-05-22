@@ -105,15 +105,15 @@ object CompetitionEventListener {
     def notifyEventListenerSupervisor(topic: String, event: Event, mapped: Events.Event[Any]): Task[Unit] = {
       mapped match {
         case CompetitionCreatedEvent(_, _, _, _) => ZIO
-          .fromOption(event.messageInfo.flatMap(_.payload.competitionCreatedPayload)).mapBoth(
-          _ => new Exception("No payload"),
-          { payload =>
-            competitionEventListenerSupervisor ! CompetitionUpdated(
-              CompetitionPropertiesUpdatedPayload().update(_.properties.setIfDefined(payload.properties)),
-              topic
-            )
-          }
-        ).unit
+            .fromOption(event.messageInfo.flatMap(_.payload.competitionCreatedPayload)).mapBoth(
+              _ => new Exception("No payload"),
+              { payload =>
+                competitionEventListenerSupervisor ! CompetitionUpdated(
+                  CompetitionPropertiesUpdatedPayload().update(_.properties.setIfDefined(payload.properties)),
+                  topic
+                )
+              }
+            ).unit
 
         case CompetitionPropertiesUpdatedEvent(_, _, _) => ZIO
             .fromOption(event.messageInfo.flatMap(_.payload.competitionPropertiesUpdatedPayload)).mapBoth(
@@ -133,8 +133,11 @@ object CompetitionEventListener {
     def sendSuccessfulExecutionCallbacks(event: Event) = {
       for {
         _ <- websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)
-        _ <- kafkaSupervisorActor !
-          PublishMessage(Commands.createSuccessCallbackMessageParameters(callbackTopic, Commands.correlationId(event)))
+        _ <- kafkaSupervisorActor ! PublishMessage(Commands.createSuccessCallbackMessageParameters(
+          callbackTopic,
+          Commands.correlationId(event).get,
+          event.numberOfEventsInBatch
+        ))
       } yield ()
     }
 
@@ -164,7 +167,9 @@ object CompetitionEventListener {
                       _      <- notifyEventListenerSupervisor(topic, event, mapped)
                       _ <- res match {
                         case Left(value) => sendErrorCallback(event, value)
-                        case Right(_)    => sendSuccessfulExecutionCallbacks(event)
+                        case Right(_) => Logging.info(s"Sending callback, correlation ID is ${event.messageInfo.flatMap(_.correlationId)}") *>
+                            sendSuccessfulExecutionCallbacks(event)
+                              .when(event.localEventNumber == event.numberOfEventsInBatch - 1)
                       }
                       _ <- context.self ! CommitOffset(record.offset)
                     } yield state

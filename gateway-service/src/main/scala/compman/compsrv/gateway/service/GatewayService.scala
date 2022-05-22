@@ -43,7 +43,7 @@ object GatewayService {
         )
       resp <- Ok()
       } yield resp
-    case req @ POST -> Root / "competition" / "command" / "synchronous" :? CompetitionIdParamMatcher(competitionId) =>
+    case req @ POST -> Root / "competition" / "scommand" :? CompetitionIdParamMatcher(competitionId) =>
       for {
         _ <- ZIO.fail(new RuntimeException("competition id missing"))
           .when(competitionId.isEmpty && !competitionId.contains(null))
@@ -51,8 +51,7 @@ object GatewayService {
         command <- Task(body.flatMap(_.toList).toArray)
         _ <- Logging
           .info(s"Sending command and awaiting response ${competitionId.fold("")(s => s"for competition $s")}")
-        _    <- sendApiCommandAndReturnResponse(apiActor, createCommandForwarderCommand(competitionId, command))
-        resp <- Ok()
+        resp    <- sendApiCommandAndReturnResponse(apiActor, createCommandForwarderCommand(competitionId, command))
       } yield resp
 
   }
@@ -70,6 +69,7 @@ object GatewayService {
     for {
       response <- (apiActor ? apiCommandWithCallbackCreator)
         .onError(err => Logging.error(s"Error while getting response: $err"))
+      _ <- Logging.debug(s"Sending response: $response")
       bytes = response.map(_.toByteArray)
       _ <- Logging.debug(s"Sending bytes: ${new String(bytes.getOrElse(Array.empty))}")
       m <- bytes match {

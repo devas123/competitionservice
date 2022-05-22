@@ -8,12 +8,12 @@ import "google/protobuf/any.proto";
 
 
 message CommandCallback {
-  string id = 1;
   string correlationId = 2;
   CommandExecutionResult result = 3;
   ErrorCallback errorInfo = 4;
   repeated Event events = 5;
   optional Command command = 6;
+  int32 numberOfEvents = 7;
 }
 enum CommandExecutionResult {
   COMMAND_EXECUTION_RESULT_SUCCESS = 0;
