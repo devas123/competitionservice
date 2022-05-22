@@ -46,12 +46,11 @@ object CompetitionHttpApiService {
         request = GenerateCategoriesFromRestrictionsRequest.parseFrom(bytes)
         res <- sendApiCommandAndReturnResponse[CompetitionApiCommand](
           competitionApiActor,
-          replyTo =>
-            GenerateCategoriesFromRestrictions(
-              restrictions = request.restrictions.toList,
-              idTrees = request.idTrees.toList,
-              restrictionNames = request.restrictionNames.toList
-            )(replyTo)
+          GenerateCategoriesFromRestrictions(
+            restrictions = request.restrictions.toList,
+            idTrees = request.idTrees.toList,
+            restrictionNames = request.restrictionNames.toList
+          )
         )
       } yield res
     case GET -> Root / "defaultfightresults" =>
@@ -116,14 +115,15 @@ object CompetitionHttpApiService {
   }
 
   private def sendApiCommandAndReturnResponse[Command](
-                                                        apiActor: ActorRef[Command],
-                                                        apiCommandWithCallbackCreator: ActorRef[QueryServiceResponse] => Command
+    apiActor: ActorRef[Command],
+    apiCommandWithCallbackCreator: ActorRef[QueryServiceResponse] => Command
   ): ServiceIO[Response[ServiceIO]] = {
     import compman.compsrv.logic.actors.patterns.Patterns._
     implicit val timeout: Duration = 10.seconds
 
     for {
-      response <- (apiActor ? apiCommandWithCallbackCreator).onError(err => Logging.error(s"Error while getting response: $err"))
+      response <- (apiActor ? apiCommandWithCallbackCreator)
+        .onError(err => Logging.error(s"Error while getting response: $err"))
       bytes = response.map(_.toByteArray)
       _ <- Logging.debug(s"Sending bytes: ${new String(bytes.getOrElse(Array.empty))}")
       m <- bytes match {
