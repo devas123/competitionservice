@@ -4,6 +4,7 @@ import compman.compsrv.gateway.actors.CommandForwardingActor
 import compman.compsrv.gateway.config.AppConfig
 import compman.compsrv.gateway.service.GatewayService
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaTopicConfig}
 import compman.compsrv.logic.actors.ActorSystem
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.logging.CompetitionLogging
@@ -21,11 +22,12 @@ object GatewayServiceMain extends zio.App {
   type ServiceEnv   = Clock with Logging with Blocking
   type ServiceIO[A] = RIO[ServiceEnv, A]
 
-  def server(config: AppConfig): ZIO[zio.ZEnv with Clock with Logging, Throwable, Unit] =
-    ActorSystem("gateway-service").use { actorSystem =>
+  def server(config: AppConfig): ZIO[zio.ZEnv with Clock with Logging, Throwable, Unit] = ActorSystem("gateway-service")
+    .use { actorSystem =>
       for {
         kafkaSupervisor <- actorSystem
           .make("kafkaSupervisor", ActorConfig(), None, KafkaSupervisor.behavior[ZEnv](config.producer.brokers))
+        _ <- kafkaSupervisor ! CreateTopicIfMissing(config.consumer.callbackTopic, KafkaTopicConfig())
         commandForwardingActor <- actorSystem.make(
           "commandForwarder",
           ActorConfig(),

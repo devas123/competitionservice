@@ -62,6 +62,8 @@ object CommandProcessorMain extends zio.App {
             KafkaSupervisor.behavior[PipelineEnvironment](appConfig.producer.brokers)
           )
           _ <- kafkaSupervisor !
+            CreateTopicIfMissing(appConfig.commandProcessor.commandCallbackTopic, KafkaTopicConfig())
+          _ <- kafkaSupervisor !
             CreateTopicIfMissing(appConfig.commandProcessor.competitionNotificationsTopic, KafkaTopicConfig())
           _ <- kafkaSupervisor !
             CreateTopicIfMissing(appConfig.commandProcessor.academyNotificationsTopic, KafkaTopicConfig())

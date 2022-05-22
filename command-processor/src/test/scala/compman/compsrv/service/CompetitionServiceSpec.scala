@@ -1,7 +1,12 @@
 package compman.compsrv.service
 
 import compman.compsrv.logic.CompetitionState
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaSupervisorCommand, PublishMessage, QuerySync}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
+  CreateTopicIfMissing,
+  KafkaSupervisorCommand,
+  PublishMessage,
+  QuerySync
+}
 import compman.compsrv.logic.actors._
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorActor.ProcessCommand
@@ -69,27 +74,23 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
           unwrapped = msg.get
           promise   = unwrapped.promise
           _ <- promise.succeed(Seq.empty)
-          command = {
-            val cmd = Command().withMessageInfo(
-              MessageInfo().withId(UUID.randomUUID().toString).withCompetitionId(competitionId)
-                .withPayload(MessageInfo.Payload.CreateCompetitionPayload(
-                  CreateCompetitionPayload().withReginfo(
-                    RegistrationInfo().withId(competitionId)
-                      .withRegistrationGroups(Map.empty[String, RegistrationGroup])
-                      .withRegistrationPeriods(Map.empty[String, RegistrationPeriod]).withRegistrationOpen(true)
-                  ).withProperties(
-                    CompetitionProperties().withId(competitionId).withCompetitionName("Test competition")
-                      .withStatus(CompetitionStatus.CREATED).withTimeZone("UTC")
-                      .withStartDate(Instant.now().asTimestamp).withEndDate(Instant.now().asTimestamp)
-                  )
-                ))
-            ).withType(CommandType.CREATE_COMPETITION_COMMAND)
-            cmd
-          }
+          command = Command().withMessageInfo(
+            MessageInfo().withId(UUID.randomUUID().toString).withCompetitionId(competitionId)
+              .withPayload(MessageInfo.Payload.CreateCompetitionPayload(
+                CreateCompetitionPayload().withReginfo(
+                  RegistrationInfo().withId(competitionId).withRegistrationGroups(Map.empty[String, RegistrationGroup])
+                    .withRegistrationPeriods(Map.empty[String, RegistrationPeriod]).withRegistrationOpen(true)
+                ).withProperties(
+                  CompetitionProperties().withId(competitionId).withCompetitionName("Test competition")
+                    .withStatus(CompetitionStatus.CREATED).withTimeZone("UTC").withStartDate(Instant.now().asTimestamp)
+                    .withEndDate(Instant.now().asTimestamp)
+                )
+              ))
+          ).withType(CommandType.CREATE_COMPETITION_COMMAND)
           _               <- processor ! ProcessCommand(command)
+          eventOpt <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[PublishMessage])
           notificationOpt <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[PublishMessage])
           notification = notificationOpt.get.message
-          eventOpt <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[PublishMessage])
           eventBytes = eventOpt.get.message
           event      = Event.parseFrom(eventBytes)
         } yield assertTrue(notification != null) && assertTrue(event.`type` == EventType.COMPETITION_CREATED) &&
