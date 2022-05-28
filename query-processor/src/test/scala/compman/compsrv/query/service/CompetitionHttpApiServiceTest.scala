@@ -7,7 +7,7 @@ import compman.compsrv.logic.actors.behavior.api.AcademyApiActor.AcademyApiComma
 import compman.compsrv.logic.actors.behavior.api.CompetitionApiActor
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.query.model.ManagedCompetition
-import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO
+import compman.compsrv.query.service.QueryHttpApiService.ServiceIO
 import compman.compsrv.query.service.repository.TestEntities
 import compservice.model.protobuf.query.QueryServiceResponse
 import org.http4s._
@@ -35,7 +35,7 @@ object CompetitionHttpApiServiceTest extends DefaultRunnableSpec with TestEntiti
               CompetitionApiActor.behavior[Any](Test(managedCompetitions))
             )
             academyApiActor <- TestKit[AcademyApiCommand](actorSystem)
-            response <- CompetitionHttpApiService.service(actor, academyApiActor.ref).orNotFound
+            response <- QueryHttpApiService.service(actor, academyApiActor.ref).orNotFound
               .run(Request[ServiceIO](Method.GET, uri"/competition"))
             body <- response.body.compile.toVector
             _ <- Logging.info(new String(body.toArray))

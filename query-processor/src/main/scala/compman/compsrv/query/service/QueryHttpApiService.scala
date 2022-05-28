@@ -2,7 +2,7 @@ package compman.compsrv.query.service
 
 import compman.compsrv.logic.actors.behavior.api.CompetitionApiActor._
 import compman.compsrv.logic.actors.ActorRef
-import compman.compsrv.logic.actors.behavior.api.AcademyApiActor.{AcademyApiCommand, GetAcademies}
+import compman.compsrv.logic.actors.behavior.api.AcademyApiActor.{AcademyApiCommand, GetAcademies, GetAcademy}
 import compman.compsrv.query.service.repository.Pagination
 import compservice.model.protobuf.query.{GenerateCategoriesFromRestrictionsRequest, QueryServiceResponse}
 import org.http4s.{HttpRoutes, Response}
@@ -14,7 +14,7 @@ import zio.interop.catz._
 import zio.RIO
 import zio.logging.Logging
 
-object CompetitionHttpApiService {
+object QueryHttpApiService {
 
   object QueryParameters {
 
@@ -111,6 +111,8 @@ object CompetitionHttpApiService {
 
     case GET -> Root / "competition" / id / "competitor" / competitorId =>
       sendApiCommandAndReturnResponse(competitionApiActor, GetCompetitor(id, competitorId))
+    case GET -> Root / "academy" / id =>
+      sendApiCommandAndReturnResponse(academyApiActor, GetAcademy(id))
     case GET -> Root / "academy" :?
         QueryParameters.SearchStringParamMatcher(maybeSearchString) +& QueryParameters.StartAtParamMatcher(
           maybeStartAt

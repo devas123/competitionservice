@@ -2,7 +2,7 @@ package compman.compsrv.query.service
 
 import compman.compsrv.logic.actors.behavior.WebsocketConnectionSupervisor
 import compman.compsrv.logic.actors.ActorRef
-import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO
+import compman.compsrv.query.service.QueryHttpApiService.ServiceIO
 import compservice.model.protobuf.event.Event
 import org.http4s.HttpRoutes
 import org.http4s.dsl.Http4sDsl

@@ -37,6 +37,12 @@ object AcademyApiActor {
     override type responseType = QueryServiceResponse
   }
 
+  final case class GetAcademy(id: String)(
+    override val replyTo: ActorRef[QueryServiceResponse]
+  ) extends AcademyApiCommand {
+    override type responseType = QueryServiceResponse
+  }
+
   case class ActorState()
   val initialState: ActorState = ActorState()
   import Behaviors._
@@ -47,6 +53,11 @@ object AcademyApiActor {
         for {
           _ <- Logging.info(s"Received academy API command $command")
           res <- command match {
+            case c @ GetAcademy(id) => for {
+              res <- AcademyOperations.getAcademy(id)
+              _ <- c.replyTo ! QueryServiceResponse()
+                .withGetAcademyResponse(query.GetAcademyResponse().update( _.academy.setIfDefined(res.map(DtoMapping.toDtoFullAcademyInfo))))
+            } yield state
             case c @ GetAcademies(_, pagination) => for {
                 res <- AcademyOperations.getAcademies(pagination)
                 _ <- c.replyTo ! QueryServiceResponse()

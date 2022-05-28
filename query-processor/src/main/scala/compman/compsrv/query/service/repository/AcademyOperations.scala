@@ -8,18 +8,19 @@ import org.mongodb.scala.model.Updates.set
 import zio.{Ref, RIO}
 
 object AcademyOperations {
-  def test(competitions: Ref[Map[String, FullAcademyInfo]]): AcademyService[LIO] = new AcademyService[LIO] {
+  def test(academies: Ref[Map[String, FullAcademyInfo]]): AcademyService[LIO] = new AcademyService[LIO] {
     override def getAcademies(pagination: Option[Pagination]): LIO[(List[FullAcademyInfo], Pagination)] = {
-      for { map <- competitions.get } yield (map.values.toList, Pagination(0, 0, 0))
+      for { map <- academies.get} yield (map.values.toList, Pagination(0, 0, 0))
     }
 
     override def addAcademy(competition: FullAcademyInfo): LIO[Unit] = {
-      competitions.update(m => m + (competition.id -> competition))
+      academies.update(m => m + (competition.id -> competition))
     }
 
-    override def deleteAcademy(id: String): LIO[Unit] = { competitions.update(m => m - id) }
+    override def deleteAcademy(id: String): LIO[Unit] = { academies.update(m => m - id) }
+    override def getAcademy(id: String): LIO[Option[FullAcademyInfo]] = { academies.get.map(_.get(id)) }
 
-    override def updateAcademy(c: FullAcademyInfo): LIO[Unit] = competitions
+    override def updateAcademy(c: FullAcademyInfo): LIO[Unit] = academies
       .update(m => m.updatedWith(c.id)(_.map(_.copy(name = c.name, coaches = c.coaches))))
   }
 
@@ -52,6 +53,14 @@ object AcademyOperations {
         _ <- RIO.fromFuture(_ => update.toFuture())
       } yield ()
     }
+
+    override def getAcademy(id: String): LIO[Option[FullAcademyInfo]] =
+      for {
+        collection <- academyCollection
+        select = collection.find(equal(idField, id))
+        res <- selectOne(select)
+      } yield res
+
   }
 
   trait AcademyService[F[+_]] {
@@ -59,12 +68,16 @@ object AcademyOperations {
     def addAcademy(competition: FullAcademyInfo): F[Unit]
     def updateAcademy(c: FullAcademyInfo): F[Unit]
     def deleteAcademy(id: String): F[Unit]
+    def getAcademy(id: String): F[Option[FullAcademyInfo]]
   }
 
   object AcademyService {
     def apply[F[+_]](implicit F: AcademyService[F]): AcademyService[F] = F
   }
 
+
+  def getAcademy[F[+_]: AcademyService](id: String): F[Option[FullAcademyInfo]] =
+    AcademyService[F].getAcademy(id)
   def getAcademies[F[+_]: AcademyService](pagination: Option[Pagination]): F[(List[FullAcademyInfo], Pagination)] =
     AcademyService[F].getAcademies(pagination)
   def addAcademy[F[+_]: AcademyService](competition: FullAcademyInfo): F[Unit] = AcademyService[F]

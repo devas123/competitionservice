@@ -3,11 +3,9 @@ package compman.compsrv.query.service.repository
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
-import org.mongodb.scala.{FindObservable, MongoClient, Observable}
+import org.mongodb.scala.MongoClient
 import org.mongodb.scala.model.Filters._
 import zio.{Ref, RIO, Task, ZIO}
-
-import scala.concurrent.Future
 
 trait CompetitionQueryOperations[F[+_]] {
   def getCompetitionProperties(id: String): F[Option[CompetitionProperties]]
@@ -367,10 +365,6 @@ object CompetitionQueryOperations {
         res <- RIO.fromFuture(_ => select.toFuture()).map(_.toInt)
       } yield res
     }
-  }
-
-  private def selectOne[T](select: Observable[T]) = {
-    for { res <- RIO.fromFuture(_ => select.headOption()) } yield res
   }
 
   def getCompetitionProperties[F[+_]: CompetitionQueryOperations](id: String): F[Option[CompetitionProperties]] =

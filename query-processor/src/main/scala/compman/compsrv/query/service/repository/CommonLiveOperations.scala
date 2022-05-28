@@ -8,7 +8,7 @@ import compman.compsrv.query.model.academy.FullAcademyInfo
 import compservice.model.protobuf.model.{BracketType, CategoryRestrictionType, CompetitionStatus, CompetitorRegistrationStatus, DistributionType, FightReferenceType, FightStatus, GroupSortDirection, GroupSortSpecifier, LogicalOperator, OperatorType, ScheduleEntryType, ScheduleRequirementType, SelectorClassifier, StageRoundType, StageStatus, StageType}
 import org.bson.{BsonReader, BsonWriter}
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
-import org.mongodb.scala.{FindObservable, MongoClient, MongoCollection, MongoDatabase}
+import org.mongodb.scala.{FindObservable, MongoClient, MongoCollection, MongoDatabase, Observable}
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.{Filters, Indexes}
 import org.mongodb.scala.model.Filters.equal
@@ -167,5 +167,10 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
       tr  <- RIO.fromFuture(_ => total)
     } yield (res.toList, pagination.map(_.copy(totalResults = tr.toInt)).getOrElse(Pagination(0, res.size, tr.toInt)))
   }
+
+  protected def selectOne[T](select: Observable[T]): ZIO[Any, Throwable, Option[T]] = {
+    for { res <- RIO.fromFuture(_ => select.headOption()) } yield res
+  }
+
 
 }

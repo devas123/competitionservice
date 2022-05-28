@@ -9,8 +9,8 @@ import compman.compsrv.logic.actors.behavior.api.{AcademyApiActor, CompetitionAp
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.logError
 import compman.compsrv.query.config.AppConfig
-import compman.compsrv.query.service.{CompetitionHttpApiService, WebsocketService}
-import compman.compsrv.query.service.CompetitionHttpApiService.ServiceIO
+import compman.compsrv.query.service.{QueryHttpApiService, WebsocketService}
+import compman.compsrv.query.service.QueryHttpApiService.ServiceIO
 import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.server.Router
 import zio._
@@ -90,7 +90,7 @@ object QueryServiceMain extends zio.App {
         _        <- Logging.debug("Starting server...")
         serviceVersion = "v1"
         httpApp = Router[ServiceIO](
-          s"/query/$serviceVersion"    -> CompetitionHttpApiService.service(competitionApiActor, academyApiActor),
+          s"/query/$serviceVersion"    -> QueryHttpApiService.service(competitionApiActor, academyApiActor),
           s"/query/$serviceVersion/ws" -> WebsocketService.wsRoutes(webSocketSupervisor)
         ).orNotFound
         srv <- ZIO.runtime[ZEnv] *> {
