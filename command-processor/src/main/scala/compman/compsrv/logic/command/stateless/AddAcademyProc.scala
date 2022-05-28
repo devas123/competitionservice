@@ -20,7 +20,7 @@ object AddAcademyProc {
   ): F[Either[Errors.Error, Seq[Event]]] = {
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption(command.payload, NoPayloadError())
-      academy <- EitherT.fromOption(Option(payload.getAcademy), InvalidPayload(command))
+      academy <- EitherT.fromOption(payload.academy, InvalidPayload(command))
       id      <- EitherT.liftF[F, Errors.Error, String](IdOperations[F].uid)
       event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
         `type` = EventType.ACADEMY_ADDED,

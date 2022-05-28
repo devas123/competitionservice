@@ -1,12 +1,7 @@
 package compman.compsrv.logic.actors.behavior
 
 import cats.implicits.catsSyntaxApplicativeError
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
-  KafkaConsumerApi,
-  KafkaSupervisorCommand,
-  MessageReceived,
-  PublishMessage
-}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, MessageReceived, PublishMessage}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors._
 import compman.compsrv.logic.logging.CompetitionLogging
@@ -26,8 +21,6 @@ import zio.{Cause, Tag, ZIO}
 import zio.clock.Clock
 import zio.console.Console
 import zio.logging.Logging
-
-import java.util.UUID
 
 object StatelessEventListener {
   sealed trait ApiCommand

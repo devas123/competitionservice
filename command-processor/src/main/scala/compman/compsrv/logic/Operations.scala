@@ -108,15 +108,19 @@ object Operations {
       _             <- EitherT.liftF(info(s"Mapped command: $mapped"))
       eventsToApply <- EitherT(StatelessCommandProcessors.process(mapped))
       _             <- EitherT.liftF(info(s"Received events: $eventsToApply"))
-      enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) => {
-        ev.withLocalEventNumber(ind).update(_.messageInfo.setIfDefined(
-          ev.messageInfo.map(_.update(_.correlationId.setIfDefined(command.messageInfo.flatMap(_.id))))
-        ))
-        ev
-      })
+      numberOfEvents = eventsToApply.size
+      enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) =>
+        enrichEvent(command, numberOfEvents, ev, ind)
+      )
       _ <- EitherT.liftF(info(s"Returning events: $enrichedEvents"))
     } yield enrichedEvents
     either.value
+  }
+
+  private def enrichEvent(command: Command, numberOfEvents: Int, ev: Event, ind: Int) = {
+    ev.withLocalEventNumber(ind).withNumberOfEventsInBatch(numberOfEvents)
+      .withTimestamp(Timestamp.fromJavaProto(Timestamps.fromNanos(System.currentTimeMillis())))
+      .withMessageInfo(ev.getMessageInfo.update(_.correlationId.setIfDefined(command.messageInfo.flatMap(_.id))))
   }
 
   def processStatefulCommand[F[
@@ -135,9 +139,7 @@ object Operations {
       n              = latestState.revision
       numberOfEvents = eventsToApply.size
       enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) =>
-        ev.withVersion(n + ind).withLocalEventNumber(ind).withNumberOfEventsInBatch(numberOfEvents)
-          .withTimestamp(Timestamp.fromJavaProto(Timestamps.fromNanos(System.currentTimeMillis())))
-          .withMessageInfo(ev.getMessageInfo.update(_.correlationId.setIfDefined(command.messageInfo.flatMap(_.id))))
+        enrichEvent(command, numberOfEvents, ev, ind).withVersion(n + ind)
       )
       _ <- EitherT.liftF(info(s"Returning events: $enrichedEvents"))
     } yield enrichedEvents

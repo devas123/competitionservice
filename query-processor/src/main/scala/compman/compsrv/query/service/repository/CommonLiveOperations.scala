@@ -8,7 +8,7 @@ import compman.compsrv.query.model.academy.FullAcademyInfo
 import compservice.model.protobuf.model.{BracketType, CategoryRestrictionType, CompetitionStatus, CompetitorRegistrationStatus, DistributionType, FightReferenceType, FightStatus, GroupSortDirection, GroupSortSpecifier, LogicalOperator, OperatorType, ScheduleEntryType, ScheduleRequirementType, SelectorClassifier, StageRoundType, StageStatus, StageType}
 import org.bson.{BsonReader, BsonWriter}
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
-import org.mongodb.scala.{MongoClient, MongoCollection, MongoDatabase}
+import org.mongodb.scala.{FindObservable, MongoClient, MongoCollection, MongoDatabase}
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.{Filters, Indexes}
 import org.mongodb.scala.model.Filters.equal
@@ -16,6 +16,7 @@ import org.mongodb.scala.model.Updates.{set, unset}
 import scalapb.{GeneratedEnum, GeneratedEnumCompanion}
 import zio.{RIO, Task, ZIO}
 
+import scala.concurrent.Future
 import scala.reflect.ClassTag
 
 trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
@@ -155,4 +156,16 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
       companion.fromValue(reader.readString().toInt)
     }
   }
+
+  protected def selectWithPagination[T](
+                                       select: FindObservable[T],
+                                       pagination: Option[Pagination],
+                                       total: Future[Long]
+                                     ): ZIO[Any, Throwable, (List[T], Pagination)] = {
+    for {
+      res <- RIO.fromFuture(_ => select.toFuture())
+      tr  <- RIO.fromFuture(_ => total)
+    } yield (res.toList, pagination.map(_.copy(totalResults = tr.toInt)).getOrElse(Pagination(0, res.size, tr.toInt)))
+  }
+
 }

@@ -234,16 +234,6 @@ object CompetitionQueryOperations {
       } yield res
     }
 
-    private def selectWithPagination[T](
-      select: FindObservable[T],
-      pagination: Option[Pagination],
-      total: Future[Long]
-    ) = {
-      for {
-        res <- RIO.fromFuture(_ => select.toFuture())
-        tr  <- RIO.fromFuture(_ => total)
-      } yield (res.toList, pagination.map(_.copy(totalResults = tr.toInt)).getOrElse(Pagination(0, res.size, tr.toInt)))
-    }
     override def getCompetitorsByCategoryId(competitionId: String)(
       categoryId: String,
       pagination: Option[Pagination],

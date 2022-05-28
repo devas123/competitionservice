@@ -10,7 +10,7 @@ final case class AppConfig(producer: ProducerConfig, consumer: ConsumerConfig, c
 
 final case class ConsumerConfig(callbackTopic: String, eventsTopicPrefix: String, groupId: String, academyNotificationsTopic: String)
 
-final case class ProducerConfig(bootstrapServers: String, globalCommandsTopic: String) {
+final case class ProducerConfig(bootstrapServers: String, globalCommandsTopic: String, academyCommandsTopic: String) {
   def brokers: List[String] = bootstrapServers.split(",").toList
 }
 

@@ -111,7 +111,16 @@ object CompetitionHttpApiService {
 
     case GET -> Root / "competition" / id / "competitor" / competitorId =>
       sendApiCommandAndReturnResponse(competitionApiActor, GetCompetitor(id, competitorId))
-    case GET -> Root / "academy" => sendApiCommandAndReturnResponse(academyApiActor, GetAcademies(None, None))
+    case GET -> Root / "academy" :?
+        QueryParameters.SearchStringParamMatcher(maybeSearchString) +& QueryParameters.StartAtParamMatcher(
+          maybeStartAt
+        ) +& QueryParameters.LimitParamMatcher(maybeLimit) => sendApiCommandAndReturnResponse(
+        academyApiActor,
+        GetAcademies(
+          maybeSearchString,
+          maybeStartAt.flatMap(s => maybeLimit.map(l => (s, l))).map(sl => Pagination(sl._1, sl._2, 0))
+        )
+      )
   }
 
   private def sendApiCommandAndReturnResponse[Command](

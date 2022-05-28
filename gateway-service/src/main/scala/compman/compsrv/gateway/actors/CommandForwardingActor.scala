@@ -13,8 +13,6 @@ import zio.clock.Clock
 import zio.console.Console
 import zio.logging.Logging
 
-import java.util.UUID
-
 object CommandForwardingActor {
 
   sealed trait GatewayApiCommand
@@ -23,7 +21,6 @@ object CommandForwardingActor {
   final case class SendCompetitionCommandAndWaitForResult(competitionId: String, body: Array[Byte])(
     val replyTo: ActorRef[CommandCallback]
   ) extends GatewayApiCommand
-  //TODO: add support for this command
   final case class SendAcademyCommandAndWaitForResult(body: Array[Byte])(val replyTo: ActorRef[CommandCallback])
       extends GatewayApiCommand
 
@@ -49,7 +46,7 @@ object CommandForwardingActor {
             case x: SendCompetitionCommandAndWaitForResult => for {
                 cmd <- ZIO.effect(Command.parseFrom(x.body))
                 _ <- ctx.make(
-                  s"CallbackWaiter-${x.competitionId}-${UUID.randomUUID}",
+                  s"CallbackWaiter-${x.competitionId}-${cmd.messageInfo.flatMap(_.id)}",
                   ActorConfig(),
                   CommandCallbackAggregator.initialState,
                   CommandCallbackAggregator.behavior(
@@ -67,7 +64,7 @@ object CommandForwardingActor {
               for {
                 cmd <- ZIO.effect(Command.parseFrom(x.body))
                 _ <- ctx.make(
-                  s"AcademiyCommandCallbackWaiter-${UUID.randomUUID}",
+                  s"AcademyCommandCallbackWaiter-${cmd.messageInfo.flatMap(_.id)}",
                   ActorConfig(),
                   CommandCallbackAggregator.initialState,
                   CommandCallbackAggregator.behavior(
@@ -79,6 +76,7 @@ object CommandForwardingActor {
                     x.replyTo
                   )(callbackTimeoutMs)
                 )
+                _ <- kafkaSupervisorActor ! KafkaSupervisor.PublishMessage(producerConfig.academyCommandsTopic, null, x.body)
               } yield state
           }
         } yield res

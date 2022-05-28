@@ -8,7 +8,7 @@ import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.{AcademyOperations, Pagination}
 import compman.compsrv.query.service.repository.AcademyOperations.AcademyService
 import compservice.model.protobuf.query
-import compservice.model.protobuf.query.QueryServiceResponse
+import compservice.model.protobuf.query.{PageInfo, QueryServiceResponse}
 import org.mongodb.scala.MongoClient
 import zio.Tag
 import zio.logging.Logging
@@ -47,10 +47,15 @@ object AcademyApiActor {
         for {
           _ <- Logging.info(s"Received academy API command $command")
           res <- command match {
-            case c @ GetAcademies(_, _) => for {
-                res <- AcademyOperations.getAcademies
+            case c @ GetAcademies(_, pagination) => for {
+                res <- AcademyOperations.getAcademies(pagination)
                 _ <- c.replyTo ! QueryServiceResponse()
-                  .withGetAcademiesResponse(query.GetAcademiesResponse(res.map(DtoMapping.toDtoFullAcademyInfo)))
+                  .withGetAcademiesResponse(query.GetAcademiesResponse().withAcademies(res._1.map(DtoMapping.toDtoFullAcademyInfo)).withPageInfo(
+                    PageInfo()
+                      .withPage(if (res._2.maxResults > 0) res._2.offset / res._2.maxResults else 0)
+                      .withTotal(res._2.totalResults)
+                      .withResultsOnPage(res._2.maxResults)
+                  ))
               } yield state
           }
         } yield res

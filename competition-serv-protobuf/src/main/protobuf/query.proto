@@ -20,6 +20,7 @@ message MatFightsQueryResult {
 message PageInfo {
   int32 total = 1;
   int32 page = 2;
+  optional int32 resultsOnPage = 3;
 }
 
 message MatsQueryResult {
@@ -133,4 +134,5 @@ message GetStageFightsResponse{
 
 message GetAcademiesResponse {
   repeated FullAcademyInfo academies = 1;
+  PageInfo pageInfo = 2;
 }

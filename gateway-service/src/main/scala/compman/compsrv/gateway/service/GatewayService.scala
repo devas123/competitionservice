@@ -45,8 +45,6 @@ object GatewayService {
       } yield resp
     case req @ POST -> Root / "competition" / "scommand" :? CompetitionIdParamMatcher(competitionId) =>
       for {
-        _ <- ZIO.fail(new RuntimeException("competition id missing"))
-          .when(competitionId.isEmpty && !competitionId.contains(null))
         body    <- req.body.covary[ServiceIO].chunkAll.compile.toList
         command <- Task(body.flatMap(_.toList).toArray)
         _ <- Logging
