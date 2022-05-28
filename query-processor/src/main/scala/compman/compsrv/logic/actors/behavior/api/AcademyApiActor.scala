@@ -58,8 +58,8 @@ object AcademyApiActor {
               _ <- c.replyTo ! QueryServiceResponse()
                 .withGetAcademyResponse(query.GetAcademyResponse().update( _.academy.setIfDefined(res.map(DtoMapping.toDtoFullAcademyInfo))))
             } yield state
-            case c @ GetAcademies(_, pagination) => for {
-                res <- AcademyOperations.getAcademies(pagination)
+            case c @ GetAcademies(searchString, pagination) => for {
+                res <- AcademyOperations.getAcademies(searchString, pagination)
                 _ <- c.replyTo ! QueryServiceResponse()
                   .withGetAcademiesResponse(query.GetAcademiesResponse().withAcademies(res._1.map(DtoMapping.toDtoFullAcademyInfo)).withPageInfo(
                     PageInfo()

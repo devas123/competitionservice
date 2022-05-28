@@ -2,15 +2,18 @@ package compman.compsrv.query.service.repository
 
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model.academy.FullAcademyInfo
-import org.mongodb.scala.MongoClient
-import org.mongodb.scala.model.Filters.equal
+import org.mongodb.scala.{MongoClient, MongoCollection}
+import org.mongodb.scala.model.Filters.{equal, regex}
 import org.mongodb.scala.model.Updates.set
 import zio.{Ref, RIO}
 
 object AcademyOperations {
   def test(academies: Ref[Map[String, FullAcademyInfo]]): AcademyService[LIO] = new AcademyService[LIO] {
-    override def getAcademies(pagination: Option[Pagination]): LIO[(List[FullAcademyInfo], Pagination)] = {
-      for { map <- academies.get} yield (map.values.toList, Pagination(0, 0, 0))
+    override def getAcademies(
+      searchString: Option[String],
+      pagination: Option[Pagination]
+    ): LIO[(List[FullAcademyInfo], Pagination)] = {
+      for { map <- academies.get } yield (map.values.toList, Pagination(0, 0, 0))
     }
 
     override def addAcademy(competition: FullAcademyInfo): LIO[Unit] = {
@@ -30,12 +33,18 @@ object AcademyOperations {
 
     override def dbName: String = name
 
-    override def getAcademies(pagination: Option[Pagination]): LIO[(List[FullAcademyInfo], Pagination)] = {
+    override def getAcademies(
+      searchString: Option[String],
+      pagination: Option[Pagination]
+    ): LIO[(List[FullAcademyInfo], Pagination)] = {
       val drop = pagination.map(_.offset).getOrElse(0)
       val take = pagination.map(_.maxResults).getOrElse(0)
+      val call = searchString
+        .map(str => (collection: MongoCollection[FullAcademyInfo]) => collection.find(regex("name", s".*$str.*", "im")))
+        .getOrElse((collection: MongoCollection[FullAcademyInfo]) => collection.find())
       for {
         collection <- academyCollection
-        select = collection.find().skip(drop).limit(take)
+        select = call(collection).skip(drop).limit(take)
         total  = collection.countDocuments().toFuture()
         res <- selectWithPagination(select, pagination, total)
       } yield res
@@ -54,17 +63,19 @@ object AcademyOperations {
       } yield ()
     }
 
-    override def getAcademy(id: String): LIO[Option[FullAcademyInfo]] =
-      for {
-        collection <- academyCollection
-        select = collection.find(equal(idField, id))
-        res <- selectOne(select)
-      } yield res
+    override def getAcademy(id: String): LIO[Option[FullAcademyInfo]] = for {
+      collection <- academyCollection
+      select = collection.find(equal(idField, id))
+      res <- selectOne(select)
+    } yield res
 
   }
 
   trait AcademyService[F[+_]] {
-    def getAcademies(pagination: Option[Pagination]): F[(List[FullAcademyInfo], Pagination)]
+    def getAcademies(
+      searchString: Option[String],
+      pagination: Option[Pagination]
+    ): F[(List[FullAcademyInfo], Pagination)]
     def addAcademy(competition: FullAcademyInfo): F[Unit]
     def updateAcademy(c: FullAcademyInfo): F[Unit]
     def deleteAcademy(id: String): F[Unit]
@@ -75,11 +86,11 @@ object AcademyOperations {
     def apply[F[+_]](implicit F: AcademyService[F]): AcademyService[F] = F
   }
 
-
-  def getAcademy[F[+_]: AcademyService](id: String): F[Option[FullAcademyInfo]] =
-    AcademyService[F].getAcademy(id)
-  def getAcademies[F[+_]: AcademyService](pagination: Option[Pagination]): F[(List[FullAcademyInfo], Pagination)] =
-    AcademyService[F].getAcademies(pagination)
+  def getAcademy[F[+_]: AcademyService](id: String): F[Option[FullAcademyInfo]] = AcademyService[F].getAcademy(id)
+  def getAcademies[F[+_]: AcademyService](
+    searchString: Option[String],
+    pagination: Option[Pagination]
+  ): F[(List[FullAcademyInfo], Pagination)] = AcademyService[F].getAcademies(searchString, pagination)
   def addAcademy[F[+_]: AcademyService](competition: FullAcademyInfo): F[Unit] = AcademyService[F]
     .addAcademy(competition)
   def updateAcademy[F[+_]: AcademyService](c: FullAcademyInfo): F[Unit] = AcademyService[F].updateAcademy(c)

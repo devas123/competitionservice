@@ -32,14 +32,14 @@ object AddCompetitorProc {
         exists <- EitherT
           .fromOption(state.competitors.map(_.contains(id)), Errors.InternalError())
         event <-
-          if (exists) {
+          if (!exists) {
             EitherT.liftF[F, Errors.Error, Event](
               CommandEventOperations[F, Event].create(
                 `type` = EventType.COMPETITOR_ADDED,
                 competitorId = Some(id),
                 competitionId = command.competitionId,
                 categoryId = command.categoryId,
-                payload = Some(MessageInfo.Payload.CompetitorAddedPayload(CompetitorAddedPayload(payload.competitor)))
+                payload = Some(MessageInfo.Payload.CompetitorAddedPayload(CompetitorAddedPayload(payload.competitor.map(_.withId(id)))))
               )
             )
           } else {
