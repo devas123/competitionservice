@@ -6,7 +6,7 @@ import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.model.command.Commands.{AddCompetitorCommand, InternalCommandProcessorCommand}
 import compman.compsrv.model.Errors
-import compman.compsrv.model.Errors.{CompetitorAlreadyExists, InternalError}
+import compman.compsrv.model.Errors.{CompetitorAlreadyExists, InternalError, InvalidPayload}
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload.CompetitorAddedPayload
@@ -27,12 +27,15 @@ object AddCompetitorProc {
     val eventT: EitherT[F, Errors.Error, Seq[Event]] =
       for {
         payload <- EitherT.fromOption(command.payload, InternalError())
+        competitorToAdd <- EitherT.fromOption(command.payload.flatMap(_.competitor), InvalidPayload(payload))
         id <- EitherT
-          .liftF[F, Errors.Error, String](IdOperations[F].competitorId(payload.getCompetitor))
+          .liftF[F, Errors.Error, String](IdOperations[F].competitorId(competitorToAdd))
         exists <- EitherT
           .fromOption(state.competitors.map(_.contains(id)), Errors.InternalError())
+        emailExists <- EitherT
+          .fromOption(state.competitors.map(_.values.exists(_.email.equalsIgnoreCase(competitorToAdd.email.trim))), Errors.InternalError())
         event <-
-          if (!exists) {
+          if (!exists && !emailExists) {
             EitherT.liftF[F, Errors.Error, Event](
               CommandEventOperations[F, Event].create(
                 `type` = EventType.COMPETITOR_ADDED,
