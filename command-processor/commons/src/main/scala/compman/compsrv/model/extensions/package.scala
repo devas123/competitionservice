@@ -23,6 +23,7 @@ package object extensions {
         emailTemplate             = pr.emailTemplate.orElse(c.emailTemplate)
         schedulePublished         = Option(pr.schedulePublished).getOrElse(c.schedulePublished)
         timeZone                  = Option(pr.timeZone).getOrElse(c.timeZone)
+        status = Option(pr.status).getOrElse(c.status)
       } yield c.update(
         _.bracketsPublished := bracketsPublished,
         _.startDate.setIfDefined(startDate),
@@ -32,6 +33,7 @@ package object extensions {
         _.emailTemplate.setIfDefined(emailTemplate),
         _.schedulePublished := schedulePublished,
         _.timeZone := timeZone,
+        _.status := status
       )
 
     }.getOrElse(c)

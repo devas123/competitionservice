@@ -29,6 +29,7 @@ package object extensions {
         bracketsPublished = pr.bracketsPublished,
         startDate = pr.startDate.map(toDate).get,
         endDate = pr.endDate.map(toDate),
+        status = pr.status,
       )
     }.getOrElse(c)
 

@@ -19,7 +19,7 @@ object CompetitionPropertiesUpdatedProc {
       competitionId <- OptionT.fromOption[F](event.competitionId)
       properties    <- OptionT.fromOption[F](Option(payload.getProperties))
       currentProps  <- OptionT(CompetitionQueryOperations[F].getCompetitionProperties(competitionId))
-      updatedProps  <- OptionT.fromOption[F](Option(currentProps.applyProperties(properties)))
+      updatedProps  <- OptionT.some[F](currentProps.applyProperties(properties))
       _             <- OptionT.liftF(CompetitionUpdateOperations[F].updateCompetitionProperties(updatedProps))
     } yield ()
   }.value.map(_ => ())

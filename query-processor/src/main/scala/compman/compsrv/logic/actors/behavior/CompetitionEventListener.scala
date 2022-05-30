@@ -1,18 +1,10 @@
 package compman.compsrv.logic.actors.behavior
 
 import cats.implicits.catsSyntaxApplicativeError
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
-  KafkaConsumerApi,
-  KafkaSupervisorCommand,
-  MessageReceived,
-  PublishMessage
-}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, MessageReceived, PublishMessage}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors._
-import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{
-  CompetitionDeletedMessage,
-  CompetitionUpdated
-}
+import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{CompetitionDeletedMessage, CompetitionUpdated}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model
@@ -20,11 +12,7 @@ import compman.compsrv.model.{Errors, Mapping}
 import compman.compsrv.model.Mapping.EventMapping
 import compman.compsrv.model.command.Commands
 import compman.compsrv.model.event.Events
-import compman.compsrv.model.event.Events.{
-  CompetitionCreatedEvent,
-  CompetitionDeletedEvent,
-  CompetitionPropertiesUpdatedEvent
-}
+import compman.compsrv.model.event.Events.{CompetitionCreatedEvent, CompetitionDeletedEvent, CompetitionPropertiesUpdatedEvent}
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.service.event.EventProcessors
@@ -104,24 +92,23 @@ object CompetitionEventListener {
   ): ActorBehavior[R with Logging with Clock with Console, ActorState, ApiCommand] = {
     def notifyEventListenerSupervisor(topic: String, event: Event, mapped: Events.Event[Any]): Task[Unit] = {
       mapped match {
-        case CompetitionCreatedEvent(_, _, _, _) => ZIO
-            .fromOption(event.messageInfo.flatMap(_.payload.competitionCreatedPayload)).mapBoth(
-              _ => new Exception("No payload"),
-              { payload =>
-                competitionEventListenerSupervisor ! CompetitionUpdated(
-                  CompetitionPropertiesUpdatedPayload().update(_.properties.setIfDefined(payload.properties)),
-                  topic
-                )
-              }
-            ).unit
-
-        case CompetitionPropertiesUpdatedEvent(_, _, _) => ZIO
-            .fromOption(event.messageInfo.flatMap(_.payload.competitionPropertiesUpdatedPayload)).mapBoth(
-              _ => new Exception("No payload"),
-              { payload => competitionEventListenerSupervisor ! CompetitionUpdated(payload, topic) }
-            ).unit
-        case CompetitionDeletedEvent(competitionId, _) => competitionId
-            .map(id => competitionEventListenerSupervisor ! CompetitionDeletedMessage(id)).getOrElse(ZIO.unit)
+        case CompetitionCreatedEvent(_, _, _, _) => for {
+            payload <- ZIO.fromOption(event.messageInfo.flatMap(_.payload.competitionCreatedPayload))
+              .orElseFail(new Exception("No Payload"))
+            _ <- competitionEventListenerSupervisor ! CompetitionUpdated(
+              CompetitionPropertiesUpdatedPayload().update(_.properties.setIfDefined(payload.properties)),
+              topic
+            )
+          } yield ()
+        case _: CompetitionPropertiesUpdatedEvent => for {
+            payload <- ZIO.fromOption(event.messageInfo.flatMap(_.payload.competitionPropertiesUpdatedPayload))
+              .orElseFail(new Exception("No Payload"))
+            _ <- competitionEventListenerSupervisor ! CompetitionUpdated(payload, topic)
+          } yield ()
+        case CompetitionDeletedEvent(competitionId, _) => for {
+            id <- ZIO.fromOption(competitionId).orElseFail(new Exception("No Competition ID"))
+            _  <- competitionEventListenerSupervisor ! CompetitionDeletedMessage(id)
+          } yield ()
         case _ => ZIO.unit
       }
     }
@@ -167,9 +154,10 @@ object CompetitionEventListener {
                       _      <- notifyEventListenerSupervisor(topic, event, mapped)
                       _ <- res match {
                         case Left(value) => sendErrorCallback(event, value)
-                        case Right(_) => Logging.info(s"Sending callback, correlation ID is ${event.messageInfo.flatMap(_.correlationId)}") *>
-                            sendSuccessfulExecutionCallbacks(event)
-                              .when(event.localEventNumber == event.numberOfEventsInBatch - 1)
+                        case Right(_) => Logging.info(
+                            s"Sending callback, correlation ID is ${event.messageInfo.flatMap(_.correlationId)}"
+                          ) *> sendSuccessfulExecutionCallbacks(event)
+                            .when(event.localEventNumber == event.numberOfEventsInBatch - 1)
                       }
                       _ <- context.self ! CommitOffset(record.offset)
                     } yield state
