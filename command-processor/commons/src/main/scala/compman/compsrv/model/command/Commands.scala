@@ -170,8 +170,8 @@ object Commands {
   final case class DropAllBracketsCommand(competitionId: Option[String])  extends PayloadlessCommand
   final case class StartCompetition(competitionId: Option[String])  extends PayloadlessCommand
   final case class StopCompetition(competitionId: Option[String])  extends PayloadlessCommand
-  final case class PublishCompetition(competitionId: Option[String])  extends PayloadlessCommand
-  final case class UnpublishCompetition(competitionId: Option[String])  extends PayloadlessCommand
+  final case class PublishCompetitionCommand(competitionId: Option[String])  extends PayloadlessCommand
+  final case class UnpublishCompetitionCommand(competitionId: Option[String])  extends PayloadlessCommand
   final case class DeleteCompetition(competitionId: Option[String])  extends PayloadlessCommand
   final case class DeleteCategoryCommand(competitionId: Option[String], override val categoryId: Option[String])  extends PayloadlessCommand
   final case class CreateFakeCompetitors(competitionId: Option[String], override val categoryId: Option[String])  extends PayloadlessCommand

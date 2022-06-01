@@ -64,9 +64,9 @@ object Mapping {
               categoryId = dto.messageInfo.flatMap(_.categoryId)
             )
           case PUBLISH_COMPETITION_COMMAND => Commands
-              .PublishCompetition(competitionId = dto.messageInfo.flatMap(_.competitionId))
+              .PublishCompetitionCommand(competitionId = dto.messageInfo.flatMap(_.competitionId))
           case UNPUBLISH_COMPETITION_COMMAND => Commands
-              .UnpublishCompetition(competitionId = dto.messageInfo.flatMap(_.competitionId))
+              .UnpublishCompetitionCommand(competitionId = dto.messageInfo.flatMap(_.competitionId))
 
           case DELETE_COMPETITION_COMMAND => Commands
               .DeleteCompetition(competitionId = dto.messageInfo.flatMap(_.competitionId))

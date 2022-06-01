@@ -16,6 +16,8 @@ object CompetitionCommandProcessors {
                                                                                                                    state: CompetitionState
   ): F[Either[Errors.Error, Seq[Event]]] = {
     Seq(
+      PublishCompetitionProc(state),
+      UnpublishCompetitionProc(state),
       DeleteCategoryProc(),
       DeleteCompetitionProc(),
       UpdateCompetitionPropertiesProc(),
