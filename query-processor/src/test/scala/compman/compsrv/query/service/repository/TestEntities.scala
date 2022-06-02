@@ -64,7 +64,6 @@ trait TestEntities {
   val stageInputDescriptor: StageInputDescriptor = StageInputDescriptor(
     15,
     List(CompetitorSelector(
-      "aid",
       "applyToStage",
       LogicalOperator.AND,
       SelectorClassifier.FIRST_N_PLACES,

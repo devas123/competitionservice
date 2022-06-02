@@ -101,7 +101,7 @@ object GenerateBracketsProc {
     })
     inputDescriptor = stage.getInputDescriptor
       .withSelectors(stage.getInputDescriptor.selectors.zipWithIndex.map { case (sel, index) =>
-        sel.withId(s"$stageId-s-$index").withApplyToStageId(stageIdMap(sel.applyToStageId))
+        sel.withApplyToStageId(stageIdMap(sel.applyToStageId))
       })
     enrichedOptions = stage.stageResultDescriptor.map(_.fightResultOptions).map(_.toList).getOrElse(List.empty) :+ FightResultOptionConstants.WALKOVER
     enrichedOptionsWithIds <- EitherT.liftF(

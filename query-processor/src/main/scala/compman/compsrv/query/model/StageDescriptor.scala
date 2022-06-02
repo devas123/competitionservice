@@ -57,7 +57,6 @@ case class FightResultOption(
 )
 
 case class CompetitorSelector(
-                               selectorId: String,
                                applyToStageId: String,
                                logicalOperator: LogicalOperator,
                                classifier: SelectorClassifier,

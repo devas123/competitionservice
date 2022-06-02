@@ -375,7 +375,6 @@ object DtoMapping {
 
   def mapCompetitorSelector(dto: model.CompetitorSelector): CompetitorSelector = {
     CompetitorSelector(
-      dto.id,
       dto.applyToStageId,
       dto.logicalOperator,
       dto.classifier,

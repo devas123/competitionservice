@@ -11,9 +11,9 @@ import compservice.model.protobuf.event.Event
 object CompetitionCommandProcessors {
   import Operations._
 
-  def process[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations: Interpreter, P](
-                                                                                                                   command: InternalCommandProcessorCommand[Any],
-                                                                                                                   state: CompetitionState
+  def process[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations: Interpreter](
+    command: InternalCommandProcessorCommand[Any],
+    state: CompetitionState
   ): F[Either[Errors.Error, Seq[Event]]] = {
     Seq(
       PublishCompetitionProc(state),

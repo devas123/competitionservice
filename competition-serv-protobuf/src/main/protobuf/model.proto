@@ -54,7 +54,6 @@ message StageInputDescriptor {
 }
 
 message CompetitorSelector {
-  string id = 1;
   string applyToStageId = 2;
   LogicalOperator logicalOperator = 4;
   SelectorClassifier classifier = 5;
