@@ -16,7 +16,7 @@ trait AbstractBehavior[R, S, Msg] {
                                  actorConfig: ActorConfig,
                                  initialState: S,
                                  actorSystem: ActorSystem,
-                                 children: Ref[Set[InternalActorCell[Nothing]]]
+                                 children: Ref[ContextState]
                                )(postStop: Task[Unit]): RIO[R with Clock with Console, InternalActorCell[Msg]]
 
   private[actors] def processSystemMessage(

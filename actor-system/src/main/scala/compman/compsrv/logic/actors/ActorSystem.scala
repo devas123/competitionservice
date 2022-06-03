@@ -10,6 +10,13 @@ import zio.logging.Logging
 import zio.Fiber.Status
 import zio.Fiber.Status.Suspended
 
+private[actors] final case class ContextState(
+  inCreation: Int,
+  isStopping: Boolean,
+  isStopped: Boolean,
+  children: Set[InternalActorCell[Nothing]]
+)
+
 final class ActorSystem(
   val actorSystemName: String,
   private val refActorMap: Ref[Map[ActorPath, InternalActorCell[Nothing]]],
@@ -19,6 +26,7 @@ final class ActorSystem(
   val supervisor: Supervisor[Chunk[Fiber.Runtime[Any, Any]]],
   val debug: Boolean
 ) extends ActorRefProvider {
+
   private val RegexName = "[\\w+|\\d+|(\\-_.*$+:@&=,!~';.)|\\/]+".r
 
   private[actors] def shutdown(): URIO[Clock, Unit] = ZIO.debug(s"[ActorSystem $actorSystemName] Shutdown") *>
@@ -91,27 +99,32 @@ final class ActorSystem(
     _ <- IO.fail(new Exception(s"Actor $path already exists")).unless(updated)
     derivedSystem =
       new ActorSystem(actorSystemName, refActorMap, Some(path), eventStream, deadLetters, supervisor, debug)
-    childrenSet      <- Ref.make(Set.empty[InternalActorCell[Nothing]])
+    contextState <- Ref
+      .make(ContextState(inCreation = 0, isStopping = false, isStopped = false, Set.empty[InternalActorCell[Nothing]]))
     creationFinished <- Ref.make(false)
-    actor <- behavior.makeActor(path, actorConfig, init, derivedSystem, childrenSet)(
-      dropFromActorMap(path, childrenSet, creationFinished)
-    )
-    _ <- refActorMap.update(refMap => refMap + (path -> actor))
-    _ <- creationFinished.set(true)
+    actor <- behavior.makeActor(path, actorConfig, init, derivedSystem, contextState)(
+      dropFromActorMap(path, contextState, creationFinished)
+    ).onExit {
+      case Exit.Success(value) => refActorMap.update(refMap => refMap + (path -> value)) *> creationFinished.set(true)
+      case Exit.Failure(_) => refActorMap.update(refMap => refMap - path) *> creationFinished.set(true)
+    }
   } yield actor
 
   private[actors] def dropFromActorMap(
     path: ActorPath,
-    childrenRef: Ref[Set[InternalActorCell[Nothing]]],
+    contextState: Ref[ContextState],
     creationFinished: Ref[Boolean]
   ): Task[Unit] = for {
-    created <- creationFinished.get
-    _ <- dropFromActorMap(path, childrenRef, creationFinished).delay(10.millis).when(!created).provideLayer(Clock.live)
+    _                       <- contextState.update(_.copy(isStopped = true))
+    created                 <- creationFinished.get
+    childrenAreBeingCreated <- contextState.map(c => c.inCreation > 0).get
+    _ <- dropFromActorMap(path, contextState, creationFinished).delay(10.millis)
+      .when(!created || childrenAreBeingCreated).provideLayer(Clock.live)
     _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] Started removing actor $path from actor ref map.").when(debug)
     _ <- refActorMap.update(_ - path)
-    children <- childrenRef.get
+    children <- contextState.map(_.children).get
     _        <- ZIO.foreach_(children)(int => int.stop)
-    _        <- childrenRef.set(Set.empty)
+    _        <- contextState.set(ContextState(inCreation = 0, isStopping = false, isStopped = true, Set.empty))
     _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] Finished removing actor $path from actor ref map.").when(debug)
   } yield ()
 

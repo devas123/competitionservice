@@ -41,7 +41,7 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
     actorConfig: ActorConfig,
     initialState: S,
     actorSystem: ActorSystem,
-    children: Ref[Set[InternalActorCell[Nothing]]]
+    children: Ref[ContextState]
   )(optPostStop: Task[Unit]): RIO[R with Clock with Console, InternalActorCell[Msg]] = {
     def process(
       watching: Ref[Map[ActorRef[Nothing], Option[Any]]],

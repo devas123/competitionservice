@@ -13,6 +13,9 @@ trait ActorRef[-Msg] {
 
   def !(fa: Msg): Task[Unit]
 
+  /**
+   * Do not use it directly.
+   */
   private[actors] val stop: Task[List[_]]
 
   private[actors] def unsafeUpcast[T >: Msg @uncheckedVariance] = this.asInstanceOf[ActorRef[T]]

@@ -40,7 +40,7 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
     actorConfig: ActorConfig,
     initialState: S,
     actorSystem: ActorSystem,
-    children: Ref[Set[InternalActorCell[Nothing]]]
+    children: Ref[ContextState]
   )(optPostStop: Task[Unit]): RIO[R with Clock with Console, InternalActorCell[Msg]] = {
 
     def applyEvents(events: Seq[Ev], state: S): RIO[R, S] = events.foldLeftM(state)(sourceEvent)
