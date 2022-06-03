@@ -77,7 +77,10 @@ object DeathWatchSpec extends DefaultRunnableSpec {
           _       <- actorSystem.make("DeathWatchCustomMessageWatcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify), outputStop = true, "DeathWatchCustomMessageWatcher"))
           _       <- ZIO.debug("[DeathWatchCustomMessage] Created watcher.")
           _       <- ZIO.sleep(timeDeltaPlusSeconds.seconds)
-          actorDoesNotExist <- actorSystem.select[Any]("DeathWatchCustomMessageWatcher").isFailure
+          _       <- ZIO.debug("[DeathWatchCustomMessage] Checking if watcher is stopped.")
+          actorDoesNotExist <- actorSystem.select[Any]("DeathWatchCustomMessageWatcher")
+            .flatMap(r => ZIO.debug(s"[DeathWatchCustomMessage] Query for watcher returned: $r")).isFailure
+          _       <- ZIO.debug("[DeathWatchCustomMessage] Checked if the watcher is stopped.")
         } yield assertTrue(actorDoesNotExist)
       }
     },
