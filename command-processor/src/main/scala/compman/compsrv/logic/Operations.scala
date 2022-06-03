@@ -91,7 +91,7 @@ object Operations {
       override def uid: LIO[String] = Task(UUID.randomUUID().toString)
 
       override def generateIdIfMissing(id: Option[String]): LIO[String] =
-        Task(id.filter(_.isEmpty).getOrElse(UUID.randomUUID().toString))
+        Task(id.filter(_.nonEmpty).getOrElse(UUID.randomUUID().toString))
     }
 
   }

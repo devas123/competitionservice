@@ -8,6 +8,7 @@ import compman.compsrv.logic._
 import compman.compsrv.logic.Operations.IdOperations
 import compman.compsrv.logic.fight.CanFail
 import compman.compsrv.model.extensions._
+import compman.compsrv.model.Errors.NotAllSchedulePeriodsHaveIds
 import compservice.model.protobuf.model._
 
 object ScheduleService {
@@ -19,8 +20,8 @@ object ScheduleService {
     timeZone: String
   ): F[CanFail[(Schedule, List[FightStartTimePair])]] = {
     for {
-      periodsWithIds <- EitherT
-        .liftF(periods.traverse(p => IdOperations[F].generateIdIfMissing(Option(p.id)).map(p.withId)))
+      _ <- assertETErr[F](periods.forall(_.id.nonEmpty), NotAllSchedulePeriodsHaveIds())
+      periodsWithIds = periods
       sortedPeriods = periodsWithIds.sortBy(_.getStartTime)
       enrichedScheduleRequirements <- EitherT.liftF(
         periodsWithIds.flatMap { periodDTO =>

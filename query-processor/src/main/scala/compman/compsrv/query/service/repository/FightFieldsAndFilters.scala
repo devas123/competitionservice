@@ -2,7 +2,7 @@ package compman.compsrv.query.service.repository
 
 import compservice.model.protobuf.model.FightStatus
 import org.mongodb.scala.bson.conversions.Bson
-import org.mongodb.scala.model.Filters.{equal, or}
+import org.mongodb.scala.model.Filters.{equal, not, or}
 import org.mongodb.scala.model.Indexes
 
 trait FightFieldsAndFilters extends CommonFields {
@@ -19,6 +19,10 @@ trait FightFieldsAndFilters extends CommonFields {
     equal(status, FightStatus.GET_READY),
     equal(status, FightStatus.IN_PROGRESS),
     equal(status, FightStatus.PAUSED)
+  )
+
+  val completableFightsStatuses: Bson = not(
+    equal(status, FightStatus.UNCOMPLETABLE),
   )
 
   val fightsCollectionIndex: Bson = Indexes.ascending(competitionIdField, s"$bracketsInfo.$round", s"$bracketsInfo.$numberInRound")

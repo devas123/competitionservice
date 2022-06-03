@@ -15,6 +15,7 @@ object Errors {
   final case class NoCompetitionPropertiesError() extends Error
   final case class TimeoutError() extends Error
   final case class InvalidPayload(payload: Any) extends Error
+  final case class NotAllSchedulePeriodsHaveIds() extends Error
   final case class RegistrationPeriodAlreadyExistsError(id: String) extends Error
   final case class RegistrationGroupAlreadyExistsError(id: Set[String]) extends Error
   final case class RegistrationGroupDefaultAlreadyExistsError() extends Error

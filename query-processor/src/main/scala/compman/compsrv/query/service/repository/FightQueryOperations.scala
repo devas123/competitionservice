@@ -85,8 +85,16 @@ object FightQueryOperations {
   def live(mongo: MongoClient, name: String): FightQueryOperations[LIO] = new FightQueryOperations[LIO]
     with CommonLiveOperations with FightFieldsAndFilters {
 
-    private def activeFights(competitionId: String) =
-      and(equal(competitionIdField, competitionId), statusCheck, not(equal("scores", BsonNull())), not(equal("scores.competitorId", BsonNull())), not(size("scores", 0)))
+    private def activeFights(competitionId: String) = and(
+      equal(competitionIdField, competitionId),
+      statusCheck,
+      not(equal("scores", BsonNull())),
+      not(equal("scores.competitorId", BsonNull())),
+      not(size("scores", 0))
+    )
+
+    private def completableFights(competitionId: String) =
+      and(equal(competitionIdField, competitionId), completableFightsStatuses)
 
     override def mongoClient: MongoClient = mongo
 
@@ -147,12 +155,11 @@ object FightQueryOperations {
     override def getFightIdsByCategoryIds(competitionId: String): LIO[Map[String, List[String]]] = {
       for {
         collection <- fightCollection
-        statement = collection.find(activeFights(competitionId))
+        statement = collection.find(completableFights(competitionId))
         res <- RIO.fromFuture(_ => statement.toFuture())
-          .map(_.filter(_.scores.forall(_.competitorId.isDefined)).groupMap(_.categoryId)(_.id).map(e =>
+          .map(_.groupMap(_.categoryId)(_.id).map(e =>
             e._1 -> e._2.toList
           ))
-
       } yield res
     }
 
