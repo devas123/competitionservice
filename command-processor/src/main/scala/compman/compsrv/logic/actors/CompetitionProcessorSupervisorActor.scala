@@ -47,7 +47,7 @@ object CompetitionProcessorSupervisorActor {
                         )
                       case Some(value) => ZIO.effect(value)
                     }
-                    _ <- Logging.info(s"Resolved initial state of the competition is $initialState")
+                    _ <- Logging.info(s"Resolved initial state of the competition. It has revision: ${initialState.revision}")
                     a <- context.make(
                       actorName,
                       ActorConfig(),
