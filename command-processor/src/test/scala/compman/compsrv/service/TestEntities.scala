@@ -1,6 +1,7 @@
 package compman.compsrv.service
 
 import compman.compsrv.logic.fight.FightResultOptionConstants
+import compman.compsrv.Utils
 import compservice.model.protobuf.model._
 
 trait TestEntities {
@@ -157,6 +158,19 @@ trait TestEntities {
       None,
       1
     )
+  )
+
+  val stage: StageDescriptor = StageDescriptor().withId(stageId)
+
+  val initialState: CommandProcessorCompetitionState = CommandProcessorCompetitionState(
+    id = competitionId,
+    competitors = Utils.groupById(competitors)(_.id),
+    competitionProperties = None,
+    stages = Map(stageId -> stage),
+    fights = Map.empty,
+    categories = Map.empty,
+    registrationInfo = None,
+    schedule = None
   )
 
 }

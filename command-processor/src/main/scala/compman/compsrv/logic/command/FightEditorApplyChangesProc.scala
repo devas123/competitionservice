@@ -3,7 +3,6 @@ package compman.compsrv.logic.command
 import cats.Monad
 import cats.data.{EitherT, OptionT}
 import cats.implicits._
-import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.fight._
 import compman.compsrv.model.command.Commands.{FightEditorApplyChangesCommand, InternalCommandProcessorCommand}
@@ -20,18 +19,18 @@ import scala.annotation.tailrec
 
 object FightEditorApplyChangesProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations](
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ FightEditorApplyChangesCommand(_, _, _) => process[F](x, state)
   }
 
   private def process[F[+_]: Monad: IdOperations: EventOperations](
     command: FightEditorApplyChangesCommand,
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): F[Either[Errors.Error, Seq[Event]]] = {
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption[F](command.payload, NoPayloadError())
-      stageExists = state.stages.flatMap(_.get(payload.stageId)).isDefined
+      stageExists = state.stages.contains(payload.stageId)
       event <-
         if (!stageExists) {
           EitherT.fromEither[F](Left[Errors.Error, Event](Errors.StageDoesNotExist(payload.stageId)))
@@ -58,10 +57,13 @@ object FightEditorApplyChangesProc {
     case _                      => Int.MaxValue
   }
 
-  private def createPayload[F[+_]: Monad](payload: FightEditorApplyChangesPayload, state: CompetitionState) = {
+  private def createPayload[F[+_]: Monad](
+    payload: FightEditorApplyChangesPayload,
+    state: CommandProcessorCompetitionState
+  ) = {
     (for {
-      rawUpdates     <- OptionT.fromOption[F](createUpdates(payload, state))
-      allFights      <- OptionT.fromOption[F](state.fights)
+      rawUpdates <- OptionT.fromOption[F](createUpdates(payload, state))
+      allFights = state.fights
       bracketChanges <- OptionT.fromOption[F](Option(payload.bracketsChanges))
       cleanedUpdates = rawUpdates.map(f =>
         f._1 -> (if (f._2.status == FightStatus.UNCOMPLETABLE) f._2.withStatus(FightStatus.PENDING) else f._2)
@@ -96,12 +98,11 @@ object FightEditorApplyChangesProc {
     }
   }
 
-  private def createUpdates(payload: FightEditorApplyChangesPayload, state: CompetitionState) = {
+  private def createUpdates(payload: FightEditorApplyChangesPayload, state: CommandProcessorCompetitionState) = {
     for {
-      allStageFights <- state.fights.map(_.filter(_._2.stageId == payload.stageId))
-      stages         <- state.stages
-      stage          <- stages.get(payload.stageId)
-      bracketsType = stage.bracketType
+      stage <- state.stages.get(payload.stageId)
+      allStageFights = state.fights.filter(_._2.stageId == payload.stageId)
+      bracketsType   = stage.bracketType
     } yield applyChanges(payload, allStageFights, stage, bracketsType)
   }
 
@@ -123,7 +124,7 @@ object FightEditorApplyChangesProc {
             ch.changeType match {
               case GroupChangeType.REMOVE => removeCompetitorsFromGroup(acc, ch, gr)
               case GroupChangeType.ADD    => addCompetitorToGroup(groupFights, ch)
-              case _ => acc
+              case _                      => acc
             }
           })
         }).sortBy(it => { it._2.numberInRound }).zipWithIndex.map(z => { z._1._2.withNumberInRound(z._2) })
@@ -186,10 +187,7 @@ object FightEditorApplyChangesProc {
     groupFights: Map[String, FightDescription],
     change: CompetitorMovedToGroup
   ): Map[String, FightDescription] = {
-    if (
-      groupFights
-        .exists(e => e._2.scores.exists(_.competitorId.contains(change.competitorId)))
-    ) { groupFights }
+    if (groupFights.exists(e => e._2.scores.exists(_.competitorId.contains(change.competitorId)))) { groupFights }
     else {
       val flatScores    = groupFights.values.flatMap(_.scores)
       val placeholderId = flatScores.find(it => it.competitorId.isEmpty && it.placeholderId.isDefined)
@@ -212,7 +210,8 @@ object FightEditorApplyChangesProc {
             (fight: FightDescription) => (fight.duration, fight.stageId, fight.competitionId, fight.categoryId)
           val (duration, stageId, competitionId, categoryId) = extractor(groupFights.values.head)
 
-          val newPlaceholderId = flatScores.filter(cs => cs.competitorId.isDefined).map(it => it.competitorId.get -> it.placeholderId).toMap +
+          val newPlaceholderId = flatScores.filter(cs => cs.competitorId.isDefined)
+            .map(it => it.competitorId.get -> it.placeholderId).toMap +
             (change.competitorId -> Some(s"placeholder-${UUID.randomUUID()}"))
 
           val newFights = newCompetitorPairs.zipWithIndex.map(arg => {

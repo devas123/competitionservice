@@ -3,42 +3,39 @@ package compman.compsrv.logic.command
 import cats.Monad
 import cats.data.EitherT
 import compman.compsrv.Utils.groupById
-import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.fight.{FightsService, FightUtils}
 import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.model.Errors
 import compman.compsrv.model.command.Commands.{InternalCommandProcessorCommand, PropagateCompetitorsCommand}
 import compman.compsrv.model.extensions._
-import compman.compsrv.model.Errors.{InternalError, NoPayloadError}
+import compman.compsrv.model.Errors.NoPayloadError
 import compservice.model.protobuf.commandpayload.PropagateCompetitorsPayload
 import compservice.model.protobuf.common.MessageInfo
-import compservice.model.protobuf.model.StageDescriptor
 import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload.{CompetitorAssignmentDescriptor, CompetitorsPropagatedToStagePayload}
+import compservice.model.protobuf.model.{CommandProcessorCompetitionState, StageDescriptor}
 
 object PropagateCompetitorsProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations: Interpreter](
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x: PropagateCompetitorsCommand => process(x, state)
   }
 
   private def process[F[+_]: Monad: IdOperations: EventOperations: Interpreter](
     command: PropagateCompetitorsCommand,
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): F[Either[Errors.Error, Seq[Event]]] = {
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
-      payload <- EitherT.fromOption[F](command.payload, NoPayloadError())
-      stage   <- EitherT.fromOption[F](state.stages.flatMap(_.get(payload.previousStageId)), NoPayloadError())
+      payload               <- EitherT.fromOption[F](command.payload, NoPayloadError())
+      stage                 <- EitherT.fromOption[F](state.stages.get(payload.previousStageId), NoPayloadError())
       propagatedCompetitors <- EitherT.liftF(findPropagatedCompetitors[F](payload, stage, state))
-      propagatedStageFights <- EitherT.fromOption[F](state.fights, InternalError("Fights missing."))
-        .map(_.values.filter(_.stageId == payload.propagateToStageId))
+      propagatedStageFights    = state.fights.values.filter(_.stageId == payload.propagateToStageId)
       propagatedCompetitorsSet = propagatedCompetitors.toSet
       competitorIdsToFightIds <- EitherT(
         FightsService.distributeCompetitors[F](
-          state.competitors.map(_.values).map(_.filter { it => propagatedCompetitorsSet.contains(it.id) }.toList)
-            .getOrElse(List.empty),
+          state.competitors.values.filter { it => propagatedCompetitorsSet.contains(it.id) }.toList,
           groupById(propagatedStageFights)(_.id)
         ).apply(stage.bracketType)
       )
@@ -61,7 +58,7 @@ object PropagateCompetitorsProc {
   def findPropagatedCompetitors[F[+_]: Monad: Interpreter](
     payload: PropagateCompetitorsPayload,
     stage: StageDescriptor,
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): F[List[String]] = FightUtils
     .applyStageInputDescriptorToResultsAndFights[F](stage.getInputDescriptor, payload.previousStageId, state)
 }

@@ -383,6 +383,18 @@ enum CompetitionStatus {
   COMPETITION_STATUS_DELETED = 7;
 }
 
+message CommandProcessorCompetitionState {
+  string id = 1;
+  map<string, Competitor> competitors = 2;
+  CompetitionProperties competitionProperties = 3;
+  map<string, StageDescriptor> stages = 4;
+  map<string, FightDescription> fights = 5;
+  map<string, CategoryDescriptor> categories = 6;
+  optional RegistrationInfo registrationInfo = 100;
+  optional Schedule schedule = 200;
+  int32 revision = 300;
+}
+
 message CompetitionState {
   string id = 1;
   repeated CategoryState categories = 2;

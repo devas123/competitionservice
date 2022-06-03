@@ -3,7 +3,7 @@ package compman.compsrv.logic.command
 import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
-import compman.compsrv.logic.CompetitionState
+import compservice.model.protobuf.model.CommandProcessorCompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.model.Errors
 import compman.compsrv.model.command.Commands.{DeleteRegistrationPeriodCommand, InternalCommandProcessorCommand}
@@ -14,14 +14,14 @@ import compservice.model.protobuf.eventpayload.{RegistrationGroupDeletedPayload,
 
 object DeleteRegistrationPeriodProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations](
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ DeleteRegistrationPeriodCommand(_, _, _) => process[F](x, state)
   }
 
   private def process[F[+_]: Monad: IdOperations: EventOperations](
     command: DeleteRegistrationPeriodCommand,
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): F[Either[Errors.Error, Seq[Event]]] = {
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption[F](command.payload, NoPayloadError())

@@ -1,6 +1,6 @@
 package compman.compsrv.logic.actors
 
-import compman.compsrv.logic.{CompetitionState, Operations}
+import compman.compsrv.logic.Operations
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
 import compman.compsrv.logic.actors.EventSourcedMessages._
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
@@ -9,6 +9,7 @@ import compman.compsrv.model.command.Commands.createErrorCommandCallbackMessageP
 import compservice.model.protobuf.command
 import compservice.model.protobuf.event.Event
 import compservice.model.protobuf.model.{
+  CommandProcessorCompetitionState,
   CompetitionProcessingStarted,
   CompetitionProcessingStopped,
   CompetitionProcessorNotification
@@ -31,12 +32,12 @@ object CompetitionProcessorActor {
   private val DefaultTimerKey = "stopTimer"
 
   final case class CompetitionProcessorActorState(
-    competitionState: CompetitionState,
+    competitionState: CommandProcessorCompetitionState,
     isNotificationSent: Boolean,
     eventsSinceLastSnapshotSaved: Int
   )
 
-  def initialState(competitionState: CompetitionState): CompetitionProcessorActorState =
+  def initialState(competitionState: CommandProcessorCompetitionState): CompetitionProcessorActorState =
     CompetitionProcessorActorState(competitionState, isNotificationSent = false, 0)
 
   def behavior[Env](

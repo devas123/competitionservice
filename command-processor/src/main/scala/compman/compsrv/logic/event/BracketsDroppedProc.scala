@@ -1,23 +1,25 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
-import compman.compsrv.logic.CompetitionState
+import compman.compsrv.logic.CompetitionState.CompetitionStateOps
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
 import compman.compsrv.model.event.Events.{CategoryBracketsDropped, Event}
+import compservice.model.protobuf.model.CommandProcessorCompetitionState
 
 object BracketsDroppedProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations](
-    state: CompetitionState
-  ): PartialFunction[Event[Any], F[Option[CompetitionState]]] = { case x: CategoryBracketsDropped => apply[F](x, state) }
+    state: CommandProcessorCompetitionState
+  ): PartialFunction[Event[Any], F[Option[CommandProcessorCompetitionState]]] = { case x: CategoryBracketsDropped =>
+    apply[F](x, state)
+  }
 
   private def apply[F[+_]: Monad: IdOperations: EventOperations](
     event: CategoryBracketsDropped,
-    state: CompetitionState
-  ): F[Option[CompetitionState]] = {
+    state: CommandProcessorCompetitionState
+  ): F[Option[CommandProcessorCompetitionState]] = {
     val maybeState = for {
-      currentStages <- state.stages
-      catId         <- event.categoryId
-      newState = state.copy(stages = Option(currentStages.filter { case (_, o) => o.categoryId != catId }))
+      catId <- event.categoryId
+      newState = state.withStages(state.stages.filter { case (_, o) => o.categoryId != catId })
         .fightsApply(fightsOpt => fightsOpt.map(_.filter(_._2.categoryId != catId)))
     } yield newState
     Monad[F].pure(maybeState)

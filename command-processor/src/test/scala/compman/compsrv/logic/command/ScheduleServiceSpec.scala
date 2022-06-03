@@ -2,7 +2,6 @@ package compman.compsrv.logic.command
 
 import cats.Eval
 import compman.compsrv.Utils
-import compman.compsrv.logic.CompetitionState
 import compman.compsrv.model.command.Commands.GenerateScheduleCommand
 import compman.compsrv.model.extensions._
 import compman.compsrv.service.TestEntities
@@ -19,7 +18,7 @@ class ScheduleServiceSpec extends AnyFunSuite with BeforeAndAfter with TestEntit
 
   import Dependencies._
 
-  val stage: StageDescriptor = new StageDescriptor().withId(stageId).withCategoryId(categoryId)
+  override val stage: StageDescriptor = new StageDescriptor().withId(stageId).withCategoryId(categoryId)
     .withStageType(StageType.FINAL).withBracketType(BracketType.SINGLE_ELIMINATION).withStageOrder(0)
     .withInputDescriptor(
       StageInputDescriptor().withSelectors(Seq.empty).withDistributionType(DistributionType.AUTOMATIC)
@@ -46,18 +45,16 @@ class ScheduleServiceSpec extends AnyFunSuite with BeforeAndAfter with TestEntit
           .getOrElse(Seq.empty)
       )
   )
-  val initialState: CompetitionState = CompetitionState(
+  override val initialState: CommandProcessorCompetitionState = CommandProcessorCompetitionState(
     id = competitionId,
-    competitors = Some(Utils.groupById(competitors)(_.id)),
+    competitors = Utils.groupById(competitors)(_.id),
     competitionProperties = Some(CompetitionProperties().withId(competitionId).withTimeZone("UTC")),
-    stages = Some(Map(stageId -> stage, stage2 -> stage.copy().withId(stage2).withCategoryId(category2))),
-    fights = Some(fights ++ fights2).map(fs => Utils.groupById(fs)(_.id)),
-    categories = Some(
-      Map(categoryId -> CategoryDescriptor().withId(categoryId), category2 -> CategoryDescriptor().withId(category2))
-    ),
+    stages = Map(stageId -> stage, stage2 -> stage.copy().withId(stage2).withCategoryId(category2)),
+    fights = Utils.groupById(fights ++ fights2)(_.id),
+    categories =
+      Map(categoryId -> CategoryDescriptor().withId(categoryId), category2 -> CategoryDescriptor().withId(category2)),
     registrationInfo = None,
-    schedule = None,
-    revision = 0
+    schedule = None
   )
 
   val command: GenerateScheduleCommand =

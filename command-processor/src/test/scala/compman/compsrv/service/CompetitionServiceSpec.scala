@@ -1,6 +1,5 @@
 package compman.compsrv.service
 
-import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
   CreateTopicIfMissing,
   KafkaSupervisorCommand,
@@ -51,12 +50,12 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
     suite("The Competition Processor should")(testM("Accept commands") {
       ActorSystem("Test").use { actorSystem =>
         for {
-          snapshotsRef        <- Ref.make(Map.empty[String, CompetitionState])
+          snapshotsRef        <- Ref.make(Map.empty[String, CommandProcessorCompetitionState])
           processorOperations <- ZIO.effect(CommandProcessorOperations.test(snapshotsRef))
           initialState <- processorOperations.getStateSnapshot(competitionId)
             .flatMap(p => ZIO.effect(p.fold(processorOperations.createInitialState(competitionId, None))(identity)))
           kafkaSupervisor <- TestKit[KafkaSupervisorCommand](actorSystem)
-          snapshotSaver <- TestKit[SnapshotSaver.SnapshotSaverMessage](actorSystem)
+          snapshotSaver   <- TestKit[SnapshotSaver.SnapshotSaverMessage](actorSystem)
           processor <- actorSystem.make(
             s"CompetitionProcessor-$competitionId",
             ActorConfig(),
@@ -90,11 +89,11 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
               ))
           ).withType(CommandType.CREATE_COMPETITION_COMMAND)
           _               <- processor ! ProcessCommand(command)
-          eventOpt <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[PublishMessage])
+          eventOpt        <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[PublishMessage])
           notificationOpt <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[PublishMessage])
           notification = notificationOpt.get.message
-          eventBytes = eventOpt.get.message
-          event      = Event.parseFrom(eventBytes)
+          eventBytes   = eventOpt.get.message
+          event        = Event.parseFrom(eventBytes)
         } yield assertTrue(notification != null) && assertTrue(event.`type` == EventType.COMPETITION_CREATED) &&
           assertTrue(event.messageInfo.flatMap(_.payload.competitionCreatedPayload).isDefined) &&
           assertTrue(event.messageInfo.map(_.correlationId).contains(command.messageInfo.map(_.id).get)) &&

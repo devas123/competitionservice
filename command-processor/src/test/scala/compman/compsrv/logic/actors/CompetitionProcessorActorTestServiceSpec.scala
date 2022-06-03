@@ -3,20 +3,14 @@ package compman.compsrv.logic.actors
 import com.google.protobuf.timestamp.Timestamp
 import com.google.protobuf.util.Timestamps
 import compman.compsrv.config.CommandProcessorConfig
-import compman.compsrv.logic.CompetitionState
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
-  CreateTopicIfMissing,
-  KafkaSupervisorCommand,
-  PublishMessage,
-  QuerySync
-}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaSupervisorCommand, PublishMessage, QuerySync}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorSupervisorActor.CommandReceived
 import compman.compsrv.logic.logging.CompetitionLogging
 import compservice.model.protobuf.command.{Command, CommandType}
 import compservice.model.protobuf.commandpayload.CreateCompetitionPayload
 import compservice.model.protobuf.common.MessageInfo
-import compservice.model.protobuf.model.{CompetitionProperties, CompetitionStatus, RegistrationInfo}
+import compservice.model.protobuf.model.{CommandProcessorCompetitionState, CompetitionProperties, CompetitionStatus, RegistrationInfo}
 import zio.{Layer, Ref}
 import zio.blocking.Blocking
 import zio.clock.Clock
@@ -50,7 +44,7 @@ object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
     suite("The Competition Processor should")(testM("Accept commands") {
       ActorSystem("Test").use { actorSystem =>
         for {
-          snapshotsRef    <- Ref.make(Map.empty[String, CompetitionState])
+          snapshotsRef    <- Ref.make(Map.empty[String, CommandProcessorCompetitionState])
           kafkaSupervisor <- TestKit[KafkaSupervisorCommand](actorSystem)
           snapshotSaver   <- TestKit[SnapshotSaver.SnapshotSaverMessage](actorSystem)
           processor <- actorSystem.make(

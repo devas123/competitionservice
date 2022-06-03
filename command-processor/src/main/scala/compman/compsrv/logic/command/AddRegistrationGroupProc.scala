@@ -2,7 +2,7 @@ package compman.compsrv.logic.command
 
 import cats.{Monad, Traverse}
 import cats.data.EitherT
-import compman.compsrv.logic.CompetitionState
+import compservice.model.protobuf.model.CommandProcessorCompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.model.Errors
 import compman.compsrv.model.command.Commands.{AddRegistrationGroupCommand, InternalCommandProcessorCommand}
@@ -18,14 +18,14 @@ import compservice.model.protobuf.model.RegistrationGroup
 
 object AddRegistrationGroupProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations](
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ AddRegistrationGroupCommand(_, _, _) => addRegistrationGroup(x, state)
   }
 
   private def addRegistrationGroup[F[+_]: Monad: IdOperations: EventOperations](
     command: AddRegistrationGroupCommand,
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): F[Either[Errors.Error, Seq[Event]]] = {
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption(command.payload, NoPayloadError())

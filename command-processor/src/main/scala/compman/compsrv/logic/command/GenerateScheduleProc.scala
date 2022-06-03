@@ -12,18 +12,18 @@ import compman.compsrv.model.Errors.NoPayloadError
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload.{FightStartTimeUpdatedPayload, ScheduleGeneratedPayload}
-import compservice.model.protobuf.model.MatDescription
+import compservice.model.protobuf.model.{CommandProcessorCompetitionState, MatDescription}
 
 object GenerateScheduleProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations](
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x: GenerateScheduleCommand => process[F](x, state)
   }
 
   private def process[F[+_]: Monad: IdOperations: EventOperations](
     command: GenerateScheduleCommand,
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): F[Either[Errors.Error, Seq[Event]]] = {
     import cats.implicits._
     def updateMatId(mat: MatDescription) = {
@@ -39,9 +39,9 @@ object GenerateScheduleProc {
       periods = payload.periods
       _    <- assertET[F](periods.nonEmpty, Some("No periods"))
       mats <- EitherT.liftF(payload.mats.toList.traverse(mat => updateMatId(mat)))
-      categories = periods.flatMap(p => Option(p.scheduleRequirements).getOrElse(Seq.empty))
-        .flatMap(e => e.categoryIds).toSet
-      unknownCategories = state.categories.map(_.keySet).map(c => categories.diff(c)).getOrElse(Set.empty)
+      categories = periods.flatMap(p => Option(p.scheduleRequirements).getOrElse(Seq.empty)).flatMap(e => e.categoryIds)
+        .toSet
+      unknownCategories = categories.diff(state.categories.keySet)
       _ <- assertET[F](!state.schedule.exists(s => s.periods.nonEmpty), Some("Schedule generated"))
       _ <- assertET[F](!state.competitionProperties.exists(_.schedulePublished), Some("Schedule already published"))
       _ <- assertET[F](unknownCategories.isEmpty, Some(s"Categories $unknownCategories are unknown"))
@@ -55,32 +55,29 @@ object GenerateScheduleProc {
             competitorId = None,
             competitionId = command.competitionId,
             categoryId = None,
-            payload = Option(MessageInfo.Payload.FightStartTimeUpdatedPayload(
-              FightStartTimeUpdatedPayload().withNewFights(fights)
-            ))
+            payload = Option(
+              MessageInfo.Payload.FightStartTimeUpdatedPayload(FightStartTimeUpdatedPayload().withNewFights(fights))
+            )
           )
         ))
-      scheduleGeneratedEvent <- EitherT
-        .liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
-          `type` = EventType.SCHEDULE_GENERATED,
-          competitorId = None,
-          competitionId = command.competitionId,
-          categoryId = None,
-          payload = Option(
-            MessageInfo.Payload.ScheduleGeneratedPayload(ScheduleGeneratedPayload().withSchedule(scheduleAndFights._1))
-          )
-        ))
+      scheduleGeneratedEvent <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
+        `type` = EventType.SCHEDULE_GENERATED,
+        competitorId = None,
+        competitionId = command.competitionId,
+        categoryId = None,
+        payload = Option(
+          MessageInfo.Payload.ScheduleGeneratedPayload(ScheduleGeneratedPayload().withSchedule(scheduleAndFights._1))
+        )
+      ))
     } yield scheduleGeneratedEvent +: fightUpdatedEvents
     eventT.value
   }
 
-  private def getStageGraph(state: CompetitionState): CanFail[StageGraph] = {
-    val categories = state.categories.getOrElse(Map.empty)
-    val stages = categories.values.flatMap { it =>
-      state.stages.map(_.values.filter(_.categoryId == it.id)).getOrElse(Seq.empty)
-    }
-    val stageIds = stages.map(_.id).toSet
-    val fights   = state.fights.map(_.values.filter(f => stageIds.contains(f.stageId))).getOrElse(List.empty)
+  private def getStageGraph(state: CommandProcessorCompetitionState): CanFail[StageGraph] = {
+    val categories = state.categories
+    val stages     = categories.values.flatMap { it => state.stages.values.filter(_.categoryId == it.id) }
+    val stageIds   = stages.map(_.id).toSet
+    val fights     = state.fights.values.filter(f => stageIds.contains(f.stageId))
     StageGraph.create(stages.toList, fights.toList)
   }
 }

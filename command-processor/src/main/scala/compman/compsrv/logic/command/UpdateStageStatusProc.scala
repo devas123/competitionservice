@@ -14,18 +14,18 @@ import compservice.model.protobuf.commandpayload.UpdateStageStatusPayload
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload._
-import compservice.model.protobuf.model.{FightStatus, StageStatus}
+import compservice.model.protobuf.model.{CommandProcessorCompetitionState, FightStatus, StageStatus}
 
 object UpdateStageStatusProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations](
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x: UpdateStageStatusCommand => process[F](x, state)
   }
 
   private def process[F[+_]: Monad: IdOperations: EventOperations](
     command: UpdateStageStatusCommand,
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): F[Either[Errors.Error, Seq[Event]]] = {
     def createStageStatusUpdatedEvent(payload: UpdateStageStatusPayload, stageId: String) = {
       CommandEventOperations[F, Event].create(
@@ -41,11 +41,11 @@ object UpdateStageStatusProc {
 
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption[F](command.payload, NoPayloadError())
-      _ <- assertETErr[F](state.stages.exists(_.contains(payload.stageId)), Errors.StageDoesNotExist(payload.stageId))
+      _       <- assertETErr[F](state.stages.contains(payload.stageId), Errors.StageDoesNotExist(payload.stageId))
       stageId = payload.stageId
       e = payload.status match {
         case StageStatus.APPROVED | StageStatus.WAITING_FOR_APPROVAL | StageStatus.WAITING_FOR_COMPETITORS =>
-          val stageFights = state.fights.map(_.values.filter(_.stageId == stageId)).getOrElse(Iterable.empty)
+          val stageFights = state.fights.values.filter(_.stageId == stageId)
           val dirtyStageFights = groupById(stageFights.map(sf =>
             if (sf.status == FightStatus.UNCOMPLETABLE) { sf.withStatus(FightStatus.PENDING) }
             else sf

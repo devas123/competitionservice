@@ -5,9 +5,8 @@ import cats.data.State
 import cats.free.Free
 import cats.implicits._
 import compman.compsrv.Utils.groupById
-import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import compservice.model.protobuf.model.StageRoundType
+import compservice.model.protobuf.model.{CommandProcessorCompetitionState, StageRoundType}
 import zio.Task
 
 import scala.collection.mutable
@@ -15,17 +14,17 @@ import scala.collection.mutable
 object CompetitorSelectionUtils {
 
   trait Interpreter[F[+_]] {
-    def interepret(state: CompetitionState): CompetitorSelectA ~> F
+    def interepret(state: CommandProcessorCompetitionState): CompetitorSelectA ~> F
   }
 
   object Interpreter {
     def apply[F[+_]: Monad](implicit F: Interpreter[F]): Interpreter[F] = F
 
-    val asTask: Interpreter[LIO] = (state: CompetitionState) => {
-      val stages = state.stages.getOrElse(Map.empty)
+    val asTask: Interpreter[LIO] = (state: CommandProcessorCompetitionState) => {
+      val stages = state.stages
       def results(stageId: String) = stages.get(stageId).flatMap(s => Option(s.getStageResultDescriptor))
         .flatMap(s => Option(s.competitorResults)).map(res => groupById(res)(_.competitorId)).getOrElse(Map.empty)
-      def fights(stageId: String) = state.fights.map(fs => groupById(fs.values.filter(_.stageId == stageId))(_.id))
+      def fights(stageId: String) = groupById(state.fights.values.filter(_.stageId == stageId))(_.id)
       new (CompetitorSelectA ~> LIO) {
         override def apply[A](fa: CompetitorSelectA[A]): LIO[A] = {
           fa match {
@@ -36,7 +35,7 @@ object CompetitorSelectionUtils {
               Task(results(stageId).values.toSeq.sortBy(_.place).takeRight(n).map(_.competitorId).asInstanceOf[A])
             case WinnerOfFight(stageId, id) => for {
                 t <- Task(for {
-                  fs     <- fights(stageId)
+                  fs     <- Some(fights(stageId))
                   f      <- fs.get(id)
                   res    <- f.fightResult
                   winner <- res.winnerId
@@ -44,7 +43,7 @@ object CompetitorSelectionUtils {
               } yield t.getOrElse(Seq.empty)
             case LoserOfFight(stageId, id) => for {
                 t <- Task(for {
-                  fs     <- fights(stageId)
+                  fs     <- Some(fights(stageId))
                   f      <- fs.get(id)
                   res    <- f.fightResult
                   winner <- res.winnerId
@@ -55,7 +54,7 @@ object CompetitorSelectionUtils {
 
             case PassedToRound(stageId, n, roundType) => for {
                 t <- Task(for {
-                  fs <- fights(stageId)
+                  fs <- Some(fights(stageId))
                   filtered = fs.values.filter(_.roundType == roundType).filter(_.numberInRound == n)
                   ids      = filtered.flatMap(_.scores.map(_.competitorId))
                 } yield ids.toSeq.asInstanceOf[A])

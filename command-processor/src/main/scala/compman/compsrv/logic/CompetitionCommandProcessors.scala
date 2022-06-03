@@ -7,13 +7,14 @@ import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.Errors
 import compman.compsrv.model.command.Commands.InternalCommandProcessorCommand
 import compservice.model.protobuf.event.Event
+import compservice.model.protobuf.model.CommandProcessorCompetitionState
 
 object CompetitionCommandProcessors {
   import Operations._
 
   def process[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations: Interpreter](
     command: InternalCommandProcessorCommand[Any],
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): F[Either[Errors.Error, Seq[Event]]] = {
     Seq(
       PublishCompetitionProc(state),

@@ -1,26 +1,27 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
-import compman.compsrv.logic.CompetitionState
+import compman.compsrv.logic.CompetitionState.CompetitionStateOps
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
 import compman.compsrv.model.event.Events.{Event, FightCompetitorsAssignedEvent}
+import compservice.model.protobuf.model.CommandProcessorCompetitionState
 
 object FightCompetitorsAssignedProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations](
-    state: CompetitionState
-  ): PartialFunction[Event[Any], F[Option[CompetitionState]]] = { case x: FightCompetitorsAssignedEvent =>
-    apply[F](x, state)
+    state: CommandProcessorCompetitionState
+  ): PartialFunction[Event[Any], F[Option[CommandProcessorCompetitionState]]] = {
+    case x: FightCompetitorsAssignedEvent => apply[F](x, state)
   }
 
   private def apply[F[+_]: Monad: IdOperations: EventOperations](
     event: FightCompetitorsAssignedEvent,
-    state: CompetitionState
-  ): F[Option[CompetitionState]] = {
+    state: CommandProcessorCompetitionState
+  ): F[Option[CommandProcessorCompetitionState]] = {
     import cats.implicits._
     val eventT = for {
       payload     <- event.payload
       assignments <- Option(payload.assignments)
-      fights      <- state.fights
+      fights = state.fights
       updates = assignments.mapFilter(ass =>
         for {
           fromFight <- fights.get(ass.fromFightId)

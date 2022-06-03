@@ -1,6 +1,6 @@
 package compman.compsrv.logic.actors
 
-import compman.compsrv.logic.CompetitionState
+import compservice.model.protobuf.model.CommandProcessorCompetitionState
 import zio.clock.Clock
 import zio.console.Console
 import zio.logging.Logging
@@ -24,5 +24,5 @@ object SnapshotSaver {
 
   sealed trait SnapshotSaverMessage
 
-  final case class SaveSnapshot(state: CompetitionState) extends SnapshotSaverMessage
+  final case class SaveSnapshot(state: CommandProcessorCompetitionState) extends SnapshotSaverMessage
 }

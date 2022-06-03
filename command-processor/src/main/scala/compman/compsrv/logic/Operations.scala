@@ -13,7 +13,13 @@ import compservice.model.protobuf.command.Command
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.common.MessageInfo.Payload
 import compservice.model.protobuf.event.{Event, EventType}
-import compservice.model.protobuf.model.{CategoryDescriptor, Competitor, RegistrationGroup, RegistrationPeriod}
+import compservice.model.protobuf.model.{
+  CategoryDescriptor,
+  CommandProcessorCompetitionState,
+  Competitor,
+  RegistrationGroup,
+  RegistrationPeriod
+}
 import zio.Task
 
 import java.util
@@ -109,9 +115,7 @@ object Operations {
       eventsToApply <- EitherT(StatelessCommandProcessors.process(mapped))
       _             <- EitherT.liftF(info(s"Received events: $eventsToApply"))
       numberOfEvents = eventsToApply.size
-      enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) =>
-        enrichEvent(command, numberOfEvents, ev, ind)
-      )
+      enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) => enrichEvent(command, numberOfEvents, ev, ind))
       _ <- EitherT.liftF(info(s"Returning events: $enrichedEvents"))
     } yield enrichedEvents
     either.value
@@ -126,7 +130,7 @@ object Operations {
   def processStatefulCommand[F[
     +_
   ]: Monad: CommandMapping: IdOperations: CompetitionLogging.Service: EventOperations: Interpreter](
-    latestState: CompetitionState,
+    latestState: CommandProcessorCompetitionState,
     command: Command
   ): F[Either[Errors.Error, Seq[Event]]] = {
     import cats.implicits._
@@ -138,18 +142,17 @@ object Operations {
       _             <- EitherT.liftF(info(s"Received events: $eventsToApply"))
       n              = latestState.revision
       numberOfEvents = eventsToApply.size
-      enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) =>
-        enrichEvent(command, numberOfEvents, ev, ind).withVersion(n + ind)
-      )
+      enrichedEvents = eventsToApply.toList
+        .mapWithIndex((ev, ind) => enrichEvent(command, numberOfEvents, ev, ind).withVersion(n + ind))
       _ <- EitherT.liftF(info(s"Returning events: $enrichedEvents"))
     } yield enrichedEvents
     either.value
   }
 
   def applyEvent[F[+_]: CompetitionLogging.Service: Monad: EventMapping: IdOperations: EventOperations](
-    latestState: CompetitionState,
+    latestState: CommandProcessorCompetitionState,
     event: Event
-  ): F[CompetitionState] = {
+  ): F[CommandProcessorCompetitionState] = {
     import cats.implicits._
     for {
       mapped <- EventMapping.mapEventDto(event)

@@ -2,7 +2,6 @@ package compman.compsrv.logic.command
 
 import cats.Eval
 import compman.compsrv.Utils
-import compman.compsrv.logic.CompetitionState
 import compman.compsrv.model.command.Commands.FightEditorApplyChangesCommand
 import compman.compsrv.service.TestEntities
 import compservice.model.protobuf.commandpayload.{CompetitorsOfFightUpdated, FightEditorApplyChangesPayload}
@@ -15,20 +14,6 @@ import java.util.UUID
 
 class FightEditorApplyChangesProcSpec extends AnyFunSuite with BeforeAndAfter with TestEntities {
   import Dependencies._
-
-  val stage: StageDescriptor = StageDescriptor().withId(stageId)
-
-  val initialState: CompetitionState = CompetitionState(
-    id = competitionId,
-    competitors = Some(Utils.groupById(competitors)(_.id)),
-    competitionProperties = None,
-    stages = Some(Map(stageId -> stage)),
-    fights = None,
-    categories = None,
-    registrationInfo = None,
-    schedule = None,
-    revision = 0
-  )
 
   val payload: Option[FightEditorApplyChangesPayload] =
     Some(FightEditorApplyChangesPayload().withStageId(stageId).withBracketsChanges(Seq(
@@ -45,7 +30,7 @@ class FightEditorApplyChangesProcSpec extends AnyFunSuite with BeforeAndAfter wi
   test("Should set fight statuses") {
     val updatedFights = (for {
       newFights <- Eval.later(Utils.groupById(fights)(_.id))
-      result    <- FightEditorApplyChangesProc[Eval](initialState.copy(fights = Some(newFights))).apply(command)
+      result    <- FightEditorApplyChangesProc[Eval](initialState.copy(fights = newFights)).apply(command)
     } yield result).value
     assert(updatedFights.isRight)
     val events = updatedFights.getOrElse(List.empty)

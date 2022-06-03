@@ -4,14 +4,15 @@ import cats.Monad
 import compman.compsrv.logic.event._
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.event.Events
+import compservice.model.protobuf.model.CommandProcessorCompetitionState
 
 object EventProcessors {
   import Operations._
 
   def applyEvent[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations](
     event: Events.Event[Any],
-    state: CompetitionState
-  ): F[CompetitionState] = Monad[F].map(
+    state: CommandProcessorCompetitionState
+  ): F[CommandProcessorCompetitionState] = Monad[F].map(
     List(
       FightOrderChangedProc(state),
       CategoryDeletedProc(state),

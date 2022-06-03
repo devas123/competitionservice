@@ -4,7 +4,7 @@ import cats.{Monad, Traverse}
 import cats.data.OptionT
 import cats.implicits._
 import compman.compsrv.Utils.groupById
-import compman.compsrv.logic.CompetitionState
+import compservice.model.protobuf.model.CommandProcessorCompetitionState
 import compman.compsrv.logic.fight.CompetitorSelectionUtils._
 import compservice.model.protobuf.eventpayload.CompetitorAssignmentDescriptor
 import compservice.model.protobuf.model._
@@ -21,16 +21,16 @@ object FightUtils {
   def applyStageInputDescriptorToResultsAndFights[F[+_]: Monad: Interpreter](
     descriptor: StageInputDescriptor,
     previousStageId: String,
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): F[List[String]] = {
     val program =
       if (Option(descriptor.selectors).exists(_.nonEmpty)) {
         descriptor.selectors.flatMap(it => {
           val classifier = it.classifier
           classifier match {
-            case SelectorClassifier.LAST_N_PLACES  => List(lastNPlaces(it.applyToStageId, it.selectorValue.head.toInt))
-            case SelectorClassifier.MANUAL         => List(returnIds(it.selectorValue.toList))
-            case _ => List(firstNPlaces(it.applyToStageId, it.selectorValue.head.toInt))
+            case SelectorClassifier.LAST_N_PLACES => List(lastNPlaces(it.applyToStageId, it.selectorValue.head.toInt))
+            case SelectorClassifier.MANUAL        => List(returnIds(it.selectorValue.toList))
+            case _                                => List(firstNPlaces(it.applyToStageId, it.selectorValue.head.toInt))
           }
         }).reduce((a, b) => CompetitorSelectionUtils.and(a, b))
       } else { firstNPlaces(previousStageId, descriptor.numberOfCompetitors) }
@@ -147,8 +147,7 @@ object FightUtils {
     def checkIfFightCanProduceReference(fightId: String, referenceType: FightReferenceType): Boolean = {
       val fightScores = getFightScores(fightId)
       val parentFights = fightScores.map(_.map(it => it.parentReferenceType -> it.parentFightId))
-        .map(_.filter(it => it._1.isDefined && it._2.isDefined))
-        .map(_.map(it => it._1.get -> it._2.get))
+        .map(_.filter(it => it._1.isDefined && it._2.isDefined)).map(_.map(it => it._1.get -> it._2.get))
 
       val fightScoresWithCompetitors = fightScores.map(_.filter(_.competitorId.isDefined))
       if (!fightScoresWithCompetitors.exists(_.nonEmpty)) {

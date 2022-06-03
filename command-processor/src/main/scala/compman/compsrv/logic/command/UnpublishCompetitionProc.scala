@@ -4,7 +4,7 @@ import cats.Monad
 import cats.data.EitherT
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.logic.CompetitionState
+import compservice.model.protobuf.model.CommandProcessorCompetitionState
 import compman.compsrv.model.Errors
 import compman.compsrv.model.command.Commands.{InternalCommandProcessorCommand, UnpublishCompetitionCommand}
 import compman.compsrv.model.Errors.NoCompetitionIdError
@@ -15,13 +15,13 @@ import compservice.model.protobuf.model.CompetitionStatus
 
 object UnpublishCompetitionProc {
   def apply[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations](
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x: UnpublishCompetitionCommand => process(state, x)
   }
 
   private def process[F[+_]: CompetitionLogging.Service: Monad: IdOperations: EventOperations](
-    state: CompetitionState,
+    state: CommandProcessorCompetitionState,
     command: UnpublishCompetitionCommand
   ): F[Either[Errors.Error, Seq[Event]]] = {
     import compman.compsrv.logic.logging._

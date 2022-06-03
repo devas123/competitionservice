@@ -2,32 +2,29 @@ package compman.compsrv.logic.command
 
 import cats.data.EitherT
 import cats.Monad
-import compman.compsrv.logic.CompetitionState
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.model.Errors
 import compman.compsrv.model.Errors.NoPayloadError
-import compman.compsrv.model.command.Commands.{
-  AssignRegistrationGroupCategoriesCommand,
-  InternalCommandProcessorCommand
-}
+import compman.compsrv.model.command.Commands.{AssignRegistrationGroupCategoriesCommand, InternalCommandProcessorCommand}
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload.RegistrationGroupCategoriesAssignedPayload
+import compservice.model.protobuf.model.CommandProcessorCompetitionState
 
 object AssignRegistrationGroupCategoriesProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations](
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): PartialFunction[InternalCommandProcessorCommand[Any], F[Either[Errors.Error, Seq[Event]]]] = {
     case x @ AssignRegistrationGroupCategoriesCommand(_, _, _) => process(x, state)
   }
 
   private def process[F[+_]: Monad: IdOperations: EventOperations](
     command: AssignRegistrationGroupCategoriesCommand,
-    state: CompetitionState
+    state: CommandProcessorCompetitionState
   ): F[Either[Errors.Error, Seq[Event]]] = {
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption(command.payload, NoPayloadError())
-      allCategoriesExist = payload.categories.forall(b => state.categories.exists(_.contains(b)))
+      allCategoriesExist = payload.categories.forall(b => state.categories.contains(b))
       groupExists        = state.registrationInfo.exists(_.registrationGroups.contains(payload.groupId))
       periodExists       = state.registrationInfo.exists(_.registrationPeriods.contains(payload.periodId))
       event <-
