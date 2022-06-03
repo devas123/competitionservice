@@ -69,7 +69,7 @@ object DeathWatchSpec extends DefaultRunnableSpec {
       }
     },
     testM("Should react to actor death with custom message when the actor is already dead.") {
-      ActorSystem("DeathWatchCustomMessageActorSystem").use { actorSystem =>
+      ActorSystem("DeathWatchCustomMessageActorSystem", debugActors = true).use { actorSystem =>
         for {
           watchee <- createTestActor(actorSystem, "DeathWatchCustomMessageTestActor", Option(timeToLive))
           _       <- waitForActorToDie(actorSystem, "DeathWatchCustomMessageTestActor")

@@ -97,12 +97,12 @@ final class ActorSystem(
 
   private[actors] def dropFromActorMap(path: ActorPath, childrenRef: Ref[Set[InternalActorCell[Nothing]]]): Task[Unit] =
     for {
-      _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] Started removing actor $path from actor ref map.")
+      _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] Started removing actor $path from actor ref map.").when(debug)
       _        <- refActorMap.update(_ - path)
       children <- childrenRef.get
       _        <- ZIO.foreach_(children)(int => int.stop)
       _        <- childrenRef.set(Set.empty)
-      _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] Finished removing actor $path from actor ref map.")
+      _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] Finished removing actor $path from actor ref map.").when(debug)
     } yield ()
 
   override def select[F](path: String): Task[ActorRef[F]] = {
