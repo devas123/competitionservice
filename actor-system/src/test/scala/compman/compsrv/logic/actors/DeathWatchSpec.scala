@@ -34,7 +34,9 @@ object DeathWatchSpec extends DefaultRunnableSpec {
 
   def watchingBehavior[F](
     actorToWatch: ActorRef[F],
-    msg: Option[WatcherDsl]
+    msg: Option[WatcherDsl],
+    outputStop: Boolean = false,
+    name: String = ""
   ): ActorBehavior[TestEnvironment, Unit, WatcherDsl] = Behaviors.behavior[TestEnvironment, Unit, WatcherDsl]
     .withInit { (_, context, _, _) =>
       for { _ <- msg.map(context.watchWith(_, actorToWatch)).getOrElse(context.watch(actorToWatch)) } yield (
@@ -44,12 +46,13 @@ object DeathWatchSpec extends DefaultRunnableSpec {
       )
     }.withReceive((context, _, _, command, _) =>
       command match {
-        case DeathNotify => ZIO.debug("Death notify!!") *> context.unwatch(actorToWatch) *> context.stopSelf.unit
-        case Unwatch     => ZIO.debug("Unwatch actor") *> context.unwatch(actorToWatch)
+        case DeathNotify => ZIO.debug(s"$name Death notify!!") *> context.unwatch(actorToWatch) *> context.stopSelf.unit
+        case Unwatch     => ZIO.debug(s"$name Unwatch actor") *> context.unwatch(actorToWatch)
       }
     ).withReceiveSignal((context, _, _, _, _) => { case x: Terminated =>
-      ZIO.debug(s"Terminated msg: $x") *> context.stopSelf.unit
+      ZIO.debug(s"$name Terminated msg: $x") *> context.stopSelf.unit
     })
+    .withPostStop((_, _, _, _) => ZIO.debug(s"$name Stopped watcher.").when(outputStop))
 
   private val timeDeltaPlusSeconds = 2
 
@@ -66,15 +69,15 @@ object DeathWatchSpec extends DefaultRunnableSpec {
       }
     },
     testM("Should react to actor death with custom message when the actor is already dead.") {
-      ActorSystem("test").use { actorSystem =>
+      ActorSystem("DeathWatchCustomMessageActorSystem").use { actorSystem =>
         for {
-          watchee <- createTestActor(actorSystem, "testActor", Option(timeToLive))
-          _       <- waitForActorToDie(actorSystem, "testActor")
-          _       <- ZIO.debug("Creating watcher.")
-          _       <- actorSystem.make("watcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify)))
-          _       <- ZIO.debug("Created watcher.")
+          watchee <- createTestActor(actorSystem, "DeathWatchCustomMessageTestActor", Option(timeToLive))
+          _       <- waitForActorToDie(actorSystem, "DeathWatchCustomMessageTestActor")
+          _       <- ZIO.debug("[DeathWatchCustomMessage] Creating watcher.")
+          _       <- actorSystem.make("DeathWatchCustomMessageWatcher", ActorConfig(), (), watchingBehavior(watchee, Some(DeathNotify), outputStop = true, "DeathWatchCustomMessageWatcher"))
+          _       <- ZIO.debug("[DeathWatchCustomMessage] Created watcher.")
           _       <- ZIO.sleep(timeDeltaPlusSeconds.seconds)
-          actorDoesNotExist <- actorSystem.select[Any]("watcher").isFailure
+          actorDoesNotExist <- actorSystem.select[Any]("DeathWatchCustomMessageWatcher").isFailure
         } yield assertTrue(actorDoesNotExist)
       }
     },

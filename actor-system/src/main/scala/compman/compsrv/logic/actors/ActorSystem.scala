@@ -21,7 +21,7 @@ final class ActorSystem(
 ) extends ActorRefProvider {
   private val RegexName = "[\\w+|\\d+|(\\-_.*$+:@&=,!~';.)|\\/]+".r
 
-  private[actors] def shutdown(): URIO[Clock, Unit] = ZIO.debug(s"Actor system $actorSystemName shutdown") *>
+  private[actors] def shutdown(): URIO[Clock, Unit] = ZIO.debug(s"[ActorSystem $actorSystemName] Shutdown") *>
     (for {
       runningActors <- refActorMap.get
       _             <- URIO.foreach_(runningActors)(cell => cell._2.stop.ignore)
@@ -43,13 +43,14 @@ final class ActorSystem(
       _ <- (for {
         dumps    <- ZIO.foreach(filtered)(_.dump)
         dumpsStr <- ZIO.foreach(dumps)(_.prettyPrintM)
+        dumpsWithPrefixes = dumpsStr.map(s => s"[ActorSystem: $actorSystemName] $s")
         _        <- ZIO.foreach_(dumpsStr)(ZIO.debug)
       } yield ()).when(debug)
       statuses <- filtered.mapM(_.status)
-      _ <- (RIO.debug(s"Waiting for ${filtered.length} fibers with statuses $statuses to stop. ") *> awaitShutdown(repeatBeforeInterrupting - 1))
+      _ <- (RIO.debug(s"[ActorSystem: $actorSystemName] Waiting for ${filtered.length} fibers with statuses $statuses to stop. ") *> awaitShutdown(repeatBeforeInterrupting - 1))
         .delay(1000.millis)
     } yield ()).when(filtered.nonEmpty)
-    _ <- RIO.debug("All fibers stopped.")
+    _ <- RIO.debug(s"[ActorSystem: $actorSystemName] All fibers stopped.")
   } yield ()
 
   private def buildFinalName(parentActorPath: ActorPath, actorName: String): Task[ActorPath] = actorName match {
