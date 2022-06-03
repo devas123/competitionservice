@@ -2,7 +2,9 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.PendingMessage
 import compman.compsrv.logic.actors.dungeon._
-import zio.{Queue, Ref, Task}
+import zio.{Queue, Ref, RIO, Task}
+import zio.clock.Clock
+import zio.duration.durationInt
 
 import scala.annotation.unchecked.uncheckedVariance
 
@@ -67,10 +69,18 @@ private[actors] case class LocalActorRef[Msg](
       if (!shutdown) for {
         t <- queue.takeAll
         _ <- queue.offer(Left(PoisonPill))
+        _ <- waitForKillSwitch().provideLayer(Clock.live)
         _ <- postStop
       } yield t
       else Task.effectTotal(List.empty)
   } yield tail
+
+  private def waitForKillSwitch(): RIO[Clock, Unit] = {
+    for {
+      ks <- killSwitch.readOnly.get
+      _ <- waitForKillSwitch().delay(100.millis).when(!ks)
+    } yield ()
+  }
 
   override def toString: String = s"ActorRef($path)"
 }
