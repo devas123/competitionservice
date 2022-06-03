@@ -44,11 +44,13 @@ final class ActorSystem(
         dumps    <- ZIO.foreach(filtered)(_.dump)
         dumpsStr <- ZIO.foreach(dumps)(_.prettyPrintM)
         dumpsWithPrefixes = dumpsStr.map(s => s"[ActorSystem: $actorSystemName] $s")
-        _        <- ZIO.foreach_(dumpsWithPrefixes)(ZIO.debug)
+        _ <- ZIO.foreach_(dumpsWithPrefixes)(ZIO.debug)
       } yield ()).when(debug)
       statuses <- filtered.mapM(_.status)
-      _ <- (RIO.debug(s"[ActorSystem: $actorSystemName] Waiting for ${filtered.length} fibers with statuses $statuses to stop. ") *> awaitShutdown(repeatBeforeInterrupting - 1))
-        .delay(1000.millis)
+      _ <-
+      (RIO.debug(
+        s"[ActorSystem: $actorSystemName] Waiting for ${filtered.length} fibers with statuses $statuses to stop. "
+      ) *> awaitShutdown(repeatBeforeInterrupting - 1)).delay(1000.millis)
     } yield ()).when(filtered.nonEmpty)
     _ <- RIO.debug(s"[ActorSystem: $actorSystemName] All fibers stopped.")
   } yield ()
@@ -89,21 +91,29 @@ final class ActorSystem(
     _ <- IO.fail(new Exception(s"Actor $path already exists")).unless(updated)
     derivedSystem =
       new ActorSystem(actorSystemName, refActorMap, Some(path), eventStream, deadLetters, supervisor, debug)
-    childrenSet <- Ref.make(Set.empty[InternalActorCell[Nothing]])
-    actor <- behavior
-      .makeActor(path, actorConfig, init, derivedSystem, childrenSet)(dropFromActorMap(path, childrenSet))
+    childrenSet      <- Ref.make(Set.empty[InternalActorCell[Nothing]])
+    creationFinished <- Ref.make(false)
+    actor <- behavior.makeActor(path, actorConfig, init, derivedSystem, childrenSet)(
+      dropFromActorMap(path, childrenSet, creationFinished)
+    )
     _ <- refActorMap.update(refMap => refMap + (path -> actor))
+    _ <- creationFinished.set(true)
   } yield actor
 
-  private[actors] def dropFromActorMap(path: ActorPath, childrenRef: Ref[Set[InternalActorCell[Nothing]]]): Task[Unit] =
-    for {
-      _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] Started removing actor $path from actor ref map.").when(debug)
-      _        <- refActorMap.update(_ - path)
-      children <- childrenRef.get
-      _        <- ZIO.foreach_(children)(int => int.stop)
-      _        <- childrenRef.set(Set.empty)
-      _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] Finished removing actor $path from actor ref map.").when(debug)
-    } yield ()
+  private[actors] def dropFromActorMap(
+    path: ActorPath,
+    childrenRef: Ref[Set[InternalActorCell[Nothing]]],
+    creationFinished: Ref[Boolean]
+  ): Task[Unit] = for {
+    created <- creationFinished.get
+    _ <- dropFromActorMap(path, childrenRef, creationFinished).delay(10.millis).when(!created).provideLayer(Clock.live)
+    _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] Started removing actor $path from actor ref map.").when(debug)
+    _ <- refActorMap.update(_ - path)
+    children <- childrenRef.get
+    _        <- ZIO.foreach_(children)(int => int.stop)
+    _        <- childrenRef.set(Set.empty)
+    _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] Finished removing actor $path from actor ref map.").when(debug)
+  } yield ()
 
   override def select[F](path: String): Task[ActorRef[F]] = {
     for {
@@ -129,15 +139,15 @@ final class ActorSystem(
     }
   }
 
-  private def selectByActorPathOption[F](finalName: ActorPath, actorMap: Map[ActorPath, Any]) =
-    IO.fromOption(actorMap.get(finalName).map(_.asInstanceOf[ActorRef[F]]))
+  private def selectByActorPathOption[F](finalName: ActorPath, actorMap: Map[ActorPath, Any]) = IO
+    .fromOption(actorMap.get(finalName).map(_.asInstanceOf[ActorRef[F]]))
 
   override def deadLetters: ActorRef[DeadLetter] = _deadLetters
 
   override def selectOption[F1](path: String): Task[Option[ActorRef[F1]]] = for {
     actorMap  <- refActorMap.get
     finalName <- buildActorName(path)
-    result    <- selectByActorPathOption[F1](finalName, actorMap).orElseFail(new Exception(s"Actor $path does not exist"))
+    result <- selectByActorPathOption[F1](finalName, actorMap).orElseFail(new Exception(s"Actor $path does not exist"))
   } yield Option(result)
 
   private def buildActorName(path: String) = {
