@@ -44,7 +44,7 @@ final class ActorSystem(
         dumps    <- ZIO.foreach(filtered)(_.dump)
         dumpsStr <- ZIO.foreach(dumps)(_.prettyPrintM)
         dumpsWithPrefixes = dumpsStr.map(s => s"[ActorSystem: $actorSystemName] $s")
-        _        <- ZIO.foreach_(dumpsStr)(ZIO.debug)
+        _        <- ZIO.foreach_(dumpsWithPrefixes)(ZIO.debug)
       } yield ()).when(debug)
       statuses <- filtered.mapM(_.status)
       _ <- (RIO.debug(s"[ActorSystem: $actorSystemName] Waiting for ${filtered.length} fibers with statuses $statuses to stop. ") *> awaitShutdown(repeatBeforeInterrupting - 1))
