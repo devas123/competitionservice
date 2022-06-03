@@ -8,7 +8,11 @@ import compman.compsrv.model.command.Commands
 import compman.compsrv.model.command.Commands.createErrorCommandCallbackMessageParameters
 import compservice.model.protobuf.command
 import compservice.model.protobuf.event.Event
-import compservice.model.protobuf.model.{CompetitionProcessingStarted, CompetitionProcessingStopped, CompetitionProcessorNotification}
+import compservice.model.protobuf.model.{
+  CompetitionProcessingStarted,
+  CompetitionProcessingStopped,
+  CompetitionProcessorNotification
+}
 import zio.{Fiber, Has, Promise, RIO, Task, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
@@ -26,16 +30,21 @@ object CompetitionProcessorActor {
   import zio.interop.catz._
   private val DefaultTimerKey = "stopTimer"
 
-  final case class CompetitionProcessorActorState(competitionState: CompetitionState, isNotificationSent: Boolean)
+  final case class CompetitionProcessorActorState(
+    competitionState: CompetitionState,
+    isNotificationSent: Boolean,
+    eventsSinceLastSnapshotSaved: Int
+  )
 
   def initialState(competitionState: CompetitionState): CompetitionProcessorActorState =
-    CompetitionProcessorActorState(competitionState, isNotificationSent = false)
+    CompetitionProcessorActorState(competitionState, isNotificationSent = false, 0)
 
   def behavior[Env](
     competitionId: String,
     eventTopic: String,
     commandCallbackTopic: String,
     kafkaSupervisor: ActorRef[KafkaSupervisorCommand],
+    snapshotSaver: ActorRef[SnapshotSaver.SnapshotSaverMessage],
     competitionNotificationsTopic: String,
     actorIdleTimeoutMillis: Long
   ): EventSourcedBehavior[Env with Logging with Clock, CompetitionProcessorActorState, Message, Event] =
@@ -120,8 +129,16 @@ object CompetitionProcessorActor {
           .annotate(Annotations.competitionId, event.messageInfo.flatMap(_.competitionId))
       ) {
         Operations.applyEvent[LIO](state.competitionState, event).flatMap(s =>
-          if (state.isNotificationSent) { ZIO.effect(CompetitionProcessorActorState(s, state.isNotificationSent)) }
-          else {
+          if (state.isNotificationSent) {
+            for {
+              _ <- (snapshotSaver ! SnapshotSaver.SaveSnapshot(s))
+                .when(state.eventsSinceLastSnapshotSaved > 10) // TODO: move magic number to config
+              newEventsSinceLastSnapshotSaved =
+                if (state.eventsSinceLastSnapshotSaved > 10) 0 else state.eventsSinceLastSnapshotSaved + 1
+              newState <- ZIO
+                .effect(CompetitionProcessorActorState(s, state.isNotificationSent, newEventsSinceLastSnapshotSaved))
+            } yield newState
+          } else {
             for {
               started <- ZIO.effect(CompetitionProcessingStarted(
                 competitionId,
@@ -140,7 +157,7 @@ object CompetitionProcessorActor {
                 competitionId,
                 CompetitionProcessorNotification().withStarted(started).toByteArray
               )
-            } yield CompetitionProcessorActorState(s, isNotificationSent = true)
+            } yield CompetitionProcessorActorState(s, isNotificationSent = true, state.eventsSinceLastSnapshotSaved + 1)
           }
         )
       }

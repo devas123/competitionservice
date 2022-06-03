@@ -4,7 +4,12 @@ import com.google.protobuf.timestamp.Timestamp
 import com.google.protobuf.util.Timestamps
 import compman.compsrv.config.CommandProcessorConfig
 import compman.compsrv.logic.CompetitionState
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaSupervisorCommand, PublishMessage, QuerySync}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
+  CreateTopicIfMissing,
+  KafkaSupervisorCommand,
+  PublishMessage,
+  QuerySync
+}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorSupervisorActor.CommandReceived
 import compman.compsrv.logic.logging.CompetitionLogging
@@ -47,12 +52,13 @@ object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
         for {
           snapshotsRef    <- Ref.make(Map.empty[String, CompetitionState])
           kafkaSupervisor <- TestKit[KafkaSupervisorCommand](actorSystem)
+          snapshotSaver   <- TestKit[SnapshotSaver.SnapshotSaverMessage](actorSystem)
           processor <- actorSystem.make(
             s"CompetitionProcessorSupervisor",
             ActorConfig(),
             (),
             CompetitionProcessorSupervisorActor.behavior(
-              CommandProcessorOperationsFactory.test(snapshotsRef),
+              CommandProcessorOperations.test(snapshotsRef),
               CommandProcessorConfig(
                 actorIdleTimeoutMillis = None,
                 eventsTopicPrefix = "events",
@@ -60,37 +66,25 @@ object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
                 academyNotificationsTopic = "academy-events",
                 commandCallbackTopic = "commands-callback"
               ),
-              kafkaSupervisor.ref
+              kafkaSupervisor.ref,
+              snapshotSaver.ref
             )
           )
           command = {
-            Command()
-              .withMessageInfo(MessageInfo()
-                .withId(UUID.randomUUID().toString)
-                .withCompetitionId(competitionId)
-                .withPayload(
-                  MessageInfo.Payload.CreateCompetitionPayload(
-                    CreateCompetitionPayload().withReginfo(
-                      RegistrationInfo()
-                        .withId(competitionId)
-                        .withRegistrationGroups(Map.empty)
-                        .withRegistrationPeriods(Map.empty)
-                        .withRegistrationOpen(true)
-                    )
-                      .withProperties(
-                      CompetitionProperties()
-                        .withId(competitionId)
-                        .withCompetitionName("Test competition")
-                        .withStatus(CompetitionStatus.CREATED)
-                        .withTimeZone("UTC")
-                        .withStartDate(Timestamp.fromJavaProto(Timestamps.fromMillis(System.currentTimeMillis())))
-                        .withEndDate(Timestamp.fromJavaProto(Timestamps.fromMillis(System.currentTimeMillis())))
-                    )
+            Command().withMessageInfo(
+              MessageInfo().withId(UUID.randomUUID().toString).withCompetitionId(competitionId)
+                .withPayload(MessageInfo.Payload.CreateCompetitionPayload(
+                  CreateCompetitionPayload().withReginfo(
+                    RegistrationInfo().withId(competitionId).withRegistrationGroups(Map.empty)
+                      .withRegistrationPeriods(Map.empty).withRegistrationOpen(true)
+                  ).withProperties(
+                    CompetitionProperties().withId(competitionId).withCompetitionName("Test competition")
+                      .withStatus(CompetitionStatus.CREATED).withTimeZone("UTC")
+                      .withStartDate(Timestamp.fromJavaProto(Timestamps.fromMillis(System.currentTimeMillis())))
+                      .withEndDate(Timestamp.fromJavaProto(Timestamps.fromMillis(System.currentTimeMillis())))
                   )
-
-                )
-              )
-            .withType(CommandType.CREATE_COMPETITION_COMMAND)
+                ))
+            ).withType(CommandType.CREATE_COMPETITION_COMMAND)
 
           }
           _   <- processor ! CommandReceived(competitionId, command)

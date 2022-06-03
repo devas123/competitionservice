@@ -18,16 +18,19 @@ object CompetitionProcessorSupervisorActor {
   type CompetitionProcessorSupervisorEnv[Env] = Env with Logging with Clock with SnapshotService.Snapshot with Console
 
   import Behaviors._
+
   def behavior[Env: Tag](
-    commandProcessorOperationsFactory: CommandProcessorOperationsFactory[Env],
+    commandProcessorOperations: CommandProcessorOperations[Env],
     commandProcessorConfig: CommandProcessorConfig,
-    kafkaSupervisor: ActorRef[KafkaSupervisorCommand]
+    kafkaSupervisor: ActorRef[KafkaSupervisorCommand],
+    snapshotSaver: ActorRef[SnapshotSaver.SnapshotSaverMessage]
   ): ActorBehavior[CompetitionProcessorSupervisorEnv[Env], Unit, Message] = Behaviors
-    .behavior[CompetitionProcessorSupervisorEnv[Env], Unit, Message].withReceive { (context, _, _, command, _) =>
+    .behavior[CompetitionProcessorSupervisorEnv[Env], Unit, Message]
+    .withReceive { (context, _, _, command, _) =>
       {
         command match {
           case CommandReceived(competitionId, fa) =>
-            val actorName = s"CompetitionProcessor-$competitionId"
+            val actorName         = s"CompetitionProcessor-$competitionId"
             (for {
               _ <- Logging.info(s"Received command: $fa")
               actor <- for {
@@ -36,7 +39,6 @@ object CompetitionProcessorSupervisorActor {
                     Logging.info(s"Found existing actor for competition $competitionId") *> ZIO.effect(existingActor)
                   ).getOrElse(for {
                     _                          <- Logging.info(s"Creating new actor for competition: $competitionId")
-                    commandProcessorOperations <- commandProcessorOperationsFactory.getCommandProcessorOperations[Env]
                     initialState <- commandProcessorOperations.getStateSnapshot(competitionId) >>= {
                       case None => Logging.info(
                           s"State snapshot not found, creating initial state with payload ${fa.messageInfo.map(_.payload)}"
@@ -55,6 +57,7 @@ object CompetitionProcessorSupervisorActor {
                         CompetitionEventsTopic(commandProcessorConfig.eventsTopicPrefix)(competitionId),
                         commandProcessorConfig.commandCallbackTopic,
                         kafkaSupervisor,
+                        snapshotSaver,
                         commandProcessorConfig.competitionNotificationsTopic,
                         commandProcessorConfig.actorIdleTimeoutMillis.getOrElse(30 * 60000)
                       )

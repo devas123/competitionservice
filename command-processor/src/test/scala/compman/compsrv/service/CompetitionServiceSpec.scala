@@ -56,6 +56,7 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
           initialState <- processorOperations.getStateSnapshot(competitionId)
             .flatMap(p => ZIO.effect(p.fold(processorOperations.createInitialState(competitionId, None))(identity)))
           kafkaSupervisor <- TestKit[KafkaSupervisorCommand](actorSystem)
+          snapshotSaver <- TestKit[SnapshotSaver.SnapshotSaverMessage](actorSystem)
           processor <- actorSystem.make(
             s"CompetitionProcessor-$competitionId",
             ActorConfig(),
@@ -65,6 +66,7 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
               "test-events",
               "test-commands-callback",
               kafkaSupervisor.ref,
+              snapshotSaver.ref,
               "test-notifications",
               actorIdleTimeoutMillis = 10000L
             )

@@ -67,24 +67,32 @@ object CommandProcessorMain extends zio.App {
             CreateTopicIfMissing(appConfig.commandProcessor.competitionNotificationsTopic, KafkaTopicConfig())
           _ <- kafkaSupervisor !
             CreateTopicIfMissing(appConfig.commandProcessor.academyNotificationsTopic, KafkaTopicConfig())
-          commandProcessorOperationsFactory = CommandProcessorOperationsFactory.live()
+          commandProcessorOperations <- CommandProcessorOperations[PipelineEnvironment]()
+          snapshotSaver <- actorSystem
+            .make("snapshot-saver", ActorConfig(), (), SnapshotSaver.behavior(commandProcessorOperations))
           competitionCommandSupervisor <- actorSystem.make(
             "competition-command-processor-supervisor",
             ActorConfig(),
             (),
             CompetitionProcessorSupervisorActor
-              .behavior(commandProcessorOperationsFactory, appConfig.commandProcessor, kafkaSupervisor)
+              .behavior(commandProcessorOperations, appConfig.commandProcessor, kafkaSupervisor, snapshotSaver)
           )
           _ <- actorSystem.make(
             "stateless-command-processor",
             ActorConfig(),
             (),
-            StatelessCommandProcessor.behavior(appConfig.consumer.commandTopics.academy, appConfig.consumer.groupId, appConfig.commandProcessor.academyNotificationsTopic, appConfig.commandProcessor.commandCallbackTopic, kafkaSupervisor)
+            StatelessCommandProcessor.behavior(
+              appConfig.consumer.commandTopics.academy,
+              appConfig.consumer.groupId,
+              appConfig.commandProcessor.academyNotificationsTopic,
+              appConfig.commandProcessor.commandCallbackTopic,
+              kafkaSupervisor
+            )
           )
           res <- Consumer.subscribeAnd(Subscription.topics(appConfig.consumer.commandTopics.competition))
             .plainStream(Serde.string, commandDeserializer.asTry).mapM(record => {
               val tryValue: Try[Command] = record.record.value()
-              val offset: Offset            = record.offset
+              val offset: Offset         = record.offset
 
               Logging.info(s"Received command: $tryValue") *>
                 (tryValue match {
@@ -92,8 +100,8 @@ object CommandProcessorMain extends zio.App {
                       _ <- Logging.error("Error during deserialization")
                       _ <- logError(exception)
                     } yield offset
-                  case Success(value) =>
-                    (competitionCommandSupervisor ! CompetitionProcessorSupervisorActor.CommandReceived(record.key, value)).as(offset)
+                  case Success(value) => (competitionCommandSupervisor !
+                      CompetitionProcessorSupervisorActor.CommandReceived(record.key, value)).as(offset)
                 })
             }).aggregateAsync(Consumer.offsetBatches).mapM(_.commit).runDrain
         } yield res
