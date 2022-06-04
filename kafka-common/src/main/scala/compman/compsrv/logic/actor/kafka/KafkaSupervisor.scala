@@ -27,7 +27,7 @@ object KafkaSupervisor {
 
   final case class QueryStarted() extends KafkaConsumerApi
 
-  final case class QueryFinished() extends KafkaConsumerApi
+  final case class QueryFinished(count: Long) extends KafkaConsumerApi
 
   final case class QueryError(error: Throwable) extends KafkaConsumerApi
 
@@ -36,26 +36,39 @@ object KafkaSupervisor {
 
   sealed trait KafkaSupervisorCommand
 
-  case class QueryAndSubscribe(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi])
-      extends KafkaSupervisorCommand
+  case class QueryAndSubscribe(
+    topic: String,
+    groupId: String,
+    replyTo: ActorRef[KafkaConsumerApi],
+    startOffset: Long = 0,
+    uuid: String = UUID.randomUUID().toString
+  ) extends KafkaSupervisorCommand
 
   case class CreateTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig) extends KafkaSupervisorCommand
 
-  case class QueryAsync(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi])
+  case class QueryAsync(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi], startOffset: Long = 0)
       extends KafkaSupervisorCommand
+
+  private case class SubscriberStopped(uuid: String) extends KafkaSupervisorCommand
 
   case class QuerySync(
     topic: String,
     groupId: String,
     promise: Promise[Throwable, Seq[Array[Byte]]],
-    timeout: Duration = 10.seconds
+    timeout: Duration = 10.seconds,
+    startOffset: Long = 0
   ) extends KafkaSupervisorCommand
 
-  case class Subscribe(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi])
-      extends KafkaSupervisorCommand
+  case class Subscribe(
+    topic: String,
+    groupId: String,
+    replyTo: ActorRef[KafkaConsumerApi],
+    uuid: String = UUID.randomUUID().toString
+  ) extends KafkaSupervisorCommand
 
-  case class PublishMessage(topic: String, key: String, message: Array[Byte]) extends KafkaSupervisorCommand {
-  }
+  case class Unsubscribe(uuid: String) extends KafkaSupervisorCommand
+
+  case class PublishMessage(topic: String, key: String, message: Array[Byte]) extends KafkaSupervisorCommand {}
   object PublishMessage {
     def apply(tuple: (String, String, Array[Byte])): PublishMessage = PublishMessage(tuple._1, tuple._2, tuple._3)
   }
@@ -64,64 +77,85 @@ object KafkaSupervisor {
 
   type KafkaSupervisorEnvironment[R] = R with Logging with Clock with Blocking with Console
 
+  final case class KafkaSupervisorState(
+    publishActor: Option[ActorRef[KafkaPublishActor.KafkaPublishActorCommand]],
+    queryAndSubscribeActors: Map[String, ActorRef[KafkaQueryAndSubscribeActor.KafkaQueryActorCommand]]
+  )
+
+  val initialState: KafkaSupervisorState = KafkaSupervisorState(None, Map.empty)
+
   import Behaviors._
-  def behavior[R: Tag](brokers: List[String]): ActorBehavior[KafkaSupervisorEnvironment[R], Option[
-    ActorRef[KafkaPublishActor.KafkaPublishActorCommand]
-  ], KafkaSupervisorCommand] = Behaviors
-    .behavior[KafkaSupervisorEnvironment[R], Option[
-      ActorRef[KafkaPublishActor.KafkaPublishActorCommand]
-    ], KafkaSupervisorCommand].withReceive { (context, _, state, command, _) =>
+  def behavior[R: Tag](
+    brokers: List[String]
+  ): ActorBehavior[KafkaSupervisorEnvironment[R], KafkaSupervisorState, KafkaSupervisorCommand] = Behaviors
+    .behavior[KafkaSupervisorEnvironment[R], KafkaSupervisorState, KafkaSupervisorCommand]
+    .withReceive { (context, _, state, command, _) =>
       command match {
-        case QueryAndSubscribe(topic, groupId, replyTo) => for {
-            actorId <- getQueryActorId
-            state <- KafkaQueryAndSubscribeActor(actorId, context)(
+        case Unsubscribe(uuid) => state.queryAndSubscribeActors.get(uuid).map(a => a ! KafkaQueryAndSubscribeActor.Stop)
+            .getOrElse(RIO.unit).as(state)
+        case SubscriberStopped(uuid) => RIO
+            .effect(state.copy(queryAndSubscribeActors = state.queryAndSubscribeActors - uuid))
+        case QueryAndSubscribe(topic, groupId, replyTo, startOffset, uuid) => for {
+            _ <- state.queryAndSubscribeActors.get(uuid).map(a => a ! KafkaQueryAndSubscribeActor.Stop)
+              .getOrElse(RIO.unit)
+            actorId = innerQueryActorId
+            actor <- KafkaQueryAndSubscribeActor(actorId, context)(
               topic,
               groupId,
               replyTo,
               brokers,
               subscribe = true,
-              query = true
-            ).as(state)
+              query = true,
+              startOffset = startOffset,
+              getHistory = false,
+              stopQueryAtLastCommittedOffset = true
+            )
+            _ <- context.watchWith(SubscriberStopped(uuid), actor)
             _ <- Logging.info(s"Created actor with id $actorId to process query and subscribe request.")
-          } yield state
-        case QuerySync(topic, groupId, promise, timeout) => for {
-            actorId <- getQueryActorId
+          } yield state.copy(queryAndSubscribeActors = state.queryAndSubscribeActors + (uuid -> actor))
+        case QuerySync(topic, groupId, promise, timeout, startOffset) => for {
             queryReceiver <- context.make(
               UUID.randomUUID().toString,
               ActorConfig(),
               Seq.empty[Array[Byte]],
               KafkaSyncQueryReceiverActor.behavior(promise, timeout)
             )
+            actorId = innerQueryActorId
             _ <- KafkaQueryAndSubscribeActor(actorId, context)(
               topic,
               groupId,
               queryReceiver,
               brokers,
               subscribe = false,
-              query = true
+              query = true,
+              startOffset,
+              getHistory = true
             )
           } yield state
 
-        case QueryAsync(topic, groupId, replyTo) => KafkaQueryAndSubscribeActor(innerQueryActorId, context)(
-            topic,
-            groupId,
-            replyTo,
-            brokers,
-            subscribe = false,
-            query = true
-          ).as(state)
+        case QueryAsync(topic, groupId, replyTo, startOffset) => KafkaQueryAndSubscribeActor(
+            innerQueryActorId,
+            context
+          )(topic, groupId, replyTo, brokers, subscribe = false, query = true, startOffset, getHistory = true).as(state)
 
-        case Subscribe(topic, groupId, replyTo) => KafkaQueryAndSubscribeActor(innerQueryActorId, context)(
-            topic,
-            groupId,
-            replyTo,
-            brokers,
-            subscribe = true,
-            query = false
-          ).as(state)
+        case Subscribe(topic, groupId, replyTo, uuid) => for {
+            _ <- state.queryAndSubscribeActors.get(uuid).map(a => a ! KafkaQueryAndSubscribeActor.Stop)
+              .getOrElse(RIO.unit)
+            actor <- KafkaQueryAndSubscribeActor(innerQueryActorId, context)(
+              topic,
+              groupId,
+              replyTo,
+              brokers,
+              subscribe = true,
+              query = false,
+              0L,
+              getHistory = false
+            )
+            _ <- context.watchWith(SubscriberStopped(uuid), actor)
+          } yield state.copy(queryAndSubscribeActors = state.queryAndSubscribeActors + (uuid -> actor))
         case Stop => context.stopSelf.as(state)
-        case PublishMessage(topic, key, message) => state.fold(Task(()))(_ ! PublishMessageToKafka(topic, key, message))
-            .as(state)
+        case PublishMessage(topic, key, message) => state.publishActor
+            .fold(Task(()))(_ ! PublishMessageToKafka(topic, key, message)).as(state)
         case CreateTopicIfMissing(topic, topicConfig) => AdminClient.make(AdminClientSettings(brokers)).use(
             _.createTopic(AdminClient.NewTopic(topic, topicConfig.numPartitions, topicConfig.replicationFactor)).fold(
               {
@@ -134,12 +168,10 @@ object KafkaSupervisor {
       }
     }.withInit { (_, context, initState, _) =>
       for {
-        publishActor <- initState.map(RIO(_))
+        publishActor <- initState.publishActor.map(RIO(_))
           .getOrElse(context.make("KafkaPublishActor", ActorConfig(), (), KafkaPublishActor.behavior[R](brokers)))
-      } yield (Seq.empty, Seq.empty, Some(publishActor))
+      } yield (Seq.empty, Seq.empty, initState.copy(publishActor = Some(publishActor)))
     }
-
-  private def getQueryActorId = { RIO.effectTotal(innerQueryActorId) }
 
   private def innerQueryActorId = { s"queryAndSubscribe-${UUID.randomUUID()}" }
 }

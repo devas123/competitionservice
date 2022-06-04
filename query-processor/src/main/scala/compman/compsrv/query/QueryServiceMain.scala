@@ -47,7 +47,7 @@ object QueryServiceMain extends zio.App {
           WebsocketConnectionSupervisor.behavior[ZEnv]
         )
         kafkaSupervisor <- actorSystem
-          .make("kafkaSupervisor", ActorConfig(), None, KafkaSupervisor.behavior[ZEnv](config.consumer.brokers))
+          .make("kafkaSupervisor", ActorConfig(), KafkaSupervisor.initialState, KafkaSupervisor.behavior[ZEnv](config.consumer.brokers))
         _ <- actorSystem.make(
           "competitionEventListenerSupervisor",
           ActorConfig(),

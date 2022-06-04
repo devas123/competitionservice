@@ -26,7 +26,7 @@ object GatewayServiceMain extends zio.App {
     .use { actorSystem =>
       for {
         kafkaSupervisor <- actorSystem
-          .make("kafkaSupervisor", ActorConfig(), None, KafkaSupervisor.behavior[ZEnv](config.producer.brokers))
+          .make("kafkaSupervisor", ActorConfig(), KafkaSupervisor.initialState, KafkaSupervisor.behavior[ZEnv](config.producer.brokers))
         _ <- kafkaSupervisor ! CreateTopicIfMissing(config.consumer.callbackTopic, KafkaTopicConfig())
         commandForwardingActor <- actorSystem.make(
           "commandForwarder",

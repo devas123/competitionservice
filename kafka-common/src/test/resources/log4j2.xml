@@ -7,6 +7,8 @@
         </Console>
     </Appenders>
     <Loggers>
+        <logger name="org.apache.kafka.clients.producer" level="warn"/>
+        <logger name="org.apache.kafka.clients.admin" level="warn"/>
         <AsyncRoot level="info" additivity="false">
             <AppenderRef ref="console" />
         </AsyncRoot>

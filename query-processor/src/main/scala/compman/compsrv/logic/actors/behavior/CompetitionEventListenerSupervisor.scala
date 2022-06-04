@@ -1,6 +1,6 @@
 package compman.compsrv.logic.actors.behavior
 
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, QueryAndSubscribe}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, Subscribe}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors.{ActorBehavior, ActorRef}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
@@ -167,7 +167,7 @@ object CompetitionEventListenerSupervisor {
         for {
           adapter <- context.messageAdapter[KafkaConsumerApi] {
             case KafkaSupervisor.QueryStarted()    => Some(KafkaNotification("Query started."))
-            case KafkaSupervisor.QueryFinished()   => Some(KafkaNotification("Query finished."))
+            case KafkaSupervisor.QueryFinished(_)   => Some(KafkaNotification("Query finished."))
             case KafkaSupervisor.QueryError(error) => Some(KafkaNotification(s"Query error. $error"))
             case KafkaSupervisor.MessageReceived(_, record) =>
               val notif = CompetitionProcessorNotification.parseFrom(record.value)
@@ -180,7 +180,7 @@ object CompetitionEventListenerSupervisor {
           )
           events <- ZIO.effect { activeCompetitions.map(ActiveCompetition) }
           _ <- kafkaSupervisorActor !
-            QueryAndSubscribe(notificationStopic, s"query-service-global-events-listener", adapter)
+            Subscribe(notificationStopic, s"query-service-global-events-listener", adapter)
         } yield (Seq(), events, ())
       }
     }

@@ -53,7 +53,7 @@ object CommandCallbackAggregator {
         _ <- kafkaSupervisorActor ! CreateTopicIfMissing(eventsTopic, KafkaTopicConfig())
         eventReceiver <- ctx.messageAdapter[KafkaConsumerApi] {
           case KafkaSupervisor.QueryStarted()    => None
-          case KafkaSupervisor.QueryFinished()   => None
+          case KafkaSupervisor.QueryFinished(_)   => None
           case KafkaSupervisor.QueryError(error) => Some(Error(error))
           case KafkaSupervisor.MessageReceived(_, committableRecord) => Try { Event.parseFrom(committableRecord.value) }
               .filter(_.messageInfo.flatMap(_.correlationId).contains(
@@ -62,7 +62,7 @@ object CommandCallbackAggregator {
         }
         callbackReceiverAdapter <- ctx.messageAdapter[KafkaConsumerApi] {
           case KafkaSupervisor.QueryStarted()    => None
-          case KafkaSupervisor.QueryFinished()   => None
+          case KafkaSupervisor.QueryFinished(_)   => None
           case KafkaSupervisor.QueryError(error) => Some(Error(error))
           case KafkaSupervisor.MessageReceived(_, committableRecord) => Try {
               CommandCallback.parseFrom(committableRecord.value)

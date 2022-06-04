@@ -57,7 +57,7 @@ object StatelessEventListener {
           command match {
             case EventReceived(kafkaMessage) => kafkaMessage match {
                 case KafkaSupervisor.QueryStarted()  => Logging.info("Kafka query started.").as(state)
-                case KafkaSupervisor.QueryFinished() => Logging.info("Kafka query finished.").as(state)
+                case KafkaSupervisor.QueryFinished(_) => Logging.info("Kafka query finished.").as(state)
                 case KafkaSupervisor.QueryError(error) => Logging.error("Error during kafka query: ", Cause.fail(error))
                     .as(state)
                 case MessageReceived(key, record) => {

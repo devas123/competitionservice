@@ -21,7 +21,7 @@ object KafkaSyncQueryReceiverActor {
     .withReceive { (context, _, state, command, _) =>
       command match {
         case QueryStarted() => RIO(state)
-        case QueryFinished() => Logging.info(s"Successfully finished the query. Stopping.") *>
+        case QueryFinished(_) => Logging.info(s"Successfully finished the query. Stopping.") *>
             promise.succeed(state) *> context.stopSelf *> RIO(state)
         case QueryError(error) => Logging.error(s"Error during kafka query: $error") *> promise.succeed(state) *>
             context.stopSelf *> RIO(state)

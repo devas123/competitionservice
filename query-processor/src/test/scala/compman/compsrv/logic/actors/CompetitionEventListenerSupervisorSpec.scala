@@ -54,7 +54,7 @@ object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
             stages                <- Ref.make(Map.empty[String, StageDescriptor])
             websocketSupervisor   <- TestKit[WebsocketConnectionSupervisor.ApiCommand](actorSystem)
             kafkaSupervisor <- actorSystem
-              .make("kafkaSupervisor", ActorConfig(), None, KafkaSupervisor.behavior[Any](List(brokerUrl)))
+              .make("kafkaSupervisor", ActorConfig(), KafkaSupervisor.initialState, KafkaSupervisor.behavior[Any](List(brokerUrl)))
             _ <- kafkaSupervisor ! CreateTopicIfMissing(notificationTopic, KafkaTopicConfig())
             _ <- kafkaSupervisor ! CreateTopicIfMissing(callbackTopic, KafkaTopicConfig())
             supervisorContext = CompetitionEventListenerSupervisor.Test(competitions)

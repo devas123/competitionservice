@@ -26,27 +26,29 @@ object KafkaPublishActor {
 
   def behavior[R: Tag](
     brokers: List[String]
-  ): ActorBehavior[KafkaPublishActorEnvironment[R], Unit, KafkaPublishActorCommand] = Behaviors
-    .behavior[KafkaPublishActorEnvironment[R], Unit, KafkaPublishActorCommand].withReceive(
+  ): ActorBehavior[KafkaPublishActorEnvironment[R], Unit, KafkaPublishActorCommand] = {
+    val producerLayer = Producer.make(ProducerSettings(brokers)).toLayer
+    Behaviors
+      .behavior[KafkaPublishActorEnvironment[R], Unit, KafkaPublishActorCommand].withReceive(
       (
         context: Context[KafkaPublishActorCommand],
         _: ActorConfig,
         _: Unit,
         command: KafkaPublishActorCommand,
         _: Timers[KafkaPublishActorEnvironment[R], KafkaPublishActorCommand]
-      ) =>
-        {
-          command match {
-            case PublishMessageToKafka(topic, key, message) => for {
-                _ <- Producer.produceChunk(
-                  Chunk.single(new ProducerRecord[String, Array[Byte]](topic, key, message)),
-                  Serde.string,
-                  Serde.byteArray
-                )
-                _ <- Logging.info(s"Published message to $topic with key $key")
-              } yield ()
-            case Stop => context.stopSelf.unit
-          }
-        }.provideSomeLayer[KafkaSupervisorEnvironment[R]](Producer.make(ProducerSettings(brokers)).toLayer)
+      ) => {
+        command match {
+          case PublishMessageToKafka(topic, key, message) => for {
+            _ <- Producer.produceChunk(
+              Chunk.single(new ProducerRecord[String, Array[Byte]](topic, key, message)),
+              Serde.string,
+              Serde.byteArray
+            )
+            _ <- Logging.info(s"Published message to $topic with key $key")
+          } yield ()
+          case Stop => context.stopSelf.unit
+        }
+      }.provideSomeLayer[KafkaSupervisorEnvironment[R]](producerLayer)
     )
+  }
 }

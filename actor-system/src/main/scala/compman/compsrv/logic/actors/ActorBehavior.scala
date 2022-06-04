@@ -11,12 +11,12 @@ import zio.{Fiber, Queue, RIO, Ref, Supervisor, Task, URIO, ZIO}
 trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWatch {
   self =>
   def receive(
-               context: Context[Msg],
-               actorConfig: ActorConfig = ActorConfig(),
-               state: S,
-               command: Msg,
-               timers: Timers[R, Msg]
-             ): RIO[R, S]
+    context: Context[Msg],
+    actorConfig: ActorConfig = ActorConfig(),
+    state: S,
+    command: Msg,
+    timers: Timers[R, Msg]
+  ): RIO[R, S]
 
   def receiveSignal(
     context: Context[Msg],
@@ -45,17 +45,15 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
   )(optPostStop: Task[Unit]): RIO[R with Clock with Console, InternalActorCell[Msg]] = {
     def process(
       watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
-      watchedBy: Ref[Set[ActorRef[Nothing]]],
-      terminatedQueued: Ref[Map[ActorRef[Nothing], Option[Any]]]
-    )(context: Context[Msg], msg: PendingMessage[Msg], stateRef: Ref[S], ts: Timers[R, Msg]): RIO[R, Unit] = {
+      watchedBy: Ref[Set[ActorRef[Nothing]]])(context: Context[Msg], msg: PendingMessage[Msg], stateRef: Ref[S], ts: Timers[R, Msg]): RIO[R, Unit] = {
       for {
         state <- stateRef.get
         command = msg
         receiver = command match {
           case Left(value) => value match {
-            case signal: Signal => receiveSignal(context, actorConfig, state, signal, ts)
-            case _ => processSystemMessage(context, watching, watchedBy)(value).as(state)
-          }
+              case signal: Signal => receiveSignal(context, actorConfig, state, signal, ts)
+              case _              => processSystemMessage(context, watching, watchedBy)(value).as(state)
+            }
           case Right(value) => receive(context, actorConfig, state, value, ts)
         }
         completer = (s: S) => stateRef.set(s)
@@ -64,29 +62,34 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
     }
 
     for {
-      queue <- Queue.dropping[PendingMessage[Msg]](actorConfig.mailboxSize)
-      watching <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
-      watchedBy <- Ref.make(Set.empty[ActorRef[Nothing]])
+      queue            <- Queue.dropping[PendingMessage[Msg]](actorConfig.mailboxSize)
+      watching         <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
+      watchedBy        <- Ref.make(Set.empty[ActorRef[Nothing]])
       terminatedQueued <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
-      timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
-      stopSwitch <- Ref.make(false)
+      timersMap        <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
+      stopSwitch       <- Ref.make(false)
       actor = LocalActorRef[Msg](queue, actorPath)(stopSwitch.set(true) *> optPostStop, actorSystem, stopSwitch)
-      stateRef <- Ref.make(initialState)
+      stateRef   <- Ref.make(initialState)
       supervisor <- Supervisor.track(true)
-      ts = Timers[R, Msg](actor, timersMap, supervisor)
+      ts      = Timers[R, Msg](actor, timersMap, supervisor)
       context = Context(children, actor, actorPath, actorSystem)
       actorLoop <- (for {
-        state <- stateRef.get
+        state                <- stateRef.get
         (_, msgs, initState) <- init(actorConfig, context, state, ts)
-        _ <- stateRef.set(initState)
-        _ <- msgs.traverse(m => actor ! m)
-        _ <- restartOneSupervision(context, queue, ts)(() => innerLoop(msg => process(watching, watchedBy, terminatedQueued)(context, msg, stateRef, ts))(queue, stopSwitch))
+        _                    <- stateRef.set(initState)
+        _                    <- msgs.traverse(m => actor ! m)
+        _ <- restartOneSupervision(context, queue, ts)(() =>
+          innerLoop(msg => process(watching, watchedBy)(context, msg, stateRef, ts))(
+            queue,
+            stopSwitch
+          )
+        )
       } yield ()).onExit(exit =>
         for {
-          _ <- ZIO.debug(s"Actor $actor stopped with exit result $exit.")
+          _  <- ZIO.debug(s"Actor $actor stopped with exit result $exit.")
           st <- stateRef.get
-          _ <- self.postStop(actorConfig, context, st, ts).foldM(_ => URIO.unit, either => URIO.effectTotal(either))
-          _ <- sendDeathwatchNotifications(watchedBy, context)
+          _  <- self.postStop(actorConfig, context, st, ts).foldM(_ => URIO.unit, either => URIO.effectTotal(either))
+          _  <- sendDeathwatchNotifications(watchedBy, context)
         } yield ()
       ).supervised(actorSystem.supervisor).forkDaemon
     } yield InternalActorCell(actor = actor, actorFiber = actorLoop)

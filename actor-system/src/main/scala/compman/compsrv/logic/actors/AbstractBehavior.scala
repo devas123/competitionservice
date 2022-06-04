@@ -3,10 +3,10 @@ package compman.compsrv.logic.actors
 import cats.implicits._
 import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
 import compman.compsrv.logic.actors.dungeon._
+import zio.{Exit, Queue, Ref, RIO, Task, URIO, ZIO}
 import zio.clock.Clock
 import zio.console.Console
 import zio.interop.catz._
-import zio.{Exit, Queue, RIO, Ref, Task, URIO, ZIO}
 
 trait AbstractBehavior[R, S, Msg] {
   self: DeathWatch =>

@@ -59,7 +59,7 @@ object StatelessCommandProcessor {
       for {
         receiver <- context.messageAdapter[KafkaConsumerApi] {
           case KafkaSupervisor.QueryStarted()  => None
-          case KafkaSupervisor.QueryFinished() => None
+          case KafkaSupervisor.QueryFinished(_) => None
           case KafkaSupervisor.QueryError(_)   => None
           case KafkaSupervisor.MessageReceived(_, committableRecord) =>
             Try { Command.parseFrom(committableRecord.value) }.toOption.map(AcademyCommandReceived)

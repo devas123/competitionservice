@@ -58,7 +58,7 @@ object CommandProcessorMain extends zio.App {
           kafkaSupervisor <- actorSystem.make(
             "kafkaSupervisor",
             ActorConfig(),
-            None,
+            KafkaSupervisor.initialState,
             KafkaSupervisor.behavior[PipelineEnvironment](appConfig.producer.brokers)
           )
           _ <- kafkaSupervisor !
