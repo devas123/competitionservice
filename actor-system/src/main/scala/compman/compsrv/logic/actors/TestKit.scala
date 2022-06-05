@@ -13,6 +13,7 @@ trait TestKit[F] {
   def ref: ActorRef[F]
 
   def expectMessage(timeout: Duration): RIO[Any with Clock, Option[F]]
+  def expectNoMessage(timeout: Duration): RIO[Any with Clock, Unit]
   def watchWith[F1](msg: F, actorRef: ActorRef[F1]): Task[Unit]
 
   def expectMessageClass[C](timeout: Duration, expectedMsgClass: Class[C]): RIO[Any with Clock, Option[C]]
@@ -40,6 +41,10 @@ object TestKit {
       override def ref: ActorRef[F] = actor
 
       override def expectMessage(timeout: Duration): RIO[Any with Clock, Option[F]] = queue.take.timeout(timeout)
+      override def expectNoMessage(timeout: Duration): RIO[Any with Clock, Unit] = for {
+        msg <- queue.take.timeout(timeout)
+        _ <- ZIO.fail(new RuntimeException(s"Expected to receive no messages, but received ${msg.get}")).when(msg.isDefined)
+      } yield ()
 
       override def expectMessageClass[C](
         timeout: Duration,
@@ -58,7 +63,7 @@ object TestKit {
               }
             } else {
               RIO.fail(new RuntimeException(
-                s"Expected class Some(${expectedMsgClass.getName}), but received ${nextMsg.map(_.getClass.getName)}"
+                s"Expected class ${expectedMsgClass.getName}, but received ${nextMsg.map(_.getClass.getName).getOrElse("None")}"
               ))
             }
         } yield msg
@@ -73,7 +78,7 @@ object TestKit {
         msg <- expectedMsgClass.find(c => nextMsg.exists(n => c.isAssignableFrom(n.getClass))) match {
           case Some(value) => RIO(nextMsg.map(n => value.cast(n)))
           case None => RIO.fail(new RuntimeException(
-              s"Expected class Some(${expectedMsgClass.map(_.getName).mkString(", ")}), but received ${nextMsg.map(_.getClass.getName)}"
+              s"Expected class ${expectedMsgClass.map(_.getName).mkString(", ")}, but received ${nextMsg.map(_.getClass.getName).getOrElse("None")}"
             ))
         }
       } yield msg

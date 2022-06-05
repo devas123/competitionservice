@@ -12,6 +12,7 @@ import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.console.Console
 import zio.kafka.consumer._
+import zio.kafka.consumer.Consumer.AutoOffsetStrategy.Latest
 import zio.kafka.serde.Serde
 import zio.logging.Logging
 
@@ -27,12 +28,12 @@ private[kafka] object KafkaQueryAndSubscribeActor {
     brokers: List[String],
     subscribe: Boolean,
     query: Boolean,
-    startOffset: Long,
+    startOffset: Option[Long],
     endOffset: Option[Long]
   ): ZIO[Logging with Clock with Blocking with Console, Throwable, ActorRef[KafkaQueryActorCommand]] = for {
     initState <- Promise.make[Throwable, Boolean]
-    startFixed = java.lang.Long.max(startOffset, 0L).longValue()
-    endFixed   = endOffset.map(e => java.lang.Long.max(startFixed, e).longValue())
+    startFixed = startOffset.map(so => java.lang.Long.max(so, 0L).longValue())
+    endFixed   = endOffset.flatMap(e => startFixed.map(sf => java.lang.Long.max(sf, e).longValue()))
     actor <- actorRefProvider.make(
       name,
       ActorConfig(),
@@ -56,7 +57,7 @@ private[kafka] object KafkaQueryAndSubscribeActor {
     brokers: List[String],
     subscribe: Boolean,
     query: Boolean,
-    startOffset: Long,
+    startOffset: Option[Long],
     endOffset: Option[Long]
   ): ActorBehavior[Logging with Clock with Blocking, Promise[Throwable, Boolean], KafkaQueryActorCommand] = {
 
@@ -87,11 +88,13 @@ private[kafka] object KafkaQueryAndSubscribeActor {
         partitions <- Consumer.partitionsFor(topic)
         topicPartitions = partitions.map(p => new TopicPartition(p.topic(), p.partition())).toSet
         kafkaTopicEndOffsetsMap <- Consumer.endOffsets(topicPartitions)
-        partitionsToEndOffsetsMap = kafkaTopicEndOffsetsMap.map { case (top, offset) => (top, endOffset.getOrElse(offset)) }
-        filteredOffsets = partitionsToEndOffsetsMap
-          .filter(_._2 > startOffset)
-        _ <- Logging
-          .info(s"Getting events from topic $topic, endOffset: $endOffset, endOffsets: $partitionsToEndOffsetsMap, start from $startOffset")
+        partitionsToEndOffsetsMap = kafkaTopicEndOffsetsMap.map { case (top, offset) =>
+          (top, endOffset.getOrElse(offset))
+        }
+        filteredOffsets = partitionsToEndOffsetsMap.filter(_._2 > startOffset.getOrElse(0L))
+        _ <- Logging.info(
+          s"Getting events from topic $topic, endOffset: $endOffset, endOffsets: $partitionsToEndOffsetsMap, start from $startOffset"
+        )
         res <-
           if (filteredOffsets.nonEmpty) for {
             _ <- Logging.info(s"Filtered offsets: $filteredOffsets")
@@ -99,7 +102,7 @@ private[kafka] object KafkaQueryAndSubscribeActor {
               val partition = tp
               ((tp.topic(), tp.partition()), partitionsToEndOffsetsMap(partition))
             }).filter(o => o._2 > 0)
-            numberOfEventsToTake = off.foldLeft(0L)((acc, el) => acc + el._2) - startOffset
+            numberOfEventsToTake = off.foldLeft(0L)((acc, el) => acc + el._2) - startOffset.getOrElse(0L)
             _ <- Logging
               .info(s"Effective offsets to retrieve: ${off.map(_._1)}, number of events: $numberOfEventsToTake")
             collectedCount <-
@@ -161,7 +164,8 @@ private[kafka] object KafkaQueryAndSubscribeActor {
       }
   }
 
-  private def offsetRetrieval(startOffset: Long) = {
-    Consumer.OffsetRetrieval.Manual(topics => ZIO.effectTotal(topics.map((_, startOffset)).toMap))
+  private def offsetRetrieval(startOffset: Option[Long]) = startOffset match {
+    case Some(value) => Consumer.OffsetRetrieval.Manual(topics => ZIO.effectTotal(topics.map((_, value)).toMap))
+    case None        => Consumer.OffsetRetrieval.Auto(Latest)
   }
 }

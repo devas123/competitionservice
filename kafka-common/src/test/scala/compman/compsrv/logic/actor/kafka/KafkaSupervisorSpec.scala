@@ -54,6 +54,31 @@ object KafkaSupervisorSpec extends DefaultRunnableSpec {
         } yield assert(msg)(isSome)
       }.provideLayer(allLayers)
     },
+    testM("Should reset to latest offset by default") {
+      ActorSystem("Test").use { actorSystem =>
+        for {
+          brokerUrl <- ZIO.effectTotal(EmbeddedKafkaBroker.bootstrapServers.get())
+          notificationTopic = UUID.randomUUID().toString
+          notification  = Random.nextBytes(100)
+          competitionId = "competitionId"
+          kafkaSupervisor <- actorSystem
+            .make("kafkaSupervisor", ActorConfig(), initialState, KafkaSupervisor.behavior[Any](List(brokerUrl)))
+          messageReceiver <- TestKit[KafkaConsumerApi](actorSystem)
+          _               <- kafkaSupervisor ! CreateTopicIfMissing(notificationTopic, KafkaTopicConfig())
+          _ <- (0 until messagesCount).toList
+            .traverse(_ => kafkaSupervisor ! PublishMessage(notificationTopic, competitionId, notification))
+          _ <- ZIO.sleep(10.seconds)
+          _ <- kafkaSupervisor ! Subscribe(notificationTopic, UUID.randomUUID().toString, messageReceiver.ref)
+          _ <- Logging.info("Subscribed.")
+          _ <- ZIO.sleep(10.seconds)
+          notification  = Random.nextBytes(100)
+          _   <- Logging.info("Publishing message...")
+          _   <- kafkaSupervisor ! PublishMessage(notificationTopic, competitionId, notification)
+          msg <- messageReceiver.expectMessageClass(5.seconds, classOf[MessageReceived])
+          _ <- messageReceiver.expectNoMessage(5.seconds)
+        } yield assert(msg)(isSome)
+      }.provideLayer(allLayers)
+    },
     testM("Should query and subscribe respecting Kafka Committed offset") {
       ActorSystem("Test").use { actorSystem =>
         for {
@@ -84,7 +109,7 @@ object KafkaSupervisorSpec extends DefaultRunnableSpec {
             .traverse(_ => kafkaSupervisor ! PublishMessage(topic, competitionId, notification))
           _ <- ZIO.sleep(3.seconds)
           _ <- kafkaSupervisor !
-            QueryAndSubscribe(topic, groupId, messageReceiver2.ref, startOffset.toLong, Some(messagesCount.toLong))
+            QueryAndSubscribe(topic, groupId, messageReceiver2.ref, Some(startOffset.toLong), Some(messagesCount.toLong))
           _ <- messageReceiver2.expectMessageClass(15.seconds, classOf[QueryStarted])
           _ <- (0 until messagesCount - startOffset).toList
             .traverse(_ => messageReceiver2.expectMessageClass(15.seconds, classOf[MessageReceived]).map(_.isDefined))
@@ -142,7 +167,7 @@ object KafkaSupervisorSpec extends DefaultRunnableSpec {
           _ <- (0 until messagesCount).toList
             .traverse(_ => kafkaSupervisor ! PublishMessage(topic, competitionId, notification))
           _ <- ZIO.sleep(5.seconds)
-          _ <- kafkaSupervisor ! QueryAsync(topic, UUID.randomUUID().toString, messageReceiver.ref, startOffset.toLong)
+          _ <- kafkaSupervisor ! QueryAsync(topic, UUID.randomUUID().toString, messageReceiver.ref, Some(startOffset.toLong))
           _ <- messageReceiver.expectMessageClass(15.seconds, classOf[QueryStarted])
           msgs <- (0 until messagesCount - startOffset).toList
             .traverse(_ => messageReceiver.expectMessageClass(15.seconds, classOf[MessageReceived]).map(_.isDefined))
@@ -165,7 +190,7 @@ object KafkaSupervisorSpec extends DefaultRunnableSpec {
             .traverse(_ => kafkaSupervisor ! PublishMessage(topic, competitionId, notification))
           _       <- ZIO.sleep(5.seconds)
           promise <- Promise.make[Throwable, Seq[Array[Byte]]]
-          _ <- kafkaSupervisor ! QuerySync(topic, UUID.randomUUID().toString, promise, 10.seconds, startOffset.toLong)
+          _ <- kafkaSupervisor ! QuerySync(topic, UUID.randomUUID().toString, promise, 10.seconds, Some(startOffset.toLong))
           msgs <- promise.await
         } yield assert(msgs)(hasSize(equalTo(messagesCount - startOffset)))
       }.provideLayer(allLayers)

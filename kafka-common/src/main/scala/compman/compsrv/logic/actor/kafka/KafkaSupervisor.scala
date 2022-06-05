@@ -40,14 +40,14 @@ object KafkaSupervisor {
     topic: String,
     groupId: String,
     replyTo: ActorRef[KafkaConsumerApi],
-    startOffset: Long = 0,
+    startOffset: Option[Long] = Some(0),
     endOffset: Option[Long] = None,
     uuid: String = UUID.randomUUID().toString
   ) extends KafkaSupervisorCommand
 
   case class CreateTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig) extends KafkaSupervisorCommand
 
-  case class QueryAsync(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi], startOffset: Long = 0, endOffset: Option[Long] = None)
+  case class QueryAsync(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi], startOffset: Option[Long] = Some(0), endOffset: Option[Long] = None)
       extends KafkaSupervisorCommand
 
   private case class SubscriberStopped(uuid: String) extends KafkaSupervisorCommand
@@ -57,7 +57,7 @@ object KafkaSupervisor {
     groupId: String,
     promise: Promise[Throwable, Seq[Array[Byte]]],
     timeout: Duration = 10.seconds,
-    startOffset: Long = 0,
+    startOffset: Option[Long] = Some(0),
     endOffset: Option[Long] = None
   ) extends KafkaSupervisorCommand
 
@@ -66,7 +66,7 @@ object KafkaSupervisor {
     groupId: String,
     replyTo: ActorRef[KafkaConsumerApi],
     uuid: String = UUID.randomUUID().toString,
-    startOffset: Long = 0
+    startOffset: Option[Long] = None
   ) extends KafkaSupervisorCommand
 
   case class Unsubscribe(uuid: String) extends KafkaSupervisorCommand
