@@ -41,12 +41,13 @@ object KafkaSupervisor {
     groupId: String,
     replyTo: ActorRef[KafkaConsumerApi],
     startOffset: Long = 0,
+    endOffset: Option[Long] = None,
     uuid: String = UUID.randomUUID().toString
   ) extends KafkaSupervisorCommand
 
   case class CreateTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig) extends KafkaSupervisorCommand
 
-  case class QueryAsync(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi], startOffset: Long = 0)
+  case class QueryAsync(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi], startOffset: Long = 0, endOffset: Option[Long] = None)
       extends KafkaSupervisorCommand
 
   private case class SubscriberStopped(uuid: String) extends KafkaSupervisorCommand
@@ -56,14 +57,16 @@ object KafkaSupervisor {
     groupId: String,
     promise: Promise[Throwable, Seq[Array[Byte]]],
     timeout: Duration = 10.seconds,
-    startOffset: Long = 0
+    startOffset: Long = 0,
+    endOffset: Option[Long] = None
   ) extends KafkaSupervisorCommand
 
   case class Subscribe(
     topic: String,
     groupId: String,
     replyTo: ActorRef[KafkaConsumerApi],
-    uuid: String = UUID.randomUUID().toString
+    uuid: String = UUID.randomUUID().toString,
+    startOffset: Long = 0
   ) extends KafkaSupervisorCommand
 
   case class Unsubscribe(uuid: String) extends KafkaSupervisorCommand
@@ -95,7 +98,7 @@ object KafkaSupervisor {
             .getOrElse(RIO.unit).as(state)
         case SubscriberStopped(uuid) => RIO
             .effect(state.copy(queryAndSubscribeActors = state.queryAndSubscribeActors - uuid))
-        case QueryAndSubscribe(topic, groupId, replyTo, startOffset, uuid) => for {
+        case QueryAndSubscribe(topic, groupId, replyTo, startOffset, endOffset, uuid) => for {
             _ <- state.queryAndSubscribeActors.get(uuid).map(a => a ! KafkaQueryAndSubscribeActor.Stop)
               .getOrElse(RIO.unit)
             actorId = innerQueryActorId
@@ -107,13 +110,12 @@ object KafkaSupervisor {
               subscribe = true,
               query = true,
               startOffset = startOffset,
-              getHistory = false,
-              stopQueryAtLastCommittedOffset = true
+              endOffset = endOffset
             )
             _ <- context.watchWith(SubscriberStopped(uuid), actor)
             _ <- Logging.info(s"Created actor with id $actorId to process query and subscribe request.")
           } yield state.copy(queryAndSubscribeActors = state.queryAndSubscribeActors + (uuid -> actor))
-        case QuerySync(topic, groupId, promise, timeout, startOffset) => for {
+        case QuerySync(topic, groupId, promise, timeout, startOffset, endOffset) => for {
             queryReceiver <- context.make(
               UUID.randomUUID().toString,
               ActorConfig(),
@@ -129,16 +131,16 @@ object KafkaSupervisor {
               subscribe = false,
               query = true,
               startOffset,
-              getHistory = true
+              endOffset
             )
           } yield state
 
-        case QueryAsync(topic, groupId, replyTo, startOffset) => KafkaQueryAndSubscribeActor(
+        case QueryAsync(topic, groupId, replyTo, startOffset, endOffset) => KafkaQueryAndSubscribeActor(
             innerQueryActorId,
             context
-          )(topic, groupId, replyTo, brokers, subscribe = false, query = true, startOffset, getHistory = true).as(state)
+          )(topic, groupId, replyTo, brokers, subscribe = false, query = true, startOffset, endOffset).as(state)
 
-        case Subscribe(topic, groupId, replyTo, uuid) => for {
+        case Subscribe(topic, groupId, replyTo, uuid, startOffset) => for {
             _ <- state.queryAndSubscribeActors.get(uuid).map(a => a ! KafkaQueryAndSubscribeActor.Stop)
               .getOrElse(RIO.unit)
             actor <- KafkaQueryAndSubscribeActor(innerQueryActorId, context)(
@@ -148,8 +150,8 @@ object KafkaSupervisor {
               brokers,
               subscribe = true,
               query = false,
-              0L,
-              getHistory = false
+              startOffset,
+              None
             )
             _ <- context.watchWith(SubscriberStopped(uuid), actor)
           } yield state.copy(queryAndSubscribeActors = state.queryAndSubscribeActors + (uuid -> actor))

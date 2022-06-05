@@ -12,7 +12,6 @@ import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.console.Console
 import zio.kafka.consumer._
-import zio.kafka.consumer.Consumer.AutoOffsetStrategy.{Earliest, Latest}
 import zio.kafka.serde.Serde
 import zio.logging.Logging
 
@@ -29,25 +28,16 @@ private[kafka] object KafkaQueryAndSubscribeActor {
     subscribe: Boolean,
     query: Boolean,
     startOffset: Long,
-    getHistory: Boolean,
-    stopQueryAtLastCommittedOffset: Boolean = false
+    endOffset: Option[Long]
   ): ZIO[Logging with Clock with Blocking with Console, Throwable, ActorRef[KafkaQueryActorCommand]] = for {
     initState <- Promise.make[Throwable, Boolean]
+    startFixed = java.lang.Long.max(startOffset, 0L).longValue()
+    endFixed   = endOffset.map(e => java.lang.Long.max(startFixed, e).longValue())
     actor <- actorRefProvider.make(
       name,
       ActorConfig(),
       initState,
-      behavior(
-        topic,
-        groupId,
-        replyTo,
-        brokers,
-        subscribe,
-        query,
-        java.lang.Long.max(startOffset, 0L).longValue(),
-        getHistory,
-        stopQueryAtLastCommittedOffset
-      )
+      behavior(topic, groupId, replyTo, brokers, subscribe, query, startFixed, endFixed)
     )
   } yield actor
 
@@ -67,56 +57,41 @@ private[kafka] object KafkaQueryAndSubscribeActor {
     subscribe: Boolean,
     query: Boolean,
     startOffset: Long,
-    getHistory: Boolean,
-    stopQueryAtLastCommittedOffset: Boolean
+    endOffset: Option[Long]
   ): ActorBehavior[Logging with Clock with Blocking, Promise[Throwable, Boolean], KafkaQueryActorCommand] = {
 
     def queryAndSendEvents(): ZIO[Clock with Blocking with Logging, Throwable, Unit] = {
       for {
-        _ <- replyTo ! QueryStarted()
-        result <- retrieveEvents(topic, startOffset, stopQueryAtLastCommittedOffset)
-          .fold(e => QueryError(e), QueryFinished)
-        _ <- Logging.info(s"Done collecting events. Result: $result")
-        _ <- replyTo ! result
+        _      <- replyTo ! QueryStarted()
+        result <- retrieveEvents().fold(e => QueryError(e), QueryFinished)
+        _      <- Logging.info(s"Done collecting events. Result: $result")
+        _      <- replyTo ! result
       } yield ()
     }
 
     def startByteArrayStream(
-      topic: String,
       action: CommittableRecord[String, Try[Array[Byte]]] => ZIO[Logging, Throwable, Unit],
-      stopSignal: Promise[Throwable, Boolean],
-      getHistory: Boolean
+      stopSignal: Promise[Throwable, Boolean]
     ): ZIO[Logging with Clock with Blocking, Throwable, Unit] = {
-      Logging.info(s"Starting byte array stream for topic $topic, group id: $groupId, getHistory: $getHistory") *>
+      Logging.info(s"Starting byte array stream for topic $topic, group id: $groupId") *>
         Consumer.subscribeAnd(Subscription.topics(topic)).plainStream(Serde.string, Serde.byteArray.asTry)
-          .mapM(record => action(record).as(record)).map(_.offset).aggregateAsync(Consumer.offsetBatches).mapM(_.commit)
-          .haltWhen(stopSignal).runDrain *>
-        Logging.info(s"Finished listening on topic $topic, group id: $groupId, getHistory: $getHistory")
+          .mapM(record => action(record)).haltWhen(stopSignal).runDrain *>
+        Logging.info(s"Finished listening on topic $topic, group id: $groupId")
     }.provideSomeLayer[Logging with Clock with Blocking](
-      Consumer.make(ConsumerSettings(brokers).withGroupId(groupId).withOffsetRetrieval(offsetRetrieval(0, getHistory)))
+      Consumer.make(ConsumerSettings(brokers).withGroupId(groupId).withOffsetRetrieval(offsetRetrieval(startOffset)))
         .toLayer
     )
 
-    def retrieveEvents(
-      topic: String,
-      startOffset: Long,
-      stopAtLastCommittedOffset: Boolean
-    ): RIO[Clock with Blocking with Logging, Long] = {
+    def retrieveEvents(): RIO[Clock with Blocking with Logging, Long] = {
       for {
         partitions <- Consumer.partitionsFor(topic)
         topicPartitions = partitions.map(p => new TopicPartition(p.topic(), p.partition())).toSet
-        partitionsToEndOffsetsMap <-
-          if (stopAtLastCommittedOffset) Consumer.committed(topicPartitions)
-            .map(_.view.mapValues(_.map(_.offset().longValue()).getOrElse(0L)).toMap)
-            .provideSomeLayer[Clock with Blocking with Logging](
-              Consumer
-                .make(ConsumerSettings(brokers).withGroupId(groupId).withOffsetRetrieval(offsetRetrieval(startOffset)))
-                .toLayer
-            )
-          else Consumer.endOffsets(topicPartitions)
-        filteredOffsets = partitionsToEndOffsetsMap.filter(_._2 > 0)
+        kafkaTopicEndOffsetsMap <- Consumer.endOffsets(topicPartitions)
+        partitionsToEndOffsetsMap = kafkaTopicEndOffsetsMap.map { case (top, offset) => (top, endOffset.getOrElse(offset)) }
+        filteredOffsets = partitionsToEndOffsetsMap
+          .filter(_._2 > startOffset)
         _ <- Logging
-          .info(s"Getting events from topic $topic, endOffsets: $partitionsToEndOffsetsMap, start from $startOffset")
+          .info(s"Getting events from topic $topic, endOffset: $endOffset, endOffsets: $partitionsToEndOffsetsMap, start from $startOffset")
         res <-
           if (filteredOffsets.nonEmpty) for {
             _ <- Logging.info(s"Filtered offsets: $filteredOffsets")
@@ -157,7 +132,6 @@ private[kafka] object KafkaQueryAndSubscribeActor {
             _ <- queryAndSendEvents().when(query)
             _ <- (for {
               _ <- startByteArrayStream(
-                topic,
                 { record =>
                   val tryValue: Try[Array[Byte]] = record.record.value()
                   tryValue match {
@@ -178,8 +152,7 @@ private[kafka] object KafkaQueryAndSubscribeActor {
                           ForwardMesage(MessageReceived(topic, record.copy(record = newConsumerRecord)), replyTo))
                   }
                 },
-                state,
-                getHistory
+                state
               ).when(subscribe)
               _ <- Logging.info("Finished consuming from kafka. Stopping.")
             } yield ()).fork
@@ -188,8 +161,7 @@ private[kafka] object KafkaQueryAndSubscribeActor {
       }
   }
 
-  private def offsetRetrieval(startOffset: Long, getHistory: Boolean = true) = {
-    if (startOffset > 0) Consumer.OffsetRetrieval.Manual(topics => ZIO.effectTotal(topics.map((_, startOffset)).toMap))
-    else Consumer.OffsetRetrieval.Auto(if (getHistory) Earliest else Latest)
+  private def offsetRetrieval(startOffset: Long) = {
+    Consumer.OffsetRetrieval.Manual(topics => ZIO.effectTotal(topics.map((_, startOffset)).toMap))
   }
 }
