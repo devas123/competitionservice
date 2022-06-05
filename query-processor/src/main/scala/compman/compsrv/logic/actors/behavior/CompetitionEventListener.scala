@@ -33,17 +33,14 @@ import compman.compsrv.query.service.repository.EventOffsetOperations.EventOffse
 import compservice.model.protobuf.event.Event
 import compservice.model.protobuf.eventpayload.CompetitionPropertiesUpdatedPayload
 import org.mongodb.scala.MongoClient
-import zio.{Cause, Queue, Ref, RIO, Tag, Task, ZIO}
+import zio.{Cause, Ref, Tag, Task, ZIO}
 import zio.clock.Clock
 import zio.console.Console
-import zio.kafka.consumer.Offset
 import zio.logging.Logging
 
 object CompetitionEventListener {
   sealed trait ApiCommand
   case class KafkaMessageReceived(kafkaMessage: KafkaConsumerApi) extends ApiCommand
-  case class CommitOffset(offset: Offset)                         extends ApiCommand
-  case class SetQueue(queue: Queue[Offset])                       extends ApiCommand
   case object Stop                                                extends ApiCommand
 
   trait ActorContext {
@@ -94,7 +91,7 @@ object CompetitionEventListener {
     implicit val eventOffsetService: EventOffsetService[LIO]       = EventOffsetOperations.test
   }
 
-  private[behavior] case class ActorState(queue: Option[Queue[Offset]] = None)
+  private[behavior] case class ActorState()
 
   val initialState: ActorState = ActorState()
 
@@ -168,30 +165,35 @@ object CompetitionEventListener {
                       mapped <- EventMapping.mapEventDto[LIO](event)
                       _      <- Logging.info(s"Received event: $mapped")
                       res    <- EventProcessors.applyEvent[LIO](mapped).attempt
-                      _      <- EventOffsetOperations.setOffset[LIO](EventOffset(topic, event.version.toLong))
                       _      <- notifyEventListenerSupervisor(topic, event, mapped)
                       _ <- res match {
                         case Left(value) => sendErrorCallback(event, value)
-                        case Right(_) => Logging.info(
-                            s"Sending callback, correlation ID is ${event.messageInfo.flatMap(_.correlationId)}"
-                          ) *> sendSuccessfulExecutionCallbacks(event)
-                            .when(event.localEventNumber == event.numberOfEventsInBatch - 1)
+                        case Right(_) => for {
+                            _ <-
+                            (Logging.info(
+                              s"Sending callback, correlation ID is ${event.messageInfo.flatMap(_.correlationId)}"
+                            ) *> sendSuccessfulExecutionCallbacks(event))
+                              .when(event.localEventNumber == event.numberOfEventsInBatch - 1)
+                          } yield ()
                       }
-                      _ <- context.self ! CommitOffset(record.offset)
+                      competitionDeleted = mapped.isInstanceOf[CompetitionDeletedEvent]
+                      _ <-
+                        if (competitionDeleted) EventOffsetOperations.deleteOffset[LIO](topic)
+                        else EventOffsetOperations.setOffset[LIO](EventOffset(topic, record.offset.offset))
+                      _ <- (context.self ! Stop).when(competitionDeleted)
                     } yield state
                   }.onError(cause => logError(cause.squash))
               }
-
             case Stop => Logging.info("Received stop command. Stopping...") *> context.stopSelf.as(state)
-            case CommitOffset(offset) => state.queue.map(_.offer(offset)).getOrElse(RIO.unit).as(state)
-            case SetQueue(queue) => Logging.info("Setting queue.") *> ZIO.effectTotal(state.copy(queue = Some(queue)))
           }
         }
     }.withInit { (_, context, initState, _) =>
       for {
         adapter <- context.messageAdapter[KafkaConsumerApi](fa => Some(KafkaMessageReceived(fa)))
+        offset  <- EventOffsetOperations.getOffset[LIO](topic)
         groupId = s"query-service-$competitionId"
-        _ <- kafkaSupervisorActor ! KafkaSupervisor.Subscribe(topic, groupId, adapter)
+        _ <- kafkaSupervisorActor !
+          KafkaSupervisor.Subscribe(topic, groupId, adapter, startOffset = offset.map(_.offset).orElse(Some(0L)))
       } yield (Seq(), Seq.empty[ApiCommand], initState)
     }
   }

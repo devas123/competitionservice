@@ -46,7 +46,7 @@ object CommandForwardingActor {
             case x: SendCompetitionCommandAndWaitForResult => for {
                 cmd <- ZIO.effect(Command.parseFrom(x.body))
                 _ <- ctx.make(
-                  s"CallbackWaiter-${x.competitionId}-${cmd.messageInfo.flatMap(_.id)}",
+                  s"CallbackWaiter-${x.competitionId}-${cmd.messageInfo.flatMap(_.id).getOrElse("")}",
                   ActorConfig(),
                   CommandCallbackAggregator.initialState,
                   CommandCallbackAggregator.behavior(
@@ -64,7 +64,7 @@ object CommandForwardingActor {
               for {
                 cmd <- ZIO.effect(Command.parseFrom(x.body))
                 _ <- ctx.make(
-                  s"AcademyCommandCallbackWaiter-${cmd.messageInfo.flatMap(_.id)}",
+                  s"AcademyCommandCallbackWaiter-${cmd.messageInfo.flatMap(_.id).getOrElse("")}",
                   ActorConfig(),
                   CommandCallbackAggregator.initialState,
                   CommandCallbackAggregator.behavior(

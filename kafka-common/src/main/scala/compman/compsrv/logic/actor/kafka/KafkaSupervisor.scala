@@ -47,8 +47,13 @@ object KafkaSupervisor {
 
   case class CreateTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig) extends KafkaSupervisorCommand
 
-  case class QueryAsync(topic: String, groupId: String, replyTo: ActorRef[KafkaConsumerApi], startOffset: Option[Long] = Some(0), endOffset: Option[Long] = None)
-      extends KafkaSupervisorCommand
+  case class QueryAsync(
+    topic: String,
+    groupId: String,
+    replyTo: ActorRef[KafkaConsumerApi],
+    startOffset: Option[Long] = Some(0),
+    endOffset: Option[Long] = None
+  ) extends KafkaSupervisorCommand
 
   private case class SubscriberStopped(uuid: String) extends KafkaSupervisorCommand
 
@@ -66,7 +71,8 @@ object KafkaSupervisor {
     groupId: String,
     replyTo: ActorRef[KafkaConsumerApi],
     uuid: String = UUID.randomUUID().toString,
-    startOffset: Option[Long] = None
+    startOffset: Option[Long] = None,
+    commitOffsetsToKafka: Boolean = false
   ) extends KafkaSupervisorCommand
 
   case class Unsubscribe(uuid: String) extends KafkaSupervisorCommand
@@ -110,7 +116,8 @@ object KafkaSupervisor {
               subscribe = true,
               query = true,
               startOffset = startOffset,
-              endOffset = endOffset
+              endOffset = endOffset,
+              commitOffsetsToKafka = false
             )
             _ <- context.watchWith(SubscriberStopped(uuid), actor)
             _ <- Logging.info(s"Created actor with id $actorId to process query and subscribe request.")
@@ -131,16 +138,27 @@ object KafkaSupervisor {
               subscribe = false,
               query = true,
               startOffset,
-              endOffset
+              endOffset,
+              commitOffsetsToKafka = false
             )
           } yield state
 
         case QueryAsync(topic, groupId, replyTo, startOffset, endOffset) => KafkaQueryAndSubscribeActor(
             innerQueryActorId,
             context
-          )(topic, groupId, replyTo, brokers, subscribe = false, query = true, startOffset, endOffset).as(state)
+          )(
+            topic,
+            groupId,
+            replyTo,
+            brokers,
+            subscribe = false,
+            query = true,
+            startOffset,
+            endOffset,
+            commitOffsetsToKafka = false
+          ).as(state)
 
-        case Subscribe(topic, groupId, replyTo, uuid, startOffset) => for {
+        case Subscribe(topic, groupId, replyTo, uuid, startOffset, commitOffsetsToKafka) => for {
             _ <- state.queryAndSubscribeActors.get(uuid).map(a => a ! KafkaQueryAndSubscribeActor.Stop)
               .getOrElse(RIO.unit)
             actor <- KafkaQueryAndSubscribeActor(innerQueryActorId, context)(
@@ -151,7 +169,8 @@ object KafkaSupervisor {
               subscribe = true,
               query = false,
               startOffset,
-              None
+              None,
+              commitOffsetsToKafka
             )
             _ <- context.watchWith(SubscriberStopped(uuid), actor)
           } yield state.copy(queryAndSubscribeActors = state.queryAndSubscribeActors + (uuid -> actor))

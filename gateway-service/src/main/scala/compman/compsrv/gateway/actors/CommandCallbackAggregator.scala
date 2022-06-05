@@ -53,7 +53,7 @@ object CommandCallbackAggregator {
         _ <- kafkaSupervisorActor ! CreateTopicIfMissing(eventsTopic, KafkaTopicConfig())
         eventReceiver <- ctx.messageAdapter[KafkaConsumerApi] {
           case KafkaSupervisor.QueryStarted()    => None
-          case KafkaSupervisor.QueryFinished(_)   => None
+          case KafkaSupervisor.QueryFinished(_)  => None
           case KafkaSupervisor.QueryError(error) => Some(Error(error))
           case KafkaSupervisor.MessageReceived(_, committableRecord) => Try { Event.parseFrom(committableRecord.value) }
               .filter(_.messageInfo.flatMap(_.correlationId).contains(
@@ -62,7 +62,7 @@ object CommandCallbackAggregator {
         }
         callbackReceiverAdapter <- ctx.messageAdapter[KafkaConsumerApi] {
           case KafkaSupervisor.QueryStarted()    => None
-          case KafkaSupervisor.QueryFinished(_)   => None
+          case KafkaSupervisor.QueryFinished(_)  => None
           case KafkaSupervisor.QueryError(error) => Some(Error(error))
           case KafkaSupervisor.MessageReceived(_, committableRecord) => Try {
               CommandCallback.parseFrom(committableRecord.value)
@@ -71,9 +71,14 @@ object CommandCallbackAggregator {
         }
         _ <- timers.startSingleTimer("Stop", timeoutMs.millis, Stop)
         _ <- kafkaSupervisorActor !
-          KafkaSupervisor.Subscribe(topic = eventsTopic, groupId = groupId, replyTo = eventReceiver)
-        _ <- kafkaSupervisorActor !
-          KafkaSupervisor.Subscribe(topic = callbackTopic, groupId = groupId, replyTo = callbackReceiverAdapter)
+          KafkaSupervisor
+            .Subscribe(topic = eventsTopic, groupId = groupId, replyTo = eventReceiver, commitOffsetsToKafka = true)
+        _ <- kafkaSupervisorActor ! KafkaSupervisor.Subscribe(
+          topic = callbackTopic,
+          groupId = groupId,
+          replyTo = callbackReceiverAdapter,
+          commitOffsetsToKafka = true
+        )
       } yield (Seq.empty, Seq.empty, state)
     }.withReceive { (ctx, _, state, command, _) =>
       {

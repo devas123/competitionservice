@@ -8,7 +8,8 @@
     </Appenders>
     <Loggers>
         <logger name="compman.compsrv.gateway" level="info" />
-        <logger name="org.apache.kafka" level="ERROR" />
+        <logger name="org.apache.kafka.clients.consumer" level="INFO" />
+        <logger name="org.apache.kafka.clients.producer" level="ERROR" />
         <AsyncRoot level="info" additivity="false">
             <AppenderRef ref="console" />
         </AsyncRoot>
