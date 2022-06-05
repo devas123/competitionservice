@@ -28,7 +28,7 @@ import zio.logging.Logging
 
 object CompetitionEventListener {
   sealed trait ApiCommand
-  case class EventReceived(kafkaMessage: KafkaConsumerApi) extends ApiCommand
+  case class KafkaMessageReceived(kafkaMessage: KafkaConsumerApi) extends ApiCommand
   case class CommitOffset(offset: Offset)                  extends ApiCommand
   case class SetQueue(queue: Queue[Offset])                extends ApiCommand
   case object Stop                                         extends ApiCommand
@@ -140,7 +140,7 @@ object CompetitionEventListener {
       (context, _, state, command, _) =>
         {
           command match {
-            case EventReceived(kafkaMessage) => kafkaMessage match {
+            case KafkaMessageReceived(kafkaMessage) => kafkaMessage match {
                 case KafkaSupervisor.QueryStarted()  => Logging.info("Kafka query started.").as(state)
                 case KafkaSupervisor.QueryFinished(_) => Logging.info("Kafka query finished.").as(state)
                 case KafkaSupervisor.QueryError(error) => Logging.error("Error during kafka query: ", Cause.fail(error))
@@ -171,7 +171,7 @@ object CompetitionEventListener {
         }
     }.withInit { (_, context, initState, _) =>
       for {
-        adapter <- context.messageAdapter[KafkaConsumerApi](fa => Some(EventReceived(fa)))
+        adapter <- context.messageAdapter[KafkaConsumerApi](fa => Some(KafkaMessageReceived(fa)))
         groupId = s"query-service-$competitionId"
         _ <- kafkaSupervisorActor ! KafkaSupervisor.Subscribe(topic, groupId, adapter)
       } yield (Seq(), Seq.empty[ApiCommand], initState)
