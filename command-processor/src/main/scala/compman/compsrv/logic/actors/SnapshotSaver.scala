@@ -16,8 +16,8 @@ object SnapshotSaver {
     .behavior[SnapshotSaverEnv[Env], Unit, SnapshotSaverMessage].withReceive { (_, _, _, message, _) =>
       message match {
         case SaveSnapshot(state) => for {
-            _ <- Logging.info(s"Saving a snapshot for competition. ${state.id}") /**>
-              commandProcessorOperations.saveStateSnapshot(state)*/ //TODO: kafka query needs to be fixed first.
+            _ <- Logging.info(s"Saving a snapshot for competition ${state.id}, version: ${state.revision}") *>
+              commandProcessorOperations.saveStateSnapshot(state)
           } yield ()
       }
     }

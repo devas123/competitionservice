@@ -169,7 +169,7 @@ object CompetitionProcessorActor {
       ): RIO[Env with Logging with Clock, Seq[Event]] = for {
         promise <- Promise.make[Throwable, Seq[Array[Byte]]]
         _       <- kafkaSupervisor ! CreateTopicIfMissing(eventTopic, KafkaTopicConfig())
-        _       <- kafkaSupervisor ! QuerySync(eventTopic, UUID.randomUUID().toString, promise, 30.seconds)
+        _       <- kafkaSupervisor ! QuerySync(eventTopic, UUID.randomUUID().toString, promise, 30.seconds, state.competitionState.revision.toLong)
         _ <- Logging.info(s"Getting events from topic: $eventTopic, starting from ${state.competitionState.revision}")
         events <- promise.await.map(_.map(e => Event.parseFrom(e))).onError(e => Logging.info(e.prettyPrint))
           .foldM(_ => RIO(Seq.empty), RIO(_))
