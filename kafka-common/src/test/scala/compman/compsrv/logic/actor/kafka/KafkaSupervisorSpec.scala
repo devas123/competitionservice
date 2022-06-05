@@ -74,6 +74,7 @@ object KafkaSupervisorSpec extends DefaultRunnableSpec {
           _ <- ZIO.sleep(1.seconds)
           msgs <- (0 until messagesCount).toList
             .traverse(i => messageReceiver.expectMessageClass(15.seconds, classOf[MessageReceived]).map(_.isDefined).onExit(_ => Logging.info(s"Received a message first time ${i + 1}")))
+          _ <- ZIO.sleep(4.seconds)
           _ <- kafkaSupervisor ! Unsubscribe(actorId)
           _ <- ZIO.sleep(4.seconds)
           _ <- (0 until messagesCount).toList
