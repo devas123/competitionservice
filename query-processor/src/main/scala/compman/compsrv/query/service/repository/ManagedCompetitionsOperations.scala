@@ -3,7 +3,7 @@ package compman.compsrv.query.service.repository
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model.ManagedCompetition
 import compservice.model.protobuf.model.CompetitionStatus
-import org.mongodb.scala.{MongoClient, Observable}
+import org.mongodb.scala.MongoClient
 import org.mongodb.scala.model.Filters.equal
 import org.mongodb.scala.model.Updates.set
 import zio.{Ref, RIO}
@@ -79,10 +79,6 @@ object ManagedCompetitionsOperations {
         _ <- RIO.fromFuture(_ => update.toFuture())
       } yield ()
     }
-  }
-
-  private def runQuery(select: Observable[ManagedCompetition]) = {
-    for { res <- RIO.fromFuture(_ => select.toFuture()) } yield res.toList
   }
 
   trait ManagedCompetitionService[F[+_]] {

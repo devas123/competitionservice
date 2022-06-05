@@ -26,47 +26,59 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
   private final val fightsCollectionName             = "fight"
   private final val managedCompetitionCollectionName = "managed_competition"
   private final val academyCollectionName            = "academy"
+  private final val eventOffsetCollectionName        = "event_offset"
 
   import org.bson.codecs.configuration.CodecRegistries.{fromCodecs, fromProviders, fromRegistries}
   import org.mongodb.scala.bson.codecs.Macros._
   import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
 
-  val competitionStatusCodec: Seq[Codec[CompetitionStatus]] = cd[CompetitionStatus](classOf[CompetitionStatus], CompetitionStatus)
-  val distributionTypeCodec: Seq[Codec[DistributionType]] = cd[DistributionType](classOf[DistributionType], DistributionType)
+  val competitionStatusCodec: Seq[Codec[CompetitionStatus]] =
+    cd[CompetitionStatus](classOf[CompetitionStatus], CompetitionStatus)
+  val distributionTypeCodec: Seq[Codec[DistributionType]] =
+    cd[DistributionType](classOf[DistributionType], DistributionType)
   val stageRoundTypeCodec: Seq[Codec[StageRoundType]] = cd[StageRoundType](classOf[StageRoundType], StageRoundType)
-  val groupSortDirectionCodec: Seq[Codec[GroupSortDirection]] = cd[GroupSortDirection](classOf[GroupSortDirection], GroupSortDirection)
+  val groupSortDirectionCodec: Seq[Codec[GroupSortDirection]] =
+    cd[GroupSortDirection](classOf[GroupSortDirection], GroupSortDirection)
   val logicalOperatorCodec: Seq[Codec[LogicalOperator]] = cd[LogicalOperator](classOf[LogicalOperator], LogicalOperator)
-  val groupSortSpecifierCodec: Seq[Codec[GroupSortSpecifier]] = cd[GroupSortSpecifier](classOf[GroupSortSpecifier], GroupSortSpecifier)
-  val selectorClassifierCodec: Seq[Codec[SelectorClassifier]] = cd[SelectorClassifier](classOf[SelectorClassifier], SelectorClassifier)
+  val groupSortSpecifierCodec: Seq[Codec[GroupSortSpecifier]] =
+    cd[GroupSortSpecifier](classOf[GroupSortSpecifier], GroupSortSpecifier)
+  val selectorClassifierCodec: Seq[Codec[SelectorClassifier]] =
+    cd[SelectorClassifier](classOf[SelectorClassifier], SelectorClassifier)
   val operatorTypeCodec: Seq[Codec[OperatorType]] = cd[OperatorType](classOf[OperatorType], OperatorType)
-  val bracketTypeCodec: Seq[Codec[BracketType]] = cd[BracketType](classOf[BracketType], BracketType)
-  val stageTypeCodec: Seq[Codec[StageType]] = cd[StageType](classOf[StageType], StageType)
-  val stageStatusCodec: Seq[Codec[StageStatus]] = cd[StageStatus](classOf[StageStatus], StageStatus)
-  val categoryRestrictionTypeCodec: Seq[Codec[CategoryRestrictionType]] = cd[CategoryRestrictionType](classOf[CategoryRestrictionType], CategoryRestrictionType)
-  val fightReferenceTypeCodec: Seq[Codec[FightReferenceType]] = cd[FightReferenceType](classOf[FightReferenceType], FightReferenceType)
-  val scheduleEntryTypeCodec: Seq[Codec[ScheduleEntryType]] = cd[ScheduleEntryType](classOf[ScheduleEntryType], ScheduleEntryType)
-  val scheduleRequirementTypeCodec: Seq[Codec[ScheduleRequirementType]] = cd[ScheduleRequirementType](classOf[ScheduleRequirementType], ScheduleRequirementType)
-  val competitorRegistrationStatusCodec: Seq[Codec[CompetitorRegistrationStatus]] = cd[CompetitorRegistrationStatus](classOf[CompetitorRegistrationStatus], CompetitorRegistrationStatus)
+  val bracketTypeCodec: Seq[Codec[BracketType]]   = cd[BracketType](classOf[BracketType], BracketType)
+  val stageTypeCodec: Seq[Codec[StageType]]       = cd[StageType](classOf[StageType], StageType)
+  val stageStatusCodec: Seq[Codec[StageStatus]]   = cd[StageStatus](classOf[StageStatus], StageStatus)
+  val categoryRestrictionTypeCodec: Seq[Codec[CategoryRestrictionType]] =
+    cd[CategoryRestrictionType](classOf[CategoryRestrictionType], CategoryRestrictionType)
+  val fightReferenceTypeCodec: Seq[Codec[FightReferenceType]] =
+    cd[FightReferenceType](classOf[FightReferenceType], FightReferenceType)
+  val scheduleEntryTypeCodec: Seq[Codec[ScheduleEntryType]] =
+    cd[ScheduleEntryType](classOf[ScheduleEntryType], ScheduleEntryType)
+  val scheduleRequirementTypeCodec: Seq[Codec[ScheduleRequirementType]] =
+    cd[ScheduleRequirementType](classOf[ScheduleRequirementType], ScheduleRequirementType)
+  val competitorRegistrationStatusCodec: Seq[Codec[CompetitorRegistrationStatus]] =
+    cd[CompetitorRegistrationStatus](classOf[CompetitorRegistrationStatus], CompetitorRegistrationStatus)
   val fightStatusCodec: Seq[Codec[FightStatus]] = cd[FightStatus](classOf[FightStatus], FightStatus)
 
   private val caseClassRegistry = fromRegistries(
-      fromCodecs(competitionStatusCodec: _*),
-      fromCodecs(distributionTypeCodec: _*),
-      fromCodecs(stageRoundTypeCodec: _*),
-      fromCodecs(groupSortDirectionCodec: _*),
-      fromCodecs(logicalOperatorCodec: _*),
-      fromCodecs(groupSortSpecifierCodec: _*),
-      fromCodecs(selectorClassifierCodec: _*),
-      fromCodecs(operatorTypeCodec: _*),
-      fromCodecs(bracketTypeCodec: _*),
-      fromCodecs(stageTypeCodec: _*),
-      fromCodecs(stageStatusCodec: _*),
-      fromCodecs(categoryRestrictionTypeCodec: _*),
-      fromCodecs(fightReferenceTypeCodec: _*),
-      fromCodecs(scheduleEntryTypeCodec: _*),
-      fromCodecs(scheduleRequirementTypeCodec: _*),
-      fromCodecs(competitorRegistrationStatusCodec: _*),
-      fromCodecs(fightStatusCodec: _*),
+    fromCodecs(competitionStatusCodec: _*),
+    fromCodecs(distributionTypeCodec: _*),
+    fromCodecs(stageRoundTypeCodec: _*),
+    fromCodecs(groupSortDirectionCodec: _*),
+    fromCodecs(logicalOperatorCodec: _*),
+    fromCodecs(groupSortSpecifierCodec: _*),
+    fromCodecs(selectorClassifierCodec: _*),
+    fromCodecs(operatorTypeCodec: _*),
+    fromCodecs(bracketTypeCodec: _*),
+    fromCodecs(stageTypeCodec: _*),
+    fromCodecs(stageStatusCodec: _*),
+    fromCodecs(categoryRestrictionTypeCodec: _*),
+    fromCodecs(fightReferenceTypeCodec: _*),
+    fromCodecs(scheduleEntryTypeCodec: _*),
+    fromCodecs(scheduleRequirementTypeCodec: _*),
+    fromCodecs(competitorRegistrationStatusCodec: _*),
+    fromCodecs(fightStatusCodec: _*),
+    fromProviders(classOf[EventOffset]),
     fromProviders(classOf[FullAcademyInfo]),
     fromProviders(classOf[CompetitionState]),
     fromProviders(classOf[Period]),
@@ -124,6 +136,7 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
   val managedCompetitionCollection: Task[MongoCollection[ManagedCompetition]] =
     createCollection(managedCompetitionCollectionName, idField)
   val academyCollection: Task[MongoCollection[FullAcademyInfo]] = createCollection(academyCollectionName, idField)
+  val eventOffsetCollection: Task[MongoCollection[EventOffset]] = createCollection(eventOffsetCollectionName, "topic")
 
   protected def setOption[T](name: String, opt: Option[T]): Bson = opt.map(v => set(name, v)).getOrElse(unset(name))
   protected def deleteById[T](collectionTask: Task[MongoCollection[T]])(id: String): LIO[Unit] = {
@@ -158,18 +171,22 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
   }
 
   protected def selectWithPagination[T](
-                                       select: FindObservable[T],
-                                       pagination: Option[Pagination],
-                                       total: Future[Long]
-                                     ): ZIO[Any, Throwable, (List[T], Pagination)] = {
+    select: FindObservable[T],
+    pagination: Option[Pagination],
+    total: Future[Long]
+  ): ZIO[Any, Throwable, (List[T], Pagination)] = {
     for {
-      res <- RIO.fromFuture(_ => select.toFuture())
+      res <- runQuery(select)
       tr  <- RIO.fromFuture(_ => total)
-    } yield (res.toList, pagination.map(_.copy(totalResults = tr.toInt)).getOrElse(Pagination(0, res.size, tr.toInt)))
+    } yield (res, pagination.map(_.copy(totalResults = tr.toInt)).getOrElse(Pagination(0, res.size, tr.toInt)))
   }
 
   protected def selectOne[T](select: Observable[T]): ZIO[Any, Throwable, Option[T]] = {
-    for { res <- RIO.fromFuture(_ => select.headOption()) } yield res
+    for { res <- runQuery(select) } yield res.headOption
+  }
+
+  protected def runQuery[T](select: Observable[T]): ZIO[Any, Throwable, List[T]] = {
+    for { res <- RIO.fromFuture(_ => select.toFuture()) } yield res.toList
   }
 
 

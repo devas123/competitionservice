@@ -1,10 +1,18 @@
 package compman.compsrv.logic.actors.behavior
 
 import cats.implicits.catsSyntaxApplicativeError
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, MessageReceived, PublishMessage}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
+  KafkaConsumerApi,
+  KafkaSupervisorCommand,
+  MessageReceived,
+  PublishMessage
+}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors._
-import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{CompetitionDeletedMessage, CompetitionUpdated}
+import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{
+  CompetitionDeletedMessage,
+  CompetitionUpdated
+}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model
@@ -12,11 +20,16 @@ import compman.compsrv.model.{Errors, Mapping}
 import compman.compsrv.model.Mapping.EventMapping
 import compman.compsrv.model.command.Commands
 import compman.compsrv.model.event.Events
-import compman.compsrv.model.event.Events.{CompetitionCreatedEvent, CompetitionDeletedEvent, CompetitionPropertiesUpdatedEvent}
+import compman.compsrv.model.event.Events.{
+  CompetitionCreatedEvent,
+  CompetitionDeletedEvent,
+  CompetitionPropertiesUpdatedEvent
+}
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.repository._
+import compman.compsrv.query.service.repository.EventOffsetOperations.EventOffsetService
 import compservice.model.protobuf.event.Event
 import compservice.model.protobuf.eventpayload.CompetitionPropertiesUpdatedPayload
 import org.mongodb.scala.MongoClient
@@ -29,9 +42,9 @@ import zio.logging.Logging
 object CompetitionEventListener {
   sealed trait ApiCommand
   case class KafkaMessageReceived(kafkaMessage: KafkaConsumerApi) extends ApiCommand
-  case class CommitOffset(offset: Offset)                  extends ApiCommand
-  case class SetQueue(queue: Queue[Offset])                extends ApiCommand
-  case object Stop                                         extends ApiCommand
+  case class CommitOffset(offset: Offset)                         extends ApiCommand
+  case class SetQueue(queue: Queue[Offset])                       extends ApiCommand
+  case object Stop                                                extends ApiCommand
 
   trait ActorContext {
     implicit val eventMapping: Mapping.EventMapping[LIO]
@@ -40,6 +53,7 @@ object CompetitionEventListener {
     implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO]
     implicit val fightQueryOperations: FightQueryOperations[LIO]
     implicit val fightUpdateOperations: FightUpdateOperations[LIO]
+    implicit val eventOffsetService: EventOffsetService[LIO]
   }
 
   case class Live(mongoClient: MongoClient, mongodbConfig: MongodbConfig) extends ActorContext {
@@ -53,6 +67,8 @@ object CompetitionEventListener {
     implicit val fightQueryOperations: FightQueryOperations[LIO] = FightQueryOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
     implicit val fightUpdateOperations: FightUpdateOperations[LIO] = FightUpdateOperations
+      .live(mongoClient, mongodbConfig.queryDatabaseName)
+    implicit val eventOffsetService: EventOffsetService[LIO] = EventOffsetOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
   }
 
@@ -75,6 +91,7 @@ object CompetitionEventListener {
       .test(competitionProperties, categories, competitors, periods, registrationPeriods, registrationGroups, stages)
     implicit val fightUpdateOperations: FightUpdateOperations[LIO] = FightUpdateOperations.test(fights)
     implicit val fightQueryOperations: FightQueryOperations[LIO]   = FightQueryOperations.test(fights, stages)
+    implicit val eventOffsetService: EventOffsetService[LIO]       = EventOffsetOperations.test
   }
 
   private[behavior] case class ActorState(queue: Option[Queue[Offset]] = None)
@@ -141,7 +158,7 @@ object CompetitionEventListener {
         {
           command match {
             case KafkaMessageReceived(kafkaMessage) => kafkaMessage match {
-                case KafkaSupervisor.QueryStarted()  => Logging.info("Kafka query started.").as(state)
+                case KafkaSupervisor.QueryStarted()   => Logging.info("Kafka query started.").as(state)
                 case KafkaSupervisor.QueryFinished(_) => Logging.info("Kafka query finished.").as(state)
                 case KafkaSupervisor.QueryError(error) => Logging.error("Error during kafka query: ", Cause.fail(error))
                     .as(state)
@@ -151,6 +168,7 @@ object CompetitionEventListener {
                       mapped <- EventMapping.mapEventDto[LIO](event)
                       _      <- Logging.info(s"Received event: $mapped")
                       res    <- EventProcessors.applyEvent[LIO](mapped).attempt
+                      _      <- EventOffsetOperations.setOffset[LIO](EventOffset(topic, event.version.toLong))
                       _      <- notifyEventListenerSupervisor(topic, event, mapped)
                       _ <- res match {
                         case Left(value) => sendErrorCallback(event, value)
