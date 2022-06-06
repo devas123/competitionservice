@@ -47,7 +47,7 @@ object RegistrationPeriodAddRegistrationGroupProc {
             competitionId = command.competitionId,
             categoryId = command.categoryId,
             payload = Some(MessageInfo.Payload.RegistrationInfoUpdatedPayload(
-              RegistrationInfoUpdatedPayload().withRegistrationInfo(regInfo.get)
+              RegistrationInfoUpdatedPayload().update(_.registrationInfo.setIfDefined(regInfo))
             ))
           ))
         }

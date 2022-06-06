@@ -1,12 +1,7 @@
 package compman.compsrv.logic.actors
 
 import cats.implicits._
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
-  KafkaConsumerApi,
-  KafkaSupervisorCommand,
-  PublishMessage,
-  Subscribe
-}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, PublishMessage, Subscribe}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.Operations
 import compman.compsrv.logic.logging.CompetitionLogging.{Annotations, LIO, Live}
@@ -58,13 +53,14 @@ object StatelessCommandProcessor {
     }.withInit { (_, context, _, _) =>
       for {
         receiver <- context.messageAdapter[KafkaConsumerApi] {
-          case KafkaSupervisor.QueryStarted()  => None
+          case KafkaSupervisor.QueryStarted()   => None
           case KafkaSupervisor.QueryFinished(_) => None
-          case KafkaSupervisor.QueryError(_)   => None
+          case KafkaSupervisor.QueryError(_)    => None
           case KafkaSupervisor.MessageReceived(_, committableRecord) =>
             Try { Command.parseFrom(committableRecord.value) }.toOption.map(AcademyCommandReceived)
         }
-        _ <- kafkaSupervisor ! Subscribe(statelessCommandsTopic, groupId = groupId, replyTo = receiver)
+        _ <- kafkaSupervisor !
+          Subscribe(statelessCommandsTopic, groupId = groupId, replyTo = receiver, commitOffsetsToKafka = true)
       } yield (Seq.empty, Seq.empty, ())
     }
 

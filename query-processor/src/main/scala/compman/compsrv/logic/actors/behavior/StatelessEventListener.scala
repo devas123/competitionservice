@@ -90,7 +90,7 @@ object StatelessEventListener {
       for {
         adapter <- context.messageAdapter[KafkaConsumerApi](fa => Some(EventReceived(fa)))
         groupId = s"query-service-stateless-listener"
-        _ <- kafkaSupervisorActor ! KafkaSupervisor.Subscribe(config.academyNotificationsTopic, groupId, adapter)
+        _ <- kafkaSupervisorActor ! KafkaSupervisor.Subscribe(config.academyNotificationsTopic, groupId, adapter, commitOffsetsToKafka = true)
       } yield (Seq(), Seq.empty[ApiCommand], initState)
     }
   }

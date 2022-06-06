@@ -1,9 +1,9 @@
 package compman.compsrv.logic.event
 
 import cats.Monad
-import compservice.model.protobuf.model.CommandProcessorCompetitionState
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
 import compman.compsrv.model.event.Events.{Event, RegistrationGroupDeletedEvent}
+import compservice.model.protobuf.model.CommandProcessorCompetitionState
 
 object RegistrationGroupDeletedProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations](
@@ -21,11 +21,11 @@ object RegistrationGroupDeletedProc {
       regInfo    <- state.registrationInfo
       regPeriods <- Option(regInfo.registrationPeriods)
       regGroups  <- Option(regInfo.registrationGroups)
-      newPeriods = regPeriods.map { case (id, p) =>
-        val regGrIds = Option(p.registrationGroupIds).getOrElse(Seq.empty)
-        (id, p.withRegistrationGroupIds(regGrIds.filter(_ != payload.groupId)))
-      }
-      newGroups = regGroups - payload.groupId
+      period        = regPeriods(payload.periodId)
+      updatedPeriod = period.update(_.registrationGroupIds := period.registrationGroupIds.filter(_ != payload.groupId))
+      newPeriods    = regPeriods + (updatedPeriod.id -> updatedPeriod)
+      shouldDeleteGroup = regPeriods.forall { case (_, p) => !p.registrationGroupIds.contains(payload.groupId) }
+      newGroups         = if (shouldDeleteGroup) regGroups - payload.groupId else regGroups
       newState = state
         .copy(registrationInfo = Some(regInfo.withRegistrationGroups(newGroups).withRegistrationPeriods(newPeriods)))
     } yield newState

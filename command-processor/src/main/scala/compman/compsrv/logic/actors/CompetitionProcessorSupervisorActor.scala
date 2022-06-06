@@ -25,12 +25,11 @@ object CompetitionProcessorSupervisorActor {
     kafkaSupervisor: ActorRef[KafkaSupervisorCommand],
     snapshotSaver: ActorRef[SnapshotSaver.SnapshotSaverMessage]
   ): ActorBehavior[CompetitionProcessorSupervisorEnv[Env], Unit, Message] = Behaviors
-    .behavior[CompetitionProcessorSupervisorEnv[Env], Unit, Message]
-    .withReceive { (context, _, _, command, _) =>
+    .behavior[CompetitionProcessorSupervisorEnv[Env], Unit, Message].withReceive { (context, _, _, command, _) =>
       {
         command match {
           case CommandReceived(competitionId, fa) =>
-            val actorName         = s"CompetitionProcessor-$competitionId"
+            val actorName = s"CompetitionProcessor-$competitionId"
             (for {
               _ <- Logging.info(s"Received command: $fa")
               actor <- for {
@@ -38,21 +37,15 @@ object CompetitionProcessorSupervisorActor {
                   optActor.map(existingActor =>
                     Logging.info(s"Found existing actor for competition $competitionId") *> ZIO.effect(existingActor)
                   ).getOrElse(for {
-                    _                          <- Logging.info(s"Creating new actor for competition: $competitionId")
-                    initialState <- commandProcessorOperations.getStateSnapshot(competitionId) >>= {
-                      case None => Logging.info(
-                          s"State snapshot not found, creating initial state with payload ${fa.messageInfo.map(_.payload)}"
-                        ) *> ZIO.effect(
-                          commandProcessorOperations.createInitialState(competitionId, fa.messageInfo.map(_.payload))
-                        )
-                      case Some(value) => ZIO.effect(value)
-                    }
-                    _ <- Logging.info(s"Resolved initial state of the competition. It has revision: ${initialState.revision}")
+                    _            <- Logging.info(s"Creating new actor for competition: $competitionId")
+                    initialState <- getOrCreateStateSnapshot(commandProcessorOperations, competitionId, fa)
+                    _ <- Logging
+                      .info(s"Resolved initial state of the competition. It has revision: ${initialState.revision}")
                     a <- context.make(
                       actorName,
                       ActorConfig(),
                       CompetitionProcessorActor.initialState(initialState),
-                      CompetitionProcessorActor.behavior[Env](
+                      CompetitionProcessorActor.behavior[Env](CompetitionProcessorActor.CompetitionProcessorActorProps(
                         competitionId,
                         CompetitionEventsTopic(commandProcessorConfig.eventsTopicPrefix)(competitionId),
                         commandProcessorConfig.commandCallbackTopic,
@@ -60,7 +53,7 @@ object CompetitionProcessorSupervisorActor {
                         snapshotSaver,
                         commandProcessorConfig.competitionNotificationsTopic,
                         commandProcessorConfig.actorIdleTimeoutMillis.getOrElse(30 * 60000)
-                      )
+                      ))
                     )
                   } yield a)
                 )
@@ -75,6 +68,19 @@ object CompetitionProcessorSupervisorActor {
         }
       }
     }
+
+  private def getOrCreateStateSnapshot[Env: Tag](
+    commandProcessorOperations: CommandProcessorOperations[Env],
+    competitionId: String,
+    fa: Command
+  ) = {
+    commandProcessorOperations.getStateSnapshot(competitionId) >>= {
+      case None => Logging
+          .info(s"State snapshot not found, creating initial state with payload ${fa.messageInfo.map(_.payload)}") *>
+          ZIO.effect(commandProcessorOperations.createInitialState(competitionId, fa.messageInfo.map(_.payload)))
+      case Some(value) => ZIO.effect(value)
+    }
+  }
 
   sealed trait Message
 

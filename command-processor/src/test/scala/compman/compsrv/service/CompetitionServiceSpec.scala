@@ -60,15 +60,16 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
             s"CompetitionProcessor-$competitionId",
             ActorConfig(),
             CompetitionProcessorActor.initialState(initialState),
-            CompetitionProcessorActor.behavior[Clock with Blocking with Logging](
-              competitionId,
-              "test-events",
-              "test-commands-callback",
-              kafkaSupervisor.ref,
-              snapshotSaver.ref,
-              "test-notifications",
-              actorIdleTimeoutMillis = 10000L
-            )
+            CompetitionProcessorActor
+              .behavior[Clock with Blocking with Logging](CompetitionProcessorActor.CompetitionProcessorActorProps(
+                competitionId,
+                "test-events",
+                "test-commands-callback",
+                kafkaSupervisor.ref,
+                snapshotSaver.ref,
+                "test-notifications",
+                actorIdleTimeoutMillis = 10000L
+              ))
           )
           _   <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[CreateTopicIfMissing])
           msg <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[QuerySync])
