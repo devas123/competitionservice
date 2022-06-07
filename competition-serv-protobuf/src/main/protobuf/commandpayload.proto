@@ -14,18 +14,6 @@ message AddCategoryPayload {
 message AddCompetitorPayload {
   Competitor competitor = 1;
 }
-message AddRegistrationGroupPayload {
-  string periodId = 1;
-  repeated RegistrationGroup groups = 2;
-}
-message AddRegistrationPeriodPayload {
-  RegistrationPeriod period = 1;
-}
-message AssignRegistrationGroupCategoriesPayload {
-  string periodId = 1;
-  string groupId = 2;
-  repeated string categories = 3;
-}
 message CategoryRegistrationStatusChangePayload {
   bool newStatus = 1;
 }
@@ -56,13 +44,6 @@ message CreateCompetitionPayload {
 message CreateFakeCompetitorsPayload {
   int32 numberOfCompetitors = 1;
   int32 numberOfAcademies = 2;
-}
-message DeleteRegistrationGroupPayload {
-  string periodId = 1;
-  string groupId = 2;
-}
-message DeleteRegistrationPeriodPayload {
-  string periodId = 1;
 }
 message FightEditorApplyChangesPayload {
   string stageId = 1;
@@ -99,10 +80,6 @@ message PropagateCompetitorsPayload {
   string propagateToStageId = 2;
   string previousStageId = 3;
   repeated CompetitorSelector selectorOverrides = 4;
-}
-message RegistrationPeriodAddRegistrationGroupPayload {
-  string groupId = 1;
-  string periodId = 2;
 }
 message RemoveAcademyPayload {
   string academyId = 1;

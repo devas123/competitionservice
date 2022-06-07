@@ -89,37 +89,6 @@ object Mapping {
               competitionId = dto.messageInfo.flatMap(_.competitionId),
               categoryId = dto.messageInfo.flatMap(_.categoryId)
             )
-          case ADD_REGISTRATION_PERIOD_COMMAND => Commands.AddRegistrationPeriodCommand(
-              payload = dto.messageInfo.map(_.getAddRegistrationPeriodPayload),
-              competitionId = dto.messageInfo.flatMap(_.competitionId),
-              categoryId = dto.messageInfo.flatMap(_.categoryId)
-            )
-          case ADD_REGISTRATION_GROUP_COMMAND => Commands.AddRegistrationGroupCommand(
-              payload = dto.messageInfo.map(_.getAddRegistrationGroupPayload),
-              competitionId = dto.messageInfo.flatMap(_.competitionId),
-              categoryId = dto.messageInfo.flatMap(_.categoryId)
-            )
-          case ADD_REGISTRATION_GROUP_TO_REGISTRATION_PERIOD_COMMAND => Commands
-              .RegistrationPeriodAddRegistrationGroupCommand(
-                payload = dto.messageInfo.map(_.getRegistrationPeriodAddRegistrationGroupPayload),
-                competitionId = dto.messageInfo.flatMap(_.competitionId),
-                categoryId = dto.messageInfo.flatMap(_.categoryId)
-              )
-          case DELETE_REGISTRATION_GROUP_COMMAND => Commands.DeleteRegistrationGroupCommand(
-              payload = dto.messageInfo.map(_.getDeleteRegistrationGroupPayload),
-              competitionId = dto.messageInfo.flatMap(_.competitionId),
-              categoryId = dto.messageInfo.flatMap(_.categoryId)
-            )
-          case DELETE_REGISTRATION_PERIOD_COMMAND => Commands.DeleteRegistrationPeriodCommand(
-              payload = dto.messageInfo.map(_.getDeleteRegistrationPeriodPayload),
-              competitionId = dto.messageInfo.flatMap(_.competitionId),
-              categoryId = dto.messageInfo.flatMap(_.categoryId)
-            )
-          case ASSIGN_REGISTRATION_GROUP_CATEGORIES_COMMAND => Commands.AssignRegistrationGroupCategoriesCommand(
-              payload = dto.messageInfo.map(_.getAssignRegistrationGroupCategoriesPayload),
-              competitionId = dto.messageInfo.flatMap(_.competitionId),
-              categoryId = dto.messageInfo.flatMap(_.categoryId)
-            )
           case UPDATE_REGISTRATION_INFO_COMMAND => Commands.UpdateRegistrationInfoCommand(
               payload = dto.messageInfo.map(_.getUpdateRegistrationInfoPayload),
               competitionId = dto.messageInfo.flatMap(_.competitionId),
@@ -328,47 +297,12 @@ object Mapping {
 
           case SCHEDULE_DROPPED => ScheduleDropped(dto.messageInfo.flatMap(_.competitionId), dto.localEventNumber)
 
-          case REGISTRATION_PERIOD_ADDED => RegistrationPeriodAddedEvent(
-              dto.messageInfo.map(_.getRegistrationPeriodAddedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
-
           case REGISTRATION_INFO_UPDATED => RegistrationInfoUpdatedEvent(
-              dto.messageInfo.map(_.getRegistrationInfoUpdatedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
-
-          case REGISTRATION_PERIOD_DELETED => RegistrationPeriodDeletedEvent(
-              dto.messageInfo.map(_.getRegistrationPeriodDeletedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
-
-          case REGISTRATION_GROUP_ADDED => RegistrationGroupAddedEvent(
-              dto.messageInfo.map(_.getRegistrationGroupAddedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
-
-          case REGISTRATION_GROUP_DELETED => RegistrationGroupDeletedEvent(
-              dto.messageInfo.map(_.getRegistrationGroupDeletedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
-
-          case REGISTRATION_GROUP_CATEGORIES_ASSIGNED => RegistrationGroupCategoriesAssignedEvent(
-              dto.messageInfo.map(_.getRegistrationGroupCategoriesAssignedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+            dto.messageInfo.map(_.getRegistrationInfoUpdatedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
           case DASHBOARD_FIGHT_RESULT_SET => FightResultSet(
               dto.messageInfo.map(_.getSetFightResultPayload),

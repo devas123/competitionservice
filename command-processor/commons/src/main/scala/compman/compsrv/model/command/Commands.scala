@@ -31,30 +31,7 @@ object Commands {
     override val fightId: Option[String]      = None
     override val categoryId: Option[String]      = None
   }
-  final case class AddRegistrationGroupCommand(
-      payload: Option[AddRegistrationGroupPayload],
-      competitionId: Option[String],
-      categoryId: Option[String]
-  ) extends InternalCommandProcessorCommand[AddRegistrationGroupPayload] {
-    override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
-  }
-  final case class AddRegistrationPeriodCommand(
-      payload: Option[AddRegistrationPeriodPayload],
-      competitionId: Option[String],
-      categoryId: Option[String]
-  ) extends InternalCommandProcessorCommand[AddRegistrationPeriodPayload] {
-    override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
-  }
-  final case class AssignRegistrationGroupCategoriesCommand(
-      payload: Option[AssignRegistrationGroupCategoriesPayload],
-      competitionId: Option[String],
-      categoryId: Option[String]
-  ) extends InternalCommandProcessorCommand[AssignRegistrationGroupCategoriesPayload] {
-    override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
-  }
+
   final case class CategoryRegistrationStatusChangeCommand(
       payload: Option[CategoryRegistrationStatusChangePayload],
       competitionId: Option[String],
@@ -95,14 +72,6 @@ object Commands {
     override val competitorId: Option[String] = None
     override val fightId: Option[String]      = None
   }
-  final case class DeleteRegistrationGroupCommand(
-      payload: Option[DeleteRegistrationGroupPayload],
-      competitionId: Option[String],
-      categoryId: Option[String]
-  ) extends InternalCommandProcessorCommand[DeleteRegistrationGroupPayload] {
-    override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
-  }
   final case class AddAcademyCommand(
       payload: Option[AddAcademyPayload],
   ) extends InternalCommandProcessorCommand[AddAcademyPayload] {
@@ -126,14 +95,6 @@ object Commands {
     override val competitionId: Option[String] = None
     override val categoryId: Option[String] = None
     override val competitorId: Option[String] = None
-  }
-  final case class DeleteRegistrationPeriodCommand(
-      payload: Option[DeleteRegistrationPeriodPayload],
-      competitionId: Option[String],
-      categoryId: Option[String]
-  ) extends InternalCommandProcessorCommand[DeleteRegistrationPeriodPayload] {
-    override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
   }
   final case class FightEditorApplyChangesCommand(
       payload: Option[FightEditorApplyChangesPayload],
@@ -198,14 +159,6 @@ object Commands {
       competitionId: Option[String],
       categoryId: Option[String]
   ) extends InternalCommandProcessorCommand[PropagateCompetitorsPayload] {
-    override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
-  }
-  final case class RegistrationPeriodAddRegistrationGroupCommand(
-      payload: Option[RegistrationPeriodAddRegistrationGroupPayload],
-      competitionId: Option[String],
-      categoryId: Option[String]
-  ) extends InternalCommandProcessorCommand[RegistrationPeriodAddRegistrationGroupPayload] {
     override val competitorId: Option[String] = None
     override val fightId: Option[String]      = None
   }

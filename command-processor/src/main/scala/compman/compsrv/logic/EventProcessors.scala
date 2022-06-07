@@ -37,12 +37,7 @@ object EventProcessors {
       FightsAddedToStageProc(state),
       FightStartTimeUpdatedProc(state),
       MatsUpdatedProc(state),
-      RegistrationGroupAddedProc(state),
-      RegistrationGroupCategoriesAssignedProc(state),
-      RegistrationGroupDeletedProc(state),
       RegistrationInfoUpdatedProc(state),
-      RegistrationPeriodAddedProc(state),
-      RegistrationPeriodDeletedProc(state),
       ScheduleGeneratedProc(state),
       StageResultSetProc(state),
       StageStatusUpdatedProc(state)

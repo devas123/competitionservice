@@ -217,25 +217,7 @@ object Events {
     override val fightId: Option[String]      = None
   }
 
-  final case class RegistrationGroupAddedEvent(
-    payload: Option[RegistrationGroupAddedPayload],
-    competitionId: Option[String],
-    categoryId: Option[String],
-    sequenceNumber: Int
-  ) extends Event[RegistrationGroupAddedPayload] {
-    override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
-  }
 
-  final case class RegistrationGroupCategoriesAssignedEvent(
-    payload: Option[RegistrationGroupCategoriesAssignedPayload],
-    competitionId: Option[String],
-    categoryId: Option[String],
-    sequenceNumber: Int
-  ) extends Event[RegistrationGroupCategoriesAssignedPayload] {
-    override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
-  }
   final case class FightResultSet(
     payload: Option[SetFightResultPayload],
     competitionId: Option[String],
@@ -246,15 +228,6 @@ object Events {
     override val competitorId: Option[String] = None
   }
 
-  final case class RegistrationGroupDeletedEvent(
-    payload: Option[RegistrationGroupDeletedPayload],
-    competitionId: Option[String],
-    categoryId: Option[String],
-    sequenceNumber: Int
-  ) extends Event[RegistrationGroupDeletedPayload] {
-    override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
-  }
 
   final case class RegistrationInfoUpdatedEvent(
     payload: Option[RegistrationInfoUpdatedPayload],
@@ -266,25 +239,6 @@ object Events {
     override val fightId: Option[String]      = None
   }
 
-  final case class RegistrationPeriodAddedEvent(
-    payload: Option[RegistrationPeriodAddedPayload],
-    competitionId: Option[String],
-    categoryId: Option[String],
-    sequenceNumber: Int
-  ) extends Event[RegistrationPeriodAddedPayload] {
-    override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
-  }
-
-  final case class RegistrationPeriodDeletedEvent(
-    payload: Option[RegistrationPeriodDeletedPayload],
-    competitionId: Option[String],
-    categoryId: Option[String],
-    sequenceNumber: Int
-  ) extends Event[RegistrationPeriodDeletedPayload] {
-    override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
-  }
 
   final case class ScheduleGeneratedEvent(
     payload: Option[ScheduleGeneratedPayload],

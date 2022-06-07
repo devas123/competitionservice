@@ -68,27 +68,8 @@ message     FightStartTimeUpdatedPayload {
 message     MatsUpdatedPayload {
   repeated MatDescription mats = 1;
 }
-message     RegistrationGroupAddedPayload {
-  string periodId = 1;
-  repeated RegistrationGroup groups = 2;
-}
-message     RegistrationGroupCategoriesAssignedPayload {
-  string periodId = 1;
-  string groupId = 2;
-  repeated string categories = 3;
-}
-message     RegistrationGroupDeletedPayload {
-  string periodId = 1;
-  string groupId = 2;
-}
 message     RegistrationInfoUpdatedPayload {
   RegistrationInfo registrationInfo = 1;
-}
-message     RegistrationPeriodAddedPayload {
-  RegistrationPeriod period = 1;
-}
-message     RegistrationPeriodDeletedPayload {
-  string periodId = 1;
 }
 message     ScheduleGeneratedPayload {
   Schedule schedule = 1;
