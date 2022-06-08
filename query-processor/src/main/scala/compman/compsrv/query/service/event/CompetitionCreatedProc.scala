@@ -18,23 +18,13 @@ object CompetitionCreatedProc {
     for {
       payload          <- OptionT.fromOption[F](event.payload)
       competitionId    <- OptionT.fromOption[F](event.competitionId)
-      registrationInfo <- OptionT.fromOption[F](Option(payload.getReginfo))
+      registrationInfoRaw <- OptionT.fromOption[F](Option(payload.getReginfo))
       _                <- OptionT.liftF(CompetitionLogging.Service[F].info(s"Payload is: $payload"))
-      rawPeriods <- OptionT.fromOption[F](Option(registrationInfo.registrationPeriods).orElse(Some(
-        Map.empty
-      )))
-      rawGroups <- OptionT.fromOption[F](Option(registrationInfo.registrationGroups).orElse(Some(
-        Map.empty
-      )))
-      regGroups  = rawGroups.values.toList.map(DtoMapping.mapRegistrationGroup(competitionId))
-      regPeriods = rawPeriods.values.toList.map(DtoMapping.mapRegistrationPeriod(competitionId))
-
-      compPropertiesDTO <- OptionT.fromOption[F](Option(payload.getProperties))
-      competitionProperties <- OptionT
-        .liftF(DtoMapping.mapCompetitionProperties[F](registrationOpen = false)(compPropertiesDTO))
+      regInfo = DtoMapping.mapRegistrationInfo(competitionId)(registrationInfoRaw)
+      compPropertiesDTO     <- OptionT.fromOption[F](Option(payload.getProperties))
+      competitionProperties <- OptionT.liftF(DtoMapping.mapCompetitionProperties[F](compPropertiesDTO))
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].addCompetitionProperties(competitionProperties))
-      _ <- OptionT.liftF(regGroups.traverse(CompetitionUpdateOperations[F].addRegistrationGroup))
-      _ <- OptionT.liftF(regPeriods.traverse(CompetitionUpdateOperations[F].addRegistrationPeriod))
+      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateRegistrationInfo(competitionId)(regInfo))
       _ <- OptionT.liftF(CompetitionLogging.Service[F].info(s"Done processing event!"))
     } yield ()
   }.value.map(_ => ())

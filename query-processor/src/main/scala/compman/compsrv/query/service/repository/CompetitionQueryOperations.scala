@@ -38,13 +38,7 @@ trait CompetitionQueryOperations[F[+_]] {
     searchString: Option[String] = None
   ): F[(List[Competitor], Pagination)]
 
-  def getRegistrationGroups(competitionId: String): F[List[RegistrationGroup]]
-
-  def getRegistrationGroupById(competitionId: String)(id: String): F[Option[RegistrationGroup]]
-
-  def getRegistrationPeriods(competitionId: String): F[List[RegistrationPeriod]]
-
-  def getRegistrationPeriodById(competitionId: String)(id: String): F[Option[RegistrationPeriod]]
+  def getRegistrationInfo(competitionId: String): F[Option[RegistrationInfo]]
 
   def getScheduleEntriesByPeriodId(competitionId: String)(periodId: String): F[List[ScheduleEntry]]
 
@@ -63,11 +57,10 @@ object CompetitionQueryOperations {
 
   def test(
     competitionProperties: Option[Ref[Map[String, CompetitionProperties]]] = None,
+    registrationInfo: Option[Ref[Map[String, RegistrationInfo]]] = None,
     categories: Option[Ref[Map[String, Category]]] = None,
     competitors: Option[Ref[Map[String, Competitor]]] = None,
     periods: Option[Ref[Map[String, Period]]] = None,
-    registrationPeriods: Option[Ref[Map[String, RegistrationPeriod]]] = None,
-    registrationGroups: Option[Ref[Map[String, RegistrationGroup]]] = None,
     stages: Option[Ref[Map[String, StageDescriptor]]] = None
   ): CompetitionQueryOperations[LIO] = new CompetitionQueryOperations[LIO] with CommonTestOperations {
 
@@ -124,22 +117,8 @@ object CompetitionQueryOperations {
       case None => Task((List.empty, Pagination(0, 0, 0)))
     }
 
-    override def getRegistrationGroups(competitionId: String): LIO[List[RegistrationGroup]] = registrationGroups match {
-      case Some(value) => value.get.map(_.values.toList.filter(_.competitionId.eq(competitionId)))
-      case None        => Task(List.empty)
-    }
-
-    override def getRegistrationGroupById(competitionId: String)(id: String): LIO[Option[RegistrationGroup]] =
-      getById(registrationGroups)(id)
-
-    override def getRegistrationPeriods(competitionId: String): LIO[List[RegistrationPeriod]] =
-      registrationPeriods match {
-        case Some(value) => value.get.map(_.values.toList.filter(_.competitionId.eq(competitionId)))
-        case None        => Task(List.empty)
-      }
-
-    override def getRegistrationPeriodById(competitionId: String)(id: String): LIO[Option[RegistrationPeriod]] =
-      getById(registrationPeriods)(id)
+    override def getRegistrationInfo(competitionId: String): LIO[Option[RegistrationInfo]] =
+      getById(registrationInfo)(competitionId)
 
     override def getScheduleEntriesByPeriodId(competitionId: String)(periodId: String): LIO[List[ScheduleEntry]] =
       getPeriodById(competitionId)(periodId).map(_.map(_.scheduleEntries).getOrElse(List.empty))
@@ -168,7 +147,8 @@ object CompetitionQueryOperations {
     } yield result).getOrElse(ZIO.effectTotal(0))
   }
 
-  def live(mongo: MongoClient, name: String): CompetitionQueryOperations[LIO] = new CompetitionQueryOperations[LIO] with CommonLiveOperations {
+  def live(mongo: MongoClient, name: String): CompetitionQueryOperations[LIO] = new CompetitionQueryOperations[LIO]
+    with CommonLiveOperations {
 
     override def mongoClient: MongoClient = mongo
 
@@ -271,8 +251,8 @@ object CompetitionQueryOperations {
       val take = pagination.map(_.maxResults).getOrElse(0)
       for {
         collection <- competitorCollection
-        select = collection.find(and(equal(competitionIdField, competitionId), equal("academy.id", academyId))).skip(drop)
-          .limit(take)
+        select = collection.find(and(equal(competitionIdField, competitionId), equal("academy.id", academyId)))
+          .skip(drop).limit(take)
         total = collection.countDocuments(equal(competitionIdField, competitionId)).toFuture()
         res <- selectWithPagination(select, pagination, total)
       } yield res
@@ -286,24 +266,8 @@ object CompetitionQueryOperations {
       } yield res
     }
 
-    override def getRegistrationGroups(competitionId: String): LIO[List[RegistrationGroup]] = {
-      for {
-        res <- getStateById(competitionId)
-          .map(_.map(_.registrationInfo.registrationGroups.values.toList).getOrElse(List.empty))
-      } yield res
-    }
-
-    override def getRegistrationGroupById(competitionId: String)(id: String): LIO[Option[RegistrationGroup]] = {
-      getStateById(competitionId).map(_.flatMap(_.registrationInfo.registrationGroups.get(id)))
-    }
-
-    override def getRegistrationPeriods(competitionId: String): LIO[List[RegistrationPeriod]] = {
-      getStateById(competitionId)
-        .map(_.map(_.registrationInfo.registrationPeriods.values.toList).getOrElse(List.empty))
-    }
-
-    override def getRegistrationPeriodById(competitionId: String)(id: String): LIO[Option[RegistrationPeriod]] = {
-      getStateById(competitionId).map(_.flatMap(_.registrationInfo.registrationPeriods.get(id)))
+    override def getRegistrationInfo(competitionId: String): LIO[Option[RegistrationInfo]] = {
+      for { res <- getStateById(competitionId).map(_.map(_.registrationInfo)) } yield res
     }
 
     override def getScheduleEntriesByPeriodId(competitionId: String)(periodId: String): LIO[List[ScheduleEntry]] = {
@@ -361,7 +325,8 @@ object CompetitionQueryOperations {
     override def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): LIO[Int] = {
       for {
         collection <- competitorCollection
-        select = collection.countDocuments(and(equal(competitionIdField, competitionId), equal("categories", categoryId)))
+        select = collection
+          .countDocuments(and(equal(competitionIdField, competitionId), equal("categories", categoryId)))
         res <- RIO.fromFuture(_ => select.toFuture()).map(_.toInt)
       } yield res
     }
@@ -406,20 +371,6 @@ object CompetitionQueryOperations {
     searchString: Option[String] = None
   ): F[(List[Competitor], Pagination)] = CompetitionQueryOperations[F]
     .getCompetitorsByAcademyId(competitionId)(academyId, pagination, searchString)
-
-  def getRegistrationGroups[F[+_]: CompetitionQueryOperations](competitionId: String): F[List[RegistrationGroup]] =
-    CompetitionQueryOperations[F].getRegistrationGroups(competitionId)
-
-  def getRegistrationGroupById[F[+_]: CompetitionQueryOperations](competitionId: String)(
-    id: String
-  ): F[Option[RegistrationGroup]] = CompetitionQueryOperations[F].getRegistrationGroupById(competitionId)(id)
-
-  def getRegistrationPeriods[F[+_]: CompetitionQueryOperations](competitionId: String): F[List[RegistrationPeriod]] =
-    CompetitionQueryOperations[F].getRegistrationPeriods(competitionId)
-
-  def getRegistrationPeriodById[F[+_]: CompetitionQueryOperations](competitionId: String)(
-    id: String
-  ): F[Option[RegistrationPeriod]] = CompetitionQueryOperations[F].getRegistrationPeriodById(competitionId)(id)
 
   def getScheduleEntriesByPeriodId[F[+_]: CompetitionQueryOperations](competitionId: String)(
     periodId: String

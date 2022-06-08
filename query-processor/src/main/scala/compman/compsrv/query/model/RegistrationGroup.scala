@@ -1,10 +1,14 @@
 package compman.compsrv.query.model
 
-
-case class RegistrationInfo(registrationGroups: Map[String, RegistrationGroup], registrationPeriods: Map[String, RegistrationPeriod])
+case class RegistrationInfo(
+  id: String,
+  registrationGroups: Map[String, RegistrationGroup],
+  registrationPeriods: Map[String, RegistrationPeriod],
+  registrationOpen: Boolean
+)
 
 object RegistrationInfo {
-  def apply(): RegistrationInfo = apply(Map.empty, Map.empty)
+  def apply(id: String): RegistrationInfo = apply(id, Map.empty, Map.empty, registrationOpen = false)
 }
 
 case class RegistrationGroup(

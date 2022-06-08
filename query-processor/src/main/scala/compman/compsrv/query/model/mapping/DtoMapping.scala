@@ -14,6 +14,19 @@ import java.time.Instant
 import java.util.Date
 
 object DtoMapping {
+  def mapRegistrationInfo(competitionId: String)(dto: model.RegistrationInfo): RegistrationInfo = RegistrationInfo(
+    id = dto.id,
+    registrationGroups = dto.registrationGroups.view.mapValues(mapRegistrationGroup(competitionId)).toMap,
+    registrationPeriods = dto.registrationPeriods.view.mapValues(mapRegistrationPeriod(competitionId)).toMap,
+    registrationOpen = dto.registrationOpen
+  )
+  def toDtoRegistrationInfo(o: RegistrationInfo): model.RegistrationInfo = model.RegistrationInfo(
+    id = o.id,
+    registrationGroups = o.registrationGroups.view.mapValues(toDtoRegistrationGroup).toMap,
+    registrationPeriods = o.registrationPeriods.view.mapValues(toDtoRegistrationPeriod).toMap,
+    registrationOpen = o.registrationOpen
+  )
+
   def toDtoManagedCompetition(o: ManagedCompetition): model.ManagedCompetition = {
     model.ManagedCompetition().update(
       _.id := o.id,
@@ -54,12 +67,11 @@ object DtoMapping {
 
   def toDtoStageResultDescriptor(o: StageResultDescriptor): model.StageResultDescriptor = {
     model.StageResultDescriptor().withName(o.name.orNull).withForceManualAssignment(o.forceManualAssignment)
-      .withOutputSize(o.outputSize)
-      .withFightResultOptions(o.fightResultOptions.map(DtoMapping.toDtoFightResultOption))
+      .withOutputSize(o.outputSize).withFightResultOptions(o.fightResultOptions.map(DtoMapping.toDtoFightResultOption))
       .withCompetitorResults(o.competitorResults.map(DtoMapping.toDtoCompetitorResult))
-      .withAdditionalGroupSortingDescriptors(
-        o.additionalGroupSortingDescriptors.map(DtoMapping.toDtoAdditionalGroupSortingDescriptor)
-      )
+      .withAdditionalGroupSortingDescriptors(o.additionalGroupSortingDescriptors.map(
+        DtoMapping.toDtoAdditionalGroupSortingDescriptor
+      ))
   }
 
   def toDtoCompetitorSelector(o: CompetitorSelector): model.CompetitorSelector = {
@@ -88,9 +100,8 @@ object DtoMapping {
       .withInputDescriptor(stageDescriptor.inputDescriptor.map(toDtoStageInputDescriptor).orNull)
       .withStageOrder(stageDescriptor.stageOrder).withWaitForPrevious(stageDescriptor.waitForPrevious)
       .withHasThirdPlaceFight(stageDescriptor.hasThirdPlaceFight)
-      .withGroupDescriptors(stageDescriptor.groupDescriptors.map(_.map(toDtoGroupDescriptor)).getOrElse(
-        Seq.empty
-      )).withNumberOfFights(stageDescriptor.numberOfFights.orElse(Option(0)).get)
+      .withGroupDescriptors(stageDescriptor.groupDescriptors.map(_.map(toDtoGroupDescriptor)).getOrElse(Seq.empty))
+      .withNumberOfFights(stageDescriptor.numberOfFights.orElse(Option(0)).get)
       .withFightDuration(stageDescriptor.fightDuration.orElse(Option(0)).get)
   }
 
@@ -264,12 +275,10 @@ object DtoMapping {
       .withPlaceholderId(cs.placeholderId.orNull).withParentFightId(cs.parentFightId.orNull)
       .withParentReferenceType(cs.parentReferenceType.orNull).withScore(
         model.Score().withAdvantages(cs.score.advantages).withPoints(cs.score.points).withPenalties(cs.score.penalties)
-          .withPointGroups(
-            cs.score.pointGroups.map(pg =>
-              model.PointGroup().withId(pg.id).withName(pg.name.orNull).withPriority(pg.priority.orElse(Option(0)).get)
-                .withValue(pg.value.orElse(Option(0)).get)
-            )
-          )
+          .withPointGroups(cs.score.pointGroups.map(pg =>
+            model.PointGroup().withId(pg.id).withName(pg.name.orNull).withPriority(pg.priority.orElse(Option(0)).get)
+              .withValue(pg.value.orElse(Option(0)).get)
+          ))
       )
   }
 
@@ -374,13 +383,7 @@ object DtoMapping {
   )
 
   def mapCompetitorSelector(dto: model.CompetitorSelector): CompetitorSelector = {
-    CompetitorSelector(
-      dto.applyToStageId,
-      dto.logicalOperator,
-      dto.classifier,
-      dto.operator,
-      dto.selectorValue.toSet
-    )
+    CompetitorSelector(dto.applyToStageId, dto.logicalOperator, dto.classifier, dto.operator, dto.selectorValue.toSet)
   }
 
   def mapStageDescriptor[F[+_]: Monad](s: model.StageDescriptor): F[StageDescriptor] = Monad[F].pure {
@@ -516,9 +519,7 @@ object DtoMapping {
     model.RegistrationFee().withAmount(r.amount).withCurrency(r.currency).withRemainder(r.remainder.getOrElse(0))
   }
 
-  def mapCompetitionProperties[F[+_]: Monad](
-    registrationOpen: Boolean
-  )(r: model.CompetitionProperties): F[CompetitionProperties] = Monad[F].pure {
+  def mapCompetitionProperties[F[+_]: Monad](r: model.CompetitionProperties): F[CompetitionProperties] = Monad[F].pure {
     CompetitionProperties(
       r.id,
       r.creatorId,
@@ -530,7 +531,6 @@ object DtoMapping {
       r.bracketsPublished,
       Option(r.getEndDate).map(toDate),
       r.timeZone,
-      registrationOpen,
       toDate(r.getCreationTimestamp),
       r.status
     )

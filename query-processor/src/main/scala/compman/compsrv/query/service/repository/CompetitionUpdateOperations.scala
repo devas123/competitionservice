@@ -12,7 +12,6 @@ import zio.{Ref, RIO, ZIO}
 import scala.jdk.CollectionConverters._
 
 trait CompetitionUpdateOperations[F[+_]] {
-  def updateRegistrationOpen(competitionId: String)(isOpen: Boolean): F[Unit]
   def addCompetitionProperties(competitionProperties: CompetitionProperties): F[Unit]
   def updateCompetitionProperties(competitionProperties: CompetitionProperties): F[Unit]
   def removeCompetitionState(id: String): F[Unit]
@@ -30,15 +29,7 @@ trait CompetitionUpdateOperations[F[+_]] {
   def removeCompetitor(competitionId: String)(id: String): F[Unit]
   def removeCompetitorsForCompetition(competitionId: String): F[Unit]
   def removeCompetitorsForCategory(competitionId: String)(categoryId: String): F[Unit]
-  def addRegistrationGroup(group: RegistrationGroup): F[Unit]
-  def addRegistrationGroups(groups: List[RegistrationGroup]): F[Unit]
-  def updateRegistrationGroup(group: RegistrationGroup): F[Unit]
-  def updateRegistrationGroups(groups: List[RegistrationGroup]): F[Unit]
-  def removeRegistrationGroup(competitionId: String)(id: String): F[Unit]
-  def addRegistrationPeriod(period: RegistrationPeriod): F[Unit]
-  def updateRegistrationPeriod(period: RegistrationPeriod): F[Unit]
-  def updateRegistrationPeriods(periods: List[RegistrationPeriod]): F[Unit]
-  def removeRegistrationPeriod(competitionId: String)(id: String): F[Unit]
+  def updateRegistrationInfo(competitionId: String)(registrationInfo: RegistrationInfo): F[Unit]
   def addPeriod(entry: Period): F[Unit]
   def addPeriods(entries: List[Period]): F[Unit]
   def updatePeriods(entries: List[Period]): F[Unit]
@@ -54,17 +45,12 @@ object CompetitionUpdateOperations {
 
   def test(
     competitionProperties: Option[Ref[Map[String, CompetitionProperties]]] = None,
+    registrationInfo: Option[Ref[Map[String, RegistrationInfo]]] = None,
     categories: Option[Ref[Map[String, Category]]] = None,
     competitors: Option[Ref[Map[String, Competitor]]] = None,
     periods: Option[Ref[Map[String, Period]]] = None,
-    registrationPeriods: Option[Ref[Map[String, RegistrationPeriod]]] = None,
-    registrationGroups: Option[Ref[Map[String, RegistrationGroup]]] = None,
     stages: Option[Ref[Map[String, StageDescriptor]]] = None
   ): CompetitionUpdateOperations[LIO] = new CompetitionUpdateOperations[LIO] with CommonTestOperations {
-
-    override def updateRegistrationOpen(competitionId: String)(isOpen: Boolean): LIO[Unit] = {
-      comPropsUpdate(competitionProperties)(competitionId)(_.copy(registrationOpen = isOpen))
-    }
 
     override def addCompetitionProperties(newProperties: CompetitionProperties): LIO[Unit] = competitionProperties
       .map(_.update(m => m.updated(newProperties.id, newProperties))).getOrElse(ZIO.unit)
@@ -106,31 +92,8 @@ object CompetitionUpdateOperations {
 
     override def removeCompetitor(competitionId: String)(id: String): LIO[Unit] = remove(competitors)(id)
 
-    override def addRegistrationGroup(group: RegistrationGroup): LIO[Unit] =
-      add(registrationGroups)(group.id)(Some(group))
-
-    override def addRegistrationGroups(groups: List[RegistrationGroup]): LIO[Unit] = groups
-      .traverse(addRegistrationGroup).unit
-
-    override def updateRegistrationGroup(group: RegistrationGroup): LIO[Unit] =
-      update(registrationGroups)(group.id)(_ => group)
-
-    override def updateRegistrationGroups(groups: List[RegistrationGroup]): LIO[Unit] = groups
-      .traverse(updateRegistrationGroup).unit
-
-    override def removeRegistrationGroup(competitionId: String)(id: String): LIO[Unit] = remove(registrationGroups)(id)
-
-    override def addRegistrationPeriod(period: RegistrationPeriod): LIO[Unit] =
-      add(registrationPeriods)(period.id)(Some(period))
-
-    override def updateRegistrationPeriod(period: RegistrationPeriod): LIO[Unit] =
-      update(registrationPeriods)(period.id)(_ => period)
-
-    override def updateRegistrationPeriods(periods: List[RegistrationPeriod]): LIO[Unit] = periods
-      .traverse(updateRegistrationPeriod).unit
-
-    override def removeRegistrationPeriod(competitionId: String)(id: String): LIO[Unit] =
-      remove(registrationPeriods)(id)
+    override def updateRegistrationInfo(competitionId: String)(info: RegistrationInfo): LIO[Unit] =
+      update(registrationInfo)(competitionId)(_ => info)
 
     override def addPeriod(entry: Period): LIO[Unit] = add(periods)(entry.id)(Some(entry))
 
@@ -163,21 +126,20 @@ object CompetitionUpdateOperations {
 
     import org.mongodb.scala.model.Filters._
     import org.mongodb.scala.model.Updates._
-    override def updateRegistrationOpen(competitionId: String)(isOpen: Boolean): LIO[Unit] = {
-      for {
-        collection <- competitionStateCollection
-        statement = collection
-          .findOneAndUpdate(equal(idField, competitionId), set("properties.registrationOpen", isOpen))
-        res <- RIO.fromFuture(_ => statement.toFuture()).unit
-      } yield res
-    }
 
     override def addCompetitionProperties(competitionProperties: CompetitionProperties): LIO[Unit] = {
       for {
         collection <- competitionStateCollection
         statement = collection.replaceOne(
           Filters.eq(idField, competitionProperties.id),
-          CompetitionState(competitionProperties.id, competitionProperties, Map.empty, Map.empty, Map.empty, RegistrationInfo()),
+          CompetitionState(
+            competitionProperties.id,
+            competitionProperties,
+            Map.empty,
+            Map.empty,
+            Map.empty,
+            RegistrationInfo(competitionProperties.id)
+          ),
           new ReplaceOptions().upsert(true)
         )
         res <- RIO.fromFuture(_ => statement.toFuture()).unit
@@ -318,64 +280,11 @@ object CompetitionUpdateOperations {
       } yield res
     }
 
-    override def addRegistrationGroup(group: RegistrationGroup): LIO[Unit] = {
-      for {
-        collection <- competitionStateCollection
-        statement = collection.findOneAndUpdate(
-          equal(idField, group.competitionId),
-          set(s"registrationInfo.registrationGroups.${group.id}", group)
-        )
-        res <- RIO.fromFuture(_ => statement.toFuture()).unit
-      } yield res
-    }
-
-    override def addRegistrationGroups(groups: List[RegistrationGroup]): LIO[Unit] = {
-      for {
-        collection <- competitionStateCollection
-        updates   = groups.map(group => set(s"registrationInfo.registrationGroups.${group.id}", group))
-        statement = collection.findOneAndUpdate(equal(idField, groups.headOption.map(_.competitionId).orNull), combine(updates: _*))
-        res <- RIO.fromFuture(_ => statement.toFuture()).when(groups.nonEmpty).unit
-      } yield res
-    }
-
-    override def updateRegistrationGroup(group: RegistrationGroup): LIO[Unit]         = addRegistrationGroup(group)
-    override def updateRegistrationGroups(groups: List[RegistrationGroup]): LIO[Unit] = addRegistrationGroups(groups)
-
-    override def removeRegistrationGroup(competitionId: String)(id: String): LIO[Unit] = {
+    override def updateRegistrationInfo(competitionId: String)(registrationInfo: RegistrationInfo): LIO[Unit] = {
       for {
         collection <- competitionStateCollection
         statement = collection
-          .findOneAndUpdate(equal(idField, competitionId), unset(s"registrationInfo.registrationGroups.$id"))
-        res <- RIO.fromFuture(_ => statement.toFuture()).unit
-      } yield res
-    }
-
-    override def addRegistrationPeriod(period: RegistrationPeriod): LIO[Unit] = {
-      for {
-        collection <- competitionStateCollection
-        statement = collection.findOneAndUpdate(
-          equal(idField, period.competitionId),
-          set(s"registrationInfo.registrationPeriods.${period.id}", period)
-        )
-        res <- RIO.fromFuture(_ => statement.toFuture()).unit
-      } yield res
-    }
-
-    override def updateRegistrationPeriod(period: RegistrationPeriod): LIO[Unit] = addRegistrationPeriod(period)
-    override def updateRegistrationPeriods(periods: List[RegistrationPeriod]): LIO[Unit] = {
-      for {
-        collection <- competitionStateCollection
-        updates   = periods.map(period => set(s"registrationInfo.registrationPeriods.${period.id}", period))
-        statement = collection.findOneAndUpdate(equal(idField, periods.headOption.map(_.competitionId).orNull), combine(updates: _*))
-        res <- RIO.fromFuture(_ => statement.toFuture()).unit
-      } yield res
-    }
-
-    override def removeRegistrationPeriod(competitionId: String)(id: String): LIO[Unit] = {
-      for {
-        collection <- competitionStateCollection
-        statement = collection
-          .findOneAndUpdate(equal(idField, competitionId), unset(s"registrationInfo.registrationPeriods.$id"))
+          .findOneAndUpdate(equal(idField, competitionId), set(s"registrationInfo", registrationInfo))
         res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }

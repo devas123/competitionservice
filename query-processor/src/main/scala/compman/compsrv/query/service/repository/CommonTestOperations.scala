@@ -7,7 +7,7 @@ import zio.{IO, Ref, Task, ZIO}
 trait CommonTestOperations {
   def getById[T](map: Option[Ref[Map[String, T]]])(id: String): Task[Option[T]] = map match {
     case Some(value) => value.get.map(_.get(id))
-    case None        => Task(None)
+    case None        => Task.none
   }
   def getStagesByCategory(
     stages: Option[Ref[Map[String, StageDescriptor]]]

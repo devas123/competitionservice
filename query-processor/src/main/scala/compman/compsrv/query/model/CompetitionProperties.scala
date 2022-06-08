@@ -16,7 +16,6 @@ case class CompetitionProperties(
   bracketsPublished: Boolean,
   endDate: Option[Date],
   timeZone: String,
-  registrationOpen: Boolean,
   creationTimestamp: Date,
   status: CompetitionStatus
 )

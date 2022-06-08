@@ -3,29 +3,21 @@ package compman.compsrv.logic.actors
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaTopicConfig}
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.logic.actors.behavior.{
-  CompetitionEventListener,
-  CompetitionEventListenerSupervisor,
-  WebsocketConnectionSupervisor
-}
+import compman.compsrv.logic.actors.behavior.{CompetitionEventListener, CompetitionEventListenerSupervisor, WebsocketConnectionSupervisor}
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.extensions.InstantOps
 import compman.compsrv.query.model._
 import compman.compsrv.query.service.EmbeddedKafkaBroker
 import compman.compsrv.query.service.EmbeddedKafkaBroker.embeddedKafkaServer
-import compservice.model.protobuf.model.{
-  CompetitionProcessingStarted,
-  CompetitionProcessorNotification,
-  CompetitionStatus
-}
+import compservice.model.protobuf.model.{CompetitionProcessingStarted, CompetitionProcessorNotification, CompetitionStatus}
 import zio._
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
 import zio.kafka.producer.{Producer, ProducerSettings}
 import zio.kafka.serde
-import zio.test.TestAspect._
 import zio.test._
+import zio.test.TestAspect._
 import zio.test.environment._
 
 import java.time.Instant
@@ -49,8 +41,7 @@ object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
             competitors           <- Ref.make(Map.empty[String, Competitor])
             fights                <- Ref.make(Map.empty[String, Fight])
             periods               <- Ref.make(Map.empty[String, Period])
-            registrationPeriods   <- Ref.make(Map.empty[String, RegistrationPeriod])
-            registrationGroups    <- Ref.make(Map.empty[String, RegistrationGroup])
+            registrationInfo   <- Ref.make(Map.empty[String, RegistrationInfo])
             stages                <- Ref.make(Map.empty[String, StageDescriptor])
             websocketSupervisor   <- TestKit[WebsocketConnectionSupervisor.ApiCommand](actorSystem)
             kafkaSupervisor <- actorSystem
@@ -64,8 +55,7 @@ object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
               Some(competitors),
               Some(fights),
               Some(periods),
-              Some(registrationPeriods),
-              Some(registrationGroups),
+              Some(registrationInfo),
               Some(stages)
             )
             _ <- actorSystem.make(

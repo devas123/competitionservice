@@ -36,7 +36,6 @@ trait TestEntities {
     bracketsPublished = false,
     Some(Instant.now()).map(Date.from),
     "UTC",
-    registrationOpen = true,
     Date.from(Instant.now()),
     CompetitionStatus.CREATED
   )

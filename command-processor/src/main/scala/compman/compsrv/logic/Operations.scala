@@ -109,14 +109,14 @@ object Operations {
   ): F[Either[Errors.Error, Seq[Event]]] = {
     import cats.implicits._
     val either: EitherT[F, Errors.Error, Seq[Event]] = for {
-      _             <- EitherT.liftF(info(s"Received command: $command"))
+      _             <- EitherT.liftF(info(s"Received stateless command: $command"))
       mapped        <- EitherT.liftF(Mapping.mapCommandDto(command))
-      _             <- EitherT.liftF(info(s"Mapped command: $mapped"))
+      _             <- EitherT.liftF(info(s"Mapped stateless command: $mapped"))
       eventsToApply <- EitherT(StatelessCommandProcessors.process(mapped))
-      _             <- EitherT.liftF(info(s"Received events: $eventsToApply"))
+      _             <- EitherT.liftF(info(s"Received stateless events: $eventsToApply"))
       numberOfEvents = eventsToApply.size
       enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) => enrichEvent(command, numberOfEvents, ev, ind))
-      _ <- EitherT.liftF(info(s"Returning events: $enrichedEvents"))
+      _ <- EitherT.liftF(info(s"Returning stateless events: $enrichedEvents"))
     } yield enrichedEvents
     either.value
   }

@@ -75,17 +75,16 @@ object CompetitionEventListener {
     competitors: Option[Ref[Map[String, Competitor]]] = None,
     fights: Option[Ref[Map[String, Fight]]] = None,
     periods: Option[Ref[Map[String, Period]]] = None,
-    registrationPeriods: Option[Ref[Map[String, RegistrationPeriod]]] = None,
-    registrationGroups: Option[Ref[Map[String, RegistrationGroup]]] = None,
+    registrationInfo: Option[Ref[Map[String, RegistrationInfo]]] = None,
     stages: Option[Ref[Map[String, StageDescriptor]]] = None
   ) extends ActorContext {
     implicit val eventMapping: Mapping.EventMapping[LIO] = model.Mapping.EventMapping.live
     implicit val loggingLive: CompetitionLogging.Service[LIO] = compman.compsrv.logic.logging.CompetitionLogging.Live
       .live[Any]
     implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
-      .test(competitionProperties, categories, competitors, periods, registrationPeriods, registrationGroups, stages)
+      .test(competitionProperties, registrationInfo, categories, competitors, periods, stages)
     implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations
-      .test(competitionProperties, categories, competitors, periods, registrationPeriods, registrationGroups, stages)
+      .test(competitionProperties, registrationInfo, categories, competitors, periods, stages)
     implicit val fightUpdateOperations: FightUpdateOperations[LIO] = FightUpdateOperations.test(fights)
     implicit val fightQueryOperations: FightQueryOperations[LIO]   = FightQueryOperations.test(fights, stages)
     implicit val eventOffsetService: EventOffsetService[LIO]       = EventOffsetOperations.test

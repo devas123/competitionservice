@@ -3,20 +3,14 @@ package compman.compsrv.logic.actors.behavior.api
 import cats.data.OptionT
 import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Behaviors}
 import compman.compsrv.logic.category.CategoryGenerateService
+import compman.compsrv.logic.fight.FightResultOptionConstants
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.config.MongodbConfig
-import compman.compsrv.query.model.mapping.DtoMapping
-import compman.compsrv.query.service.repository.{
-  CompetitionQueryOperations,
-  FightQueryOperations,
-  ManagedCompetitionsOperations,
-  Pagination
-}
-import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
-import compman.compsrv.Utils
-import compman.compsrv.logic.fight.FightResultOptionConstants
 import compman.compsrv.query.model._
+import compman.compsrv.query.model.mapping.DtoMapping
+import compman.compsrv.query.service.repository.{CompetitionQueryOperations, FightQueryOperations, ManagedCompetitionsOperations, Pagination}
+import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
 import compservice.model.protobuf.model
 import compservice.model.protobuf.query.{MatFightsQueryResult, MatsQueryResult, _}
 import org.mongodb.scala.MongoClient
@@ -42,13 +36,12 @@ object CompetitionApiActor {
     competitors: Option[Ref[Map[String, Competitor]]] = None,
     fights: Option[Ref[Map[String, Fight]]] = None,
     periods: Option[Ref[Map[String, Period]]] = None,
-    registrationPeriods: Option[Ref[Map[String, RegistrationPeriod]]] = None,
-    registrationGroups: Option[Ref[Map[String, RegistrationGroup]]] = None,
+    registrationInfo: Option[Ref[Map[String, RegistrationInfo]]] = None,
     stages: Option[Ref[Map[String, StageDescriptor]]] = None
   ) extends ActorContext {
     implicit val loggingLive: CompetitionLogging.Service[LIO] = CompetitionLogging.Live.live[Any]
     implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
-      .test(competitionProperties, categories, competitors, periods, registrationPeriods, registrationGroups, stages)
+      .test(competitionProperties, registrationInfo, categories, competitors, periods, stages)
     implicit val fightQueryOperations: FightQueryOperations[LIO] = FightQueryOperations.test(fights)
     implicit val managedCompetitionService: ManagedCompetitionService[LIO] = ManagedCompetitionsOperations
       .test(competitions)
@@ -253,12 +246,9 @@ object CompetitionApiActor {
                   .withGetMatFightsResponse(GetMatFightsResponse(Some(MatFightsQueryResult(competitors, fightDtos))))
               } yield state
             case c @ GetRegistrationInfo(competitionId) => for {
-                properties <- CompetitionQueryOperations[LIO].getCompetitionProperties(competitionId)
-                groups     <- CompetitionQueryOperations[LIO].getRegistrationGroups(competitionId)
-                periods    <- CompetitionQueryOperations[LIO].getRegistrationPeriods(competitionId)
+                regInfo <- CompetitionQueryOperations[LIO].getRegistrationInfo(competitionId)
                 _ <- c.replyTo ! QueryServiceResponse().withGetRegistrationInfoResponse(GetRegistrationInfoResponse(
-                  Option(RegistrationInfo(Utils.groupById(groups)(_.id), Utils.groupById(periods)(_.id)))
-                    .map(DtoMapping.toDtoRegistrationInfo(properties.exists(_.registrationOpen), competitionId))
+                  regInfo.map(DtoMapping.toDtoRegistrationInfo)
                 ))
               } yield state
             case c @ GetCategories(competitionId) => for {
