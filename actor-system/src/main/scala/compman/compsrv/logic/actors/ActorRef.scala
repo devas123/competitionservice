@@ -2,9 +2,7 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.PendingMessage
 import compman.compsrv.logic.actors.dungeon._
-import zio.{Queue, Ref, RIO, Task}
-import zio.clock.Clock
-import zio.duration.durationInt
+import zio.{Queue, Ref, Task}
 
 import scala.annotation.unchecked.uncheckedVariance
 
@@ -31,7 +29,7 @@ private[actors] trait MinimalActorRef[Msg] extends ActorRef[Msg] {
 private[actors] case class LocalActorRef[Msg](
   private val queue: Queue[PendingMessage[Msg]],
   private val path: ActorPath
-)(private val postStop: Task[Unit], private val provider: ActorRefProvider, killSwitch: Ref[Boolean])
+)(private val postStop: () => Task[Unit], private val provider: ActorRefProvider, killSwitch: Ref[Boolean])
     extends ActorRef[Msg] {
 
   override def hashCode(): Int = path.hashCode()
@@ -72,18 +70,10 @@ private[actors] case class LocalActorRef[Msg](
       if (!shutdown) for {
         t <- queue.takeAll
         _ <- queue.offer(Left(PoisonPill))
-        _ <- waitForKillSwitch().provideLayer(Clock.live)
-        _ <- postStop
+        _ <- postStop()
       } yield t
       else Task.effectTotal(List.empty)
   } yield tail
-
-  private def waitForKillSwitch(): RIO[Clock, Unit] = {
-    for {
-      ks <- killSwitch.readOnly.get
-      _ <- waitForKillSwitch().delay(100.millis).when(!ks)
-    } yield ()
-  }
 
   override def toString: String = s"ActorRef($path)"
 }

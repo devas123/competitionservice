@@ -17,7 +17,7 @@ trait AbstractBehavior[R, S, Msg] {
                                  initialState: S,
                                  actorSystem: ActorSystem,
                                  children: Ref[ContextState]
-                               )(postStop: Task[Unit]): RIO[R with Clock with Console, InternalActorCell[Msg]]
+                               )(postStop: () => Task[Unit]): RIO[R with Clock with Console, InternalActorCell[Msg]]
 
   private[actors] def processSystemMessage(
     context: Context[Msg],
@@ -56,20 +56,20 @@ trait AbstractBehavior[R, S, Msg] {
     } yield ()
   }
 
-  def innerLoop(process: PendingMessage[Msg] => RIO[R with Clock with Console, Unit])(queue: Queue[PendingMessage[Msg]], stopSwitch: Ref[Boolean]): RIO[R with Clock with Console, Unit] = {
+  def innerLoop(process: PendingMessage[Msg] => RIO[R with Clock with Console, Unit])(queue: Queue[PendingMessage[Msg]]): RIO[R with Clock with Console, Unit] = {
     (for {
       msg <- queue.take.run
       _ <- msg match {
         case Exit.Success(value) => value match {
           case Left(leftVal) => leftVal match {
-            case PoisonPill => stopSwitch.set(true) *> queue.shutdown
+            case PoisonPill => queue.shutdown
             case _ => process(value)
           }
           case _ => process(value)
         }
         case Exit.Failure(error) => RIO.debug(s"Actor failed while waiting for message: $error").unit
       }
-    } yield ()).repeatUntilM(_ => stopSwitch.get)
+    } yield ()).repeatUntilM(_ => queue.isShutdown)
   }
 
 

@@ -2,9 +2,10 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.dungeon.{DeadLetter, Unwatch, Watch}
+import zio.{Promise, Ref, RIO, Task, ZIO}
 import zio.clock.Clock
 import zio.console.Console
-import zio.{Exit, Ref, RIO, Task, ZIO}
+import zio.Exit.{Failure, Success}
 
 import java.util.UUID
 
@@ -17,9 +18,10 @@ case class Context[-F](
 
   def stopSelf: Task[List[_]] = for {
     _          <- contextState.update(_.copy(isStopping = true))
-    validState <- contextState.map(cs => cs.inCreation <= 0).get
-    _          <- stopSelf.when(!validState)
+    validState <- contextState.map(cs => cs.inCreation).get
+    _          <- ZIO.foreach_(validState.values)(_.await)
     res        <- self.stop
+    _          <- contextState.update(cs => cs.copy(inCreation = Map.empty))
   } yield res
 
   def watchWith[F1](msg: F, actorRef: ActorRef[F1]): Task[Unit] = {
@@ -72,11 +74,15 @@ case class Context[-F](
   ): ZIO[R with Clock with Console, Throwable, ActorRef[F1]] = for {
     isRunning <- contextState.map(cs => !cs.isStopped && !cs.isStopping).get
     _         <- ZIO.fail(new IllegalStateException("Cannot create actors while stopping.")).when(!isRunning)
-    _         <- contextState.update(c => c.copy(inCreation = c.inCreation + 1))
-    actorRef  <- actorSystem.make(actorName, actorConfig, init, behavior).map(_.asInstanceOf[InternalActorCell[F1]])
+    promise   <- Promise.make[Nothing, Boolean]
+    _         <- contextState.update(c => c.copy(inCreation = c.inCreation + (actorName -> promise)))
+    actorRef <- actorSystem.make(actorName, actorConfig, init, behavior).map(_.asInstanceOf[InternalActorCell[F1]])
       .onExit {
-        case Exit.Success(value) => contextState.update(c => c.copy(inCreation = c.inCreation - 1, children = c.children + value))
-        case Exit.Failure(_) => contextState.update(c => c.copy(inCreation = c.inCreation - 1))
+        case Success(value) => contextState
+            .update(c => c.copy(inCreation = c.inCreation - actorName, children = c.children + value)) *>
+            promise.succeed(true)
+        case Failure(_) => contextState.update(c => c.copy(inCreation = c.inCreation - actorName)) *>
+            promise.succeed(true)
       }
   } yield actorRef
 
