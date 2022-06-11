@@ -8,7 +8,12 @@ import compman.compsrv.logic.fight._
 import compman.compsrv.model.command.Commands.{FightEditorApplyChangesCommand, InternalCommandProcessorCommand}
 import compman.compsrv.model.Errors
 import compman.compsrv.model.Errors.NoPayloadError
-import compservice.model.protobuf.commandpayload.{CompetitorMovedToGroup, CompetitorsOfFightUpdated, FightEditorApplyChangesPayload, GroupChangeType}
+import compservice.model.protobuf.commandpayload.{
+  CompetitorMovedToGroup,
+  CompetitorsOfFightUpdated,
+  FightEditorApplyChangesPayload,
+  GroupChangeType
+}
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload.FightEditorChangesAppliedPayload
@@ -65,14 +70,14 @@ object FightEditorApplyChangesProc {
       rawUpdates <- OptionT.fromOption[F](createUpdates(payload, state))
       allFights = state.fights
       bracketChanges <- OptionT.fromOption[F](Option(payload.bracketsChanges))
-      cleanedUpdates = rawUpdates.map(f =>
-        f._1 -> (if (f._2.status == FightStatus.UNCOMPLETABLE) f._2.withStatus(FightStatus.PENDING) else f._2)
-      )
+      cleanedUpdates = rawUpdates.map { case (id, fight) =>
+        id -> (if (fight.status == FightStatus.UNCOMPLETABLE) fight.withStatus(FightStatus.PENDING) else fight)
+      }
       cleanedAffected = clearAffectedFights(cleanedUpdates, bracketChanges.map(_.fightId).toSet)
       markedFights <- OptionT.liftF(FightUtils.markAndProcessUncompletableFights[F](cleanedAffected))
       updates   = markedFights.filter(f => allFights.contains(f._1))
       additions = markedFights.filter(f => !allFights.contains(f._1))
-      removals  = allFights.filter(f => f._2.stageId == payload.stageId && !markedFights.contains(f._1))
+      removals = allFights.filter { case (id, fight) => fight.stageId == payload.stageId && !markedFights.contains(id) }
     } yield FightEditorChangesAppliedPayload().withNewFights(additions.values.toSeq).withUpdates(updates.values.toSeq)
       .withRemovedFighids(removals.keys.toSeq)).value
   }
@@ -84,15 +89,15 @@ object FightEditorApplyChangesProc {
   ): Map[String, FightDescription] = {
     if (changedIds.isEmpty) { fights }
     else {
-      val affectedFights = fights.filter(fg => {
-        fg._2.scores.exists(s => { s.parentFightId.exists(changedIds.contains) })
-      })
+      val affectedFights = fights.filter { case (_, fight) =>
+        fight.scores.exists(_.parentFightId.exists(changedIds.contains))
+      }
       clearAffectedFights(
-        fights.map(f => {
-          f._1 -> f._2.withScores(f._2.scores.map(it =>
-            if (it.parentFightId.exists(changedIds.contains)) it.clearCompetitorId else it
-          ))
-        }),
+        fights.map { case (id, fight) =>
+          id -> fight.withScores(
+            fight.scores.map(it => if (it.parentFightId.exists(changedIds.contains)) it.clearCompetitorId else it)
+          )
+        },
         affectedFights.keySet
       )
     }
@@ -127,8 +132,9 @@ object FightEditorApplyChangesProc {
               case _                      => acc
             }
           })
-        }).sortBy(it => { it._2.numberInRound }).zipWithIndex.map(z => { z._1._2.withNumberInRound(z._2) })
-          .map(f => (f.id, f)).toMap
+        }).sortBy(it => { it._2.numberInRound }).zipWithIndex.map { case ((_, fight), index) =>
+          fight.withNumberInRound(index)
+        }.map(f => (f.id, f)).toMap
       case _ => updateEliminationBrackets(allStageFights, payload.bracketsChanges)
     }
   }
@@ -142,24 +148,23 @@ object FightEditorApplyChangesProc {
     allStageFights: Map[String, FightDescription],
     bracketChanges: Seq[CompetitorsOfFightUpdated]
   ) = {
-    allStageFights.map(f => {
-      f._1 -> bracketChanges.find(change => change.fightId == f._1).map(change => applyChangeToFight(f._2, change))
-        .getOrElse(f._2)
-    })
+    allStageFights.map { case (id, fight) =>
+      id -> bracketChanges.find(change => change.fightId == id).map(change => applyChangeToFight(fight, change))
+        .getOrElse(fight)
+    }
   }
 
   private def applyChangeToFight(f: FightDescription, change: CompetitorsOfFightUpdated) = {
     if (change.competitors.isEmpty) { f.clearScores }
     else {
       val scores = f.scores
-      f.withScores(change.competitors.zipWithIndex.map(z => {
-        val (cmpId, index) = z
-        scores.find(s => { s.competitorId.contains(cmpId) })
-          .orElse(scores.find(s => s.competitorId.isEmpty).map(_.withCompetitorId(cmpId))).getOrElse(
+      f.withScores(change.competitors.zipWithIndex.map { case (cmpId, index) =>
+        scores.find(_.competitorId.contains(cmpId))
+          .orElse(scores.find(_.competitorId.isEmpty).map(_.withCompetitorId(cmpId))).getOrElse(
             CompScore().withCompetitorId(cmpId).withScore(createEmptyScore).withOrder(getMinUnusedOrder(scores, index))
               .withParentReferenceType(FightReferenceType.PROPAGATED)
           )
-      }))
+      })
     }
 
   }
@@ -173,14 +178,17 @@ object FightEditorApplyChangesProc {
       .distinctBy(s => s.competitorId.orElse(s.placeholderId)).size
 
     if (actualGroupSize <= groupDescriptor.size) {
-      groupFights.map(e => {
-        val (k, it) = e
+      groupFights.map { case (k, it) =>
         k -> it.withScores(it.scores.map(sc => {
           if (sc.competitorId.contains(change.competitorId)) { sc.clearCompetitorId.withScore(createEmptyScore) }
           else { sc }
         }))
-      })
-    } else { groupFights.filter(it => !it._2.scores.exists(sc => sc.competitorId.contains(change.competitorId))) }
+      }
+    } else {
+      groupFights.filter { case (_, fight) =>
+        !fight.scores.exists(sc => sc.competitorId.contains(change.competitorId))
+      }
+    }
   }
 
   def addCompetitorToGroup(
@@ -214,10 +222,7 @@ object FightEditorApplyChangesProc {
             .map(it => it.competitorId.get -> it.placeholderId).toMap +
             (change.competitorId -> Some(s"placeholder-${UUID.randomUUID()}"))
 
-          val newFights = newCompetitorPairs.zipWithIndex.map(arg => {
-            val (tuple2, index) = arg
-            val competitor1     = tuple2._1
-            val competitor2     = tuple2._2
+          val newFights = newCompetitorPairs.zipWithIndex.map { case ((competitor1, competitor2), index) =>
             fightDescription(
               competitionId,
               categoryId,
@@ -232,10 +237,9 @@ object FightEditorApplyChangesProc {
               createCompscoreForGroup(Option(competitor1), newPlaceholderId(competitor1), 0),
               createCompscoreForGroup(Option(competitor2), newPlaceholderId(competitor2), 1)
             ))
-          })
+          }
           groupFights ++ newFights.map(f => (f.id, f))
       }
     }
   }
-
 }
