@@ -36,6 +36,7 @@ message     CompetitorAssignmentDescriptor {
 }
 message     CompetitorRemovedPayload {
   string fighterId = 1;
+  repeated string categories = 2;
 }
 message     CompetitorsPropagatedToStagePayload {
   string stageId = 1;

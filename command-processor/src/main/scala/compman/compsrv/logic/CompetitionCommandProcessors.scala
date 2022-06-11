@@ -19,7 +19,7 @@ object CompetitionCommandProcessors {
     Seq(
       PublishCompetitionProc(state),
       UnpublishCompetitionProc(state),
-      DeleteCategoryProc(),
+      DeleteCategoryProc(state),
       DeleteCompetitionProc(),
       UpdateCompetitionPropertiesProc(),
       DropBracketsProc(state),
