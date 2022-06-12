@@ -15,7 +15,14 @@ object GraphUtils {
     inDegree
   }
 
-  def findTopologicalOrdering(graph: Array[List[Int]], inverse: Boolean = false): CanFail[Array[Int]] = {
+  object OrderingTypes extends Enumeration {
+    type OrderingType = Value
+    val Stages: OrderingTypes.Value = Value("Stages")
+    val Fights: OrderingTypes.Value = Value("Fights")
+    val Requirements: OrderingTypes.Value = Value("Requirements")
+  }
+
+  def findTopologicalOrdering(graph: Array[List[Int]], name: OrderingTypes.Value, inverse: Boolean = false): CanFail[Array[Int]] = {
     val n        = graph.length
     val inDegree = getIndegree(graph)
     val q        = mutable.Queue.empty[Int]
@@ -35,7 +42,7 @@ object GraphUtils {
         if (inDegree(to) == 0) { q.enqueue(to) }
       }
     }
-    if (index != n) { Left(Errors.InternalError("Cycles in the graph.")) }
+    if (index != n) { Left(Errors.InternalError(s"Graph either has cycles of is not connected. Graph for: ${name.toString}, Number of vertices = $n, TopSort length = $index")) }
     else { Right(ordering) }
   }
 }

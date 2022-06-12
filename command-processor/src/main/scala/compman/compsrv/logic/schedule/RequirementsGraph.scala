@@ -3,6 +3,7 @@ package compman.compsrv.logic.schedule
 import cats.implicits._
 import com.google.common.collect.{BiMap, HashBiMap}
 import compman.compsrv.logic.fight.CanFail
+import compman.compsrv.logic.schedule.GraphUtils.OrderingTypes
 import compman.compsrv.model.extensions._
 import compman.compsrv.model.Errors
 import compservice.model.protobuf.model._
@@ -76,7 +77,7 @@ object RequirementsGraph {
 
     val size = n
     for {
-      ordering <- GraphUtils.findTopologicalOrdering(requirementsGraph.map(_.toList))
+      ordering <- GraphUtils.findTopologicalOrdering(requirementsGraph.map(_.toList), OrderingTypes.Requirements)
       graph               = requirementsGraph.map { _.toList }
       orderedRequirements = sorted.sortBy { it => ordering(requirementIdToId.get(it.id)) }
     } yield RequirementsGraph(
