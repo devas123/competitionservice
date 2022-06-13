@@ -123,7 +123,7 @@ object DtoMapping {
       endTime = dto.endTime.map(toDate),
       numberOfFights = Option(dto.numberOfFights),
       entryDuration = Option(dto.duration),
-      entryOrder = dto.order
+      entryOrder = dto.order,
     )
   }
 

@@ -3,8 +3,11 @@ package compman.compsrv.query.model
 import compman.compsrv.model.extensions.InstantOps
 import compman.compsrv.query.model.mapping.DtoMapping.toDate
 import compservice.model.protobuf.model
+import compservice.model.protobuf.model.StartTimeInfo
 
 package object extensions {
+
+  val getStartTimeInfoUniqueID: StartTimeInfo => String = (fs: StartTimeInfo) => fs.matId + fs.someId
 
   final implicit class PeriodOps(private val p: model.Period) extends AnyVal {
     def enrichWithFightsByScheduleEntries(fightsByScheduleEntries: List[FightByScheduleEntry]): model.Period = {
@@ -14,7 +17,9 @@ package object extensions {
         )
       p.withScheduleEntries(
         Option(p.scheduleEntries).map(_.map(se =>
-          se.withFightScheduleInfo(map.getOrElse(se.id, Seq.empty))
+          se.withFightScheduleInfo(
+            (se.fightScheduleInfo ++ map.getOrElse(se.id, Seq.empty)).distinctBy(getStartTimeInfoUniqueID)
+          )
         )).getOrElse(Seq.empty)
       )
     }
@@ -29,7 +34,7 @@ package object extensions {
         bracketsPublished = pr.bracketsPublished,
         startDate = pr.startDate.map(toDate).get,
         endDate = pr.endDate.map(toDate),
-        status = pr.status,
+        status = pr.status
       )
     }.getOrElse(c)
 

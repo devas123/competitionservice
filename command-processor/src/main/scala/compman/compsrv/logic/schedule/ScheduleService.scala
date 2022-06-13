@@ -11,17 +11,19 @@ import compman.compsrv.model.extensions._
 import compman.compsrv.model.Errors.NotAllSchedulePeriodsHaveIds
 import compservice.model.protobuf.model._
 
+
 object ScheduleService {
+  type ScheduleAndFightStartTimes = (Schedule, List[FightStartTimePair])
+
   def generateSchedule[F[+_]: Monad: IdOperations](
     competitionId: String,
-    periods: Seq[Period],
+    periodsWithIds: Seq[Period],
     mats: Seq[MatDescription],
     stageGraph: StageGraph,
     timeZone: String
-  ): F[CanFail[(Schedule, List[FightStartTimePair])]] = {
+  ): F[CanFail[ScheduleAndFightStartTimes]] = {
     for {
-      _ <- assertETErr[F](periods.forall(_.id.nonEmpty), NotAllSchedulePeriodsHaveIds())
-      periodsWithIds = periods
+      _ <- assertETErr[F](periodsWithIds.forall(_.id.nonEmpty), NotAllSchedulePeriodsHaveIds())
       sortedPeriods = periodsWithIds.sortBy(_.getStartTime)
       enrichedScheduleRequirements <- EitherT.liftF(
         periodsWithIds.flatMap { periodDTO =>

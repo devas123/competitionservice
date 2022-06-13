@@ -21,8 +21,10 @@ import scala.util.Try
 private[schedule] object ScheduleProducer {
 
   def toMillis(timestamp: Timestamp): Long = Timestamps.toMillis(toJavaProto(timestamp))
-  def plus(timestamp: Timestamp, durationMillis: Long): Timestamp = Timestamp.fromJavaProto(Timestamps.add(toJavaProto(timestamp), Durations.fromMillis(durationMillis)))
-  def minus(timestamp: Timestamp, durationMillis: Long): Timestamp = Timestamp.fromJavaProto(Timestamps.subtract(toJavaProto(timestamp), Durations.fromMillis(durationMillis)))
+  def plus(timestamp: Timestamp, durationMillis: Long): Timestamp = Timestamp
+    .fromJavaProto(Timestamps.add(toJavaProto(timestamp), Durations.fromMillis(durationMillis)))
+  def minus(timestamp: Timestamp, durationMillis: Long): Timestamp = Timestamp
+    .fromJavaProto(Timestamps.subtract(toJavaProto(timestamp), Durations.fromMillis(durationMillis)))
 
   private def eightyPercentOfDurationInMillis(durationInSeconds: Int): Int = (durationInSeconds * 8 / 10) * 1000
 
@@ -32,22 +34,10 @@ private[schedule] object ScheduleProducer {
     endTime: Timestamp,
     pauseType: ScheduleEntryType
   ): ScheduleEntry = {
-    ScheduleEntry()
-    .withId(pauseReq.id)
-    .withCategoryIds(Seq.empty)
-    .withFightScheduleInfo(Seq(
-      StartTimeInfo()
-        .withSomeId(pauseReq.id)
-        .withMatId(pauseReq.getMatId)
-        .withStartTime(startTime)
-    ))
-    .withPeriodId(pauseReq.periodId)
-    .withStartTime(startTime)
-    .withNumberOfFights(0)
-    .withEntryType(pauseType)
-    .withEndTime(endTime)
-    .withDuration(pauseReq.getDurationSeconds)
-    .withRequirementIds(Seq(pauseReq.id))
+    ScheduleEntry().withId(pauseReq.id).withCategoryIds(Seq.empty).withFightScheduleInfo(Seq(
+      StartTimeInfo().withSomeId(pauseReq.id).withMatId(pauseReq.getMatId).withStartTime(startTime)
+    )).withPeriodId(pauseReq.periodId).withStartTime(startTime).withNumberOfFights(0).withEntryType(pauseType)
+      .withEndTime(endTime).withDuration(pauseReq.getDurationSeconds).withRequirementIds(Seq(pauseReq.id))
   }
 
   private def createFixedPauseEntry(fixedPause: ScheduleRequirement, endTime: Timestamp) =
@@ -59,6 +49,8 @@ private[schedule] object ScheduleProducer {
   private def getFightDuration(duration: Int, riskCoeff: Int, timeBetweenFights: Int): Int = duration *
     (100 + riskCoeff) / 100 + timeBetweenFights
 
+  type ScheduleEntriesWithMatsWithInvalidFights = (List[ScheduleEntry], List[InternalMatScheduleContainer], Set[String])
+
   def simulate(
     stageGraph: StageGraph,
     requiremetsGraph: RequirementsGraph,
@@ -67,15 +59,13 @@ private[schedule] object ScheduleProducer {
     periodStartTime: Map[String, Instant],
     mats: List[MatDescription],
     timeZone: String
-  ): CanFail[(List[ScheduleEntry], List[InternalMatScheduleContainer], Set[String])] = Try {
+  ): CanFail[ScheduleEntriesWithMatsWithInvalidFights] = Try {
     val initialFightsByMats: List[InternalMatScheduleContainer] =
       createMatScheduleContainers(mats, periodStartTime, timeZone)
     val accumulator: ScheduleAccumulator = ScheduleAccumulator(initialFightsByMats)
     val pauses = req.filter { _.entryType == ScheduleRequirementType.FIXED_PAUSE }.groupBy { _.matId }.view
       .mapValues { e => e.sortBy { tt => toMillis(tt.getStartTime) } }.mapValues(ArrayBuffer.from(_))
-      .filterKeys(_.isDefined)
-      .map(e => e._1.get -> e._2)
-      .toMap
+      .filterKeys(_.isDefined).map(e => e._1.get -> e._2).toMap
     val unfinishedRequirements = mutable.Queue.empty[ScheduleRequirement]
     val matsToIds              = groupById(accumulator.matSchedules)(_.id)
     val sortedPeriods          = periods.sortBy { _.getStartTime }
@@ -106,18 +96,17 @@ private[schedule] object ScheduleProducer {
       st: StageGraph,
       period: Period
     ): StageGraph = {
-      val duration = getFightDuration(
-        st.getDuration(fightId),
-        period.riskPercent,
-        period.timeBetweenFights
-      )
+      val duration = getFightDuration(st.getDuration(fightId), period.riskPercent, period.timeBetweenFights)
       if (
         !(!pauses.contains(mat.id) || pauses.get(mat.id).exists(_.isEmpty)) &&
-        mat.currentTime.toEpochMilli + eightyPercentOfDurationInMillis(duration) >= toMillis(pauses(mat.id)(0)
-          .getStartTime)
+        mat.currentTime.toEpochMilli + eightyPercentOfDurationInMillis(duration) >=
+          toMillis(pauses(mat.id)(0).getStartTime)
       ) {
         val p = pauses(mat.id).remove(0)
-        val e = createFixedPauseEntry(p, plus(p.getStartTime, TimeUnit.SECONDS.toMillis(p.getDurationSeconds.toLong)))
+        val e = createFixedPauseEntry(
+          p,
+          p.endTime.getOrElse(plus(p.getStartTime, TimeUnit.SECONDS.toMillis(p.getDurationSeconds.toLong)))
+        )
         accumulator.scheduleEntries.append(e)
         mat.currentTime = mat.currentTime.plus(p.getDurationSeconds.toLong, ChronoUnit.SECONDS)
       }
@@ -209,7 +198,8 @@ private[schedule] object ScheduleProducer {
               }
             }
           } else {
-            sg = loadBalanceToMats(req, periodMats.toSeq, requirementsCapacity, requiremetsGraph, accumulator, sg, period)
+            sg =
+              loadBalanceToMats(req, periodMats.toSeq, requirementsCapacity, requiremetsGraph, accumulator, sg, period)
           }
 
           if (capacity > 0 && capacity == requirementsCapacity(requiremetsGraph.getIndexOrMinus1(req._1.id))) {
