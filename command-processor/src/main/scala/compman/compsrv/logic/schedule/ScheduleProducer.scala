@@ -20,6 +20,7 @@ import scala.util.Try
 
 private[schedule] object ScheduleProducer {
 
+  case class ScheduleRequirementWithFightIds(requirement: ScheduleRequirement, fightIds: List[String])
   def toMillis(timestamp: Timestamp): Long = Timestamps.toMillis(toJavaProto(timestamp))
   def plus(timestamp: Timestamp, durationMillis: Long): Timestamp = Timestamp
     .fromJavaProto(Timestamps.add(toJavaProto(timestamp), Durations.fromMillis(durationMillis)))
@@ -72,7 +73,7 @@ private[schedule] object ScheduleProducer {
     val requirementsCapacity   = requiremetsGraph.requirementFightsSize.toArray
 
     def loadBalanceToMats(
-      req: (ScheduleRequirement, List[String]),
+      req: ScheduleRequirementWithFightIds,
       periodMats: Seq[InternalMatScheduleContainer],
       requirementsCapacity: Array[Int],
       requiremetsGraph: RequirementsGraph,
@@ -80,7 +81,7 @@ private[schedule] object ScheduleProducer {
       st: StageGraph,
       period: Period
     ): StageGraph = {
-      req._2.foldLeft(st) { (stageGraph, fightId) =>
+      req.fightIds.foldLeft(st) { (stageGraph, fightId) =>
         val mat = periodMats.minBy { _.currentTime.toEpochMilli() }
         updateMatAndSchedule(requirementsCapacity, requiremetsGraph, req, accumulator, mat, fightId, stageGraph, period)
       }
@@ -89,7 +90,7 @@ private[schedule] object ScheduleProducer {
     def updateMatAndSchedule(
       requirementsCapacity: Array[Int],
       requiremetsGraph: RequirementsGraph,
-      req: (ScheduleRequirement, List[String]),
+      req: ScheduleRequirementWithFightIds,
       accumulator: ScheduleAccumulator,
       mat: InternalMatScheduleContainer,
       fightId: String,
@@ -97,11 +98,7 @@ private[schedule] object ScheduleProducer {
       period: Period
     ): StageGraph = {
       val duration = getFightDuration(st.getDuration(fightId), period.riskPercent, period.timeBetweenFights)
-      if (
-        !(!pauses.contains(mat.id) || pauses.get(mat.id).exists(_.isEmpty)) &&
-        mat.currentTime.toEpochMilli + eightyPercentOfDurationInMillis(duration) >=
-          toMillis(pauses(mat.id)(0).getStartTime)
-      ) {
+      if (shouldAddPauseToMatBeforeFight(pauses, mat, duration)) {
         val p = pauses(mat.id).remove(0)
         val e = createFixedPauseEntry(
           p,
@@ -110,9 +107,9 @@ private[schedule] object ScheduleProducer {
         accumulator.scheduleEntries.append(e)
         mat.currentTime = mat.currentTime.plus(p.getDurationSeconds.toLong, ChronoUnit.SECONDS)
       }
-      requirementsCapacity(requiremetsGraph.getIndex(req._1.id).getOrElse(-1)) -= 1
-      val e = accumulator.scheduleEntryFromRequirement(req._1, mat.currentTime, Option(period.id))
-      accumulator.scheduleEntries(e).addCategoryId(st.getCategoryId(fightId))
+      requirementsCapacity(requiremetsGraph.getIndex(req.requirement.id).getOrElse(-1)) -= 1
+      val e = accumulator.scheduleEntryFromRequirement(req.requirement, mat.currentTime, Option(period.id))
+      accumulator.scheduleEntries(e) = accumulator.scheduleEntries(e).addCategoryId(st.getCategoryId(fightId))
       mat.fights.append(InternalFightStartTime(
         fightId,
         st.getCategoryId(fightId),
@@ -128,7 +125,7 @@ private[schedule] object ScheduleProducer {
     }
 
     def addRequirementsToQueue(
-      queueToUpdate: mutable.Queue[(ScheduleRequirement, List[String])],
+      queueToUpdate: mutable.Queue[ScheduleRequirementWithFightIds],
       requirementsQueue: mutable.Queue[ScheduleRequirement],
       stgGr: StageGraph
     ): Unit = {
@@ -142,12 +139,12 @@ private[schedule] object ScheduleProducer {
           } else { return }
         if (
           sr.entryType == ScheduleRequirementType.RELATIVE_PAUSE && sr.matId.isDefined && sr.durationSeconds.isDefined
-        ) { queueToUpdate.append((sr, List.empty)) }
+        ) { queueToUpdate.append(ScheduleRequirementWithFightIds(sr, List.empty)) }
         else {
           val i1 = requiremetsGraph.getIndex(sr.id).getOrElse(-1)
           if (i1 >= 0 && requirementsCapacity(i1) > 0) {
             val fights = stgGr.flushCompletableFights(requiremetsGraph.getFightIdsForRequirement(sr.id))
-            queueToUpdate.append((sr, fights))
+            queueToUpdate.append(ScheduleRequirementWithFightIds(sr, fights))
           }
         }
       }
@@ -157,32 +154,29 @@ private[schedule] object ScheduleProducer {
     def dispatchFightsFromQueue(
       period: Period,
       periodMats: mutable.Seq[InternalMatScheduleContainer],
-      q: mutable.Queue[(ScheduleRequirement, List[String])],
+      q: mutable.Queue[ScheduleRequirementWithFightIds],
       stGr: StageGraph
     ): StageGraph = {
       var sg = stGr
       while (q.nonEmpty) {
         val req = q.dequeue()
-        if (
-          req._1.entryType == ScheduleRequirementType.RELATIVE_PAUSE && req._1.matId.isDefined &&
-          req._1.durationSeconds.isDefined && req._1.periodId == period.id
-        ) {
-          if (matsToIds.contains(req._1.getMatId) && matsToIds(req._1.getMatId).periodId == period.id) {
-            val mat = matsToIds(req._1.getMatId)
+        if (isValidRelativePause(period, req)) {
+          if (matsToIds.contains(req.requirement.getMatId) && matsToIds(req.requirement.getMatId).periodId == period.id) {
+            val mat = matsToIds(req.requirement.getMatId)
             val e = createRelativePauseEntry(
-              req._1,
+              req.requirement,
               mat.currentTime.asTimestamp,
-              mat.currentTime.plus(req._1.getDurationSeconds.toLong, ChronoUnit.SECONDS).asTimestamp
+              mat.currentTime.plus(req.requirement.getDurationSeconds.toLong, ChronoUnit.SECONDS).asTimestamp
             )
             accumulator.scheduleEntries.append(e)
-            mat.currentTime = mat.currentTime.plus(req._1.getDurationSeconds.toLong, ChronoUnit.SECONDS)
+            mat.currentTime = mat.currentTime.plus(req.requirement.getDurationSeconds.toLong, ChronoUnit.SECONDS)
           }
         } else {
-          val ind      = requiremetsGraph.getIndex(req._1.id)
+          val ind      = requiremetsGraph.getIndex(req.requirement.id)
           val capacity = requirementsCapacity(ind.getOrElse(-1))
-          if (req._1.matId.isDefined) {
-            if (matsToIds.contains(req._1.getMatId)) {
-              val mat = matsToIds(req._1.getMatId)
+          if (req.requirement.matId.isDefined) {
+            if (matsToIds.contains(req.requirement.getMatId)) {
+              val mat = matsToIds(req.requirement.getMatId)
               if (mat.periodId == period.id) {
                 sg = loadBalanceToMats(req, Seq(mat), requirementsCapacity, requiremetsGraph, accumulator, sg, period)
               } else {
@@ -202,10 +196,10 @@ private[schedule] object ScheduleProducer {
               loadBalanceToMats(req, periodMats.toSeq, requirementsCapacity, requiremetsGraph, accumulator, sg, period)
           }
 
-          if (capacity > 0 && capacity == requirementsCapacity(requiremetsGraph.getIndexOrMinus1(req._1.id))) {
-            unfinishedRequirements.enqueue(req._1)
-          } else if (requirementsCapacity(requiremetsGraph.getIndexOrMinus1(req._1.id)) > 0) {
-            q.enqueue((req._1, sg.flushCompletableFights(requiremetsGraph.getFightIdsForRequirement(req._1.id))))
+          if (capacity > 0 && capacity == requirementsCapacity(requiremetsGraph.getIndexOrMinus1(req.requirement.id))) {
+            unfinishedRequirements.enqueue(req.requirement)
+          } else if (requirementsCapacity(requiremetsGraph.getIndexOrMinus1(req.requirement.id)) > 0) {
+            q.enqueue(ScheduleRequirementWithFightIds(req.requirement, sg.flushCompletableFights(requiremetsGraph.getFightIdsForRequirement(req.requirement.id))))
           }
         }
       }
@@ -220,7 +214,7 @@ private[schedule] object ScheduleProducer {
           accumulator.invalidFights.add(it)
         }
       }
-      val q: mutable.Queue[(ScheduleRequirement, List[String])] = mutable.Queue.empty
+      val q: mutable.Queue[ScheduleRequirementWithFightIds] = mutable.Queue.empty
       val rq: mutable.Queue[ScheduleRequirement] = mutable.Queue
         .from(requiremetsGraph.orderedRequirements.filter { it => it.periodId == period.id })
       var dispatchSuccessful = true
@@ -241,6 +235,17 @@ private[schedule] object ScheduleProducer {
     t.printStackTrace()
     Errors.InternalException(t)
   })
+
+  private def shouldAddPauseToMatBeforeFight(pauses: Map[String, ArrayBuffer[ScheduleRequirement]], mat: InternalMatScheduleContainer, duration: Int) = {
+    pauses.get(mat.id).exists(_.nonEmpty) &&
+      mat.currentTime.toEpochMilli + eightyPercentOfDurationInMillis(duration) >=
+        toMillis(pauses(mat.id)(0).getStartTime)
+  }
+
+  private def isValidRelativePause(period: Period, req: ScheduleRequirementWithFightIds) = {
+    req.requirement.entryType == ScheduleRequirementType.RELATIVE_PAUSE && req.requirement.matId.isDefined &&
+      req.requirement.durationSeconds.isDefined && req.requirement.periodId == period.id
+  }
 
   private def createMatScheduleContainers(
     mats: List[MatDescription],
