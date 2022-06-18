@@ -25,6 +25,7 @@ case class FightStartTimeUpdate(
 
 case class Fight(
   id: String,
+  fightName: Option[String],
   competitionId: String,
   stageId: String,
   categoryId: String,

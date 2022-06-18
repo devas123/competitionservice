@@ -21,7 +21,7 @@ object CommonFightUtils {
     numberOnMat: Int,
     duration: Long,
     categoryId: String,
-    startTime: Instant
+    startTime: Option[Instant]
   )
 
   implicit def asMatView(mat: MatDescription): MatView = MatView(mat.id, Option(mat.name), mat.periodId, mat.matOrder)
@@ -31,7 +31,7 @@ object CommonFightUtils {
     fight.numberOnMat.getOrElse(0),
     fight.duration.longValue(),
     fight.categoryId,
-    fight.startTime.map(st => Instant.ofEpochMilli(Timestamps.toMillis(toJavaProto(st)))).get
+    fight.startTime.map(st => Instant.ofEpochMilli(Timestamps.toMillis(toJavaProto(st))))
   )
 
   implicit def asFightViews(fights: Map[String, FightDescription]): Map[String, FightView] = fights.view
@@ -108,17 +108,18 @@ object CommonFightUtils {
   }
 
   private def moveEarlier(duration: Long, f: FightView) = {
-    (f.categoryId, createUpdate(f, f.numberOnMat - 1, f.startTime.minus(duration, ChronoUnit.MINUTES)))
+    (f.categoryId, createUpdate(f, f.numberOnMat - 1, f.startTime.map(_.minus(duration, ChronoUnit.MINUTES))))
   }
 
-  private def createUpdate(f: FightView, newNumberOnMat: Int, newStarTime: Instant) = {
+  private def createUpdate(f: FightView, newNumberOnMat: Int, newStarTime: Option[Instant]) = {
     FightOrderUpdate().withFightId(f.id).withMatId(Option(f.mat).flatMap(m => Option(m.id)).orNull)
-      .withNumberOnMat(newNumberOnMat)
-      .withStartTime(Timestamp.fromJavaProto(Timestamps.fromDate(Date.from(newStarTime))))
+      .withNumberOnMat(newNumberOnMat).update(_.startTime.setIfDefined(newStarTime.map(st =>
+        Timestamp.fromJavaProto(Timestamps.fromDate(Date.from(st)))
+      )))
   }
 
   private def moveLater(duration: Long, f: FightView) = {
-    (f.categoryId, createUpdate(f, f.numberOnMat + 1, f.startTime.plus(duration, ChronoUnit.MINUTES)))
+    (f.categoryId, createUpdate(f, f.numberOnMat + 1, f.startTime.map(_.plus(duration, ChronoUnit.MINUTES))))
   }
 
   private def updateStartTimes(
@@ -131,11 +132,12 @@ object CommonFightUtils {
     var startTime1    = startTime
     var maxStartTime1 = maxStartTime
     if (f.id != payload.fightId && fightMatIdMatchesNewMatId(f, payload) && f.numberOnMat == newOrderOnMat) {
-      startTime1 = Option(f.startTime)
+      startTime1 = f.startTime
     }
     if (
-      f.id != payload.fightId && fightMatIdMatchesNewMatId(f, payload) && !maxStartTime1.exists(_.isAfter(f.startTime))
-    ) { maxStartTime1 = Option(f.startTime) }
+      f.id != payload.fightId && fightMatIdMatchesNewMatId(f, payload) &&
+      !maxStartTime1.exists(maxStartTime => f.startTime.exists(maxStartTime.isAfter))
+    ) { maxStartTime1 = f.startTime }
     (maxStartTime1, startTime1)
   }
 

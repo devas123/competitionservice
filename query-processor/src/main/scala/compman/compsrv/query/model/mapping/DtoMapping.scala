@@ -289,9 +289,10 @@ object DtoMapping {
 
   def toDtoFight(f: Fight): model.FightDescription = {
     import cats.implicits._
-    model.FightDescription().withId(f.id).withCategoryId(f.categoryId).withFightName(f.id)
+    model.FightDescription().withId(f.id).withCategoryId(f.categoryId)
       .withScores(f.scores.mapWithIndex((c, i) => toDtoCompScore(c, i))).withDuration(f.durationSeconds)
       .withInvalid(f.invalid.getOrElse(false)).withCompetitionId(f.competitionId).withStageId(f.stageId).update(
+        _.fightName.setIfDefined(f.fightName),
         _.numberOnMat.setIfDefined(f.numberOnMat),
         _.numberInRound.setIfDefined(f.bracketsInfo.flatMap(_.numberInRound)),
         _.scheduleEntryId.setIfDefined(f.scheduleEntryId),
@@ -318,6 +319,7 @@ object DtoMapping {
   def mapFight(coms: Map[String, CompetitorDisplayInfo])(dto: model.FightDescription): Fight = {
     Fight(
       dto.id,
+      dto.fightName,
       dto.competitionId,
       dto.stageId,
       dto.categoryId,

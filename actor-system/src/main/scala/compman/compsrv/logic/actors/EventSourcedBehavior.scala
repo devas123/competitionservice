@@ -4,7 +4,7 @@ import cats.implicits._
 import compman.compsrv.logic.actors.ActorSystem.{ActorConfig, PendingMessage}
 import compman.compsrv.logic.actors.EventSourcedMessages.EventSourcingCommand
 import compman.compsrv.logic.actors.dungeon.DeathWatch
-import zio.{Fiber, Queue, Ref, RIO, Task, URIO, ZIO}
+import zio.{Exit, Fiber, Queue, Ref, RIO, Task, URIO, ZIO}
 import zio.clock.Clock
 import zio.console.Console
 import zio.interop.catz._
@@ -26,7 +26,7 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
 
   def sourceEvent(state: S, event: Ev): RIO[R, S]
   def getEvents(persistenceId: String, state: S): RIO[R, Seq[Ev]]
-  def persistEvents(persistenceId: String, events: Seq[Ev]): RIO[R, Unit]
+  def persistEvents(persistenceId: String, events: Seq[Ev]): URIO[R, Unit]
 
   def init(
     actorConfig: ActorConfig,
@@ -43,7 +43,7 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
     children: Ref[ContextState]
   )(optPostStop: () => Task[Unit]): RIO[R with Clock with Console, InternalActorCell[Msg]] = {
 
-    def applyEvents(events: Seq[Ev], state: S): RIO[R, S] = events.foldLeftM(state)(sourceEvent)
+    def applyEvents(events: Seq[Ev], state: S): RIO[R, S] = events.foldLeftM(state)((s, e) => sourceEvent(s, e))
 
     def process(
       watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
@@ -72,10 +72,12 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
           ev match {
             case EventSourcingCommand.Ignore => sa(s); idempotentCompleter()
             case EventSourcingCommand.Persist(ev) => for {
-                _            <- persistEvents(persistenceId, ev)
-                updatedState <- applyEvents(ev, s)
-                _            <- RIO(sa(updatedState))
-                res          <- effectfulCompleter(updatedState)
+                updatedState <- applyEvents(ev, s).onExit {
+                  case Exit.Success(value) => persistEvents(persistenceId, ev) *> URIO(value)
+                  case Exit.Failure(cause) => ZIO.debug(s"Error while applying events: $cause") *> URIO(state)
+                }
+                _   <- RIO(sa(updatedState))
+                res <- effectfulCompleter(updatedState)
               } yield res
           }
       ).tupled
@@ -88,18 +90,20 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
       watchedBy        <- Ref.make(Set.empty[ActorRef[Nothing]])
       terminatedQueued <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
       stopSwitch       <- Ref.make(false)
-      actor = LocalActorRef[Msg](queue, actorPath)(optPostStop, actorSystem, stopSwitch)
-      stateRef  <- Ref.make(initialState)
-      timersMap <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
+      stateRef         <- Ref.make(initialState)
+      timersMap        <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
       supervisor = actorSystem.supervisor
+      actor      = LocalActorRef[Msg](queue, actorPath)(actorSystem, stopSwitch)
       ts         = Timers[R, Msg](actor, timersMap, supervisor)
       context    = Context(children, actor, actorPath, actorSystem)
-      actorLoop <- (for {
+      shouldRunPostStop <- Ref.make(false)
+      _ <- (for {
         events       <- getEvents(persistenceId, initialState)
         sourcedState <- applyEvents(events, initialState)
         _            <- stateRef.set(sourcedState)
         (_, msgs)    <- init(actorConfig, context, sourcedState, ts)
-        _            <- msgs.traverse(m => actor ! m)
+        _            <- shouldRunPostStop.set(true)
+        _            <- ZIO.foreach_(msgs)(m => actor ! m)
         _ <- restartOneSupervision(context, queue, ts)(() =>
           innerLoop(msg => process(watching, watchedBy, terminatedQueued)(msg, stateRef, context, ts))(queue)
         )
@@ -107,10 +111,12 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
         for {
           _  <- ZIO.debug(s"Actor $actor stopped with exit result $exit.")
           st <- stateRef.get
-          _  <- self.postStop(actorConfig, context, st, ts).foldM(_ => URIO.unit, either => URIO.effectTotal(either))
-          _  <- sendDeathwatchNotifications(watchedBy, context)
+          _ <- self.postStop(actorConfig, context, st, ts).foldM(_ => URIO.unit, either => URIO.effectTotal(either))
+            .whenM(shouldRunPostStop.get)
+          _ <- sendDeathwatchNotifications(watchedBy, context)
+          _ <- optPostStop().ignore
         } yield ()
       ).supervised(actorSystem.supervisor).forkDaemon
-    } yield InternalActorCell(actor, actorLoop)
+    } yield InternalActorCell(actor)
   }
 }

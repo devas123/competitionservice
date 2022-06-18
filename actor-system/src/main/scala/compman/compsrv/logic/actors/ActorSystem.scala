@@ -36,11 +36,9 @@ final class ActorSystem(
     } yield ())
 
   private[actors] def awaitShutdown(repeatBeforeInterrupting: Int): URIO[Clock, Unit] = for {
-    fibers <- supervisor.value
-    filtered <- fibers.filterM(fiber =>
-      fiber.status.map(s => s != Status.Done)
-    )
-    _ <- ZIO.foreach_(filtered)(_.interruptFork).when(repeatBeforeInterrupting <= 0)
+    fibers   <- supervisor.value
+    filtered <- fibers.filterM(fiber => fiber.status.map(s => s != Status.Done))
+    _        <- ZIO.foreach_(filtered)(_.interruptFork).when(repeatBeforeInterrupting <= 0)
     _ <- (for {
       _ <- (for {
         dumps    <- ZIO.foreach(filtered)(_.dump)
@@ -88,16 +86,17 @@ final class ActorSystem(
     path <- buildFinalName(parentActor.getOrElse(RootActorPath()), actorName)
     updated <- refActorMap.modify(refMap =>
       if (refMap.contains(path)) { (false, refMap) }
-      else { (true, refMap + (path -> InternalActorCell(new MinimalActorRef[F] {}, Fiber.unit))) }
+      else { (true, refMap + (path -> InternalActorCell(new MinimalActorRef[F] {}))) }
     )
     _ <- IO.fail(new Exception(s"Actor $path already exists")).unless(updated)
     derivedSystem =
       new ActorSystem(actorSystemName, refActorMap, Some(path), eventStream, deadLetters, supervisor, debug)
-    contextState <- Ref
-      .make(ContextState(inCreation = Map.empty, isStopping = false, isStopped = false, Set.empty[InternalActorCell[Nothing]]))
+    contextState <- Ref.make(
+      ContextState(inCreation = Map.empty, isStopping = false, isStopped = false, Set.empty[InternalActorCell[Nothing]])
+    )
     creationFinished <- Promise.make[Nothing, Boolean]
-    actor <- behavior.makeActor(path, actorConfig, init, derivedSystem, contextState)(
-      () => dropFromActorMap(path, contextState, creationFinished)
+    actor <- behavior.makeActor(path, actorConfig, init, derivedSystem, contextState)(() =>
+      dropFromActorMap(path, contextState, creationFinished)
     ).onExit {
       case Exit.Success(value) => refActorMap.update(refMap => refMap + (path -> value)) *>
           creationFinished.succeed(true)
@@ -110,19 +109,22 @@ final class ActorSystem(
     contextState: Ref[ContextState],
     creationFinished: Promise[Nothing, Boolean]
   ): Task[Unit] = (for {
-    _             <- contextState.update(_.copy(isStopped = true))
-    _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] Setting stopped to TRUE for $path. Waiting for creation finished").when(debug)
-    _             <- creationFinished.await
-    _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] $path creation finished. Waiting for children in creation.").when(debug)
+    _ <- contextState.update(_.copy(isStopped = true))
+    _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] Setting stopped to TRUE for $path. Waiting for creation finished")
+      .when(debug)
+    _ <- creationFinished.await
+    _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] $path creation finished. Waiting for children in creation.")
+      .when(debug)
     inCreationMap <- contextState.map(c => c.inCreation).get
     _             <- ZIO.foreach_(inCreationMap.values)(_.await)
-    _ <- ZIO.debug(s"[ActorSystem: $actorSystemName] $path children creation finished").when(debug)
-    _ <- refActorMap.update(_ - path)
-    children <- contextState.map(_.children).get
-    _        <- ZIO.foreach_(children)(child => child.stop)
-    _        <- contextState.set(ContextState(inCreation = Map.empty, isStopping = false, isStopped = true, Set.empty))
-  } yield ()
-).onExit(_ => ZIO.debug(s"[ActorSystem: $actorSystemName] Finished removing actor $path from actor ref map.").when(debug))
+    _             <- ZIO.debug(s"[ActorSystem: $actorSystemName] $path children creation finished").when(debug)
+    _             <- refActorMap.update(_ - path)
+    children      <- contextState.map(_.children).get
+    _             <- ZIO.foreach_(children)(child => child.stop)
+    _ <- contextState.set(ContextState(inCreation = Map.empty, isStopping = false, isStopped = true, Set.empty))
+  } yield ()).onExit(_ =>
+    ZIO.debug(s"[ActorSystem: $actorSystemName] Finished removing actor $path from actor ref map.").when(debug)
+  )
   override def select[F](path: String): Task[ActorRef[F]] = {
     for {
       actorMap  <- refActorMap.get

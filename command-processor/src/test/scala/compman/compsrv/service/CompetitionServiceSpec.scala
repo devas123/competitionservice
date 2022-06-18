@@ -90,8 +90,8 @@ object CompetitionServiceSpec extends DefaultRunnableSpec {
               ))
           ).withType(CommandType.CREATE_COMPETITION_COMMAND)
           _               <- processor ! ProcessCommand(command)
-          eventOpt        <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[PublishMessage])
           notificationOpt <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[PublishMessage])
+          eventOpt        <- kafkaSupervisor.expectMessageClass(3.seconds, classOf[PublishMessage])
           notification = notificationOpt.get.message
           eventBytes   = eventOpt.get.message
           event        = Event.parseFrom(eventBytes)

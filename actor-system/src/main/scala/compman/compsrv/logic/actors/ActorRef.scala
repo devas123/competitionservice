@@ -29,7 +29,7 @@ private[actors] trait MinimalActorRef[Msg] extends ActorRef[Msg] {
 private[actors] case class LocalActorRef[Msg](
   private val queue: Queue[PendingMessage[Msg]],
   private val path: ActorPath
-)(private val postStop: () => Task[Unit], private val provider: ActorRefProvider, killSwitch: Ref[Boolean])
+)(private val provider: ActorRefProvider, killSwitch: Ref[Boolean])
     extends ActorRef[Msg] {
 
   override def hashCode(): Int = path.hashCode()
@@ -70,7 +70,6 @@ private[actors] case class LocalActorRef[Msg](
       if (!shutdown) for {
         t <- queue.takeAll
         _ <- queue.offer(Left(PoisonPill))
-        _ <- postStop()
       } yield t
       else Task.effectTotal(List.empty)
   } yield tail

@@ -8,13 +8,8 @@ import compman.compsrv.model.command.Commands
 import compman.compsrv.model.command.Commands.createErrorCommandCallbackMessageParameters
 import compservice.model.protobuf.command
 import compservice.model.protobuf.event.{Event, EventType}
-import compservice.model.protobuf.model.{
-  CommandProcessorCompetitionState,
-  CompetitionProcessingStarted,
-  CompetitionProcessingStopped,
-  CompetitionProcessorNotification
-}
-import zio.{Fiber, Has, Promise, RIO, Task, ZIO}
+import compservice.model.protobuf.model.{CommandProcessorCompetitionState, CompetitionProcessingStarted, CompetitionProcessingStopped, CompetitionProcessorNotification}
+import zio.{Fiber, Has, Promise, RIO, Task, URIO, ZIO}
 import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration.durationInt
@@ -195,12 +190,12 @@ object CompetitionProcessorActor {
         )).when(state.competitionState.revision == 0 && events.nonEmpty && isNotCompetitionCreatedEvent(events.head))
       } yield events
 
-      override def persistEvents(persistenceId: String, events: Seq[Event]): RIO[Env with Logging with Clock, Unit] = {
+      override def persistEvents(persistenceId: String, events: Seq[Event]): URIO[Env with Logging with Clock, Unit] = {
         import cats.implicits._
         events
           .traverse(e => props.kafkaSupervisor ! PublishMessage(props.eventTopic, props.competitionId, e.toByteArray))
           .unit
-      }
+      }.ignore
     }
 
   sealed trait Message

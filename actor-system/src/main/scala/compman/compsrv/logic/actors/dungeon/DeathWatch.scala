@@ -8,8 +8,8 @@ trait DeathWatch {
     watching: Ref[Map[ActorRef[Nothing], Option[Any]]]
   )(subject: ActorRef[Nothing], message: Option[Any]): Task[Unit] = {
     val subj = subject match {
-      case InternalActorCell(actor, _) => actor
-      case x                              => x
+      case InternalActorCell(actor) => actor
+      case x                        => x
     }
     for {
       modify <- watching.modify[Boolean] { w =>

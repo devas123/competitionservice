@@ -1,9 +1,9 @@
 package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.dungeon.SystemMessage
-import zio.{Fiber, Task}
+import zio.Task
 
-private[actors] case class InternalActorCell[-F](actor: ActorRef[F], actorFiber: Fiber[Throwable, Unit])
+private[actors] case class InternalActorCell[-F](actor: ActorRef[F])
     extends ActorRef[F] {
   override private[actors] def sendSystemMessage(msg: SystemMessage) = actor.sendSystemMessage(msg)
   override def !(fa: F): Task[Unit]                                  = actor ! fa

@@ -14,7 +14,6 @@ class ChangeFightOrderProcSpec extends AnyFunSuite with BeforeAndAfter with Test
 
   import Dependencies._
 
-
   private val payload = Some(
     ChangeFightOrderPayload().withFightId("fight1").withNewMatId("mat2").withPeriodId("period1").withNewOrderOnMat(3)
   )
@@ -34,8 +33,8 @@ class ChangeFightOrderProcSpec extends AnyFunSuite with BeforeAndAfter with Test
     assert(fightOrderChangedEvent.isRight)
     val events = fightOrderChangedEvent.getOrElse(List.empty)
     assert(events.nonEmpty)
-    assert(events.head.`type` == EventType.FIGHT_ORDER_CHANGED)
+    assert(events.head.`type` == EventType.FIGHTS_START_TIME_UPDATED)
     assert(events.head.messageInfo.map(_.payload).isDefined)
-    assert(events.head.messageInfo.flatMap(_.payload.changeFightOrderPayload).isDefined)
+    assert(events.head.messageInfo.map(_.payload.isFightStartTimeUpdatedPayload).exists(identity))
   }
 }

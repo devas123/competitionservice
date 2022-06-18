@@ -45,7 +45,8 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
   )(optPostStop: () => Task[Unit]): RIO[R with Clock with Console, InternalActorCell[Msg]] = {
     def process(
       watching: Ref[Map[ActorRef[Nothing], Option[Any]]],
-      watchedBy: Ref[Set[ActorRef[Nothing]]])(context: Context[Msg], msg: PendingMessage[Msg], stateRef: Ref[S], ts: Timers[R, Msg]): RIO[R, Unit] = {
+      watchedBy: Ref[Set[ActorRef[Nothing]]]
+    )(context: Context[Msg], msg: PendingMessage[Msg], stateRef: Ref[S], ts: Timers[R, Msg]): RIO[R, Unit] = {
       for {
         state <- stateRef.get
         command = msg
@@ -62,25 +63,23 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
     }
 
     for {
-      queue            <- Queue.dropping[PendingMessage[Msg]](actorConfig.mailboxSize)
-      watching         <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
-      watchedBy        <- Ref.make(Set.empty[ActorRef[Nothing]])
-      timersMap        <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
-      stopSwitch       <- Ref.make(false)
-      actor = LocalActorRef[Msg](queue, actorPath)(optPostStop, actorSystem, stopSwitch)
-      stateRef   <- Ref.make(initialState)
+      queue      <- Queue.dropping[PendingMessage[Msg]](actorConfig.mailboxSize)
+      watching   <- Ref.make(Map.empty[ActorRef[Nothing], Option[Any]])
+      watchedBy  <- Ref.make(Set.empty[ActorRef[Nothing]])
+      timersMap  <- Ref.make(Map.empty[String, Fiber[Throwable, Unit]])
+      stopSwitch <- Ref.make(false)
+      actor = LocalActorRef[Msg](queue, actorPath)(actorSystem, stopSwitch)
+      stateRef <- Ref.make(initialState)
       supervisor = actorSystem.supervisor
-      ts      = Timers[R, Msg](actor, timersMap, supervisor)
-      context = Context(children, actor, actorPath, actorSystem)
-      actorLoop <- (for {
+      ts         = Timers[R, Msg](actor, timersMap, supervisor)
+      context    = Context(children, actor, actorPath, actorSystem)
+      _ <- (for {
         state                <- stateRef.get
         (_, msgs, initState) <- init(actorConfig, context, state, ts)
         _                    <- stateRef.set(initState)
         _                    <- msgs.traverse(m => actor ! m)
         _ <- restartOneSupervision(context, queue, ts)(() =>
-          innerLoop(msg => process(watching, watchedBy)(context, msg, stateRef, ts))(
-            queue
-          )
+          innerLoop(msg => process(watching, watchedBy)(context, msg, stateRef, ts))(queue)
         )
       } yield ()).onExit(exit =>
         for {
@@ -88,8 +87,9 @@ trait ActorBehavior[R, S, Msg] extends AbstractBehavior[R, S, Msg] with DeathWat
           st <- stateRef.get
           _  <- self.postStop(actorConfig, context, st, ts).foldM(_ => URIO.unit, either => URIO.effectTotal(either))
           _  <- sendDeathwatchNotifications(watchedBy, context)
+          _  <- optPostStop().ignore
         } yield ()
       ).supervised(actorSystem.supervisor).forkDaemon
-    } yield InternalActorCell(actor = actor, actorFiber = actorLoop)
+    } yield InternalActorCell(actor = actor)
   }
 }

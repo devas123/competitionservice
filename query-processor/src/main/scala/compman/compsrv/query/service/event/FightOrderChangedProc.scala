@@ -18,7 +18,7 @@ object FightOrderChangedProc {
     fight.numberOnMat.getOrElse(-1),
     fight.durationSeconds.longValue(),
     fight.categoryId,
-    fight.startTime.map(_.toInstant).orNull
+    fight.startTime.map(_.toInstant)
   )
 
   private def asFightViews(fights: Map[String, Fight]): Map[String, FightView] = fights.view

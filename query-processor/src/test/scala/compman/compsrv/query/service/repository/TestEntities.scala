@@ -76,6 +76,7 @@ trait TestEntities {
 
   val fight: Fight = Fight(
     id = fightId,
+    fightName = Some("fightName"),
     competitionId = competitionId,
     stageId = stageId,
     categoryId = categoryId,

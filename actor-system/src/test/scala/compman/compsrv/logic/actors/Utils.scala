@@ -2,7 +2,7 @@ package compman.compsrv.logic.actors
 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.EventSourcedMessages.EventSourcingCommand
-import zio.{Fiber, RIO, ZIO}
+import zio.{Fiber, RIO, URIO, ZIO}
 import zio.clock.Clock
 import zio.console.putStrLn
 import zio.duration.durationInt
@@ -81,7 +81,7 @@ object Utils {
       override def getEvents(persistenceId: String, state: Unit): RIO[TestEnvironment, Seq[Events]] = RIO
         .effectTotal(Seq.empty)
 
-      override def persistEvents(persistenceId: String, events: Seq[Events]): RIO[TestEnvironment, Unit] = RIO.unit
+      override def persistEvents(persistenceId: String, events: Seq[Events]): URIO[TestEnvironment, Unit] = URIO.unit
 
       override def init(
         actorConfig: ActorConfig,
