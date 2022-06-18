@@ -14,7 +14,6 @@ object EventProcessors {
   ]: CompetitionLogging.Service: Monad: CompetitionQueryOperations: CompetitionUpdateOperations: FightQueryOperations: FightUpdateOperations](
     event: Events.Event[Any]
   ): F[Unit] = List(
-    FightOrderChangedProc(),
     CategoryDeletedProc(),
     FightResultSetProc(),
     CompetitionDeletedProc(),

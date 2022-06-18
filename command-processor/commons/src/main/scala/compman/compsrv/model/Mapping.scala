@@ -159,12 +159,6 @@ object Mapping {
     def create[F[+_]: Monad]: EventMapping[F] = (dto: Event) =>
       Monad[F].pure {
         dto.`type` match {
-          case FIGHT_ORDER_CHANGED => FightOrderChangedEvent(
-              dto.messageInfo.map(_.getChangeFightOrderPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
           case BRACKETS_GENERATED => BracketsGeneratedEvent(
               dto.messageInfo.map(_.getBracketsGeneratedPayload),
               dto.messageInfo.flatMap(_.competitionId),

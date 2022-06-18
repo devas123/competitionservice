@@ -177,16 +177,6 @@ object Events {
 
   final case class ScheduleDropped(competitionId: Option[String], sequenceNumber: Int) extends PayloadlessEvent
 
-  final case class FightOrderChangedEvent(
-    payload: Option[ChangeFightOrderPayload],
-    competitionId: Option[String],
-    categoryId: Option[String],
-    sequenceNumber: Int
-  ) extends Event[ChangeFightOrderPayload] {
-    override val competitorId: Option[String] = None
-    override val fightId: Option[String]      = None
-  }
-
   final case class FightsAddedToStageEvent(
     payload: Option[FightsAddedToStagePayload],
     competitionId: Option[String],
