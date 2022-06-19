@@ -1,6 +1,8 @@
 package compman.compsrv.logic.actors.behavior.api
 
 import cats.data.OptionT
+import com.google.protobuf.timestamp.Timestamp
+import com.google.protobuf.util.Timestamps
 import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Behaviors}
 import compman.compsrv.logic.category.CategoryGenerateService
 import compman.compsrv.logic.fight.FightResultOptionConstants
@@ -253,12 +255,20 @@ object CompetitionApiActor {
               } yield state
             case c @ GetCategories(competitionId) => for {
                 categories <- CompetitionQueryOperations[LIO].getCategoriesByCompetitionId(competitionId)
+                periods    <- CompetitionQueryOperations[LIO].getPeriodsByCompetitionId(competitionId)
+                categoryStartTimes = createCategoryIdToStartTimeMap(periods)
                 categoryStates <- categories.traverse { category =>
                   for {
                     numberOfFights <- FightQueryOperations[LIO].getNumberOfFightsForCategory(competitionId)(category.id)
                     numberOfCompetitors <- CompetitionQueryOperations[LIO]
                       .getNumberOfCompetitorsForCategory(competitionId)(category.id)
-                  } yield createCategoryState(competitionId, category, numberOfFights, numberOfCompetitors)
+                  } yield createCategoryState(
+                    competitionId,
+                    category,
+                    numberOfFights,
+                    numberOfCompetitors,
+                    categoryStartTimes.get(category.id).map(Timestamps.fromDate).map(Timestamp.fromJavaProto)
+                  )
                 }
                 _ <- c.replyTo ! QueryServiceResponse().withGetCategoriesResponse(GetCategoriesResponse(categoryStates))
               } yield state
@@ -275,12 +285,20 @@ object CompetitionApiActor {
             case c @ GetCategory(competitionId, categoryId) => for {
                 res <- (for {
                   category <- OptionT(CompetitionQueryOperations[LIO].getCategoryById(competitionId)(categoryId))
+                  periods  <- OptionT.liftF(CompetitionQueryOperations[LIO].getPeriodsByCompetitionId(competitionId))
+                  categoryStartTimes = createCategoryIdToStartTimeMap(periods)
                   numberOfFights <- OptionT
                     .liftF(FightQueryOperations[LIO].getNumberOfFightsForCategory(competitionId)(category.id))
                   numberOfCompetitors <- OptionT.liftF(
                     CompetitionQueryOperations[LIO].getNumberOfCompetitorsForCategory(competitionId)(category.id)
                   )
-                } yield createCategoryState(competitionId, category, numberOfFights, numberOfCompetitors)).value
+                } yield createCategoryState(
+                  competitionId,
+                  category,
+                  numberOfFights,
+                  numberOfCompetitors,
+                  categoryStartTimes.get(category.id).map(Timestamps.fromDate).map(Timestamp.fromJavaProto)
+                )).value
                 _ <- c.replyTo ! QueryServiceResponse().withGetCategoryResponse(GetCategoryResponse(res))
               } yield state
 
@@ -350,6 +368,12 @@ object CompetitionApiActor {
       }
     }
 
+  private def createCategoryIdToStartTimeMap(periods: List[Period]) = {
+    periods.flatMap(_.scheduleEntries).flatMap(se => se.categoryIds.map(catId => (catId, se.startTime)))
+      .filter(_._2.isDefined).map(pair => (pair._1, pair._2.get))
+      .groupMapReduce(_._1)(_._2)((date1, date2) => if (date1.before(date2)) date1 else date2)
+  }
+
   private def createGetCompetitorsResponse(res: (List[Competitor], Pagination)) = {
     QueryServiceResponse().withGetCompetitorsResponse(
       GetCompetitorsResponse().withCompetitors(res._1.map(DtoMapping.toDtoCompetitor)).withPageInfo(
@@ -364,9 +388,11 @@ object CompetitionApiActor {
     competitionId: String,
     category: Category,
     numberOfFights: Int,
-    numberOfCompetitors: Int
+    numberOfCompetitors: Int,
+    startDate: Option[Timestamp]
   ) = {
     model.CategoryState().withCategory(DtoMapping.toDtoCategory(category)).withId(category.id)
       .withCompetitionId(competitionId).withNumberOfCompetitors(numberOfCompetitors).withFightsNumber(numberOfFights)
+      .update(_.startDate.setIfDefined(startDate))
   }
 }

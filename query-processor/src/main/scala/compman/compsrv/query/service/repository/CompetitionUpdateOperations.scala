@@ -19,7 +19,7 @@ trait CompetitionUpdateOperations[F[+_]] {
   def removeCompetitionInfoTemplate(competitionId: String): F[Unit]
   def addStage(stageDescriptor: StageDescriptor): F[Unit]
   def updateStage(stageDescriptor: StageDescriptor): F[Unit]
-  def removeStages(competition: String)(categoryId: String): F[Unit]
+  def removeStages(competition: String)(ids: Set[String]): F[Unit]
   def updateStageStatus(competitionId: String)(categoryId: String, stageId: String, newStatus: StageStatus): F[Unit]
   def addCategory(category: Category): F[Unit]
   def updateCategoryRegistrationStatus(competitionId: String)(id: String, newStatus: Boolean): F[Unit]
@@ -107,8 +107,8 @@ object CompetitionUpdateOperations {
     override def removePeriods(competitionId: String): LIO[Unit] = periods
       .map(_.update(m => m.filter { case (_, p) => p.competitionId == competitionId })).getOrElse(ZIO.unit)
 
-    override def removeStages(competition: String)(categoryId: String): LIO[Unit] = stages
-      .map(_.update(s => s.filter(_._2.categoryId != categoryId))).getOrElse(ZIO.unit)
+    override def removeStages(competition: String)(ids: Set[String]): LIO[Unit] = stages
+      .map(_.update(s => s.filter(s => !ids.contains(s._2.id)))).getOrElse(ZIO.unit)
 
     override def removeCompetitorsForCompetition(competitionId: String): LIO[Unit] = competitors
       .map(_.update(c => c.filter(_._2.competitionId != competitionId))).getOrElse(ZIO.unit)
@@ -190,10 +190,11 @@ object CompetitionUpdateOperations {
 
     override def updateStage(stageDescriptor: StageDescriptor): LIO[Unit] = addStage(stageDescriptor)
 
-    override def removeStages(competition: String)(categoryId: String): LIO[Unit] = {
+    override def removeStages(competition: String)(ids: Set[String]): LIO[Unit] = {
       for {
         collection <- competitionStateCollection
-        statement = collection.findOneAndUpdate(equal(idField, competition), set(s"stages", Document()))
+        updates   = ids.map(id => unset(s"stages.$id")).toSeq
+        statement = collection.findOneAndUpdate(equal(idField, competition), combine(updates: _*))
         res <- RIO.fromFuture(_ => statement.toFuture()).unit
       } yield res
     }

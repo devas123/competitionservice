@@ -320,6 +320,7 @@ message CategoryState {
   CategoryDescriptor category = 3;
   int32 fightsNumber = 4;
   int32 numberOfCompetitors = 5;
+  optional google.protobuf.Timestamp startDate = 8;
 }
 
 message CompetitionProperties {
