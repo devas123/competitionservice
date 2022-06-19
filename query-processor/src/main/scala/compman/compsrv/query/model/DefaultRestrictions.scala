@@ -49,9 +49,6 @@ object AgeDivision {
 }
 
 object DefaultRestrictions {
-  private val bjj = CategoryRestriction().withRestrictionId(UUID.randomUUID().toString)
-    .withType(CategoryRestrictionType.VALUE).withName("Sport").withValue("BJJ")
-
   private def weightRestriction(alias: String, maxValue: String, minValue: String = "0") = CategoryRestriction()
     .withRestrictionId(UUID.randomUUID().toString).withType(CategoryRestrictionType.RANGE)
     .withName("Weight").withMaxValue(maxValue).withMinValue(minValue).withAlias(alias).withUnit("kg")
@@ -134,7 +131,6 @@ object DefaultRestrictions {
   private val fheavy          = weightRestriction(Weight.HEAVY, "300")
 
   val restrictions: Seq[CategoryRestriction] = List(
-    bjj,
     male,
     female,
     white,
