@@ -500,7 +500,6 @@ enum CompetitorRegistrationStatus {
 message MatState {
   MatDescription matDescription = 1;
   int32 numberOfFights = 2;
-  repeated FightDescription topFiveFights = 3;
 }
 
 message FightStartTimePair {

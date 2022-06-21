@@ -26,6 +26,7 @@ message PageInfo {
 message MatsQueryResult {
   repeated Competitor competitors = 1;
   repeated MatState mats = 2;
+  repeated FightDescription topFiveFightsForEachMat = 3;
 }
 
 message QueryServiceResponse {

@@ -319,11 +319,10 @@ object CompetitionApiActor {
                         cs.competitorAcademyName
                       )
                     ).map(DtoMapping.toDtoCompetitor)
-                    matState = model.MatState().withMatDescription(DtoMapping.toDtoMat(period.id)(mat))
-                      .withTopFiveFights(fights.map(DtoMapping.toDtoFight)).withNumberOfFights(numberOfFights)
-                  } yield (matState, competitors)
+                    matState = model.MatState().withMatDescription(DtoMapping.toDtoMat(period.id)(mat)).withNumberOfFights(numberOfFights)
+                  } yield (matState, competitors, fights.map(DtoMapping.toDtoFight))
                 )
-              } yield MatsQueryResult(res.flatMap(_._2), res.map(_._1))
+              } yield MatsQueryResult(res.flatMap(_._2), res.map(_._1), res.flatMap(_._3))
               optionRes.value.flatMap(res =>
                 c.replyTo ! QueryServiceResponse().withGetPeriodMatsResponse(GetPeriodMatsResponse(
                   Option(res.getOrElse(MatsQueryResult(List.empty, List.empty)))
