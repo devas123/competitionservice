@@ -49,7 +49,7 @@ trait CompetitionQueryOperations[F[+_]] {
   def getPeriodById(competitionId: String)(id: String): F[Option[Period]]
 
   def getStagesByCategory(competitionId: String)(categoryId: String): F[List[StageDescriptor]]
-  def getStageById(competitionId: String)(categoryId: String, id: String): F[Option[StageDescriptor]]
+  def getStageById(competitionId: String)(id: String): F[Option[StageDescriptor]]
 }
 
 object CompetitionQueryOperations {
@@ -138,8 +138,7 @@ object CompetitionQueryOperations {
     override def getStagesByCategory(competitionId: String)(categoryId: String): LIO[List[StageDescriptor]] =
       getStagesByCategory(stages)(competitionId)(categoryId)
 
-    override def getStageById(competitionId: String)(cagtegoryId: String, id: String): LIO[Option[StageDescriptor]] =
-      getById(stages)(id)
+    override def getStageById(competitionId: String)(id: String): LIO[Option[StageDescriptor]] = getById(stages)(id)
 
     override def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): LIO[Int] = (for {
       cmtrs <- competitors
@@ -311,7 +310,7 @@ object CompetitionQueryOperations {
       }
     }
 
-    override def getStageById(competitionId: String)(categoryId: String, id: String): LIO[Option[StageDescriptor]] = {
+    override def getStageById(competitionId: String)(id: String): LIO[Option[StageDescriptor]] = {
       for {
         collection <- competitionStateCollection
         select = collection.find(and(equal(idField, competitionId), exists(s"stages.$id")))

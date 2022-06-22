@@ -17,9 +17,9 @@ trait FightQueryOperations[F[+_]] {
   def getFightsByMat(competitionId: String)(matId: String, limit: Int): F[List[Fight]]
   def getFightsByStage(competitionId: String)(categoryId: String, stageId: String): F[List[Fight]]
 
-  def getFightById(competitionId: String)(categoryId: String, id: String): F[Option[Fight]]
+  def getFightById(competitionId: String)(id: String): F[Option[Fight]]
   def getFightIdsByCategoryIds(competitionId: String): F[Map[String, List[String]]]
-  def getFightsByIds(competitionId: String)(categoryId: String, ids: Set[String]): F[List[Fight]]
+  def getFightsByIds(competitionId: String)(ids: Set[String]): F[List[Fight]]
 }
 
 object FightQueryOperations {
@@ -40,10 +40,9 @@ object FightQueryOperations {
             .map(_.values.filter(f => f.competitionId == competitionId && f.stageId == stageId).toList)
         case None => Task(List.empty)
       }
-    override def getFightById(competitionId: String)(categoryId: String, id: String): LIO[Option[Fight]] =
-      getById(fights)(id)
-    override def getFightsByIds(competitionId: String)(categoryId: String, ids: Set[String]): LIO[List[Fight]] = ids
-      .toList.traverse(getById(fights)).map(_.mapFilter(identity))
+    override def getFightById(competitionId: String)(id: String): LIO[Option[Fight]] = getById(fights)(id)
+    override def getFightsByIds(competitionId: String)(ids: Set[String]): LIO[List[Fight]] = ids.toList
+      .traverse(getById(fights)).map(_.mapFilter(identity))
 
     override def getNumberOfFightsForCategory(competitionId: String)(categoryId: String): LIO[Int] = for {
       stages      <- getStagesByCategory(stages)(competitionId)(categoryId)
@@ -121,19 +120,17 @@ object FightQueryOperations {
 
     }
 
-    override def getFightById(competitionId: String)(categoryId: String, id: String): LIO[Option[Fight]] = {
+    override def getFightById(competitionId: String)(id: String): LIO[Option[Fight]] = {
       for {
         collection <- fightCollection
-        statement = collection
-          .find(and(equal(competitionIdField, competitionId), equal(idField, id), equal(categoryIdField, categoryId)))
-        res <- RIO.fromFuture(_ => statement.headOption())
+        res        <- getByIdAndCompetitionId(collection)(competitionId, id)
       } yield res
     }
 
-    override def getFightsByIds(competitionId: String)(categoryId: String, ids: Set[String]): LIO[List[Fight]] = {
+    override def getFightsByIds(competitionId: String)(ids: Set[String]): LIO[List[Fight]] = {
       import cats.implicits._
       import zio.interop.catz._
-      ids.toList.traverse(id => getFightById(competitionId)(categoryId, id).map(_.get))
+      ids.toList.traverse(id => getFightById(competitionId)(id).map(_.get))
     }
     override def getNumberOfFightsForCategory(competitionId: String)(categoryId: String): LIO[Int] = {
       for {
@@ -157,9 +154,7 @@ object FightQueryOperations {
         collection <- fightCollection
         statement = collection.find(completableFights(competitionId))
         res <- RIO.fromFuture(_ => statement.toFuture())
-          .map(_.groupMap(_.categoryId)(_.id).map(e =>
-            e._1 -> e._2.toList
-          ))
+          .map(_.groupMap(_.categoryId)(_.id).map(e => e._1 -> e._2.toList))
       } yield res
     }
 

@@ -62,8 +62,8 @@ object QueryHttpApiService {
       sendApiCommandAndReturnResponse(competitionApiActor, GetCompetitionProperties(id))
     case GET -> Root / "competition" / id / "fight" =>
       sendApiCommandAndReturnResponse(competitionApiActor, GetFightIdsByCategoryIds(id))
-    case GET -> Root / "competition" / id / "category" / categoryId / "fight" / fightId =>
-      sendApiCommandAndReturnResponse(competitionApiActor, GetFightById(id, categoryId, fightId))
+    case GET -> Root / "competition" / id / "fight" / fightId =>
+      sendApiCommandAndReturnResponse(competitionApiActor, GetFightById(id, fightId))
     case GET -> Root / "competition" / id / "infotemplate" =>
       sendApiCommandAndReturnResponse(competitionApiActor, GetCompetitionInfoTemplate(id))
     case GET -> Root / "competition" / id / "schedule" =>
@@ -82,8 +82,8 @@ object QueryHttpApiService {
       sendApiCommandAndReturnResponse(competitionApiActor, GetStageById(id, categoryId, stageId))
     case GET -> Root / "competition" / id / "category" / categoryId / "stage" / stageId / "fight" =>
       sendApiCommandAndReturnResponse(competitionApiActor, GetStageFights(id, categoryId, stageId))
-    case GET -> Root / "competition" / id / "category" / categoryId / "stage" / stageId / "resultoptions" =>
-      sendApiCommandAndReturnResponse(competitionApiActor, GetFightResulOptions(id, categoryId, stageId))
+    case GET -> Root / "competition" / id / "stage" / stageId / "resultoptions" =>
+      sendApiCommandAndReturnResponse(competitionApiActor, GetFightResulOptions(id, stageId))
     case GET -> Root / "competition" / id / "mat" => sendApiCommandAndReturnResponse(competitionApiActor, GetMats(id))
     case GET -> Root / "competition" / id / "mat" / matId =>
       sendApiCommandAndReturnResponse(competitionApiActor, GetMat(id, matId))

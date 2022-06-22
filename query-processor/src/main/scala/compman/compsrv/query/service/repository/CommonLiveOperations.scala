@@ -11,7 +11,7 @@ import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 import org.mongodb.scala.{FindObservable, MongoClient, MongoCollection, MongoDatabase, Observable}
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.{Filters, Indexes}
-import org.mongodb.scala.model.Filters.equal
+import org.mongodb.scala.model.Filters.{and, equal}
 import org.mongodb.scala.model.Updates.{set, unset}
 import scalapb.{GeneratedEnum, GeneratedEnumCompanion}
 import zio.{RIO, Task, ZIO}
@@ -189,5 +189,13 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
     for { res <- RIO.fromFuture(_ => select.toFuture()) } yield res.toList
   }
 
+
+  protected def getByIdAndCompetitionId[T: ClassTag](collection: MongoCollection[T])(competitionId: String, id: String): LIO[Option[T]] = {
+    for {
+      statement <- ZIO.effect(collection
+        .find(and(equal(competitionIdField, competitionId), equal(idField, id))))
+      res <- selectOne(statement)
+    } yield res
+  }
 
 }

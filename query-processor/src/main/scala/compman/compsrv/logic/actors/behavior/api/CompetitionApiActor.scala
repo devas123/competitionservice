@@ -120,7 +120,7 @@ object CompetitionApiActor {
   final case class GetCategories(competitionId: String)(override val replyTo: ActorRef[QueryServiceResponse])
       extends CompetitionApiCommand {}
 
-  final case class GetFightById(competitionId: String, categoryId: String, fightId: String)(
+  final case class GetFightById(competitionId: String, fightId: String)(
     override val replyTo: ActorRef[QueryServiceResponse]
   ) extends CompetitionApiCommand {}
   final case class GetFightIdsByCategoryIds(competitionId: String)(override val replyTo: ActorRef[QueryServiceResponse])
@@ -134,7 +134,7 @@ object CompetitionApiActor {
     override val replyTo: ActorRef[QueryServiceResponse]
   ) extends CompetitionApiCommand {}
 
-  final case class GetFightResulOptions(competitionId: String, categoryId: String, stageId: String)(
+  final case class GetFightResulOptions(competitionId: String, stageId: String)(
     override val replyTo: ActorRef[QueryServiceResponse]
   ) extends CompetitionApiCommand {}
 
@@ -272,8 +272,8 @@ object CompetitionApiActor {
                 }
                 _ <- c.replyTo ! QueryServiceResponse().withGetCategoriesResponse(GetCategoriesResponse(categoryStates))
               } yield state
-            case c @ GetFightById(competitionId, categoryId, fightId) => FightQueryOperations[LIO]
-                .getFightById(competitionId)(categoryId, fightId).map(_.map(DtoMapping.toDtoFight))
+            case c @ GetFightById(competitionId, fightId) => FightQueryOperations[LIO]
+                .getFightById(competitionId)(fightId).map(_.map(DtoMapping.toDtoFight))
                 .flatMap(res => c.replyTo ! QueryServiceResponse().withGetFightByIdResponse(GetFightByIdResponse(res)))
                 .as(state)
             case c @ GetFightIdsByCategoryIds(competitionId) => FightQueryOperations[LIO]
@@ -340,8 +340,8 @@ object CompetitionApiActor {
                   fights.map(entry => (entry._1, ListOfString(entry._2.map(_.id)))).toMap
                 ))
               } yield state
-            case c @ GetFightResulOptions(competitionId, categoryId, stageId) => for {
-                stage <- CompetitionQueryOperations[LIO].getStageById(competitionId)(categoryId, stageId)
+            case c @ GetFightResulOptions(competitionId, stageId) => for {
+                stage <- CompetitionQueryOperations[LIO].getStageById(competitionId)(stageId)
                 fightResultOptions = stage.flatMap(_.stageResultDescriptor)
                   .map(_.fightResultOptions.map(DtoMapping.toDtoFightResultOption)).getOrElse(List.empty)
                 _ <- c.replyTo ! QueryServiceResponse()
@@ -353,8 +353,8 @@ object CompetitionApiActor {
                     res.map(DtoMapping.toDtoStageDescriptor)
                   ))
                 ).as(state)
-            case c @ GetStageById(competitionId, categoryId, stageId) => CompetitionQueryOperations[LIO]
-                .getStageById(competitionId)(categoryId, stageId).flatMap(res =>
+            case c @ GetStageById(competitionId, _, stageId) => CompetitionQueryOperations[LIO]
+                .getStageById(competitionId)(stageId).flatMap(res =>
                   c.replyTo ! QueryServiceResponse()
                     .withGetStageByIdResponse(GetStageByIdResponse(res.map(DtoMapping.toDtoStageDescriptor)))
                 ).as(state)

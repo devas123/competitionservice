@@ -22,7 +22,7 @@ object CompetitionOperationsStageOperationsTest extends DefaultRunnableSpec with
         _ <- CompetitionUpdateOperations[LIO].removeCompetitionState(competitionId)
         _ <- CompetitionUpdateOperations[LIO].addCompetitionProperties(competitionProperties)
         _ <- CompetitionUpdateOperations[LIO].addStage(stageDescriptor)
-        stage <- CompetitionQueryOperations[LIO].getStageById(competitionId)(categoryId, stageId)
+        stage <- CompetitionQueryOperations[LIO].getStageById(competitionId)(stageId)
       } yield assert(stage)(isSome))
         .provideLayer(layers)
     }

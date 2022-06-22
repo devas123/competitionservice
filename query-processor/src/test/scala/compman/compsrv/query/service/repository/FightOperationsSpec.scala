@@ -29,7 +29,7 @@ object FightOperationsSpec extends DefaultRunnableSpec with TestEntities with Em
         import context._
         (for {
           _ <- FightUpdateOperations[LIO].addFight(fight)
-          loadedFight <- FightQueryOperations[LIO].getFightById(competitionId)(categoryId, fightId)
+          loadedFight <- FightQueryOperations[LIO].getFightById(competitionId)(fightId)
           _ <- FightUpdateOperations[LIO].removeFightsForCompetition(competitionId)
         } yield assert(loadedFight)(isSome)).provideLayer(layers)
       }
@@ -41,7 +41,7 @@ object FightOperationsSpec extends DefaultRunnableSpec with TestEntities with Em
         (for {
           _ <- FightUpdateOperations[LIO].addFight(fight)
           _ <- FightUpdateOperations[LIO].updateFightScoresAndResultAndStatus(competitionId)(fightId, scores.toList, fightResult, FightStatus.FINISHED)
-          loadedFight <- FightQueryOperations[LIO].getFightById(competitionId)(categoryId, fightId)
+          loadedFight <- FightQueryOperations[LIO].getFightById(competitionId)(fightId)
           _ <- FightUpdateOperations[LIO].removeFightsForCompetition(competitionId)
         } yield assert(loadedFight)(isSome) && assertTrue(loadedFight.get.scores.nonEmpty) &&
           assertTrue(loadedFight.get.scores.size == 2) && assert(loadedFight.get.fightResult)(isSome) &&
@@ -63,7 +63,7 @@ object FightOperationsSpec extends DefaultRunnableSpec with TestEntities with Em
           _ <- FightUpdateOperations[LIO].addFight(fight)
           fight2Id = UUID.randomUUID().toString
           _ <- FightUpdateOperations[LIO].addFight(fight.copy(id = fight2Id))
-          loadedFight <- FightQueryOperations[LIO].getFightsByIds(competitionId)(categoryId, Set(fightId, fight2Id))
+          loadedFight <- FightQueryOperations[LIO].getFightsByIds(competitionId)(Set(fightId, fight2Id))
           _ <- FightUpdateOperations[LIO].removeFightsForCompetition(competitionId)
         } yield assert(loadedFight)(hasSize(equalTo(2))))
           .provideLayer(layers)
@@ -87,7 +87,7 @@ object FightOperationsSpec extends DefaultRunnableSpec with TestEntities with Em
               .withNumberOnMat(newNumberOnMat), newMat)
           })
           _ <- FightUpdateOperations[LIO].updateFightOrderAndMat(updates)
-          updatedFights <- FightQueryOperations[LIO].getFightsByIds(competitionId)(fight.categoryId, fights.map(_.id).toSet)
+          updatedFights <- FightQueryOperations[LIO].getFightsByIds(competitionId)(fights.map(_.id).toSet)
         } yield assert(updatedFights)(hasSize(equalTo(3))) && assertTrue(updatedFights.forall(f =>
           f.matId.contains(newMat.matId)
             && f.matName.contains(newMat.name)
