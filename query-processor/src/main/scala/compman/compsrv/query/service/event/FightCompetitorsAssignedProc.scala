@@ -45,10 +45,7 @@ object FightCompetitorsAssignedProc {
           newScores = scores.filter(_.parentFightId != newScore.parentFightId) :+ newScore
         } yield toFight.copy(scores = newScores)
       }
-
-      _ <-
-        if (updates.nonEmpty) OptionT.liftF(FightUpdateOperations[F].updateFightScores(updates))
-        else OptionT.liftF(Monad[F].unit)
+      _ <- OptionT.liftF(FightUpdateOperations[F].updateFightScores(updates).whenA(updates.nonEmpty))
     } yield ()
   }.value.map(_ => ())
 }
