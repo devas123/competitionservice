@@ -52,12 +52,11 @@ object SetFightResultProc {
       _ <- assertET[F](payload.fightResult.isDefined, Some("Fight result missing"))
       fr = payload.getFightResult
       _ <- assertET[F](fr.winnerId.isDefined, Some("Winner ID missing"))
-      winnerId = fr.getWinnerId
       _ <- assertETErr[F](state.fights.contains(fightId), Errors.FightDoesNotExist(fightId))
       fight       = state.fights(fightId)
       stageId     = fight.stageId
       stageFights = state.fights.filter(_._2.stageId == stageId)
-      fightUpdates <- EitherT.liftF(updates[F](command, payload, winnerId, fight, stageFights))
+      fightUpdates <- EitherT.liftF(updates[F](command, payload, fight, stageFights))
       status = payload.status
       dashboardFightResultSetEvent <- EitherT.liftF(CommandEventOperations[F, Event].create(
         `type` = EventType.DASHBOARD_FIGHT_RESULT_SET,
@@ -106,11 +105,10 @@ object SetFightResultProc {
   private def updates[F[+_]: Monad: IdOperations: EventOperations](
     command: SetFightResultCommand,
     payload: SetFightResultPayload,
-    winnerId: String,
     fight: FightDescription,
     stageFights: Map[String, FightDescription]
   ) = {
-    FightReferenceType.values.toList.foldMapM[F, List[Event]](ref => {
+    FightReferenceType.values.filter(_ != FightReferenceType.PROPAGATED).toList.foldMapM[F, List[Event]](ref => {
       val k: EitherT[F, Errors.Error, List[Event]] = for {
         id          <- EitherT.fromOption[F](getIdToProceed(ref, fight, payload), Errors.InternalError())
         assignments <- EitherT.liftF(FightUtils.advanceFighterToSiblingFights[F](id, payload.fightId, ref, stageFights))

@@ -76,7 +76,7 @@ object FightUtils {
       case (cid, sf, rt, fs, up) =>
         val eitherT = for {
           fight <- fs.get(sf)
-          targetFightId = if (referenceType == FightReferenceType.LOSER) fight.getLoseFight else fight.getWinFight
+          targetFightId = if (rt == FightReferenceType.LOSER) fight.getLoseFight else fight.getWinFight
           targetFight <- fs.get(targetFightId)
           update = targetFight.withScores(targetFight.scores.map(s =>
             if (s.parentFightId.contains(sf) && s.parentReferenceType.contains(rt)) { s.withCompetitorId(cid) }
@@ -87,8 +87,10 @@ object FightUtils {
             .withCompetitorId(cid).withReferenceType(rt)
           res =
             if (targetFight.status == FightStatus.UNCOMPLETABLE) {
-              Left((cid, targetFight.id, FightReferenceType.WINNER, updatedFights, up :+ assignment))
-            } else { Right((updatedFights, up :+ assignment)) }
+              Left((cid, targetFight.id, FightReferenceType.PROPAGATED, updatedFights, up :+ assignment))
+            } else {
+              Right((updatedFights, up :+ assignment))
+            }
         } yield res
         Monad[F].pure(eitherT.getOrElse(Right((fs, up))))
     }

@@ -13,7 +13,7 @@ import zio.Task
 
 object Mapping {
   trait CommandMapping[F[_]] {
-    def mapCommandDto(commandDTO: Command): F[Commands.InternalCommandProcessorCommand[Any]]
+    def mapCommandDto(dto: Command): F[Commands.InternalCommandProcessorCommand[Any]]
   }
 
   object CommandMapping {
@@ -143,8 +143,8 @@ object Mapping {
               .UpdateAcademyCommand(payload = dto.messageInfo.map(_.getUpdateAcademyPayload))
           case REMOVE_ACADEMY_COMMAND => Commands
               .RemoveAcademyCommand(payload = dto.messageInfo.map(_.getRemoveAcademyPayload))
-          case CommandType.UNKNOWN  => Commands.UnknownCommand(dto.messageInfo.flatMap(_.competitionId))
-          case _: CommandType.Unrecognized  => Commands.UnknownCommand(dto.messageInfo.flatMap(_.competitionId))
+          case CommandType.UNKNOWN         => Commands.UnknownCommand(dto.messageInfo.flatMap(_.competitionId))
+          case _: CommandType.Unrecognized => Commands.UnknownCommand(dto.messageInfo.flatMap(_.competitionId))
         }
       }
 
@@ -156,187 +156,189 @@ object Mapping {
   object EventMapping {
     def apply[F[+_]](implicit F: EventMapping[F]): EventMapping[F] = F
 
-    def create[F[+_]: Monad]: EventMapping[F] = (dto: Event) =>
-      Monad[F].pure {
-        dto.`type` match {
-          case BRACKETS_GENERATED => BracketsGeneratedEvent(
-              dto.messageInfo.map(_.getBracketsGeneratedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
-          case SCHEDULE_GENERATED => ScheduleGeneratedEvent(
-              dto.messageInfo.map(_.getScheduleGeneratedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+    def mapEvent(dto: Event): Events.Event[Any] = {
+      dto.`type` match {
+        case BRACKETS_GENERATED => BracketsGeneratedEvent(
+            dto.messageInfo.map(_.getBracketsGeneratedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
+        case SCHEDULE_GENERATED => ScheduleGeneratedEvent(
+            dto.messageInfo.map(_.getScheduleGeneratedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case FIGHTS_ADDED_TO_STAGE => FightsAddedToStageEvent(
-              dto.messageInfo.map(_.getFightsAddedToStagePayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case FIGHTS_ADDED_TO_STAGE => FightsAddedToStageEvent(
+            dto.messageInfo.map(_.getFightsAddedToStagePayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case STAGE_STATUS_UPDATED => StageStatusUpdatedEvent(
-              dto.messageInfo.map(_.getStageStatusUpdatedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case STAGE_STATUS_UPDATED => StageStatusUpdatedEvent(
+            dto.messageInfo.map(_.getStageStatusUpdatedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case COMPETITOR_ADDED => CompetitorAddedEvent(
-              dto.messageInfo.map(_.getCompetitorAddedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case COMPETITOR_ADDED => CompetitorAddedEvent(
+            dto.messageInfo.map(_.getCompetitorAddedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case COMPETITOR_REMOVED => CompetitorRemovedEvent(
-              dto.messageInfo.map(_.getCompetitorRemovedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case COMPETITOR_REMOVED => CompetitorRemovedEvent(
+            dto.messageInfo.map(_.getCompetitorRemovedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case COMPETITOR_UPDATED => CompetitorUpdatedEvent(
-              dto.messageInfo.map(_.getCompetitorUpdatedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case COMPETITOR_UPDATED => CompetitorUpdatedEvent(
+            dto.messageInfo.map(_.getCompetitorUpdatedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case COMPETITOR_CATEGORY_CHANGED => CompetitorCategoryChangedEvent(
-              dto.messageInfo.map(_.getChangeCompetitorCategoryPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.localEventNumber
-            )
+        case COMPETITOR_CATEGORY_CHANGED => CompetitorCategoryChangedEvent(
+            dto.messageInfo.map(_.getChangeCompetitorCategoryPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.localEventNumber
+          )
 
-          case COMPETITOR_CATEGORY_ADDED => CompetitorCategoryAddedEvent(
-              dto.messageInfo.map(_.getCompetitorCategoryAddedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.localEventNumber
-            )
+        case COMPETITOR_CATEGORY_ADDED => CompetitorCategoryAddedEvent(
+            dto.messageInfo.map(_.getCompetitorCategoryAddedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.localEventNumber
+          )
 
-          case CATEGORY_ADDED => CategoryAddedEvent(
-              dto.messageInfo.map(_.getCategoryAddedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case CATEGORY_ADDED => CategoryAddedEvent(
+            dto.messageInfo.map(_.getCategoryAddedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case CATEGORY_DELETED => CategoryDeletedEvent(
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case CATEGORY_DELETED => CategoryDeletedEvent(
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case CATEGORY_BRACKETS_DROPPED => CategoryBracketsDropped(
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case CATEGORY_BRACKETS_DROPPED => CategoryBracketsDropped(
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case CATEGORY_REGISTRATION_STATUS_CHANGED => CategoryRegistrationStatusChanged(
-              dto.messageInfo.map(_.getCategoryRegistrationStatusChangePayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case CATEGORY_REGISTRATION_STATUS_CHANGED => CategoryRegistrationStatusChanged(
+            dto.messageInfo.map(_.getCategoryRegistrationStatusChangePayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case COMPETITION_CREATED => CompetitionCreatedEvent(
-              dto.messageInfo.map(_.getCompetitionCreatedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case COMPETITION_CREATED => CompetitionCreatedEvent(
+            dto.messageInfo.map(_.getCompetitionCreatedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case COMPETITION_DELETED =>
-            CompetitionDeletedEvent(dto.messageInfo.flatMap(_.competitionId), dto.localEventNumber)
+        case COMPETITION_DELETED =>
+          CompetitionDeletedEvent(dto.messageInfo.flatMap(_.competitionId), dto.localEventNumber)
 
-          case COMPETITION_PROPERTIES_UPDATED => CompetitionPropertiesUpdatedEvent(
-              dto.messageInfo.map(_.getCompetitionPropertiesUpdatedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.localEventNumber
-            )
+        case COMPETITION_PROPERTIES_UPDATED => CompetitionPropertiesUpdatedEvent(
+            dto.messageInfo.map(_.getCompetitionPropertiesUpdatedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.localEventNumber
+          )
 
-          case COMPETITORS_PROPAGATED_TO_STAGE => CompetitorsPropagatedToStageEvent(
-              dto.messageInfo.map(_.getCompetitorsPropagatedToStagePayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case COMPETITORS_PROPAGATED_TO_STAGE => CompetitorsPropagatedToStageEvent(
+            dto.messageInfo.map(_.getCompetitorsPropagatedToStagePayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case FIGHTS_START_TIME_UPDATED => FightStartTimeUpdatedEvent(
-              dto.messageInfo.map(_.getFightStartTimeUpdatedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case FIGHTS_START_TIME_UPDATED => FightStartTimeUpdatedEvent(
+            dto.messageInfo.map(_.getFightStartTimeUpdatedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case FIGHTS_START_TIME_CLEANED => FightStartTimeCleaned(
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              None,
-              dto.localEventNumber
-            )
+        case FIGHTS_START_TIME_CLEANED => FightStartTimeCleaned(
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            None,
+            dto.localEventNumber
+          )
 
-          case FIGHTS_EDITOR_CHANGE_APPLIED => FightEditorChangesAppliedEvent(
-              dto.messageInfo.map(_.getFightEditorChangesAppliedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case FIGHTS_EDITOR_CHANGE_APPLIED => FightEditorChangesAppliedEvent(
+            dto.messageInfo.map(_.getFightEditorChangesAppliedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case SCHEDULE_DROPPED => ScheduleDropped(dto.messageInfo.flatMap(_.competitionId), dto.localEventNumber)
+        case SCHEDULE_DROPPED => ScheduleDropped(dto.messageInfo.flatMap(_.competitionId), dto.localEventNumber)
 
-          case REGISTRATION_INFO_UPDATED => RegistrationInfoUpdatedEvent(
+        case REGISTRATION_INFO_UPDATED => RegistrationInfoUpdatedEvent(
             dto.messageInfo.map(_.getRegistrationInfoUpdatedPayload),
             dto.messageInfo.flatMap(_.competitionId),
             dto.messageInfo.flatMap(_.categoryId),
             dto.localEventNumber
           )
 
-          case DASHBOARD_FIGHT_RESULT_SET => FightResultSet(
-              dto.messageInfo.map(_.getSetFightResultPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              None,
-              dto.localEventNumber
-            )
+        case DASHBOARD_FIGHT_RESULT_SET => FightResultSet(
+            dto.messageInfo.map(_.getSetFightResultPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            None,
+            dto.localEventNumber
+          )
 
-          case DASHBOARD_FIGHT_COMPETITORS_ASSIGNED => FightCompetitorsAssignedEvent(
-              dto.messageInfo.map(_.getFightCompetitorsAssignedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case DASHBOARD_FIGHT_COMPETITORS_ASSIGNED => FightCompetitorsAssignedEvent(
+            dto.messageInfo.map(_.getFightCompetitorsAssignedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case DASHBOARD_STAGE_RESULT_SET => StageResultSetEvent(
-              dto.messageInfo.map(_.getStageResultSetPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case DASHBOARD_STAGE_RESULT_SET => StageResultSetEvent(
+            dto.messageInfo.map(_.getStageResultSetPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case MATS_UPDATED => MatsUpdatedEvent(
-              dto.messageInfo.map(_.getMatsUpdatedPayload),
-              dto.messageInfo.flatMap(_.competitionId),
-              dto.messageInfo.flatMap(_.categoryId),
-              dto.localEventNumber
-            )
+        case MATS_UPDATED => MatsUpdatedEvent(
+            dto.messageInfo.map(_.getMatsUpdatedPayload),
+            dto.messageInfo.flatMap(_.competitionId),
+            dto.messageInfo.flatMap(_.categoryId),
+            dto.localEventNumber
+          )
 
-          case ACADEMY_ADDED =>
-            AcademyAddedEvent(payload = dto.messageInfo.map(_.getAddAcademyPayload), dto.localEventNumber)
-          case ACADEMY_UPDATED =>
-            AcademyUpdatedEvent(payload = dto.messageInfo.map(_.getUpdateAcademyPayload), dto.localEventNumber)
-          case ACADEMY_REMOVED =>
-            AcademyRemovedEvent(payload = dto.messageInfo.map(_.getRemoveAcademyPayload), dto.localEventNumber)
-          case EventType.UNKNOWN => Events.UnknownEvent(dto.messageInfo.flatMap(_.competitionId), dto.localEventNumber)
-          case _: EventType.Unrecognized => Events.UnknownEvent(dto.messageInfo.flatMap(_.competitionId), dto.localEventNumber)
-        }
+        case ACADEMY_ADDED =>
+          AcademyAddedEvent(payload = dto.messageInfo.map(_.getAddAcademyPayload), dto.localEventNumber)
+        case ACADEMY_UPDATED =>
+          AcademyUpdatedEvent(payload = dto.messageInfo.map(_.getUpdateAcademyPayload), dto.localEventNumber)
+        case ACADEMY_REMOVED =>
+          AcademyRemovedEvent(payload = dto.messageInfo.map(_.getRemoveAcademyPayload), dto.localEventNumber)
+        case EventType.UNKNOWN => Events.UnknownEvent(dto.messageInfo.flatMap(_.competitionId), dto.localEventNumber)
+        case _: EventType.Unrecognized => Events
+            .UnknownEvent(dto.messageInfo.flatMap(_.competitionId), dto.localEventNumber)
       }
+    }
+
+    def create[F[+_]: Monad]: EventMapping[F] = (dto: Event) => Monad[F].pure { mapEvent(dto) }
 
     val live: EventMapping[LIO] = {
       import zio.interop.catz._

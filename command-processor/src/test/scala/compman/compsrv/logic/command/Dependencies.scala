@@ -2,7 +2,9 @@ package compman.compsrv.logic.command
 
 import cats.Eval
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
+import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.Errors
+import compman.compsrv.model.Mapping.EventMapping
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.common.MessageInfo.Payload
 import compservice.model.protobuf.event.{Event, EventType}
@@ -25,6 +27,34 @@ object Dependencies {
     override def registrationPeriodId(period: RegistrationPeriod): Eval[String] = uid
 
     override def registrationGroupId(group: RegistrationGroup): Eval[String] = uid
+  }
+
+  implicit val mapping: EventMapping[Eval] = (dto: Event) => Eval.later(EventMapping.mapEvent(dto))
+
+  implicit val logging: CompetitionLogging.Service[Eval] = new CompetitionLogging.Service[Eval] {
+    override def info(msg: => String): Eval[Unit] = Eval.now(println(msg))
+
+    override def info(msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
+
+    override def info(error: Throwable, msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
+
+    override def error(msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
+
+    override def error(error: Throwable, msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
+
+    override def error(msg: => String): Eval[Unit] = Eval.now(println(msg))
+
+    override def warn(msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
+
+    override def warn(error: Throwable, msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
+
+    override def warn(msg: => String): Eval[Unit] = Eval.now(println(msg))
+
+    override def debug(msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
+
+    override def debug(error: Throwable, msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
+
+    override def debug(msg: => String): Eval[Unit] = Eval.now(println(msg))
   }
 
   implicit val eventOps: EventOperations[Eval] = new EventOperations[Eval] {
