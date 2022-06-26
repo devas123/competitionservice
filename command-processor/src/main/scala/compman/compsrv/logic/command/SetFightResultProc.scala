@@ -9,7 +9,6 @@ import compman.compsrv.logic.fight.{FightsService, FightUtils}
 import compman.compsrv.model.Errors
 import compman.compsrv.model.command.Commands.{InternalCommandProcessorCommand, SetFightResultCommand}
 import compman.compsrv.model.Errors.NoPayloadError
-import compman.compsrv.model.extensions._
 import compservice.model.protobuf.commandpayload.SetFightResultPayload
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
@@ -25,9 +24,10 @@ object SetFightResultProc {
 
   def getIdToProceed(ref: FightReferenceType, fight: FightDescription, payload: SetFightResultPayload): Option[String] =
     ref match {
-      case FightReferenceType.WINNER => fight.winnerId
-      case FightReferenceType.LOSER | FightReferenceType.PROPAGATED => Option(payload.scores)
-          .flatMap(_.find { s => !fight.winnerId.contains(s.getCompetitorId) }).map(_.getCompetitorId)
+      case FightReferenceType.WINNER => payload.fightResult.flatMap(_.winnerId).filter(_.nonEmpty)
+      case FightReferenceType.LOSER => fight.scores.find { s =>
+          !payload.fightResult.flatMap(_.winnerId).contains(s.getCompetitorId)
+        }.map(_.getCompetitorId).filter(_.nonEmpty)
       case _ => None
     }
 

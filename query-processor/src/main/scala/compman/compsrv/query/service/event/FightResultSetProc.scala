@@ -10,21 +10,22 @@ import compman.compsrv.Utils
 
 object FightResultSetProc {
   import cats.implicits._
-  def apply[F[+_]: Monad: FightUpdateOperations: CompetitionQueryOperations]()
-    : PartialFunction[Event[Any], F[Unit]] = { case x: FightResultSet => apply[F](x) }
+  def apply[F[+_]: Monad: FightUpdateOperations: CompetitionQueryOperations](): PartialFunction[Event[Any], F[Unit]] = {
+    case x: FightResultSet => apply[F](x)
+  }
 
   private def apply[F[+_]: Monad: FightUpdateOperations: CompetitionQueryOperations](event: FightResultSet): F[Unit] = {
     for {
       payload        <- OptionT.fromOption[F](event.payload)
       fightId        <- OptionT.fromOption[F](Option(payload.fightId))
       competitionId  <- OptionT.fromOption[F](event.competitionId)
+      categoryId     <- OptionT.fromOption[F](event.categoryId)
       fightResultDto <- OptionT.fromOption[F](payload.fightResult)
-      fightStatus <- OptionT.fromOption[F](Option(payload.status))
+      fightStatus    <- OptionT.fromOption[F](Option(payload.status))
       scoresDto      <- OptionT.fromOption[F](Option(payload.scores))
-      competitorIds = scoresDto.mapFilter(_.competitorId).filter(_ != null)
-      competitors <- competitorIds.toList
-        .traverse(id => OptionT(CompetitionQueryOperations[F].getCompetitorById(competitionId)(id)))
-      competitorsMap = Utils.groupById(competitors)(_.id)
+      competitors <- OptionT
+        .liftF(CompetitionQueryOperations[F].getCompetitorsByCategoryId(competitionId)(categoryId, None))
+      competitorsMap = Utils.groupById(competitors._1)(_.id)
       scores = scoresDto.map(cs =>
         DtoMapping.mapCompScore(
           cs,
@@ -34,7 +35,10 @@ object FightResultSetProc {
         )
       )
       fightResult = DtoMapping.mapFightResult(fightResultDto)
-      _ <- OptionT.liftF(FightUpdateOperations[F].updateFightScoresAndResultAndStatus(competitionId)(fightId, scores.toList, fightResult, fightStatus))
+      _ <- OptionT.liftF(
+        FightUpdateOperations[F]
+          .updateFightScoresAndResultAndStatus(competitionId)(fightId, scores.toList, fightResult, fightStatus)
+      )
     } yield ()
   }.value.map(_ => ())
 }

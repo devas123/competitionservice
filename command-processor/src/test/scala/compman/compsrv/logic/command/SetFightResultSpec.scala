@@ -4,7 +4,7 @@ import cats.Eval
 import cats.data.EitherT
 import cats.implicits._
 import compman.compsrv.Utils
-import compman.compsrv.logic.Operations
+import compman.compsrv.logic.{assertET, Operations}
 import compman.compsrv.model.command.Commands.{CreateFakeCompetitors, GenerateBracketsCommand, SetFightResultCommand}
 import compman.compsrv.model.Errors
 import compman.compsrv.service.TestEntities
@@ -12,6 +12,7 @@ import compservice.model.protobuf.commandpayload.{GenerateBracketsPayload, SetFi
 import compservice.model.protobuf.event.EventType
 import compservice.model.protobuf.model._
 import compservice.model.protobuf.model.FightStatus.UNCOMPLETABLE
+import compservice.model.protobuf.model.StageRoundType.WINNER_BRACKETS
 import org.scalatest.BeforeAndAfter
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -55,6 +56,13 @@ class SetFightResultSpec extends AnyFunSuite with BeforeAndAfter with TestEntiti
       .addCategories((categoryId, CategoryDescriptor().withId(categoryId).withName("Test")))
     val createFakeCompetitorsCommand =
       CreateFakeCompetitors(competitionId = Some(competitionId), categoryId = Some(categoryId))
+
+    def requiredScore(updatedState: CommandProcessorCompetitionState, s: CompScore) = {
+      s.parentFightId.isDefined && s.parentReferenceType.contains(FightReferenceType.LOSER) &&
+        updatedState.fights.get(s.parentFightId.get).exists(f => f.status != UNCOMPLETABLE &&
+          f.scores.forall(_.competitorId.exists(_.nonEmpty)) && f.roundType == WINNER_BRACKETS)
+    }
+
     val updatedFights = (for {
       fff                  <- EitherT(CreateFakeCompetitorsProc[Eval]().apply(createFakeCompetitorsCommand))
       stateWithCompetitors <- EitherT.liftF(fff.toList.foldM(state)((s, e) => Operations.applyEvent[Eval](s, e)))
@@ -71,11 +79,18 @@ class SetFightResultSpec extends AnyFunSuite with BeforeAndAfter with TestEntiti
       bracketsGenerates <- EitherT(GenerateBracketsProc[Eval](stateWithCompetitors).apply(generateBracketsCommand))
       updatedState <- EitherT.liftF(bracketsGenerates.toList.foldM(state)((s, e) => Operations.applyEvent[Eval](s, e)))
       loserFightUncompletable <- EitherT.fromOption[Eval](
-        updatedState.fights.values.find(f => f.roundType == StageRoundType.LOSER_BRACKETS && f.status == UNCOMPLETABLE),
+        updatedState.fights.values.find(f =>
+          f.roundType == StageRoundType.LOSER_BRACKETS && f.status == UNCOMPLETABLE && f.round == 0 &&
+            f.scores.exists(s =>
+              requiredScore(updatedState, s)
+            )
+        ),
         Errors.InternalError("Cannot find appropriate loser fight")
       )
       parentFightId <- EitherT.fromOption[Eval](
-        loserFightUncompletable.scores.find(_.parentFightId.isDefined).flatMap(_.parentFightId),
+        loserFightUncompletable.scores
+          .find(s => requiredScore(updatedState, s))
+          .flatMap(_.parentFightId),
         Errors.InternalError("Cannot find parent fight")
       )
       parentFight = updatedState.fights(parentFightId)
@@ -89,17 +104,37 @@ class SetFightResultSpec extends AnyFunSuite with BeforeAndAfter with TestEntiti
         categoryId = Some(categoryId)
       )
       result <- EitherT(SetFightResultProc[Eval](updatedState).apply(command))
+      stateWithFightResultSet <- EitherT
+        .liftF(result.toList.foldM(updatedState)((s, e) => Operations.applyEvent[Eval](s, e)))
+      lastEvent            = result.last
+      propagatedAssignment = lastEvent.messageInfo.get.payload.fightCompetitorsAssignedPayload.get.assignments.last
+      updatedFight         = stateWithFightResultSet.fights(propagatedAssignment.toFightId)
+      _ <- assertET[Eval](
+        result.filter(_.messageInfo.exists(_.payload.isFightCompetitorsAssignedPayload)).forall(_.messageInfo.exists(
+          _.payload.fightCompetitorsAssignedPayload.get.assignments.forall(_.competitorId.nonEmpty)
+        )), {
+          val missingCompetitorIdAssignments = result
+            .filter(_.messageInfo.exists(_.payload.isFightCompetitorsAssignedPayload))
+            .flatMap(_.messageInfo.get.payload.fightCompetitorsAssignedPayload.get.assignments)
+            .filter(_.competitorId.isEmpty)
+          Some(s"Not all assignments have competitorId: ${missingCompetitorIdAssignments.mkString("\n")}")
+        }
+      )
+      _ <- assertET[Eval](updatedFight.scores.nonEmpty, Some("Scores are empty"))
+      _ <- assertET[Eval](
+        updatedFight.scores.exists(_.competitorId.contains(propagatedAssignment.competitorId)),
+        Some(s"Competitor is empty: $propagatedAssignment")
+      )
+      _ <- assertET[Eval](result.size > 2, Some(s"Too few results: $result"))
+      last = result.last
+      _ <- assertET[Eval](last.messageInfo.isDefined, Some("Message info undefined"))
+      _ <- assertET[Eval](last.messageInfo.get.payload.isFightCompetitorsAssignedPayload, Some("Payload is wrong"))
+      _ <- assertET[Eval](
+        last.messageInfo.get.payload.fightCompetitorsAssignedPayload.get.assignments.size > 1,
+        Some(s"Too few assignments in the last assignment: $last")
+      )
     } yield result).value.value
-    assert(updatedFights.isRight)
-    updatedFights match {
-      case Left(_) => fail("Impossible")
-      case Right(value) =>
-        assert(value.size > 2)
-        val last = value.last
-        assert(last.messageInfo.isDefined)
-        assert(last.messageInfo.get.payload.isFightCompetitorsAssignedPayload)
-        assert(last.messageInfo.get.payload.fightCompetitorsAssignedPayload.get.assignments.size > 1)
-    }
+    assert(updatedFights.isRight, updatedFights)
   }
 
   test("Should set stage result.") {
