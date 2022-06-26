@@ -37,11 +37,11 @@ object FightUtils {
     program.foldMap(Interpreter[F].interepret(state)).map(_.toList)
   }
 
-  def filterPreliminaryFights[F[_]: Monad](
+  def filterPreliminaryFights(
     outputSize: Int,
     fights: List[FightDescription],
     bracketType: BracketType
-  ): F[List[FightDescription]] = {
+  ): List[FightDescription] = {
     val result = bracketType match {
       case BracketType.SINGLE_ELIMINATION =>
         val ceiling = ceilingNextPowerOfTwo(outputSize)
@@ -51,20 +51,7 @@ object FightUtils {
         fights.filter(it => roundsToReturn.contains(it.round))
       case _ => fights
     }
-    for {
-      a <- updateIfConditionIsMet[F](result)(
-        fight =>
-          result
-            .exists(r => !fight.connections.exists(c => c.fightId == r.id && c.referenceType == FightReferenceType.WINNER)),
-        f => f.withConnections(f.connections.filter(_.referenceType != FightReferenceType.WINNER))
-      )
-      b <- updateIfConditionIsMet[F](a)(
-        it =>
-          result
-            .exists(r => !it.connections.exists(c => c.fightId == r.id && c.referenceType == FightReferenceType.LOSER)),
-        f => f.withConnections(f.connections.filter(_.referenceType != FightReferenceType.LOSER))
-      )
-    } yield b
+    result.map(f => f.withConnections(f.connections.filter(con => result.exists(r => r.id == con.fightId))))
   }
 
   def updateIfConditionIsMet[F[_]: Monad](

@@ -60,8 +60,8 @@ object FightsService {
         )
         res <-
           if (stage.stageType == StageType.PRELIMINARY) {
-            EitherT.liftF[F, Errors.Error, List[FightDescription]](
-              filterPreliminaryFights[F](outputSize, markedUncompletableFights.values.toList, stage.bracketType)
+            EitherT.rightT[F, Errors.Error](
+              filterPreliminaryFights(outputSize, markedUncompletableFights.values.toList, stage.bracketType)
             )
           } else {
             EitherT

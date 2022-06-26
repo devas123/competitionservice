@@ -83,6 +83,7 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
     fromProviders(classOf[CompetitionState]),
     fromProviders(classOf[Period]),
     fromProviders(classOf[RegistrationPeriod]),
+    fromProviders(classOf[FightReference]),
     fromProviders(classOf[RegistrationGroup]),
     fromProviders(classOf[RegistrationFee]),
     fromProviders(classOf[StageDescriptor]),

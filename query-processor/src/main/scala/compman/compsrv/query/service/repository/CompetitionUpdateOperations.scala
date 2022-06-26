@@ -194,8 +194,7 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitionStateCollection
         updates   = ids.map(id => unset(s"stages.$id")).toSeq
-        statement = collection.findOneAndUpdate(equal(idField, competition), combine(updates: _*))
-        res <- RIO.fromFuture(_ => statement.toFuture()).unit
+        res <- RIO.fromFuture(_ => collection.findOneAndUpdate(equal(idField, competition), combine(updates: _*)).toFuture()).when(ids.nonEmpty).unit
       } yield res
     }
 
