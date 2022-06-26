@@ -56,8 +56,7 @@ package object fight {
     FightDescription().withId(createFightId).withCategoryId(categoryId).withRound(round)
       .withNumberInRound(numberInRound).withCompetitionId(competitionId).withDuration(durationSeconds)
       .withRoundType(roundType).withStageId(stageId).withFightName(fightName).withStatus(FightStatus.PENDING)
-      .withPriority(0).withFightName(s"Round ${round + 1} fight ${numberInRound + 1}")
-      .withScores(Seq.empty)
+      .withPriority(0).withFightName(s"Round ${round + 1} fight ${numberInRound + 1}").withScores(Seq.empty)
       .update(_.groupId.setIfDefined(groupId))
   }
 
@@ -163,8 +162,8 @@ package object fight {
     (FightDescription, FightDescription, FightDescription)
   ] = (it: (FightDescription, FightDescription, FightDescription)) => {
     for { scores <- createScores(List(it._1.id, it._2.id), List(FightReferenceType.LOSER)) } yield (
-      it._1.copy(loseFight = Option(it._3.id)),
-      it._2.copy(loseFight = Option(it._3.id)),
+      it._1.addConnections(FightReference(it._3.id, FightReferenceType.LOSER)),
+      it._2.addConnections(FightReference(it._3.id, FightReferenceType.LOSER)),
       it._3.copy(scores = scores)
     )
   }
@@ -175,8 +174,8 @@ package object fight {
     for {
       scores <- createScores(List(it._1.id, it._2.id), List(FightReferenceType.LOSER, FightReferenceType.WINNER))
     } yield (
-      it._1.copy(loseFight = Option(it._3.id)),
-      it._2.copy(winFight = Option(it._3.id)),
+      it._1.addConnections(FightReference(it._3.id, FightReferenceType.LOSER)),
+      it._2.addConnections(FightReference(it._3.id, FightReferenceType.WINNER)),
       it._3.copy(scores = scores)
     )
   }
@@ -185,8 +184,8 @@ package object fight {
     (FightDescription, FightDescription, FightDescription)
   ] = (it: (FightDescription, FightDescription, FightDescription)) => {
     for { scores <- createScores(List(it._1.id, it._2.id), List(FightReferenceType.WINNER)) } yield (
-      it._1.copy(winFight = Option(it._3.id)),
-      it._2.copy(winFight = Option(it._3.id)),
+      it._1.addConnections(FightReference(it._3.id, FightReferenceType.WINNER)),
+      it._2.addConnections(FightReference(it._3.id, FightReferenceType.WINNER)),
       it._3.copy(scores = scores)
     )
   }

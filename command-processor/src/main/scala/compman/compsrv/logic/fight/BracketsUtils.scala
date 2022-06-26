@@ -234,8 +234,8 @@ object BracketsUtils {
     for {
       sc <- createScores(List(lastTuple._1.id, lastTuple._3.id), List(FightReferenceType.WINNER))
       connectedGrandFinal = grandFinal.copy(scores = sc)
-    } yield result :+ lastTuple._1.copy(winFight = Option(connectedGrandFinal.id)) :+ lastTuple._2 :+
-      lastTuple._3.copy(winFight = Option(connectedGrandFinal.id)) :+ connectedGrandFinal
+    } yield result :+ lastTuple._1.addConnections(FightReference(connectedGrandFinal.id, FightReferenceType.WINNER)) :+ lastTuple._2 :+
+      lastTuple._3.addConnections(FightReference(connectedGrandFinal.id, FightReferenceType.WINNER)) :+ connectedGrandFinal
   }
 
   private def generateLoserBracketAndGrandFinalForWinnerBracket[F[+_]: Monad](
@@ -245,7 +245,6 @@ object BracketsUtils {
     winnerFightsAndGrandFinal: List[FightDescription],
     durationSeconds: Int
   ): F[CanFail[List[FightDescription]]] = {
-
     val eitherT = for {
       _ <- EitherT.fromEither[F](assertSingleFinal(winnerFightsAndGrandFinal))
       _ <- assertET[F](
@@ -258,8 +257,7 @@ object BracketsUtils {
         !winnerFightsAndGrandFinal.exists { it =>
           it.scores.exists { dto => dto.parentReferenceType.contains(FightReferenceType.LOSER) }
         },
-        Some("Winner brackets fights contain contain references from loser brackets.")
-      )
+        Some("Winner brackets fights contain contain references from loser brackets."))
       winnerFights = winnerFightsAndGrandFinal.filter { it => it.roundType != StageRoundType.GRAND_FINAL } :+
         winnerFightsAndGrandFinal.find { it => it.roundType == StageRoundType.GRAND_FINAL }
           .map(_.copy(roundType = StageRoundType.WINNER_BRACKETS)).get
@@ -394,8 +392,8 @@ object BracketsUtils {
         )
         sc <- createScores(semiFinalFights.map { f => f.id }, List(FightReferenceType.LOSER))
         updatedFights = List(
-          semiFinalFights.head.copy(loseFight = Option(thirdPlaceFight.id)),
-          semiFinalFights(1).copy(loseFight = Option(thirdPlaceFight.id)),
+          semiFinalFights.head.addConnections(FightReference(thirdPlaceFight.id, FightReferenceType.LOSER)),
+          semiFinalFights(1).addConnections(FightReference(thirdPlaceFight.id, FightReferenceType.LOSER)),
           thirdPlaceFight.copy(scores = sc)
         )
       } yield winnerFights.map { it =>

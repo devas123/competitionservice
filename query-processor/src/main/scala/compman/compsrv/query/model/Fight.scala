@@ -1,6 +1,5 @@
 package compman.compsrv.query.model
 
-
 import compservice.model.protobuf.eventpayload.FightOrderUpdate
 import compservice.model.protobuf.model._
 
@@ -45,12 +44,13 @@ case class Fight(
   scores: List[CompScore]
 )
 
+case class FightReference(referenceType: FightReferenceType, fightId: String)
+
 case class BracketsInfo(
   round: Option[Int],
   numberInRound: Option[Int],
   groupId: Option[String],
-  winFight: Option[String],
-  loseFight: Option[String],
+  connections: List[FightReference],
   roundType: StageRoundType
 )
 case class CompScore(

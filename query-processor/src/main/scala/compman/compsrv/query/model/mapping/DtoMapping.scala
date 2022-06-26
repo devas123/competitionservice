@@ -123,7 +123,7 @@ object DtoMapping {
       endTime = dto.endTime.map(toDate),
       numberOfFights = Option(dto.numberOfFights),
       entryDuration = Option(dto.duration),
-      entryOrder = dto.order,
+      entryOrder = dto.order
     )
   }
 
@@ -292,6 +292,7 @@ object DtoMapping {
     model.FightDescription().withId(f.id).withCategoryId(f.categoryId)
       .withScores(f.scores.mapWithIndex((c, i) => toDtoCompScore(c, i))).withDuration(f.durationSeconds)
       .withInvalid(f.invalid.getOrElse(false)).withCompetitionId(f.competitionId).withStageId(f.stageId).update(
+        _.connections.setIfDefined(f.bracketsInfo.map(_.connections.map(toDtoFightRefence))),
         _.fightName.setIfDefined(f.fightName),
         _.numberOnMat.setIfDefined(f.numberOnMat),
         _.numberInRound.setIfDefined(f.bracketsInfo.flatMap(_.numberInRound)),
@@ -300,8 +301,6 @@ object DtoMapping {
         _.startTime.setIfDefined(f.startTime.map(_.toInstant.asTimestamp)),
         _.period.setIfDefined(f.periodId),
         _.priority.setIfDefined(f.priority),
-        _.winFight.setIfDefined(f.bracketsInfo.flatMap(_.winFight)),
-        _.loseFight.setIfDefined(f.bracketsInfo.flatMap(_.loseFight)),
         _.round.setIfDefined(f.bracketsInfo.flatMap(_.round)),
         _.roundType.setIfDefined(f.bracketsInfo.map(_.roundType)),
         _.status.setIfDefined(f.status),
@@ -338,8 +337,7 @@ object DtoMapping {
         Option(dto.round),
         Option(dto.numberInRound),
         dto.groupId,
-        dto.winFight,
-        dto.loseFight,
+        dto.connections.map(mapFightRefence).toList,
         dto.roundType
       )),
       dto.fightResult.map(mapFightResult),
@@ -347,6 +345,10 @@ object DtoMapping {
         .getOrElse(List.empty)
     )
   }
+
+  def mapFightRefence(dto: model.FightReference): FightReference = { FightReference(dto.referenceType, dto.fightId) }
+
+  def toDtoFightRefence(o: FightReference): model.FightReference = { model.FightReference(o.fightId, o.referenceType) }
 
   def mapFightResult(d: model.FightResult): FightResult = {
     FightResult(Option(d.getWinnerId), Option(d.getResultTypeId), Option(d.getReason))

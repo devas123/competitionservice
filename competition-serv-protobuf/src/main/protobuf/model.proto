@@ -166,13 +166,17 @@ enum StageStatus {
   STAGE_STATUS_IN_PROGRESS = 5;
 }
 
+message FightReference {
+  string fightId = 1;
+  FightReferenceType referenceType = 2;
+}
+
 
 message FightDescription {
   string id = 1;
   string categoryId = 2;
   optional string fightName = 3;
-  optional string winFight = 4;
-  optional string loseFight = 5;
+  repeated FightReference connections = 4;
   repeated CompScore scores = 6;
   int32 duration = 7;
   int32 round = 8;

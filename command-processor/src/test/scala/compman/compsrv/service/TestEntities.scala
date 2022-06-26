@@ -61,8 +61,7 @@ trait TestEntities {
       fight1,
       categoryId,
       Some("Semi-final"),
-      Some(fight3),
-      None,
+      Seq(FightReference(fight3, FightReferenceType.WINNER)),
       Seq(
         CompScore(
           None,
@@ -102,8 +101,7 @@ trait TestEntities {
       fight2,
       categoryId,
       Some("Semi-final"),
-      Some(fight3),
-      None,
+      Seq(FightReference(fight3, FightReferenceType.WINNER)),
       Seq(
         CompScore(
           None,
@@ -135,8 +133,7 @@ trait TestEntities {
       fight3,
       categoryId,
       Some("Final"),
-      None,
-      None,
+      Seq.empty,
       Seq(
         CompScore(None, None, Some(Score(0, 0, 0, Seq.empty)), 0, Some(FightReferenceType.WINNER), Some(fight2)),
         CompScore(None, None, Some(Score(0, 0, 0, Seq.empty)), 1, Some(FightReferenceType.WINNER), Some(fight1))

@@ -52,16 +52,22 @@ object FightUtils {
       case _ => fights
     }
     for {
-      a <- update[F](result)(
-        it => it.winFight.isDefined && result.exists(r => it.winFight.contains(r.id)),
-        _.clearWinFight
+      a <- updateIfConditionIsMet[F](result)(
+        fight =>
+          result
+            .exists(r => !fight.connections.exists(c => c.fightId == r.id && c.referenceType == FightReferenceType.WINNER)),
+        f => f.withConnections(f.connections.filter(_.referenceType != FightReferenceType.WINNER))
       )
-      b <-
-        update[F](a)(it => it.winFight.isDefined && result.exists(r => it.loseFight.contains(r.id)), _.clearLoseFight)
+      b <- updateIfConditionIsMet[F](a)(
+        it =>
+          result
+            .exists(r => !it.connections.exists(c => c.fightId == r.id && c.referenceType == FightReferenceType.LOSER)),
+        f => f.withConnections(f.connections.filter(_.referenceType != FightReferenceType.LOSER))
+      )
     } yield b
   }
 
-  def update[F[_]: Monad](
+  def updateIfConditionIsMet[F[_]: Monad](
     coll: List[FightDescription]
   )(condition: FightDescription => Boolean, update: FightDescription => FightDescription): F[List[FightDescription]] =
     Traverse[List].traverse(coll)(f => if (condition(f)) Monad[F].pure(update(f)) else Monad[F].pure(f))
@@ -76,21 +82,20 @@ object FightUtils {
       case (cid, sf, rt, fs, up) =>
         val eitherT = for {
           fight <- fs.get(sf)
-          targetFightId = if (rt == FightReferenceType.LOSER) fight.getLoseFight else fight.getWinFight
-          targetFight <- fs.get(targetFightId)
+          normalizedRt = if (rt == FightReferenceType.PROPAGATED) FightReferenceType.WINNER else rt
+          targetFightId <- fight.connections.find(_.referenceType == normalizedRt)
+          targetFight   <- fs.get(targetFightId.fightId)
           update = targetFight.withScores(targetFight.scores.map(s =>
             if (s.parentFightId.contains(sf) && s.parentReferenceType.contains(rt)) { s.withCompetitorId(cid) }
             else s
           ))
           updatedFights = fs + (targetFight.id -> update)
-          assignment = CompetitorAssignmentDescriptor().withToFightId(targetFightId).withFromFightId(sf)
+          assignment = CompetitorAssignmentDescriptor().withToFightId(targetFightId.fightId).withFromFightId(sf)
             .withCompetitorId(cid).withReferenceType(rt)
           res =
             if (targetFight.status == FightStatus.UNCOMPLETABLE) {
               Left((cid, targetFight.id, FightReferenceType.PROPAGATED, updatedFights, up :+ assignment))
-            } else {
-              Right((updatedFights, up :+ assignment))
-            }
+            } else { Right((updatedFights, up :+ assignment)) }
         } yield res
         Monad[F].pure(eitherT.getOrElse(Right((fs, up))))
     }

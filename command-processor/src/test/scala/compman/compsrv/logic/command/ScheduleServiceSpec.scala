@@ -40,7 +40,7 @@ class ScheduleServiceSpec extends AnyFunSuite with BeforeAndAfter with TestEntit
 
   private val fights2: Seq[FightDescription] = fights.map(f =>
     f.copy(id = f.id + "2").withStageId(stage2).withCategoryId(category2)
-      .withWinFight(Option(f.getWinFight).map(_ + "2").orNull).withScores(
+      .withConnections(f.connections.map(c => c.withFightId(c.fightId + "2"))).withScores(
         Option(f.scores).map(_.map(cs => cs.update(_.parentFightId.setIfDefined(cs.parentFightId.map(_ + "2")))))
           .getOrElse(Seq.empty)
       )
