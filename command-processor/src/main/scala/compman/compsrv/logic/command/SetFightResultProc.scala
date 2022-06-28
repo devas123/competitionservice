@@ -127,7 +127,7 @@ object SetFightResultProc {
     fight: FightDescription,
     stageFights: Map[String, FightDescription]
   ) = {
-    def createUpdate(ref: FightReferenceType.Recognized): EitherT[F, Errors.Error, List[Event]] = for {
+    def createCompetitorsAssignedEvent(ref: FightReferenceType.Recognized): EitherT[F, Errors.Error, List[Event]] = for {
       id          <- EitherT.fromOption[F](getIdToProceed(ref, fight, payload), Errors.InternalError())
       assignments <- EitherT.liftF(FightUtils.advanceFighterToSiblingFights[F](id, payload.fightId, ref, stageFights))
       events <-
@@ -144,6 +144,6 @@ object SetFightResultProc {
     } yield events
 
     FightReferenceType.values.filter(_ != FightReferenceType.PROPAGATED).toList
-      .foldMapM[F, List[Event]](ref => createUpdate(ref).value.map(_.getOrElse(List.empty)))
+      .foldMapM[F, List[Event]](ref => createCompetitorsAssignedEvent(ref).value.map(_.getOrElse(List.empty)))
   }
 }

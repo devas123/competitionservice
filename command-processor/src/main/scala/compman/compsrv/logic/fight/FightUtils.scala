@@ -4,7 +4,6 @@ import cats.{Monad, Traverse}
 import cats.data.OptionT
 import cats.implicits._
 import compman.compsrv.Utils.groupById
-import compservice.model.protobuf.model.CommandProcessorCompetitionState
 import compman.compsrv.logic.fight.CompetitorSelectionUtils._
 import compservice.model.protobuf.eventpayload.CompetitorAssignmentDescriptor
 import compservice.model.protobuf.model._
@@ -34,7 +33,7 @@ object FightUtils {
           }
         }).reduce((a, b) => CompetitorSelectionUtils.and(a, b))
       } else { firstNPlaces(previousStageId, descriptor.numberOfCompetitors) }
-    program.foldMap(Interpreter[F].interepret(state)).map(_.toList)
+    program.foldMap(Interpreter[F].interepret(state.stages, state.fights)).map(_.toList)
   }
 
   def filterPreliminaryFights(
