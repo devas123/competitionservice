@@ -60,5 +60,5 @@ object PropagateCompetitorsProc {
     stage: StageDescriptor,
     state: CommandProcessorCompetitionState
   ): F[List[String]] = FightUtils
-    .applyStageInputDescriptorToResultsAndFights[F](stage.getInputDescriptor, payload.previousStageId, state)
+    .applyStageInputDescriptorToResultsAndFights[F](stage.getInputDescriptor, stage.id, state)
 }

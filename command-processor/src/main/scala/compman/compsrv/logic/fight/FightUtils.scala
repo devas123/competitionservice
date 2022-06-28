@@ -19,7 +19,7 @@ object FightUtils {
 
   def applyStageInputDescriptorToResultsAndFights[F[+_]: Monad: Interpreter](
     descriptor: StageInputDescriptor,
-    previousStageId: String,
+    stageId: String,
     state: CommandProcessorCompetitionState
   ): F[List[String]] = {
     val program =
@@ -32,7 +32,7 @@ object FightUtils {
             case _                                => List(firstNPlaces(it.applyToStageId, it.selectorValue.head.toInt))
           }
         }).reduce((a, b) => CompetitorSelectionUtils.and(a, b))
-      } else { firstNPlaces(previousStageId, descriptor.numberOfCompetitors) }
+      } else { firstNPlaces(state.stageGraph.get.incomingConnections(stageId).ids.head, descriptor.numberOfCompetitors) }
     program.foldMap(Interpreter[F].interepret(state.stages, state.fights)).map(_.toList)
   }
 

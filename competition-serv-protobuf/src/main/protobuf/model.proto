@@ -398,6 +398,17 @@ message CommandProcessorCompetitionState {
   optional RegistrationInfo registrationInfo = 100;
   optional Schedule schedule = 200;
   int32 revision = 300;
+  optional DiGraph stageGraph = 400;
+  optional DiGraph fightGraph = 500;
+}
+
+message DiGraph {
+  map<string, IdList> outgoingConnections = 1;
+  map<string, IdList> incomingConnections = 2;
+}
+
+message IdList {
+  repeated string ids = 1;
 }
 
 message CompetitionState {

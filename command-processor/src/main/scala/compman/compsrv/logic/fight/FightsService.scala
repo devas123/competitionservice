@@ -24,7 +24,7 @@ object FightsService {
     stageType: StageType,
     fights: List[FightDescription],
     stageId: String,
-    fightResultOptions: Option[List[FightResultOption]]
+    fightResultOptions: List[FightResultOption]
   ): PartialFunction[BracketType, F[CanFail[List[CompetitorStageResult]]]] = {
     case BracketType.DOUBLE_ELIMINATION => Monad[F].pure {
         BracketsUtils.buildStageResults(BracketType.DOUBLE_ELIMINATION, stageStatus, stageType, fights, stageId)
@@ -33,7 +33,7 @@ object FightsService {
         BracketsUtils.buildStageResults(BracketType.SINGLE_ELIMINATION, stageStatus, stageType, fights, stageId)
       }
     case BracketType.GROUP => Monad[F]
-        .pure { GroupsUtils.buildStageResults(stageStatus, fights, stageId, fightResultOptions.get) }
+        .pure { GroupsUtils.buildStageResults(stageStatus, fights, stageId, fightResultOptions) }
   }
 
   def bracketsGenerator[F[+_]: Monad](
