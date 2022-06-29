@@ -22,6 +22,7 @@ object Errors {
   final case class RegistrationGroupDefaultAlreadyExistsError() extends Error
   final case class NoCategoryIdError() extends Error
   final case class NoCompetitionIdError() extends Error
+  final case class NoStageDigraphError() extends Error
   final case class NoCommandIdError() extends Error
   final case class CompetitorAlreadyExists(id: String, competitor: Competitor) extends Error
   final case class CompetitorDoesNotExist(id: String) extends Error

@@ -22,6 +22,7 @@ import zio.kafka.consumer.{Consumer, ConsumerSettings, Offset, Subscription}
 import zio.kafka.producer.{Producer, ProducerSettings}
 import zio.kafka.serde.Serde
 import zio.logging.Logging
+import zio.interop.catz._
 
 import java.util.UUID
 import scala.util.{Failure, Success, Try}
@@ -33,7 +34,7 @@ object CommandProcessorMain extends zio.App {
     implicit val eventMapping: Mapping.EventMapping[LIO]     = model.Mapping.EventMapping.live
     implicit val idOperations: IdOperations[LIO]             = IdOperations.live
     implicit val eventOperations: EventOperations[LIO]       = EventOperations.live
-    implicit val selectInterpreter: Interpreter[LIO]         = Interpreter.asTask
+    implicit val selectInterpreter: Interpreter[LIO]         = Interpreter.asTask[LIO]
     implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO] =
       compman.compsrv.logic.logging.CompetitionLogging.Live.live
   }

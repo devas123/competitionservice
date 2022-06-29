@@ -6,6 +6,7 @@ import cats.implicits._
 import compman.compsrv.logic.assertETErr
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.fight.{FightResultOptionConstants, FightsService}
+import compman.compsrv.logic.schedule.StageGraph
 import compman.compsrv.model.command.Commands.{GenerateBracketsCommand, InternalCommandProcessorCommand}
 import compman.compsrv.model.Errors.{BracketsAlreadyGeneratedForCategory, NoCategoryIdError, NoCompetitionIdError, NoPayloadError}
 import compman.compsrv.model.Errors
@@ -38,6 +39,7 @@ object GenerateBracketsProc {
         BracketsAlreadyGeneratedForCategory(categoryId)
       )
       stages = payload.stageDescriptors.toList.sortBy(_.stageOrder)
+      stagesDiGraph = StageGraph.createStagesDigraph(stages)
       events <- for {
         stageIdtoNewId <- EitherT.liftF(stages.traverse { s => IdOperations[F].uid.map(s.id -> _) })
         stageIdMap = stageIdtoNewId.toMap
@@ -58,6 +60,7 @@ object GenerateBracketsProc {
         )
         bracketsGeneratedPayload = BracketsGeneratedPayload()
           .withStages(updatedStages.mapWithIndex((a, b) => a._1.withStageOrder(b)))
+          .withStageGraph(stagesDiGraph)
         bracketsGeneratedEvent <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
           `type` = EventType.BRACKETS_GENERATED,
           competitorId = None,
@@ -99,9 +102,8 @@ object GenerateBracketsProc {
       IdOperations[F].uid.map(id => it.withId(id))
     })
     inputDescriptor = stage.getInputDescriptor
-      .withSelectors(stage.getInputDescriptor.selectors.zipWithIndex.map { case (sel, index) =>
-        sel.withApplyToStageId(stageIdMap(sel.applyToStageId))
-      })
+      .withSelectors(stage.getInputDescriptor.selectors.map(sel =>
+        sel.withApplyToStageId(stageIdMap(sel.applyToStageId))))
     enrichedOptions = stage.stageResultDescriptor.map(_.fightResultOptions).map(_.toList).getOrElse(List.empty) :+
       FightResultOptionConstants.WALKOVER
     enrichedOptionsWithIds <- EitherT.liftF(

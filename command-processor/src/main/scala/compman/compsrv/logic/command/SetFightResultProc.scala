@@ -81,7 +81,7 @@ object SetFightResultProc {
         allStageFightsFinished,
         manualAssignmentEnabled
       )
-    } yield stageResultSetEvent ++ fightUpdates :+ dashboardFightResultSetEvent
+    } yield dashboardFightResultSetEvent +: (stageResultSetEvent ++ fightUpdates)
   }.value
 
   private def createStageResultSetEventIfFinished[F[+_]: Monad: IdOperations: EventOperations: Interpreter](

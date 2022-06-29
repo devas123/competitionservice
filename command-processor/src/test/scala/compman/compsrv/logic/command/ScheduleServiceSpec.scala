@@ -2,6 +2,7 @@ package compman.compsrv.logic.command
 
 import cats.Eval
 import compman.compsrv.Utils
+import compman.compsrv.logic.schedule.StageGraph
 import compman.compsrv.model.command.Commands.GenerateScheduleCommand
 import compman.compsrv.model.extensions._
 import compman.compsrv.service.TestEntities
@@ -45,16 +46,23 @@ class ScheduleServiceSpec extends AnyFunSuite with BeforeAndAfter with TestEntit
           .getOrElse(Seq.empty)
       )
   )
+
+  private val stages: Map[String, StageDescriptor] = Map(
+    stageId -> stage,
+    stage2 -> stage.copy().withId(stage2).withCategoryId(category2)
+  )
+
   override val initialState: CommandProcessorCompetitionState = CommandProcessorCompetitionState(
     id = competitionId,
     competitors = Utils.groupById(competitors)(_.id),
     competitionProperties = Some(CompetitionProperties().withId(competitionId).withTimeZone("UTC")),
-    stages = Map(stageId -> stage, stage2 -> stage.copy().withId(stage2).withCategoryId(category2)),
+    stages = stages,
     fights = Utils.groupById(fights ++ fights2)(_.id),
     categories =
       Map(categoryId -> CategoryDescriptor().withId(categoryId), category2 -> CategoryDescriptor().withId(category2)),
     registrationInfo = None,
-    schedule = None
+    schedule = None,
+    stageGraph = Some(StageGraph.createStagesDigraph(stages.values))
   )
 
   val command: GenerateScheduleCommand =

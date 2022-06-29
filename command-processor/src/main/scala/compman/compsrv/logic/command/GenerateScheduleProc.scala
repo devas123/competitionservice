@@ -12,7 +12,7 @@ import compman.compsrv.model.Errors.NoPayloadError
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload.{FightStartTimeUpdatedPayload, ScheduleGeneratedPayload}
-import compservice.model.protobuf.model.{CommandProcessorCompetitionState, MatDescription}
+import compservice.model.protobuf.model.{CommandProcessorCompetitionState, DiGraph, MatDescription}
 
 object GenerateScheduleProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations](
@@ -45,7 +45,8 @@ object GenerateScheduleProc {
       _ <- assertET[F](!state.schedule.exists(s => s.periods.nonEmpty), Some("Schedule generated"))
       _ <- assertET[F](!state.competitionProperties.exists(_.schedulePublished), Some("Schedule already published"))
       _ <- assertET[F](unknownCategories.isEmpty, Some(s"Categories $unknownCategories are unknown"))
-      stageGraph <- EitherT.fromEither[F](getStageGraph(state))
+      stageDigraph <- EitherT.fromOption[F](state.stageGraph, Errors.NoStageDigraphError())
+      stageGraph <- EitherT.fromEither[F](getStageGraph(state, stageDigraph))
       scheduleAndFights <-
         EitherT(ScheduleService.generateSchedule[F](competitionId, periods.toIndexedSeq, mats, stageGraph, timeZone))
       fightUpdatedEvents <- EitherT
@@ -73,11 +74,10 @@ object GenerateScheduleProc {
     eventT.value
   }
 
-  private def getStageGraph(state: CommandProcessorCompetitionState): CanFail[StageGraph] = {
-    val categories = state.categories
-    val stages     = categories.values.flatMap { it => state.stages.values.filter(_.categoryId == it.id) }
-    val stageIds   = stages.map(_.id).toSet
+  private def getStageGraph(state: CommandProcessorCompetitionState, stageDigraph: DiGraph): CanFail[StageGraph] = {
+    val stages     = state.stages
+    val stageIds   = stages.keySet
     val fights     = state.fights.values.filter(f => stageIds.contains(f.stageId))
-    StageGraph.create(stages.toList, fights.toList)
+    StageGraph.create(stages.values.toList, stageDigraph, fights.toList)
   }
 }

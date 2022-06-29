@@ -79,21 +79,75 @@ object StageGraph {
     } else { stageGraph }
   }
 
-  private def createStagesGraph(stages: List[StageDescriptor], stageIdsToIds: BiMap[String, Int]): Array[List[Int]] = {
+  private def createInternalStagesGraphRepresentation(
+    stages: DiGraph,
+    stageIdsToIds: BiMap[String, Int]
+  ): Array[List[Int]] = {
     val stageNodesMutable = Array.fill(stageIdsToIds.keySet().size()) { mutable.HashSet.empty[Int] }
-    stages.foreach { stage =>
-      stage.inputDescriptor.map(_.selectors).foreach(arr =>
-        arr.foreach { s =>
-          val parentId = s.applyToStageId
-          if (stageIdsToIds.containsKey(parentId)) {
-            val nodeId = stageIdsToIds.get(stage.id)
-            stageNodesMutable(stageIdsToIds.get(parentId)).add(nodeId)
-          }
+    stages.outgoingConnections.foreach { case (stageId, outgoingCollections) =>
+      val parentId = stageId
+      if (stageIdsToIds.containsKey(parentId)) {
+        outgoingCollections.ids.foreach { nodeId =>
+          stageNodesMutable(stageIdsToIds.get(parentId)).add(stageIdsToIds.get(nodeId))
         }
-      )
+      }
     }
     stageNodesMutable.map { _.toList }
   }
+
+  def createStagesDigraph(stages: Iterable[StageDescriptor]): DiGraph = {
+    val incomingConnections = createMutableMapOfStringToList
+    val outgoingConnections = createMutableMapOfStringToList
+    for (
+      stage    <- stages;
+      selector <- stage.inputDescriptor.map(_.selectors).getOrElse(Seq.empty)
+    ) {
+      val parentId = selector.applyToStageId
+      incomingConnections.getOrElseUpdate(stage.id, mutable.ArrayBuffer.empty)
+      outgoingConnections.getOrElseUpdate(stage.id, mutable.ArrayBuffer.empty)
+      if (parentId.nonEmpty) {
+        incomingConnections(stage.id).append(parentId)
+        outgoingConnections.getOrElseUpdate(parentId, mutable.ArrayBuffer.empty).append(stage.id)
+      }
+    }
+    diGraph(incomingConnections, outgoingConnections)
+  }
+
+  private def diGraph(
+    incomingConnections: mutable.HashMap[String, ArrayBuffer[String]],
+    outgoingConnections: mutable.HashMap[String, ArrayBuffer[String]]
+  ) = {
+    DiGraph().withIncomingConnections(incomingConnections.view.mapValues(v => IdList(v.distinct.toSeq)).toMap)
+      .withOutgoingConnections(outgoingConnections.view.mapValues(v => IdList(v.distinct.toSeq)).toMap)
+  }
+
+  def mergeStagesDigraphs(a: DiGraph, b: DiGraph): DiGraph = {
+    val aIncoming = a.incomingConnections
+    val bIncoming = b.incomingConnections
+
+    val aOutgoing = a.outgoingConnections
+    val bOutgoing = b.outgoingConnections
+
+    val incomingConnections = createMutableMapOfStringToList
+    val outgoingConnections = createMutableMapOfStringToList
+
+    addAllEdges(aIncoming, incomingConnections)
+    addAllEdges(aOutgoing, outgoingConnections)
+
+    for (elem <- bIncoming) {
+      incomingConnections.getOrElseUpdate(elem._1, mutable.ArrayBuffer.empty).addAll(elem._2.ids)
+    }
+    for (elem <- bOutgoing) {
+      outgoingConnections.getOrElseUpdate(elem._1, mutable.ArrayBuffer.empty).addAll(elem._2.ids)
+    }
+    diGraph(incomingConnections, outgoingConnections)
+  }
+
+  private def addAllEdges(aIncoming: Map[String, IdList], incomingConnections: mutable.HashMap[String, ArrayBuffer[String]]) = {
+    incomingConnections.addAll(aIncoming.iterator.map(e => (e._1, mutable.ArrayBuffer(e._2.ids: _*))))
+  }
+
+  private def createMutableMapOfStringToList = mutable.HashMap.empty[String, ArrayBuffer[String]]
 
   private def createStageIdsToIntIds(stages: List[StageDescriptor]) = {
     val indices = stages.distinctBy(_.id).zipWithIndex.map(p => (p._1.id, p._2)).toMap
@@ -119,7 +173,8 @@ object StageGraph {
       fight.scores.foreach { compScore =>
         if (
           compScore.parentFightId.isDefined &&
-          fights.get(compScore.parentFightId.get).exists(isNotUncompletable) // Not including UNCOMPLETABLE fights to fights graph
+          fights.get(compScore.parentFightId.get)
+            .exists(isNotUncompletable) // Not including UNCOMPLETABLE fights to fights graph
         ) { fightsGraphMutable(fightIdsToIds.get(compScore.parentFightId)).add(fightIdsToIds.get(fight.id)) }
       }
       stageIdToFightIds(stageIdsToIds.get(fight.stageId)).add(fight.id)
@@ -133,14 +188,20 @@ object StageGraph {
     completableFights.toSet
   }
 
-  def create(stages: List[StageDescriptor], fights: List[FightDescription]): CanFail[StageGraph] = {
+  def create(
+    stages: List[StageDescriptor],
+    stageDiGraph: DiGraph,
+    fights: List[FightDescription]
+  ): CanFail[StageGraph] = {
     // we resolve transitive connections here (a -> b -> c  ~>  (a -> b, a -> c, b -> c))
     val stageIdsToIds = createStageIdsToIntIds(stages)
-    val stagesGraph   = createStagesGraph(stages, stageIdsToIds)
+    val stagesGraph   = createInternalStagesGraphRepresentation(stageDiGraph, stageIdsToIds)
 
     for {
       stageOrdering <- GraphUtils.findTopologicalOrdering(stagesGraph, OrderingTypes.Stages)
-      sortedFights  = fights.filter(isNotUncompletable).sortBy { _.roundOrZero }.sortBy { it => stageOrdering(stageIdsToIds.get(it.stageId)) }
+      sortedFights = fights.filter(isNotUncompletable).sortBy { _.roundOrZero }.sortBy { it =>
+        stageOrdering(stageIdsToIds.get(it.stageId))
+      }
       fightsMap     = Utils.groupById(sortedFights)(_.id)
       fightIdsToIds = createFightIdsToIntIds(sortedFights)
       (fightsGraph, stageIdsToFightIds) =

@@ -2,6 +2,7 @@ package compman.compsrv.logic.command
 
 import cats.Eval
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
+import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.Errors
 import compman.compsrv.model.Mapping.EventMapping
@@ -76,4 +77,7 @@ object Dependencies {
 
     override def error(error: => Errors.Error): Eval[Either[Errors.Error, Event]] = Eval.now(Left(error))
   }
+
+  implicit val selectInterpreter: Interpreter[Eval] = Interpreter.asTask[Eval]
+
 }
