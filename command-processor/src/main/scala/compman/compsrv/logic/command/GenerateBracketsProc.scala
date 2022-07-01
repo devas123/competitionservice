@@ -39,13 +39,13 @@ object GenerateBracketsProc {
         BracketsAlreadyGeneratedForCategory(categoryId)
       )
       stages = payload.stageDescriptors.toList.sortBy(_.stageOrder)
-      stagesDiGraph = StageGraph.createStagesDigraph(stages)
       events <- for {
         stageIdtoNewId <- EitherT.liftF(stages.traverse { s => IdOperations[F].uid.map(s.id -> _) })
         stageIdMap = stageIdtoNewId.toMap
-        updatedStages <- validateAndEnrichStages[F](stages, stageIdMap, categoryId, state)
+        updatedStagesAndFights <- updateStagesAndGenerateBrackets[F](stages, stageIdMap, categoryId, state)
+        stagesDiGraph = StageGraph.createStagesDigraph(updatedStagesAndFights.map(_._1))
         fightAddedEvents <- EitherT.liftF(
-          updatedStages.flatMap { case (stage, fights) =>
+          updatedStagesAndFights.flatMap { case (stage, fights) =>
             fights.grouped(30).map { it =>
               CommandEventOperations[F, Event].create(
                 EventType.FIGHTS_ADDED_TO_STAGE,
@@ -59,7 +59,7 @@ object GenerateBracketsProc {
           }.traverse(identity)
         )
         bracketsGeneratedPayload = BracketsGeneratedPayload()
-          .withStages(updatedStages.mapWithIndex((a, b) => a._1.withStageOrder(b)))
+          .withStages(updatedStagesAndFights.mapWithIndex((a, b) => a._1.withStageOrder(b)))
           .withStageGraph(stagesDiGraph)
         bracketsGeneratedEvent <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
           `type` = EventType.BRACKETS_GENERATED,
@@ -73,7 +73,7 @@ object GenerateBracketsProc {
     eventT.value
   }
 
-  private def validateAndEnrichStages[F[+_]: Monad: IdOperations: EventOperations](
+  private def updateStagesAndGenerateBrackets[F[+_]: Monad: IdOperations: EventOperations](
     stages: List[StageDescriptor],
     stageIdMap: Map[String, String],
     categoryId: String,

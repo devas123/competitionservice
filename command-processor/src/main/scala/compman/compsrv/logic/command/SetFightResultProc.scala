@@ -15,7 +15,12 @@ import compman.compsrv.model.extensions.FightDescrOps
 import compservice.model.protobuf.commandpayload.SetFightResultPayload
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
-import compservice.model.protobuf.eventpayload.{CompetitorAssignmentDescriptor, CompetitorsPropagatedToStagePayload, FightCompetitorsAssignedPayload, StageResultSetPayload}
+import compservice.model.protobuf.eventpayload.{
+  CompetitorAssignmentDescriptor,
+  CompetitorsPropagatedToStagePayload,
+  FightCompetitorsAssignedPayload,
+  StageResultSetPayload
+}
 import compservice.model.protobuf.model._
 
 object SetFightResultProc {
@@ -81,7 +86,8 @@ object SetFightResultProc {
             val manualAssignmentEnabled = state.stages(sid).inputDescriptor
               .exists(_.selectors.exists(_.classifier == SelectorClassifier.MANUAL))
             children.forall(childId =>
-              !manualAssignmentEnabled && checkIfAllStageFightsFinished(state, Some(childId), Option(fightId).map(Set(_)).getOrElse(Set.empty))
+              !manualAssignmentEnabled &&
+                checkIfAllStageFightsFinished(state, Some(childId), Option(fightId).map(Set(_)).getOrElse(Set.empty))
             )
           }
         case None => Seq.empty
@@ -107,7 +113,7 @@ object SetFightResultProc {
     stageId: String,
     stageFights: Map[String, FightDescription],
     allStageFightsFinished: Boolean,
-    propagateCompetitorsToStages: Seq[String]
+    stagesToPropagateCompetitorsTo: Seq[String]
   ): EitherT[F, Errors.Error, List[Event]] = {
     def createStageResultSetEvent(
       stage: StageDescriptor,
@@ -172,7 +178,7 @@ object SetFightResultProc {
         stageGraph <- EitherT.fromOption[F](state.stageGraph, Errors.StageGraphMissing())
         fightsWithResult   = stageFights + (fight.id -> fight.withFightResult(payload.getFightResult))
         fightResultOptions = stage.getStageResultDescriptor.fightResultOptions.toList
-        competitorsPropagatedEvents <- propagateCompetitorsToStages.toList.traverse(id =>
+        competitorsPropagatedEvents <- stagesToPropagateCompetitorsTo.toList.traverse(id =>
           createCompetitorsPropagatedEvent(
             state.stages(id),
             stageGraph,

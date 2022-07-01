@@ -136,7 +136,7 @@ object FightQueryOperations {
       for {
         collection <- fightCollection
         statement = collection
-          .countDocuments(and(equal(competitionIdField, competitionId), equal(categoryIdField, categoryId)))
+          .countDocuments(and(equal(competitionIdField, competitionId), equal(categoryIdField, categoryId), statusCheck))
         res <- RIO.fromFuture(_ => statement.toFuture()).map(_.toInt)
       } yield res
     }

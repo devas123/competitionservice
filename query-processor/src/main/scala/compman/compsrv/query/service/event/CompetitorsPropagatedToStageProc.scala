@@ -42,7 +42,7 @@ object CompetitorsPropagatedToStageProc {
         ).map(c => DtoMapping.mapCompScore(c, compMap.get(c.getCompetitorId)))
         for { fight <- fightsMap.get(fightId) } yield fight.copy(scores = scores)
       }
-      _ <- OptionT.liftF(updatedFights.traverse(f => FightUpdateOperations[F].addFight(f)))
+      _ <- OptionT.liftF(updatedFights.traverse(f => FightUpdateOperations[F].updateFight(f)))
     } yield ()
   }.value.map(_ => ())
 }

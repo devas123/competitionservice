@@ -143,9 +143,36 @@ object StageGraph {
     diGraph(incomingConnections, outgoingConnections)
   }
 
-  private def addAllEdges(aIncoming: Map[String, IdList], incomingConnections: mutable.HashMap[String, ArrayBuffer[String]]) = {
-    incomingConnections.addAll(aIncoming.iterator.map(e => (e._1, mutable.ArrayBuffer(e._2.ids: _*))))
+  def removeStage(graph: DiGraph, stageId: String): DiGraph = {
+    val stageOutgoing = graph.outgoingConnections.get(stageId).map(_.ids).getOrElse(Seq.empty)
+    val stageIncoming = graph.incomingConnections.get(stageId).map(_.ids).getOrElse(Seq.empty)
+
+    val outgoingMutable: mutable.HashMap[String, IdList] = mutable.HashMap.newBuilder(graph.outgoingConnections)
+      .result()
+    val incomingMutable: mutable.HashMap[String, IdList] = mutable.HashMap.newBuilder(graph.incomingConnections)
+      .result()
+
+    removeStageFromConnectionReverseAdjList(stageId, stageIncoming, outgoingMutable)
+    removeStageFromConnectionReverseAdjList(stageId, stageOutgoing, incomingMutable)
+
+    graph.withOutgoingConnections(outgoingMutable.toMap - stageId)
+      .withIncomingConnections(incomingMutable.toMap - stageId)
   }
+
+  private def removeStageFromConnectionReverseAdjList(
+    stageId: String,
+    vertices: Seq[String],
+    adjacencyList: mutable.HashMap[String, IdList]
+  ): Unit = {
+    for (id <- vertices) {
+      adjacencyList.updateWith(id)(existing => existing.map(idList => idList.withIds(idList.ids.filter(_ != stageId))))
+    }
+  }
+
+  private def addAllEdges(
+    aIncoming: Map[String, IdList],
+    incomingConnections: mutable.HashMap[String, ArrayBuffer[String]]
+  ) = { incomingConnections.addAll(aIncoming.iterator.map(e => (e._1, mutable.ArrayBuffer(e._2.ids: _*)))) }
 
   private def createMutableMapOfStringToList = mutable.HashMap.empty[String, ArrayBuffer[String]]
 
