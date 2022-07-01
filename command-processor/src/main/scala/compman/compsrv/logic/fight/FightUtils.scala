@@ -10,31 +10,39 @@ import compservice.model.protobuf.model._
 
 object FightUtils {
 
-  val finishedStatuses: Seq[FightStatus.Recognized] =
-    List(FightStatus.UNCOMPLETABLE, FightStatus.FINISHED, FightStatus.WALKOVER)
+  val finishedStatuses: Seq[FightStatus] = List(FightStatus.UNCOMPLETABLE, FightStatus.FINISHED, FightStatus.WALKOVER)
   val unMovableFightStatuses: Seq[FightStatus] = finishedStatuses :+ FightStatus.IN_PROGRESS
-  val notFinishedStatuses: Seq[FightStatus.Recognized] =
+  val notFinishedStatuses: Seq[FightStatus] =
     List(FightStatus.PENDING, FightStatus.IN_PROGRESS, FightStatus.GET_READY, FightStatus.PAUSED)
   def ceilingNextPowerOfTwo(x: Int): Int = 1 << (32 - Integer.numberOfLeadingZeros(x - 1))
 
   def applyStageInputDescriptorToResultsAndFights[F[+_]: Monad: Interpreter](
-    descriptor: StageInputDescriptor,
-    stageId: String,
-    state: CommandProcessorCompetitionState
+    stageToSendCompetitorsTo: StageDescriptor,
+    stageGraph: DiGraph,
+    competitorStageResults: Map[String, Seq[CompetitorStageResult]],
+    fights: Map[String, FightDescription]
   ): F[List[String]] = {
-    val program =
-      if (Option(descriptor.selectors).exists(_.nonEmpty)) {
-        descriptor.selectors.flatMap(it => {
-          val classifier = it.classifier
-          classifier match {
-            case SelectorClassifier.LAST_N_PLACES => List(lastNPlaces(it.applyToStageId, it.selectorValue.head.toInt))
-            case SelectorClassifier.MANUAL        => List(returnIds(it.selectorValue.toList))
-            case _                                => List(firstNPlaces(it.applyToStageId, it.selectorValue.head.toInt))
-          }
-        }).reduce((a, b) => CompetitorSelectionUtils.and(a, b))
-      } else { firstNPlaces(state.stageGraph.get.incomingConnections(stageId).ids.head, descriptor.numberOfCompetitors) }
-    program.foldMap(Interpreter[F].interepret(state.stages, state.fights)).map(_.toList)
-  }
+    for {
+      descriptor <- OptionT.fromOption[F](stageToSendCompetitorsTo.inputDescriptor)
+      program =
+        if (descriptor.selectors.nonEmpty) {
+          stageToSendCompetitorsTo.inputDescriptor.map(_.selectors).get.flatMap(it => {
+            val classifier = it.classifier
+            classifier match {
+              case SelectorClassifier.LAST_N_PLACES => List(lastNPlaces(it.applyToStageId, it.selectorValue.head.toInt))
+              case SelectorClassifier.MANUAL        => List(returnIds(it.selectorValue.toList))
+              case _ => List(firstNPlaces(it.applyToStageId, it.selectorValue.head.toInt))
+            }
+          }).reduce((a, b) => CompetitorSelectionUtils.and(a, b))
+        } else {
+          firstNPlaces(
+            stageGraph.incomingConnections(stageToSendCompetitorsTo.id).ids.head,
+            descriptor.numberOfCompetitors
+          )
+        }
+      res <- OptionT.liftF(program.foldMap(Interpreter[F].interepret(competitorStageResults, fights)).map(_.toList))
+    } yield res
+  }.value.map(_.getOrElse(List.empty))
 
   def filterPreliminaryFights(
     outputSize: Int,

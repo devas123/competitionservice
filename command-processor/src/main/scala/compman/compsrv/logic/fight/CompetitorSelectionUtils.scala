@@ -5,7 +5,7 @@ import cats.data.State
 import cats.free.Free
 import cats.implicits._
 import compman.compsrv.Utils.groupById
-import compservice.model.protobuf.model.{FightDescription, StageDescriptor, StageRoundType}
+import compservice.model.protobuf.model.{CompetitorStageResult, FightDescription, StageRoundType}
 
 import scala.collection.mutable
 
@@ -13,7 +13,7 @@ object CompetitorSelectionUtils {
 
   trait Interpreter[F[+_]] {
     def interepret(
-      stages: Map[String, StageDescriptor],
+      competitorResults: Map[String, Seq[CompetitorStageResult]], // competitorId -> list of stage results
       stageFights: Map[String, FightDescription]
     ): CompetitorSelectA ~> F
   }
@@ -22,47 +22,43 @@ object CompetitorSelectionUtils {
     def apply[F[+_]: Monad](implicit F: Interpreter[F]): Interpreter[F] = F
 
     def asTask[F[+_]: Monad]: Interpreter[F] =
-      (stages: Map[String, StageDescriptor], stageFights: Map[String, FightDescription]) => {
-        def results(stageId: String) = stages.get(stageId).flatMap(s => Option(s.getStageResultDescriptor))
-          .flatMap(s => Option(s.competitorResults)).map(res => groupById(res)(_.competitorId)).getOrElse(Map.empty)
-        def fights(stageId: String) = groupById(stageFights.values.filter(_.stageId == stageId))(_.id)
+      (competitorResults: Map[String, Seq[CompetitorStageResult]], stagesFights: Map[String, FightDescription]) => {
+        def results(stageId: String) = competitorResults.values.flatMap(seq => seq.filter(_.stageId == stageId)).toSeq
+        def fights(stageId: String)  = groupById(stagesFights.values.filter(_.stageId == stageId))(_.id)
         new (CompetitorSelectA ~> F) {
-          override def apply[A](fa: CompetitorSelectA[A]): F[A] = {
-            fa match {
-              case FirstNPlaces(stageId, n) =>
-                Monad[F].pure(results(stageId).values.toSeq.sortBy(_.place).take(n).map(_.competitorId).asInstanceOf[A])
+          override def apply[A](fa: CompetitorSelectA[A]): F[A] = fa match {
+            case FirstNPlaces(stageId, n) => Monad[F]
+                .pure(results(stageId).sortBy(_.place).take(n).map(_.competitorId).asInstanceOf[A])
+            case LastNPlaces(stageId, n) => Monad[F]
+                .pure(results(stageId).sortBy(_.place).takeRight(n).map(_.competitorId).asInstanceOf[A])
+            case WinnerOfFight(stageId, id) => for {
+                t <- Monad[F].pure(for {
+                  fs     <- Some(fights(stageId))
+                  f      <- fs.get(id)
+                  res    <- f.fightResult
+                  winner <- res.winnerId
+                } yield Seq(winner).asInstanceOf[A])
+              } yield t.getOrElse(Seq.empty)
+            case LoserOfFight(stageId, id) => for {
+                t <- Monad[F].pure(for {
+                  fs     <- Some(fights(stageId))
+                  f      <- fs.get(id)
+                  res    <- f.fightResult
+                  winner <- res.winnerId
+                  scores <- Option(f.scores)
+                  loser  <- scores.find(!_.competitorId.contains(winner))
+                } yield Seq(loser).asInstanceOf[A])
+              } yield t.getOrElse(Seq.empty)
 
-              case LastNPlaces(stageId, n) =>
-                Monad[F].pure(results(stageId).values.toSeq.sortBy(_.place).takeRight(n).map(_.competitorId).asInstanceOf[A])
-              case WinnerOfFight(stageId, id) => for {
-                  t <- Monad[F].pure(for {
-                    fs     <- Some(fights(stageId))
-                    f      <- fs.get(id)
-                    res    <- f.fightResult
-                    winner <- res.winnerId
-                  } yield Seq(winner).asInstanceOf[A])
-                } yield t.getOrElse(Seq.empty)
-              case LoserOfFight(stageId, id) => for {
-                  t <- Monad[F].pure(for {
-                    fs     <- Some(fights(stageId))
-                    f      <- fs.get(id)
-                    res    <- f.fightResult
-                    winner <- res.winnerId
-                    scores <- Option(f.scores)
-                    loser  <- scores.find(!_.competitorId.contains(winner))
-                  } yield Seq(loser).asInstanceOf[A])
-                } yield t.getOrElse(Seq.empty)
+            case PassedToRound(stageId, n, roundType) => for {
+                t <- Monad[F].pure(for {
+                  fs <- Some(fights(stageId))
+                  filtered = fs.values.filter(_.roundType == roundType).filter(_.numberInRound == n)
+                  ids      = filtered.flatMap(_.scores.map(_.competitorId))
+                } yield ids.toSeq.asInstanceOf[A])
+              } yield t.getOrElse(Seq.empty)
 
-              case PassedToRound(stageId, n, roundType) => for {
-                  t <- Monad[F].pure(for {
-                    fs <- Some(fights(stageId))
-                    filtered = fs.values.filter(_.roundType == roundType).filter(_.numberInRound == n)
-                    ids      = filtered.flatMap(_.scores.map(_.competitorId))
-                  } yield ids.toSeq.asInstanceOf[A])
-                } yield t.getOrElse(Seq.empty)
-
-              case Return(ids) => Monad[F].pure(ids).map(_.asInstanceOf[A])
-            }
+            case Return(ids) => Monad[F].pure(ids).map(_.asInstanceOf[A])
           }
         }
       }

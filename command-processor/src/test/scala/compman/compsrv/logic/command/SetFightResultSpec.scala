@@ -5,6 +5,7 @@ import cats.data.EitherT
 import cats.implicits._
 import compman.compsrv.Utils
 import compman.compsrv.logic.{assertET, Operations}
+import compman.compsrv.logic.schedule.StageGraph
 import compman.compsrv.model.command.Commands.{CreateFakeCompetitors, GenerateBracketsCommand, SetFightResultCommand}
 import compman.compsrv.model.Errors
 import compman.compsrv.service.TestEntities
@@ -29,7 +30,8 @@ class SetFightResultSpec extends AnyFunSuite with BeforeAndAfter with TestEntiti
     fights = Utils.groupById(fights)(_.id),
     categories = Map.empty,
     registrationInfo = None,
-    schedule = None
+    schedule = None,
+    stageGraph = Some(StageGraph.createStagesDigraph(Seq(stage)))
   )
 
   val fight: FightDescription = fights.head

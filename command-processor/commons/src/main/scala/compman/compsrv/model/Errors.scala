@@ -32,6 +32,7 @@ object Errors {
   final case class CategoryIsNotEmptyError() extends Error
   final case class BracketsAlreadyGeneratedForCategory(categoryId: String) extends Error
   final case class StageDoesNotExist(id: String) extends Error
+  final case class StageGraphMissing() extends Error
   final case class StageResultDescriptorMissing() extends Error
   final case class FightDoesNotExist(id: String) extends Error
   final case class FightCannotBeMoved(id: String) extends Error
