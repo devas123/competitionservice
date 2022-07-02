@@ -8,7 +8,12 @@ import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations
 import compman.compsrv.logic.fight.{FightResultOptionConstants, FightsService}
 import compman.compsrv.logic.schedule.StageGraph
 import compman.compsrv.model.command.Commands.{GenerateBracketsCommand, InternalCommandProcessorCommand}
-import compman.compsrv.model.Errors.{BracketsAlreadyGeneratedForCategory, NoCategoryIdError, NoCompetitionIdError, NoPayloadError}
+import compman.compsrv.model.Errors.{
+  BracketsAlreadyGeneratedForCategory,
+  NoCategoryIdError,
+  NoCompetitionIdError,
+  NoPayloadError
+}
 import compman.compsrv.model.Errors
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
@@ -39,6 +44,13 @@ object GenerateBracketsProc {
         BracketsAlreadyGeneratedForCategory(categoryId)
       )
       stages = payload.stageDescriptors.toList.sortBy(_.stageOrder)
+      _ <- assertETErr[F](
+        stages.forall(s =>
+          s.stageOrder == 0 ||
+            s.inputDescriptor.exists(id => id.selectors.nonEmpty && id.selectors.forall(_.applyToStageId.nonEmpty))
+        ),
+        Errors.InputDescriptorInvalidForStage(stages)
+      )
       events <- for {
         stageIdtoNewId <- EitherT.liftF(stages.traverse { s => IdOperations[F].uid.map(s.id -> _) })
         stageIdMap = stageIdtoNewId.toMap
@@ -78,9 +90,9 @@ object GenerateBracketsProc {
     stageIdMap: Map[String, String],
     categoryId: String,
     state: CommandProcessorCompetitionState
-  ) = stages.traverse(stage => validateAndEnrichStage[F](stageIdMap, categoryId, state, stage))
+  ) = stages.traverse(stage => updateStageAndGenerateFights[F](stageIdMap, categoryId, state, stage))
 
-  private def validateAndEnrichStage[F[+_]: Monad: IdOperations: EventOperations](
+  private def updateStageAndGenerateFights[F[+_]: Monad: IdOperations: EventOperations](
     stageIdMap: Map[String, String],
     categoryId: String,
     state: CommandProcessorCompetitionState,
@@ -101,9 +113,9 @@ object GenerateBracketsProc {
     groupDescr <- EitherT.liftF(stage.groupDescriptors.toList.traverse { it =>
       IdOperations[F].uid.map(id => it.withId(id))
     })
-    inputDescriptor = stage.getInputDescriptor
-      .withSelectors(stage.getInputDescriptor.selectors.map(sel =>
-        sel.withApplyToStageId(stageIdMap(sel.applyToStageId))))
+    inputDescriptor = stage.getInputDescriptor.withSelectors(stage.getInputDescriptor.selectors.map(sel =>
+      sel.withApplyToStageId(stageIdMap(sel.applyToStageId))
+    ))
     enrichedOptions = stage.stageResultDescriptor.map(_.fightResultOptions).map(_.toList).getOrElse(List.empty) :+
       FightResultOptionConstants.WALKOVER
     enrichedOptionsWithIds <- EitherT.liftF(

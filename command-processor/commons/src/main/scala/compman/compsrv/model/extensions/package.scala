@@ -146,7 +146,7 @@ package object extensions {
     }
 
     def pushCompetitor(competitorId: String): Option[FightDescription] = {
-      putCompetitorWhere(competitorId, _.competitorId.isEmpty)
+      putCompetitorWhere(competitorId, cs => !cs.competitorId.exists(_.nonEmpty))
     }
   }
 }

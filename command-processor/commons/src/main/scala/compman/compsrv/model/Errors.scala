@@ -1,6 +1,6 @@
 package compman.compsrv.model
 
-import compservice.model.protobuf.model.{CategoryDescriptor, Competitor}
+import compservice.model.protobuf.model.{CategoryDescriptor, Competitor, StageDescriptor}
 
 object Errors {
   sealed trait Error
@@ -11,6 +11,7 @@ object Errors {
     def apply(msg: String) = new InternalError(Option(msg))
   }
   final case class NoPayloadError() extends Error
+  final case class InputDescriptorInvalidForStage(stages: Seq[StageDescriptor]) extends Error
   final case class NoScheduleError() extends Error
   final case class NoRegistrationInfoError() extends Error
   final case class NoCompetitionPropertiesError() extends Error
