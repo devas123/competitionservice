@@ -399,7 +399,7 @@ message CommandProcessorCompetitionState {
   optional Schedule schedule = 200;
   int32 revision = 300;
   optional DiGraph stageGraph = 400;
-  optional DiGraph fightGraph = 500;
+  map<string, CategoryFightsIndex> categoryIdToFightsIndex = 500;
 }
 
 message DiGraph {
@@ -407,8 +407,21 @@ message DiGraph {
   map<string, IdList> incomingConnections = 2;
 }
 
+message FightDigraph {
+  map<string, FightReferenceList> outgoingConnections = 1;
+  map<string, FightReferenceList> incomingConnections = 2;
+}
+
+message CategoryFightsIndex {
+  map<string, FightDigraph> stageIdToFightsGraph = 1;
+}
+
 message IdList {
   repeated string ids = 1;
+}
+
+message FightReferenceList {
+  repeated FightReference references = 1;
 }
 
 message CompetitionState {

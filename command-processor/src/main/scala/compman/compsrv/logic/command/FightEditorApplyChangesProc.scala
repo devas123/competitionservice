@@ -3,17 +3,13 @@ package compman.compsrv.logic.command
 import cats.Monad
 import cats.data.{EitherT, OptionT}
 import cats.implicits._
+import compman.compsrv.logic
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.fight._
 import compman.compsrv.model.command.Commands.{FightEditorApplyChangesCommand, InternalCommandProcessorCommand}
 import compman.compsrv.model.Errors
 import compman.compsrv.model.Errors.NoPayloadError
-import compservice.model.protobuf.commandpayload.{
-  CompetitorMovedToGroup,
-  CompetitorsOfFightUpdated,
-  FightEditorApplyChangesPayload,
-  GroupChangeType
-}
+import compservice.model.protobuf.commandpayload.{CompetitorMovedToGroup, CompetitorsOfFightUpdated, FightEditorApplyChangesPayload, GroupChangeType}
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload.FightEditorChangesAppliedPayload
@@ -35,23 +31,16 @@ object FightEditorApplyChangesProc {
   ): F[Either[Errors.Error, Seq[Event]]] = {
     val eventT: EitherT[F, Errors.Error, Seq[Event]] = for {
       payload <- EitherT.fromOption[F](command.payload, NoPayloadError())
-      stageExists = state.stages.contains(payload.stageId)
-      event <-
-        if (!stageExists) {
-          EitherT.fromEither[F](Left[Errors.Error, Event](Errors.StageDoesNotExist(payload.stageId)))
-        } else {
-          for {
-            eventPayload <- EitherT
-              .liftF[F, Errors.Error, Option[FightEditorChangesAppliedPayload]](createPayload[F](payload, state))
-            evt <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
-              `type` = EventType.FIGHTS_EDITOR_CHANGE_APPLIED,
-              competitorId = None,
-              competitionId = command.competitionId,
-              categoryId = command.categoryId,
-              payload = eventPayload.map(MessageInfo.Payload.FightEditorChangesAppliedPayload)
-            ))
-          } yield evt
-        }
+      _       <- logic.assertETErr[F](state.stages.contains(payload.stageId), Errors.StageDoesNotExist(payload.stageId))
+      eventPayload <- EitherT
+        .liftF[F, Errors.Error, Option[FightEditorChangesAppliedPayload]](createPayload[F](payload, state))
+      event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
+        `type` = EventType.FIGHTS_EDITOR_CHANGE_APPLIED,
+        competitorId = None,
+        competitionId = command.competitionId,
+        categoryId = command.categoryId,
+        payload = eventPayload.map(MessageInfo.Payload.FightEditorChangesAppliedPayload)
+      ))
     } yield Seq(event)
     eventT.value
   }

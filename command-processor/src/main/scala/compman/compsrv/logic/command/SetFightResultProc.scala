@@ -178,15 +178,22 @@ object SetFightResultProc {
         stageGraph <- EitherT.fromOption[F](state.stageGraph, Errors.StageGraphMissing())
         fightsWithResult   = stageFights + (fight.id -> fight.withFightResult(payload.getFightResult))
         fightResultOptions = stage.getStageResultDescriptor.fightResultOptions.toList
-        competitorsPropagatedEvents <- stagesToPropagateCompetitorsTo.toList.traverse(id =>
+        result <- createStageResultSetEvent(stage, fightsWithResult, fightResultOptions)
+        createdResults <- EitherT.fromOption[F](result.messageInfo.flatMap(_.payload.stageResultSetPayload).map(_.results)
+          .map(compResults => compResults.groupBy(_.competitorId)), Errors.StageResultsMissing())
+        competitorsPropagatedEvents <- stagesToPropagateCompetitorsTo.toList.traverse { id =>
+          val existingResults = getCompetitorResults(stageGraph.incomingConnections(id).ids, state)
+          val updated = createdResults.foldLeft(existingResults){
+            case (acc, (key, results)) =>
+              acc.updatedWith(key)(_.map(seq => seq ++ results).orElse(Some(results)).map(_.distinctBy(_.stageId)))
+          }
           createCompetitorsPropagatedEvent(
             state.stages(id),
             stageGraph,
-            getCompetitorResults(stageGraph.incomingConnections(id).ids, state),
+            updated,
             state.fights
           )
-        )
-        result <- createStageResultSetEvent(stage, fightsWithResult, fightResultOptions)
+        }
       } yield List(result) ++ competitorsPropagatedEvents
     } else { EitherT.rightT[F, Errors.Error](List.empty) }
   }

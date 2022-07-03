@@ -6,7 +6,9 @@ import "model.proto";
 message     BracketsGeneratedPayload {
   repeated StageDescriptor stages = 1;
   DiGraph stageGraph = 2;
+  CategoryFightsIndex categoryFightsIndex = 3;
 }
+
 message     CategoryAddedPayload {
   CategoryDescriptor categoryState = 1;
 }

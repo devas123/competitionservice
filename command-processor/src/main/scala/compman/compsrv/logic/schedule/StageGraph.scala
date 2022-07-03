@@ -98,13 +98,15 @@ object StageGraph {
   def createStagesDigraph(stages: Iterable[StageDescriptor]): DiGraph = {
     val incomingConnections = createMutableMapOfStringToList
     val outgoingConnections = createMutableMapOfStringToList
+    for (stage <- stages) {
+      incomingConnections.put(stage.id, mutable.ArrayBuffer.empty)
+      outgoingConnections.put(stage.id, mutable.ArrayBuffer.empty)
+    }
     for (
       stage    <- stages;
       selector <- stage.inputDescriptor.map(_.selectors).getOrElse(Seq.empty)
     ) {
       val parentId = selector.applyToStageId
-      incomingConnections.getOrElseUpdate(stage.id, mutable.ArrayBuffer.empty)
-      outgoingConnections.getOrElseUpdate(stage.id, mutable.ArrayBuffer.empty)
       if (parentId.nonEmpty) {
         incomingConnections(stage.id).append(parentId)
         outgoingConnections.getOrElseUpdate(parentId, mutable.ArrayBuffer.empty).append(stage.id)
@@ -113,15 +115,15 @@ object StageGraph {
     diGraph(incomingConnections, outgoingConnections)
   }
 
-  private def diGraph(
+  def diGraph(
     incomingConnections: mutable.HashMap[String, ArrayBuffer[String]],
     outgoingConnections: mutable.HashMap[String, ArrayBuffer[String]]
-  ) = {
+  ): DiGraph = {
     DiGraph().withIncomingConnections(incomingConnections.view.mapValues(v => IdList(v.distinct.toSeq)).toMap)
       .withOutgoingConnections(outgoingConnections.view.mapValues(v => IdList(v.distinct.toSeq)).toMap)
   }
 
-  def mergeStagesDigraphs(a: DiGraph, b: DiGraph): DiGraph = {
+  def mergeDigraphs(a: DiGraph, b: DiGraph): DiGraph = {
     val aIncoming = a.incomingConnections
     val bIncoming = b.incomingConnections
 
@@ -174,7 +176,7 @@ object StageGraph {
     incomingConnections: mutable.HashMap[String, ArrayBuffer[String]]
   ) = { incomingConnections.addAll(aIncoming.iterator.map(e => (e._1, mutable.ArrayBuffer(e._2.ids: _*)))) }
 
-  private def createMutableMapOfStringToList = mutable.HashMap.empty[String, ArrayBuffer[String]]
+  def createMutableMapOfStringToList = mutable.HashMap.empty[String, ArrayBuffer[String]]
 
   private def createStageIdsToIntIds(stages: List[StageDescriptor]) = {
     val indices = stages.distinctBy(_.id).zipWithIndex.map(p => (p._1.id, p._2)).toMap

@@ -19,8 +19,12 @@ object BracketsGeneratedProc {
   ): F[Option[CommandProcessorCompetitionState]] = {
     val eventT = for {
       payload <- event.payload
-      newState = state.withStages(state.stages ++ payload.stages.map(s => s.id -> s))
-        .withStageGraph(StageGraph.mergeStagesDigraphs(
+      categoryId <- event.categoryId
+      categoryFightsIndex <- payload.categoryFightsIndex
+      newState = state
+        .addAllStages(payload.stages.map(s => s.id -> s))
+        .addCategoryIdToFightsIndex((categoryId, categoryFightsIndex))
+        .withStageGraph(StageGraph.mergeDigraphs(
           state.stageGraph.getOrElse(DiGraph()),
           payload.stageGraph.getOrElse(DiGraph())
         ))

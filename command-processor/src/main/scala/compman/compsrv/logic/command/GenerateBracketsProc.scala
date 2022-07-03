@@ -6,19 +6,14 @@ import cats.implicits._
 import compman.compsrv.logic.assertETErr
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
 import compman.compsrv.logic.fight.{FightResultOptionConstants, FightsService}
-import compman.compsrv.logic.schedule.StageGraph
+import compman.compsrv.logic.schedule.{FightGraph, StageGraph}
 import compman.compsrv.model.command.Commands.{GenerateBracketsCommand, InternalCommandProcessorCommand}
-import compman.compsrv.model.Errors.{
-  BracketsAlreadyGeneratedForCategory,
-  NoCategoryIdError,
-  NoCompetitionIdError,
-  NoPayloadError
-}
+import compman.compsrv.model.Errors.{BracketsAlreadyGeneratedForCategory, NoCategoryIdError, NoCompetitionIdError, NoPayloadError}
 import compman.compsrv.model.Errors
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload.{BracketsGeneratedPayload, FightsAddedToStagePayload}
-import compservice.model.protobuf.model.{CommandProcessorCompetitionState, StageDescriptor, StageStatus, StageType}
+import compservice.model.protobuf.model.{CategoryFightsIndex, CommandProcessorCompetitionState, StageDescriptor, StageStatus, StageType}
 
 object GenerateBracketsProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations](
@@ -70,9 +65,12 @@ object GenerateBracketsProc {
             }
           }.traverse(identity)
         )
+        categoryFightsIndex = CategoryFightsIndex().withStageIdToFightsGraph(updatedStagesAndFights.map(e => e._1.id -> FightGraph.createFightsGraph(e._2)).toMap)
         bracketsGeneratedPayload = BracketsGeneratedPayload()
           .withStages(updatedStagesAndFights.mapWithIndex((a, b) => a._1.withStageOrder(b)))
           .withStageGraph(stagesDiGraph)
+          .withCategoryFightsIndex(categoryFightsIndex)
+
         bracketsGeneratedEvent <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
           `type` = EventType.BRACKETS_GENERATED,
           competitorId = None,

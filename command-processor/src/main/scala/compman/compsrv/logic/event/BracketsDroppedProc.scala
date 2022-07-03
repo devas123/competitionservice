@@ -27,6 +27,7 @@ object BracketsDroppedProc {
       }
       newState = state.withStages(state.stages -- stageIdsToRemove)
         .fightsApply(fightsOpt => fightsOpt.map(_.filter(_._2.categoryId != catId))).withStageGraph(newStageGraph)
+        .withCategoryIdToFightsIndex(state.categoryIdToFightsIndex - catId)
     } yield newState
     Monad[F].pure(maybeState)
   }

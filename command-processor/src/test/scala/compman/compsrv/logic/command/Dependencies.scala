@@ -70,7 +70,7 @@ object Dependencies {
       payload: Option[Payload]
     ): Eval[Event] = {
       val evt = Event().withMessageInfo(
-        MessageInfo().update(_.payload.setIfDefined(payload), _.competitionId.setIfDefined(competitionId))
+        MessageInfo().update(_.payload.setIfDefined(payload), _.competitionId.setIfDefined(competitionId), _.categoryId.setIfDefined(categoryId))
       ).withType(`type`)
       Eval.later(evt)
     }

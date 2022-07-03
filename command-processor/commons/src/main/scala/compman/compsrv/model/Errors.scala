@@ -35,6 +35,7 @@ object Errors {
   final case class StageDoesNotExist(id: String) extends Error
   final case class StageGraphMissing() extends Error
   final case class StageResultDescriptorMissing() extends Error
+  final case class StageResultsMissing() extends Error
   final case class FightDoesNotExist(id: String) extends Error
   final case class FightCannotBeMoved(id: String) extends Error
   final case class MatDoesNotExist(id: String) extends Error
