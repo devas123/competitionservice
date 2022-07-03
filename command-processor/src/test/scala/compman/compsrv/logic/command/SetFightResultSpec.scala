@@ -61,6 +61,77 @@ class SetFightResultSpec extends AnyFunSuite with BeforeAndAfter with TestEntiti
     )
   }
 
+  test("Should propagate competitors to next stage from group stage when have multiple stages") {
+    val state = initialState.clearCompetitors.clearFights.clearStages
+      .addCategories((categoryId, CategoryDescriptor().withId(categoryId).withName("Test")))
+    val createFakeCompetitorsCommand =
+      CreateFakeCompetitors(competitionId = Some(competitionId), categoryId = Some(categoryId))
+
+    val executionResult = (for {
+      _fff <- EitherT(CreateFakeCompetitorsProc[Eval]().apply(createFakeCompetitorsCommand))
+      fff  <- EitherT(CreateFakeCompetitorsProc[Eval]().apply(createFakeCompetitorsCommand))
+      stateWithCompetitors <- EitherT
+        .liftF((_fff ++ fff).toList.foldM(state)((s, e) => Operations.applyEvent[Eval](s, e)))
+      tmpPreliminaryStageId = UUID.randomUUID().toString
+      finalStageId          = UUID.randomUUID().toString
+      generateBracketsPayload = GenerateBracketsPayload().addStageDescriptors(
+        StageDescriptor().withId(tmpPreliminaryStageId).withName("testPreliminary").withStageType(StageType.PRELIMINARY)
+          .withBracketType(BracketType.GROUP).withCategoryId(categoryId).withCompetitionId(competitionId)
+          .withFightDuration(300).withStageOrder(0).withWaitForPrevious(false).withHasThirdPlaceFight(false)
+          .withStageResultDescriptor(
+            StageResultDescriptor().withName("test").withOutputSize(4).withForceManualAssignment(false)
+              .withFightResultOptions(FightResultOptionConstants.values)
+          )
+          .addGroupDescriptors(
+            GroupDescriptor()
+              .withId(UUID.randomUUID().toString)
+              .withName("1")
+              .withSize(5),
+            GroupDescriptor()
+              .withId(UUID.randomUUID().toString)
+              .withName("2")
+              .withSize(5)
+          )
+      ).addStageDescriptors(
+        StageDescriptor().withId(finalStageId).withName("test").withStageType(StageType.FINAL)
+          .withBracketType(BracketType.DOUBLE_ELIMINATION).withCategoryId(categoryId).withCompetitionId(competitionId)
+          .withFightDuration(300).withStageOrder(1).withWaitForPrevious(true).withHasThirdPlaceFight(false)
+          .withInputDescriptor(StageInputDescriptor().withNumberOfCompetitors(4).addSelectors(
+            CompetitorSelector().withApplyToStageId(tmpPreliminaryStageId)
+              .withClassifier(SelectorClassifier.FIRST_N_PLACES).addSelectorValue("4")
+          )).withStageResultDescriptor(
+          StageResultDescriptor().withName("test").withOutputSize(0).withForceManualAssignment(false)
+            .withFightResultOptions(FightResultOptionConstants.values.filter(!_.draw))
+        )
+      )
+
+      generateBracketsCommand =
+        GenerateBracketsCommand(Some(generateBracketsPayload), Some(competitionId), Some(categoryId))
+      bracketsGenerated <- EitherT(GenerateBracketsProc[Eval](stateWithCompetitors).apply(generateBracketsCommand))
+      updatedState <- EitherT
+        .liftF(bracketsGenerated.toList.foldM(stateWithCompetitors)((s, e) => Operations.applyEvent[Eval](s, e)))
+      preliminaryStageId <- EitherT.fromOption[Eval](
+        updatedState.stages.find(_._2.stageType == StageType.PRELIMINARY).map(_._1),
+        Errors.InternalError("Cannot find preliminary stage")
+      )
+      stateWithPropagatedCompetitors <- progressStage[Eval](updatedState, preliminaryStageId, Seq.empty)
+      competitorsPropagated <- EitherT.fromOption[Eval](
+        stateWithPropagatedCompetitors._2.find(_.`type` == EventType.COMPETITORS_PROPAGATED_TO_STAGE),
+        Errors.InternalError("No competitors propagated to stage event").asInstanceOf[Errors.Error]
+      )
+      _ <- assertET[Eval](
+        competitorsPropagated.messageInfo.exists(_.payload.isCompetitorsPropagatedToStagePayload),
+        Some("Wrong payload type for competitors propagated event")
+      )
+      _ <- assertET[Eval](
+        competitorsPropagated.messageInfo.flatMap(_.payload.competitorsPropagatedToStagePayload)
+          .exists(_.propagations.size == 4),
+        Some("Wrong number of propagations")
+      )
+    } yield competitorsPropagated).value.value
+    assert(executionResult.isRight, executionResult)
+  }
+
   test("Should propagate competitors to next stage when have multiple stages") {
     val state = initialState.clearCompetitors.clearFights.clearStages
       .addCategories((categoryId, CategoryDescriptor().withId(categoryId).withName("Test")))
@@ -199,6 +270,7 @@ class SetFightResultSpec extends AnyFunSuite with BeforeAndAfter with TestEntiti
     } yield result).value.value
     assert(executionResult.isRight, executionResult)
   }
+
 
   test("Should set stage result.") {
     val finishedFights = fights.map(f =>
