@@ -5,21 +5,22 @@ import cats.data.EitherT
 import cats.implicits._
 import compman.compsrv.Utils
 import compman.compsrv.logic.{assertET, Operations}
+import compman.compsrv.logic.fight.FightResultOptionConstants
 import compman.compsrv.logic.schedule.StageGraph
 import compman.compsrv.model.command.Commands.{CreateFakeCompetitors, GenerateBracketsCommand, SetFightResultCommand}
 import compman.compsrv.model.Errors
 import compman.compsrv.service.TestEntities
 import compservice.model.protobuf.commandpayload.{GenerateBracketsPayload, SetFightResultPayload}
-import compservice.model.protobuf.event.{Event, EventType}
+import compservice.model.protobuf.event.EventType
 import compservice.model.protobuf.model._
 import compservice.model.protobuf.model.FightStatus.UNCOMPLETABLE
 import compservice.model.protobuf.model.StageRoundType.WINNER_BRACKETS
-import org.scalatest.BeforeAndAfter
+import org.scalatest.{BeforeAndAfter, CancelAfterFailure}
 import org.scalatest.funsuite.AnyFunSuite
 
 import java.util.UUID
 
-class SetFightResultSpec extends AnyFunSuite with BeforeAndAfter with TestEntities {
+class SetFightResultSpec extends AnyFunSuite with BeforeAndAfter with TestEntities with CancelAfterFailure {
   import Dependencies._
 
   override val initialState: CommandProcessorCompetitionState = CommandProcessorCompetitionState(
@@ -61,7 +62,7 @@ class SetFightResultSpec extends AnyFunSuite with BeforeAndAfter with TestEntiti
   }
 
   test("Should propagate competitors to next stage when have multiple stages") {
-    val state = initialState.clearCompetitors.clearFights
+    val state = initialState.clearCompetitors.clearFights.clearStages
       .addCategories((categoryId, CategoryDescriptor().withId(categoryId).withName("Test")))
     val createFakeCompetitorsCommand =
       CreateFakeCompetitors(competitionId = Some(competitionId), categoryId = Some(categoryId))
@@ -79,6 +80,7 @@ class SetFightResultSpec extends AnyFunSuite with BeforeAndAfter with TestEntiti
           .withFightDuration(300).withStageOrder(0).withWaitForPrevious(false).withHasThirdPlaceFight(false)
           .withStageResultDescriptor(
             StageResultDescriptor().withName("test").withOutputSize(4).withForceManualAssignment(false)
+              .withFightResultOptions(FightResultOptionConstants.values.filter(!_.draw))
           )
       ).addStageDescriptors(
         StageDescriptor().withId(finalStageId).withName("test").withStageType(StageType.FINAL)
@@ -89,60 +91,35 @@ class SetFightResultSpec extends AnyFunSuite with BeforeAndAfter with TestEntiti
               .withClassifier(SelectorClassifier.FIRST_N_PLACES).addSelectorValue("4")
           )).withStageResultDescriptor(
             StageResultDescriptor().withName("test").withOutputSize(0).withForceManualAssignment(false)
+              .withFightResultOptions(FightResultOptionConstants.values.filter(!_.draw))
           )
       )
 
       generateBracketsCommand =
         GenerateBracketsCommand(Some(generateBracketsPayload), Some(competitionId), Some(categoryId))
       bracketsGenerated <- EitherT(GenerateBracketsProc[Eval](stateWithCompetitors).apply(generateBracketsCommand))
-      updatedState <- EitherT.liftF(bracketsGenerated.toList.foldM(stateWithCompetitors)((s, e) => Operations.applyEvent[Eval](s, e)))
+      updatedState <- EitherT
+        .liftF(bracketsGenerated.toList.foldM(stateWithCompetitors)((s, e) => Operations.applyEvent[Eval](s, e)))
       preliminaryStageId <- EitherT.fromOption[Eval](
         updatedState.stages.find(_._2.stageType == StageType.PRELIMINARY).map(_._1),
         Errors.InternalError("Cannot find preliminary stage")
       )
-      stateWithPropagatedCompetitors <- progressStage(updatedState, preliminaryStageId, Seq.empty)
+      stateWithPropagatedCompetitors <- progressStage[Eval](updatedState, preliminaryStageId, Seq.empty)
       competitorsPropagated <- EitherT.fromOption[Eval](
         stateWithPropagatedCompetitors._2.find(_.`type` == EventType.COMPETITORS_PROPAGATED_TO_STAGE),
         Errors.InternalError("No competitors propagated to stage event").asInstanceOf[Errors.Error]
       )
-      _ <- assertET[Eval](competitorsPropagated.messageInfo.exists(_.payload.isCompetitorsPropagatedToStagePayload), Some("Wrong payload type for competitors propagated event"))
-      _ <- assertET[Eval](competitorsPropagated.messageInfo.flatMap(_.payload.competitorsPropagatedToStagePayload).exists(_.propagations.size == 4), Some("Wrong number of propagations"))
+      _ <- assertET[Eval](
+        competitorsPropagated.messageInfo.exists(_.payload.isCompetitorsPropagatedToStagePayload),
+        Some("Wrong payload type for competitors propagated event")
+      )
+      _ <- assertET[Eval](
+        competitorsPropagated.messageInfo.flatMap(_.payload.competitorsPropagatedToStagePayload)
+          .exists(_.propagations.size == 4),
+        Some("Wrong number of propagations")
+      )
     } yield competitorsPropagated).value.value
     assert(executionResult.isRight, executionResult)
-  }
-
-  def progressStage(
-    state: CommandProcessorCompetitionState,
-    stageId: String,
-    eventsContainer: Seq[Event]
-  ): EitherT[Eval, Errors.Error, (CommandProcessorCompetitionState, Seq[Event])] = {
-    for {
-      fight <- EitherT.pure[Eval, Errors.Error](state.fights.values.find(f =>
-        f.stageId == stageId && f.status != UNCOMPLETABLE && f.status != FightStatus.FINISHED && f.scores.size >= 2 &&
-          f.scores.forall(_.competitorId.isDefined)
-      ))
-      newState <- fight match {
-        case Some(f) => for {
-            payload <- EitherT.pure[Eval, Errors.Error](
-              SetFightResultPayload().withFightId(f.id).withStatus(FightStatus.FINISHED)
-                .withFightResult(FightResult().withReason("dota2").withResultTypeId("_default_win_points").withWinnerId(
-                  f.scores.head.getCompetitorId
-                )).withScores(f.scores)
-            )
-            cmd = SetFightResultCommand(
-              payload = Some(payload),
-              competitionId = Some(competitionId),
-              categoryId = Some(f.categoryId)
-            )
-            events <- EitherT[Eval, Errors.Error, Seq[Event]](SetFightResultProc[Eval](state).apply(cmd))
-            newState <- EitherT.liftF[Eval, Errors.Error, CommandProcessorCompetitionState](
-              events.toList.foldM(state)((s, e) => Operations.applyEvent[Eval](s, e))
-            )
-            res <- progressStage(newState, stageId, eventsContainer ++ events)
-          } yield res
-        case None => EitherT.pure[Eval, Errors.Error]((state, eventsContainer))
-      }
-    } yield newState
   }
 
   test("Should set fight result and propagate competitors in uncompletable fights for Double elimination") {
@@ -160,6 +137,7 @@ class SetFightResultSpec extends AnyFunSuite with BeforeAndAfter with TestEntiti
           .withFightDuration(300).withStageOrder(0).withWaitForPrevious(false).withHasThirdPlaceFight(false)
           .withStageResultDescriptor(
             StageResultDescriptor().withName("test").withOutputSize(0).withForceManualAssignment(false)
+              .withFightResultOptions(FightResultOptionConstants.values.filter(!_.draw))
           )
       )
       generateBracketsCommand =

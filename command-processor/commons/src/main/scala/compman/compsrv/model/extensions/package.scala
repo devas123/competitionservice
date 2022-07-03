@@ -116,8 +116,8 @@ package object extensions {
     def loserId: Option[String] = for {
       res        <- f.fightResult
       winnerId <- res.winnerId
-      scores     <- Option(f.scores)
-      loserScore <- scores.find(_.competitorId.contains(winnerId))
+      scores     = f.scores
+      loserScore <- scores.find(s => !s.competitorId.contains(winnerId))
       id <- loserScore.competitorId
     } yield id
 

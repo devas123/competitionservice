@@ -1,4 +1,4 @@
-package compman.compsrv.logic.schedule
+package compman.compsrv.logic.fight
 
 import compservice.model.protobuf.model.{FightDescription, FightDigraph, FightReference, FightReferenceList}
 

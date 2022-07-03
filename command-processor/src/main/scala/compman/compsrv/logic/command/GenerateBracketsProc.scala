@@ -5,15 +5,15 @@ import cats.data.EitherT
 import cats.implicits._
 import compman.compsrv.logic.assertETErr
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.fight.{FightResultOptionConstants, FightsService}
-import compman.compsrv.logic.schedule.{FightGraph, StageGraph}
+import compman.compsrv.logic.fight.{FightGraph, FightsService}
+import compman.compsrv.logic.schedule.StageGraph
 import compman.compsrv.model.command.Commands.{GenerateBracketsCommand, InternalCommandProcessorCommand}
 import compman.compsrv.model.Errors.{BracketsAlreadyGeneratedForCategory, NoCategoryIdError, NoCompetitionIdError, NoPayloadError}
 import compman.compsrv.model.Errors
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload.{BracketsGeneratedPayload, FightsAddedToStagePayload}
-import compservice.model.protobuf.model.{CategoryFightsIndex, CommandProcessorCompetitionState, StageDescriptor, StageStatus, StageType}
+import compservice.model.protobuf.model._
 
 object GenerateBracketsProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations](
@@ -46,6 +46,10 @@ object GenerateBracketsProc {
         ),
         Errors.InputDescriptorInvalidForStage(stages)
       )
+      _ <- assertETErr[F](
+        stages.count(_.stageType == StageType.FINAL) == 1,
+        Errors.FinalStageIsNotUniqueOrMissing(stages)
+      )
       events <- for {
         stageIdtoNewId <- EitherT.liftF(stages.traverse { s => IdOperations[F].uid.map(s.id -> _) })
         stageIdMap = stageIdtoNewId.toMap
@@ -65,11 +69,12 @@ object GenerateBracketsProc {
             }
           }.traverse(identity)
         )
-        categoryFightsIndex = CategoryFightsIndex().withStageIdToFightsGraph(updatedStagesAndFights.map(e => e._1.id -> FightGraph.createFightsGraph(e._2)).toMap)
+        categoryFightsIndex = CategoryFightsIndex().withStageIdToFightsGraph(
+          updatedStagesAndFights.map(e => e._1.id -> FightGraph.createFightsGraph(e._2)).toMap
+        )
         bracketsGeneratedPayload = BracketsGeneratedPayload()
           .withStages(updatedStagesAndFights.mapWithIndex((a, b) => a._1.withStageOrder(b)))
-          .withStageGraph(stagesDiGraph)
-          .withCategoryFightsIndex(categoryFightsIndex)
+          .withStageGraph(stagesDiGraph).withCategoryFightsIndex(categoryFightsIndex)
 
         bracketsGeneratedEvent <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(
           `type` = EventType.BRACKETS_GENERATED,
@@ -108,16 +113,25 @@ object GenerateBracketsProc {
       stageIdMap.get(stage.id),
       Errors.InternalError(s"Generated stage id not found in the map for ${stage.id}")
     )
+    _ <- assertETErr[F](
+      stage.stageResultDescriptor.map(_.fightResultOptions).exists(_.nonEmpty),
+      Errors.FightResultOptionsMissing(stage.id)
+    )
+    fightResultOptions = stage.stageResultDescriptor.map(_.fightResultOptions).map(_.toList).get
+
+    _ <- assertETErr[F](
+      stage.bracketType == BracketType.GROUP || fightResultOptions.forall(o => !o.draw),
+      Errors.DrawResultsOnlyAllowedInGroups(stage.id, fightResultOptions)
+    )
+
     groupDescr <- EitherT.liftF(stage.groupDescriptors.toList.traverse { it =>
       IdOperations[F].uid.map(id => it.withId(id))
     })
     inputDescriptor = stage.getInputDescriptor.withSelectors(stage.getInputDescriptor.selectors.map(sel =>
       sel.withApplyToStageId(stageIdMap(sel.applyToStageId))
     ))
-    enrichedOptions = stage.stageResultDescriptor.map(_.fightResultOptions).map(_.toList).getOrElse(List.empty) :+
-      FightResultOptionConstants.WALKOVER
     enrichedOptionsWithIds <- EitherT.liftF(
-      enrichedOptions.map { it =>
+      fightResultOptions.map { it =>
         it.withLoserAdditionalPoints(it.loserAdditionalPoints.getOrElse(0)).withLoserPoints(it.loserPoints)
           .withWinnerAdditionalPoints(it.winnerAdditionalPoints.getOrElse(0)).withWinnerPoints(it.winnerPoints)
       }.traverse { it => IdOperations[F].uid.map(id => it.withId(Option(it.id).getOrElse(id))) }

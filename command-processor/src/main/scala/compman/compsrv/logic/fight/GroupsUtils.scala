@@ -112,6 +112,8 @@ object GroupsUtils {
     } yield res).value
   }
 
+  case class CompetitorGroupPoints(points: Int, additionalPoints: Int, groupId: String)
+
   def buildStageResults(
     stageStatus: StageStatus,
     fights: List[FightDescription],
@@ -120,53 +122,54 @@ object GroupsUtils {
   ): CanFail[List[CompetitorStageResult]] = {
     stageStatus match {
       case StageStatus.FINISHED =>
-        val competitorPointsMap = mutable.Map.empty[String, (Int, Int, String)]
+        val competitorPointsMap = mutable.Map.empty[String, CompetitorGroupPoints]
         fights.foreach { fight =>
           val pointsDescriptor = fightResultOptions.find { p => p.id == fight.getFightResult.getResultTypeId }
-          pointsDescriptor.map(_.draw) match {
-            case Some(true) => fight.competitors.foreach { it =>
-                updateCompetitorPointsMap(competitorPointsMap, pointsDescriptor, fight.getGroupId, it)
+          if (pointsDescriptor.exists(_.draw)) {
+            fight.competitors.foreach { it =>
+              updateCompetitorPointsMapForWinner(competitorPointsMap, pointsDescriptor, fight.getGroupId, it)
+            }
+          } else {
+            fight.winnerId.map { it =>
+              updateCompetitorPointsMapForWinner(competitorPointsMap, pointsDescriptor, fight.getGroupId, it)
+            }
+            fight.loserId.map { it =>
+              competitorPointsMap.updateWith(it) { u =>
+                val basis = u.getOrElse(CompetitorGroupPoints(0, 0, fight.getGroupId))
+                Some(CompetitorGroupPoints(
+                  pointsDescriptor.map(_.loserPoints).getOrElse(0) + basis.points,
+                  pointsDescriptor.flatMap(_.loserAdditionalPoints).getOrElse(0) + basis.additionalPoints,
+                  basis.groupId
+                ))
               }
-            case _ =>
-              updateCompetitorPointsMap(
-                competitorPointsMap,
-                pointsDescriptor,
-                fight.getGroupId,
-                fight.getFightResult.getWinnerId
-              )
-              fight.winnerId.map { it =>
-                competitorPointsMap.updateWith(it) { u =>
-                  val basis = u.getOrElse((0, 0, fight.getGroupId))
-                  Some((
-                    pointsDescriptor.map(_.loserPoints).getOrElse(0) + basis._1,
-                    pointsDescriptor.map(_.getLoserAdditionalPoints).getOrElse(0) + basis._2,
-                    basis._3
-                  ))
-                }
-              }
+            }
           }
         }
-        Right(competitorPointsMap.toList.sortBy { pair => pair._2._1 * 10000 + pair._2._2 }.zipWithIndex.map { v =>
-          val (e, i) = v
-          CompetitorStageResult().withRound(0).withGroupId(e._2._3).withCompetitorId(e._1).withPoints(e._2._1)
-            .withPlace(i + 1).withStageId(stageId)
-        })
+        Right(
+          competitorPointsMap.groupBy(_._2.groupId).values.toList.flatMap(cpm =>
+            cpm.toList.sortBy { pair => pair._2.points * 10000 + pair._2.additionalPoints }.reverse
+              .zipWithIndex.map { case ((key, competitorGroupPoints), i) =>
+              CompetitorStageResult().withRound(0).withGroupId(competitorGroupPoints.groupId).withCompetitorId(key)
+                .withPoints(competitorGroupPoints.points).withPlace(i + 1).withStageId(stageId)
+            }
+          )
+        )
       case _ => Left(Errors.InternalError("Stage is not finished."))
     }
   }
 
-  private def updateCompetitorPointsMap(
-    competitorPointsMap: mutable.Map[String, (Int, Int, String)],
+  private def updateCompetitorPointsMapForWinner(
+    competitorPointsMap: mutable.Map[String, CompetitorGroupPoints],
     pointsDescriptor: Option[FightResultOption],
     groupId: String,
     it: String
   ) = {
     competitorPointsMap.updateWith(it) { u =>
-      val basis = u.getOrElse((0, 0, groupId))
-      Some((
-        pointsDescriptor.map(_.winnerPoints).getOrElse(0) + basis._1,
-        pointsDescriptor.flatMap(_.winnerAdditionalPoints).getOrElse(0) + basis._2,
-        basis._3
+      val basis = u.getOrElse(CompetitorGroupPoints(0, 0, groupId))
+      Some(CompetitorGroupPoints(
+        pointsDescriptor.map(_.winnerPoints).getOrElse(0) + basis.points,
+        pointsDescriptor.flatMap(_.winnerAdditionalPoints).getOrElse(0) + basis.additionalPoints,
+        basis.groupId
       ))
     }
   }

@@ -1,6 +1,6 @@
 package compman.compsrv.model
 
-import compservice.model.protobuf.model.{CategoryDescriptor, Competitor, StageDescriptor}
+import compservice.model.protobuf.model.{CategoryDescriptor, Competitor, FightResultOption, StageDescriptor}
 
 object Errors {
   sealed trait Error
@@ -10,8 +10,12 @@ object Errors {
     def apply(msg: Option[String] = None) = new InternalError(msg)
     def apply(msg: String) = new InternalError(Option(msg))
   }
+
   final case class NoPayloadError() extends Error
+  final case class FightResultOptionsMissing(stageId: String) extends Error
+  final case class DrawResultsOnlyAllowedInGroups(stageId: String, fightResults: List[FightResultOption]) extends Error
   final case class InputDescriptorInvalidForStage(stages: Seq[StageDescriptor]) extends Error
+  final case class FinalStageIsNotUniqueOrMissing(stages: Seq[StageDescriptor]) extends Error
   final case class NoScheduleError() extends Error
   final case class NoRegistrationInfoError() extends Error
   final case class NoCompetitionPropertiesError() extends Error

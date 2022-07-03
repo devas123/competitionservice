@@ -491,17 +491,18 @@ object BracketsUtils {
     def compStageResult(cid: String, place: Int) =
       competitorStageResult(stageId, cid, lastRound, winnerRoundType, place)
 
+    val otherCompetitorsResults = competitorIds.toList.mapFilter { it =>
+      if (lastRoundWinners.contains(it) || lastRoundLosers.contains(it)) None
+      else (for {lastLostRoundFight <- getLastRoundFightForCompetitor(fights, it)} yield competitorStageResult(
+        stageId,
+        it,
+        lastLostRoundFight.roundOrZero,
+        lastLostRoundFight.roundType,
+        calculateLoserPlace(lastLostRoundFight.round)
+      )).toOption
+    }
     lastRoundWinners.map(compStageResult(_, 1)) ++ lastRoundLosers.map(compStageResult(_, 2)) ++
-      competitorIds.toList.mapFilter { it =>
-        if (lastRoundWinners.contains(it) || lastRoundLosers.contains(it)) None
-        else (for { lastLostRoundFight <- getLastRoundFightForCompetitor(fights, it) } yield competitorStageResult(
-          stageId,
-          it,
-          lastLostRoundFight.roundOrZero,
-          lastLostRoundFight.roundType,
-          calculateLoserPlace(lastLostRoundFight.round)
-        )).toOption
-      }
+      otherCompetitorsResults
   }.map(_.toList)
 
 }
