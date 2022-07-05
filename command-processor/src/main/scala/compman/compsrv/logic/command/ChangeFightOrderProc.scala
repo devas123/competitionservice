@@ -40,12 +40,22 @@ object ChangeFightOrderProc {
       schedule <- EitherT.fromOption(state.schedule, NoScheduleError())
       mats    = Utils.groupById(schedule.mats)(_.id)
       updates = CommonFightUtils.generateUpdates(payload, fight, currentFights)
-      newFights = updates.mapFilter { case (categoryId, update) =>
+      newFights = updates.mapFilter { case (_, update) =>
         for {
-          f   <- currentFights.get(update.fightId)
-          mat <- mats.get(update.matId)
-        } yield FightStartTimePair().withFightId(f.id).withMatId(mat.id).withPeriodId(mat.periodId)
-          .withStartTime(update.getStartTime).withNumberOnMat(update.numberOnMat)
+          f               <- currentFights.get(update.fightId)
+          mat             <- mats.get(update.matId)
+          startTime       <- update.startTime
+          scheduleEntryId <- f.scheduleEntryId
+        } yield FightStartTimePair().update(
+          _.scheduleEntryId := scheduleEntryId,
+          _.startTime       := startTime,
+          _.numberOnMat     := update.numberOnMat,
+          _.matId           := mat.id,
+          _.periodId        := mat.periodId,
+          _.fightId         := f.id,
+          _.invalid         := f.invalid,
+          _.fightCategoryId := f.categoryId
+        )
       }
       fightStartTimeUpdatedPayload = FightStartTimeUpdatedPayload().withNewFights(newFights)
       event <- EitherT.liftF[F, Errors.Error, Event](CommandEventOperations[F, Event].create(

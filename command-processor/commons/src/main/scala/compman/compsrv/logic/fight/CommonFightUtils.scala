@@ -62,7 +62,7 @@ object CommonFightUtils {
     }
 
     def isOnNewMat(f: FightView) = {
-      f.id != payload.fightId && fightMatIdMatchesNewMatId(f, payload) && f.numberOnMat >= payload.newOrderOnMat
+      f.id != payload.fightId && fightMatIdMatchesNewMatId(f, payload.newMatId) && f.numberOnMat >= payload.newOrderOnMat
     }
 
     def shouldUpdatePosition(f: FightView) = {
@@ -71,7 +71,7 @@ object CommonFightUtils {
       f.numberOnMat <= Math.max(currentNumberOnMat, payload.newOrderOnMat)
     }
 
-    if (!fightMatIdMatchesNewMatId(fight, payload)) {
+    if (!fightMatIdMatchesNewMatId(fight, payload.newMatId)) {
       //if mats are different
       for (f <- fights.values) {
         val (ms, sm) = updateStartTimes(f, payload, startTime, maxStartTime, newOrderOnMat)
@@ -131,18 +131,18 @@ object CommonFightUtils {
   ): (Option[Instant], Option[Instant]) = {
     var startTime1    = startTime
     var maxStartTime1 = maxStartTime
-    if (f.id != payload.fightId && fightMatIdMatchesNewMatId(f, payload) && f.numberOnMat == newOrderOnMat) {
+    if (f.id != payload.fightId && fightMatIdMatchesNewMatId(f, payload.newMatId) && f.numberOnMat == newOrderOnMat) {
       startTime1 = f.startTime
     }
     if (
-      f.id != payload.fightId && fightMatIdMatchesNewMatId(f, payload) &&
+      f.id != payload.fightId && fightMatIdMatchesNewMatId(f, payload.newMatId) &&
       !maxStartTime1.exists(maxStartTime => f.startTime.exists(maxStartTime.isAfter))
     ) { maxStartTime1 = f.startTime }
     (maxStartTime1, startTime1)
   }
 
-  private def fightMatIdMatchesNewMatId(f: FightView, payload: ChangeFightOrderPayload) = {
-    Option(f.mat).flatMap(m => Option(m.id)).contains(payload.newMatId)
+  private def fightMatIdMatchesNewMatId(f: FightView, newMatId: String) = {
+    Option(f.mat).map(m => m.id).contains(newMatId)
   }
 
 }
