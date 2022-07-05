@@ -72,9 +72,8 @@ abstract class EventSourcedBehavior[R, S, Msg, Ev](persistenceId: String)
           ev match {
             case EventSourcingCommand.Ignore => sa(s); idempotentCompleter()
             case EventSourcingCommand.Persist(ev) => for {
-                _ <- persistEvents(persistenceId, ev)
                 updatedState <- applyEvents(ev, s).onExit {
-                  case Exit.Success(value) => URIO(value)
+                  case Exit.Success(value) => persistEvents(persistenceId, ev) *> URIO(value)
                   case Exit.Failure(cause) => ZIO.debug(s"Error while applying events: $cause") *> URIO(state)
                 }
                 _   <- RIO(sa(updatedState))
