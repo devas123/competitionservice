@@ -86,7 +86,7 @@ object FightQueryOperations {
 
     private def activeFights(competitionId: String) = and(
       equal(competitionIdField, competitionId),
-      statusCheck,
+      activeFight,
       not(equal("scores", BsonNull())),
       not(equal("scores.competitorId", BsonNull())),
       not(size("scores", 0))
@@ -136,7 +136,7 @@ object FightQueryOperations {
       for {
         collection <- fightCollection
         statement = collection
-          .countDocuments(and(equal(competitionIdField, competitionId), equal(categoryIdField, categoryId), statusCheck))
+          .countDocuments(and(equal(competitionIdField, competitionId), equal(categoryIdField, categoryId), activeFight))
         res <- RIO.fromFuture(_ => statement.toFuture()).map(_.toInt)
       } yield res
     }

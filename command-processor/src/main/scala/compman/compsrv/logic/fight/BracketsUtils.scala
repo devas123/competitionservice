@@ -15,7 +15,7 @@ object BracketsUtils {
 
   def getLastRoundFightForCompetitor(fights: List[FightDescription], cid: String): CanFail[FightDescription] = {
     val a = fights.filter(f => f.containsFighter(cid) && !f.winnerId.contains(cid)).maxByOption(_.round)
-    val b = fights.filter(f => f.status == FightStatus.UNCOMPLETABLE && f.containsFighter(cid))
+    val b = fights.filter(f => FightStatusUtils.isUncompletable(f) && f.containsFighter(cid))
       .maxByOption(_.round)
     a.orElse(b).toRight(Errors.InternalError(Some(s"Cannot find the last round fight for competitor $cid")))
   }

@@ -6,7 +6,7 @@ import cats.implicits._
 import compman.compsrv.Utils.groupById
 import compman.compsrv.logic._
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.fight.FightUtils
+import compman.compsrv.logic.fight.{FightStatusUtils, FightUtils}
 import compman.compsrv.model.Errors
 import compman.compsrv.model.command.Commands.{InternalCommandProcessorCommand, UpdateStageStatusCommand}
 import compman.compsrv.model.Errors.NoPayloadError
@@ -47,7 +47,7 @@ object UpdateStageStatusProc {
         case StageStatus.APPROVED | StageStatus.WAITING_FOR_APPROVAL | StageStatus.WAITING_FOR_COMPETITORS =>
           val stageFights = state.fights.values.filter(_.stageId == stageId)
           val dirtyStageFights = groupById(stageFights.map(sf =>
-            if (sf.status == FightStatus.UNCOMPLETABLE) { sf.withStatus(FightStatus.PENDING) }
+            if (FightStatusUtils.isUncompletable(sf)) { sf.withStatus(FightStatus.PENDING) }
             else sf
           ))(_.id)
           for {

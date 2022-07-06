@@ -60,7 +60,7 @@ object FightEditorApplyChangesProc {
       allFights = state.fights
       bracketChanges <- OptionT.fromOption[F](Option(payload.bracketsChanges))
       cleanedUpdates = rawUpdates.map { case (id, fight) =>
-        id -> (if (fight.status == FightStatus.UNCOMPLETABLE) fight.withStatus(FightStatus.PENDING) else fight)
+        id -> (if (FightStatusUtils.isUncompletable(fight)) fight.withStatus(FightStatus.PENDING) else fight)
       }
       cleanedAffected = clearAffectedFights(cleanedUpdates, bracketChanges.map(_.fightId).toSet)
       markedFights <- OptionT.liftF(FightUtils.markAndProcessUncompletableFights[F](cleanedAffected))

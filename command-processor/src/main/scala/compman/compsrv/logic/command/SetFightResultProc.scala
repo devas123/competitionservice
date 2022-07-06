@@ -5,7 +5,7 @@ import cats.data.EitherT
 import cats.implicits._
 import compman.compsrv.logic.{assertET, assertETErr}
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.fight.{CanFail, FightsService, FightUtils}
+import compman.compsrv.logic.fight.{CanFail, FightsService, FightStatusUtils, FightUtils}
 import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.model.Errors
 import compman.compsrv.model.command.Commands.{InternalCommandProcessorCommand, SetFightResultCommand}
@@ -15,12 +15,7 @@ import compman.compsrv.model.extensions.FightDescrOps
 import compservice.model.protobuf.commandpayload.SetFightResultPayload
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
-import compservice.model.protobuf.eventpayload.{
-  CompetitorAssignmentDescriptor,
-  CompetitorsPropagatedToStagePayload,
-  FightCompetitorsAssignedPayload,
-  StageResultSetPayload
-}
+import compservice.model.protobuf.eventpayload.{CompetitorAssignmentDescriptor, CompetitorsPropagatedToStagePayload, FightCompetitorsAssignedPayload, StageResultSetPayload}
 import compservice.model.protobuf.model._
 
 object SetFightResultProc {
@@ -45,7 +40,7 @@ object SetFightResultProc {
     additionalFinishedFightIds: Set[String]
   ) = stageId.exists { sid =>
     state.fights.values.filter(_.stageId == sid).forall { it =>
-      List(FightStatus.FINISHED, FightStatus.WALKOVER, FightStatus.UNCOMPLETABLE).contains(it.status) ||
+      FightStatusUtils.isCompleted(it) ||
       additionalFinishedFightIds.contains(it.id)
     }
   }

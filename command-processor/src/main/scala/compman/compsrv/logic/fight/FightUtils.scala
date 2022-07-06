@@ -9,11 +9,6 @@ import compservice.model.protobuf.eventpayload.CompetitorAssignmentDescriptor
 import compservice.model.protobuf.model._
 
 object FightUtils {
-
-  val finishedStatuses: Seq[FightStatus] = List(FightStatus.UNCOMPLETABLE, FightStatus.FINISHED, FightStatus.WALKOVER)
-  val unMovableFightStatuses: Seq[FightStatus] = finishedStatuses :+ FightStatus.IN_PROGRESS
-  val notFinishedStatuses: Seq[FightStatus] =
-    List(FightStatus.PENDING, FightStatus.IN_PROGRESS, FightStatus.GET_READY, FightStatus.PAUSED)
   def ceilingNextPowerOfTwo(x: Int): Int = 1 << (32 - Integer.numberOfLeadingZeros(x - 1))
 
   def applyStageInputDescriptorToResultsAndFights[F[+_]: Monad: Interpreter](
@@ -87,7 +82,7 @@ object FightUtils {
           assignment = CompetitorAssignmentDescriptor().withToFightId(targetFightId.fightId).withFromFightId(sf)
             .withCompetitorId(cid).withReferenceType(rt)
           res =
-            if (targetFight.status == FightStatus.UNCOMPLETABLE) {
+            if (FightStatusUtils.isUncompletable(targetFight)) {
               Left((cid, targetFight.id, FightReferenceType.PROPAGATED, updatedFights, up :+ assignment))
             } else { Right((updatedFights, up :+ assignment)) }
         } yield res
@@ -127,7 +122,7 @@ object FightUtils {
       uncompletableFights.values.flatMap(f => f.scores.map(s => (s.competitorId, f.id))).filter(_._1.isDefined).toList
     }
     for {
-      uncompletableFights <- Monad[F].pure(markedFights.filter(e => e._2.status == FightStatus.UNCOMPLETABLE))
+      uncompletableFights <- Monad[F].pure(markedFights.filter(e => FightStatusUtils.isUncompletable(e._2)))
       uncompletableFightsScores = getUncompletableFightScores(uncompletableFights)
       mapped <- uncompletableFightsScores
         .foldM((markedFights, List.empty[CompetitorAssignmentDescriptor]))((acc, elem) =>

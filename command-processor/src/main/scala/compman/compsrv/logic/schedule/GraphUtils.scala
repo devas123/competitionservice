@@ -14,6 +14,7 @@ object GraphUtils {
     } { inDegree(it) += 1 }
     inDegree
   }
+  def getOutDegree(graph: Array[List[Int]]): Array[Int] = graph.zipWithIndex.map(_._1.size)
 
   object OrderingTypes extends Enumeration {
     type OrderingType = Value

@@ -2,8 +2,7 @@ package compman.compsrv.service
 
 import compman.compsrv.Utils
 import compman.compsrv.logic.competitor.CompetitorService
-import compman.compsrv.logic.fight.{BracketsUtils, FightUtils}
-import compservice.model.protobuf.model.FightStatus
+import compman.compsrv.logic.fight.{BracketsUtils, FightStatusUtils, FightUtils}
 import zio.{Task, URIO, ZIO}
 import zio.interop.catz._
 import zio.test._
@@ -86,8 +85,8 @@ object BracketsUtilsTest extends DefaultRunnableSpec with TestEntities {
         marked <- FightUtils.markAndProcessUncompletableFights[Task](distribRes)
       } yield assertTrue(marked.size == 15) &&
         assertTrue(marked.count(_._2.round == 0) == 8) &&
-        assertTrue(marked.count(e => e._2.round == 0 && e._2.status == FightStatus.UNCOMPLETABLE) == 6) &&
-        assertTrue(marked.count(e => e._2.round != 0 && e._2.status == FightStatus.UNCOMPLETABLE) == 0) &&
+        assertTrue(marked.count(e => e._2.round == 0 && FightStatusUtils.isUncompletable(e._2)) == 6) &&
+        assertTrue(marked.count(e => e._2.round != 0 && FightStatusUtils.isUncompletable(e._2)) == 0) &&
         assertTrue(marked.count(e => e._2.round == 1 && e._2.scores.count(_.competitorId.isDefined) == 2) >= 2) &&
         assertTrue(marked.count(_._2.round == 1) == 4) &&
         assertTrue(marked.count(_._2.round == 2) == 2) &&

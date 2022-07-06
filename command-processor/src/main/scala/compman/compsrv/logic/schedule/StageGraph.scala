@@ -2,11 +2,12 @@ package compman.compsrv.logic.schedule
 
 import com.google.common.collect.{BiMap, HashBiMap}
 import compman.compsrv.Utils
-import compman.compsrv.logic.fight.CanFail
-import compman.compsrv.logic.schedule.GraphUtils.OrderingTypes
+import compman.compsrv.logic.fight.{CanFail, FightStatusUtils}
+import compman.compsrv.logic.schedule.GraphUtils.{getIndegree, getOutDegree, OrderingTypes}
 import compman.compsrv.model.extensions._
 import compservice.model.protobuf.model._
 
+import java.time.Instant
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
@@ -23,15 +24,15 @@ case class StageGraph private[schedule] (
   private val completedFights: Set[Int],
   private val completableFights: Set[Int],
   private val categoryIdToFightIds: Map[String, Set[String]],
+  private val fightMinStartTime: Map[String, Instant],
   private val stageIdsToFightIds: Array[List[String]]
 ) {
 
-  def getFightInDegree(id: String): Int = { fightsInDegree(fightIdsToIds.get(id)) }
-
-  def flushCompletableFights(fromFights: Set[String]): List[String] = {
+  def flushCompletableFights(fromFights: Set[String]): List[FightIdWithMinStartTime] = {
     fromFights.filter { it =>
       completableFights.contains(fightIdsToIds.get(it)) && !completedFights(fightIdsToIds.get(it))
     }.toList.sortedFights
+      .map(fightId => FightIdWithMinStartTime(fightId, fightMinStartTime.get(fightId)))
   }
 
   private implicit class ListStringOps(l: List[String]) {
@@ -59,22 +60,27 @@ object StageGraph {
 
   import scala.jdk.CollectionConverters._
 
-  def completeFight(id: String, stageGraph: StageGraph): StageGraph = {
+  def completeFight(id: String, fightEndTime: Instant, stageGraph: StageGraph): StageGraph = {
     val i = stageGraph.fightIdsToIds.get(id)
     if (!stageGraph.completedFights(i)) {
       val newVertices       = ArrayBuffer.empty[Int]
+      val newFightMinStartTimes = mutable.Map.newBuilder.addAll(stageGraph.fightMinStartTime).result()
       val newFightsInDegree = Array.copyOf(stageGraph.fightsInDegree, stageGraph.fightsInDegree.length)
-      stageGraph.fightsGraph(i).foreach { adj =>
-        if (!stageGraph.completedFights(adj)) {
-          newFightsInDegree(adj) -= 1
-          if (newFightsInDegree(adj) <= 0) { newVertices.append(adj) }
+      stageGraph.fightsGraph(i).foreach { dependantFight =>
+        if (!stageGraph.completedFights(dependantFight)) {
+          newFightsInDegree(dependantFight) -= 1
+          newFightMinStartTimes.put(stageGraph.fightIdsToIds.inverse().get(dependantFight), fightEndTime)
+          if (newFightsInDegree(dependantFight) <= 0) {
+            newVertices.append(dependantFight)
+          }
         }
       }
       stageGraph.copy(
         completedFights = stageGraph.completedFights + i,
         nonCompleteCount = stageGraph.nonCompleteCount - 1,
         completableFights = (stageGraph.completableFights ++ newVertices) - i,
-        fightsInDegree = newFightsInDegree
+        fightsInDegree = newFightsInDegree,
+        fightMinStartTime = newFightMinStartTimes.toMap
       )
     } else { stageGraph }
   }
@@ -84,14 +90,10 @@ object StageGraph {
     stageIdsToIds: BiMap[String, Int]
   ): Array[List[Int]] = {
     val stageNodesMutable = Array.fill(stageIdsToIds.keySet().size()) { mutable.HashSet.empty[Int] }
-    stages.outgoingConnections.foreach { case (stageId, outgoingCollections) =>
-      val parentId = stageId
-      if (stageIdsToIds.containsKey(parentId)) {
-        outgoingCollections.ids.foreach { nodeId =>
-          stageNodesMutable(stageIdsToIds.get(parentId)).add(stageIdsToIds.get(nodeId))
-        }
-      }
-    }
+    stages.outgoingConnections.filter(e => stageIdsToIds.containsKey(e._1)).map {
+      case (parentId, outgoingConnections) => stageIdsToIds.get(parentId) ->
+          outgoingConnections.ids.map(stageIdsToIds.get)
+    }.foreach { case (parentId, outgoingConnections) => stageNodesMutable(parentId).addAll(outgoingConnections) }
     stageNodesMutable.map { _.toList }
   }
 
@@ -186,34 +188,46 @@ object StageGraph {
     HashBiMap.create(fights.distinctBy(_.id).zipWithIndex.map(p => (p._1.id, p._2)).toMap.asJava)
   }
 
-  private def isNotUncompletable(f: FightDescription) = f.status != FightStatus.UNCOMPLETABLE
-
   private def getFightsGraphAndStageIdToFightId(
     fights: Map[String, FightDescription],
     stagesNumber: Int,
     fightsNumber: Int,
     fightIdsToIds: BiMap[String, Int],
-    stageIdsToIds: BiMap[String, Int]
+    stageIdsToIds: BiMap[String, Int],
+    stagesGraph: Array[List[Int]]
   ) = {
     val fightsGraphMutable = Array.fill(fightsNumber) { mutable.HashSet.empty[Int] }
     val stageIdToFightIds  = Array.fill(stagesNumber) { mutable.HashSet.empty[String] }
 
-    fights.values.filter(isNotUncompletable).foreach { fight =>
-      fight.scores.foreach { compScore =>
-        if (
-          compScore.parentFightId.isDefined &&
-          fights.get(compScore.parentFightId.get)
-            .exists(isNotUncompletable) // Not including UNCOMPLETABLE fights to fights graph
-        ) { fightsGraphMutable(fightIdsToIds.get(compScore.parentFightId)).add(fightIdsToIds.get(fight.id)) }
-      }
+    fights.values.filter(FightStatusUtils.isNotUncompletable).foreach { fight =>
+      fightsGraphMutable(fightIdsToIds.get(fight.id)).addAll(
+        fight.connections.filter(reference => fights.get(reference.fightId).exists(FightStatusUtils.isNotUncompletable))
+          .map(_.fightId)
+          .map(fightIdsToIds.get)
+      )
       stageIdToFightIds(stageIdsToIds.get(fight.stageId)).add(fight.id)
+    }
+
+    val array                = fightsGraphMutable.map(_.toList)
+    val fightsInDegree       = getIndegree(array)
+    val fightsOutDegree      = getOutDegree(array)
+    val stageIdToFightIdsInt = stageIdToFightIds.map(ids => ids.map(fightIdsToIds.get))
+    stageIdToFightIds.zipWithIndex.foreach { case (fightIds, stageIdInt) =>
+      stagesGraph(stageIdInt).foreach { childStage =>
+        fightIds.map(fightIdsToIds.get).foreach { parentStageFightId =>
+          if (fightsOutDegree(parentStageFightId) == 0) {
+            stageIdToFightIdsInt(childStage).filter(childFightIdInt => fightsInDegree(childFightIdInt) == 0)
+              .foreach(childFightIdInt => fightsGraphMutable(parentStageFightId).add(childFightIdInt))
+          }
+        }
+      }
     }
     (fightsGraphMutable.map(_.toList), stageIdToFightIds.map(_.toList))
   }
 
   private def getCompletableFights(fightsInDegree: Array[Int]) = {
     val completableFights = mutable.HashSet.empty[Int]
-    fightsInDegree.zipWithIndex.foreach { case (degree, fight) => if (degree == 0) { completableFights.add(fight) } }
+    fightsInDegree.zipWithIndex.filter(_._1 == 0).foreach { case (_, fight) => completableFights.add(fight) }
     completableFights.toSet
   }
 
@@ -228,17 +242,22 @@ object StageGraph {
 
     for {
       stageOrdering <- GraphUtils.findTopologicalOrdering(stagesGraph, OrderingTypes.Stages)
-      sortedFights = fights.filter(isNotUncompletable).sortBy { _.roundOrZero }.sortBy { it =>
+      sortedFights = fights.filter(FightStatusUtils.isNotUncompletable).sortBy { _.roundOrZero }.sortBy { it =>
         stageOrdering(stageIdsToIds.get(it.stageId))
       }
       fightsMap     = Utils.groupById(sortedFights)(_.id)
       fightIdsToIds = createFightIdsToIntIds(sortedFights)
-      (fightsGraph, stageIdsToFightIds) =
-        getFightsGraphAndStageIdToFightId(fightsMap, stages.size, fightsMap.size, fightIdsToIds, stageIdsToIds)
+      (fightsGraph, stageIdsToFightIds) = getFightsGraphAndStageIdToFightId(
+        fightsMap,
+        stages.size,
+        fightsMap.size,
+        fightIdsToIds,
+        stageIdsToIds,
+        stagesGraph
+      )
       fightsInDegree = GraphUtils.getIndegree(fightsGraph)
       fightsOrdering <- GraphUtils.findTopologicalOrdering(fightsGraph, OrderingTypes.Fights)
       completableFights    = getCompletableFights(fightsInDegree)
-      completedFights      = Set.empty[Int]
       categoryIdToFightIds = sortedFights.groupMap(_.categoryId)(_.id).map { case (k, list) => k -> list.toSet }
     } yield new StageGraph(
       stagesGraph = stagesGraph,
@@ -248,12 +267,13 @@ object StageGraph {
       fightsMap = fightsMap,
       stageOrdering = stageOrdering,
       fightsOrdering = fightsOrdering,
-      nonCompleteCount = fightsMap.values.count(isNotUncompletable),
+      nonCompleteCount = fightsMap.values.count(FightStatusUtils.isNotUncompletable),
       fightsInDegree = fightsInDegree,
-      completedFights = completedFights,
+      completedFights = Set.empty[Int],
       completableFights = completableFights,
       categoryIdToFightIds = categoryIdToFightIds,
-      stageIdsToFightIds = stageIdsToFightIds
+      stageIdsToFightIds = stageIdsToFightIds,
+      fightMinStartTime = Map.empty
     )
   }
 

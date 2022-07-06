@@ -5,13 +5,12 @@ import com.google.common.collect.{BiMap, HashBiMap}
 import compman.compsrv.logic.fight.CanFail
 import compman.compsrv.logic.schedule.GraphUtils.OrderingTypes
 import compman.compsrv.model.extensions._
-import compman.compsrv.model.Errors
 import compservice.model.protobuf.model._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-case class RequirementsGraph private[schedule](
+case class RequirementsGraph private[schedule] (
   private val requirementIdToId: BiMap[String, Int] = HashBiMap.create(),
   private val graph: Seq[List[Int]],
   private val categoryRequirements: Map[String, List[Int]],
@@ -23,10 +22,7 @@ case class RequirementsGraph private[schedule](
   def getFightIdsForRequirement(reqirementId: String): Set[String] = Option(requirementIdToId.get(reqirementId))
     .flatMap(id => if (id >= 0 && id < requirementFightIds.length) Option(requirementFightIds(id)) else None)
     .getOrElse(Set.empty)
-  def getIndex(id: String): CanFail[Int] = {
-    Option(requirementIdToId.get(id)).toRight(Errors.InternalError(s"Requirement's $id index not found"))
-  }
-  def getIndexOrMinus1(id: String): Int = getIndex(id).getOrElse(-1)
+  def getIndex(id: String): Int = { Option(requirementIdToId.get(id)).get }
 }
 
 object RequirementsGraph {
@@ -39,7 +35,7 @@ object RequirementsGraph {
     val requirementIdToId: BiMap[String, Int] = HashBiMap.create()
     val fightIdToCategoryId                   = mutable.Map.empty[String, String]
     categoryIdToFightIds.foreach { case (t, u) => u.foreach { fid => fightIdToCategoryId(fid) = t } }
-    var n = 0
+    var n      = 0
     val sorted = requirements.values.toList.sortBy { _.entryOrder }.sortBy { it => periods.indexOf(it.periodId) }
 
     sorted.foreach { req =>
@@ -73,7 +69,6 @@ object RequirementsGraph {
         }
       }
     }
-
 
     val size = n
     for {

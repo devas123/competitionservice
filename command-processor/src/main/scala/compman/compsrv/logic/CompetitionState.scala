@@ -18,5 +18,10 @@ object CompetitionState {
     def competitorsApply(
       update: Option[Map[String, Competitor]] => Option[Map[String, Competitor]]
     ): CommandProcessorCompetitionState = c.update(_.competitors.setIfDefined(update(Some(c.competitors))))
+    def fightsForCategories(categoryIds: Set[String]): List[FightDescription] =
+      categoryIds.map(c.categoryIdToFightsIndex.get).filter(_.isDefined).map(_.get).flatMap(_.stageIdToFightsGraph.keySet)
+        .map(c.fights.get).filter(_.isDefined)
+        .map(_.get)
+        .toList
   }
 }

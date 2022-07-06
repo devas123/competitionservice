@@ -5,7 +5,7 @@ import cats.data.EitherT
 import cats.implicits.toFunctorFilterOps
 import compman.compsrv.logic.assertETErr
 import compman.compsrv.logic.Operations.{CommandEventOperations, EventOperations, IdOperations}
-import compman.compsrv.logic.fight.CommonFightUtils
+import compman.compsrv.logic.fight.{CommonFightUtils, FightStatusUtils}
 import compman.compsrv.model.Errors
 import compman.compsrv.model.command.Commands.{ChangeFightOrderCommand, InternalCommandProcessorCommand}
 import compman.compsrv.model.Errors.{FightDoesNotExist, NoPayloadError, NoScheduleError}
@@ -13,7 +13,7 @@ import compman.compsrv.Utils
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.eventpayload.FightStartTimeUpdatedPayload
-import compservice.model.protobuf.model.{CommandProcessorCompetitionState, FightStartTimePair, FightStatus}
+import compservice.model.protobuf.model.{CommandProcessorCompetitionState, FightStartTimePair}
 
 object ChangeFightOrderProc {
   def apply[F[+_]: Monad: IdOperations: EventOperations](
@@ -32,7 +32,7 @@ object ChangeFightOrderProc {
       newMatExists = state.schedule.exists(sched => sched.mats.exists(mat => payload.newMatId == mat.id))
       _ <- assertETErr(newMatExists, Errors.MatDoesNotExist(payload.newMatId))
       _ <- assertETErr(
-        !fightToMove.exists(f => Seq(FightStatus.IN_PROGRESS, FightStatus.FINISHED).contains(f.status)),
+        !fightToMove.exists(f => FightStatusUtils.isNotMovable(f)),
         Errors.FightCannotBeMoved(payload.fightId)
       )
       currentFights = state.fights

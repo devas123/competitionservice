@@ -46,7 +46,7 @@ object GenerateScheduleProc {
       _ <- assertET[F](!state.competitionProperties.exists(_.schedulePublished), Some("Schedule already published"))
       _ <- assertET[F](unknownCategories.isEmpty, Some(s"Categories $unknownCategories are unknown"))
       stageDigraph <- EitherT.fromOption[F](state.stageGraph, Errors.NoStageDigraphError())
-      stageGraph <- EitherT.fromEither[F](getStageGraph(state, stageDigraph))
+      stageGraph   <- EitherT.fromEither[F](getStageGraph(state, stageDigraph))
       scheduleAndFights <-
         EitherT(ScheduleService.generateSchedule[F](competitionId, periods.toIndexedSeq, mats, stageGraph, timeZone))
       fightUpdatedEvents <- EitherT
@@ -75,9 +75,7 @@ object GenerateScheduleProc {
   }
 
   private def getStageGraph(state: CommandProcessorCompetitionState, stageDigraph: DiGraph): CanFail[StageGraph] = {
-    val stages     = state.stages
-    val stageIds   = stages.keySet
-    val fights     = state.fights.values.filter(f => stageIds.contains(f.stageId))
-    StageGraph.create(stages.values.toList, stageDigraph, fights.toList)
+    val stages      = state.stages.values.toList
+    StageGraph.create(stages, stageDigraph, state.fights.values.toList)
   }
 }

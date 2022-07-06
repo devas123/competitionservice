@@ -1,5 +1,6 @@
 package compman.compsrv.query.service.repository
 
+import compman.compsrv.logic.fight.FightStatusUtils
 import compservice.model.protobuf.model.FightStatus
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.Filters.{equal, not, or}
@@ -14,11 +15,9 @@ trait FightFieldsAndFilters extends CommonFields {
   val bracketsInfo      = "bracketsInfo"
   val round      = "round"
   val numberInRound      = "numberInRound"
-  val statusCheck: Bson = or(
-    equal(status, FightStatus.PENDING),
-    equal(status, FightStatus.GET_READY),
-    equal(status, FightStatus.IN_PROGRESS),
-    equal(status, FightStatus.PAUSED)
+  val activeFight: Bson = or(
+    FightStatusUtils.activeFightStatus
+      .map(st => equal(status, st)).toIndexedSeq: _*
   )
 
   val completableFightsStatuses: Bson = not(
