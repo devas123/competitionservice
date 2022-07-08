@@ -14,7 +14,7 @@ inThisBuild(List(
     "scm:git:git@github.com:devas123/competitionservice.git"
   )),
   Test / parallelExecution      := false,
-  Global / onChangedBuildSource := ReloadOnSourceChanges,
+  Global / onChangedBuildSource := ReloadOnSourceChanges
 ))
 
 val zTestFramework = TestFramework("zio.test.sbt.ZTestFramework")
@@ -27,16 +27,11 @@ lazy val competitionServiceModelProtobuf = module("competition-serv-protobuf", "
   Compile / PB.targets := Seq(scalapb.gen() -> (Compile / sourceManaged).value / "scalapb")
 )
 
-lazy val actorSystem = module("actor-system", "actor-system").settings(
-  libraryDependencies ++= zioLoggingDependencies ++ catsDependencies ++ zioDependencies ++ zioTestDependencies,
-  testFrameworks := Seq(zTestFramework)
-)
-
 lazy val kafkaCommons = module("kafka-common", "kafka-common").settings(
   libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioLoggingDependencies ++ zioTestDependencies ++
-    Seq(zioKafkaDependency, disruptorDependency, testContainersKafkaDependency),
+    Seq(zioKafkaDependency, disruptorDependency, testContainersKafkaDependency, akkaDependency),
   testFrameworks := Seq(zTestFramework)
-).dependsOn(actorSystem, commons)
+).dependsOn(commons)
 
 lazy val commons = module("commons", "command-processor/commons").settings(
   libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioLoggingDependencies ++ zioTestDependencies ++
@@ -45,17 +40,23 @@ lazy val commons = module("commons", "command-processor/commons").settings(
 ).dependsOn(competitionServiceModelProtobuf)
 
 lazy val competitionservice = project.in(file(".")).settings(publish / skip := true)
-  .aggregate(commandProcessor, queryProcessor, gatewayService, kafkaCommons, actorSystem)
+  .aggregate(commandProcessor, queryProcessor, gatewayService, kafkaCommons)
 
 lazy val commandProcessor = module("command-processor", "command-processor")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv"))
   .settings(
     libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
-      zioLoggingDependencies ++ monocleDependencies ++
-      Seq(zioKafkaDependency, guavaDependency, rocksDbDependency, disruptorDependency, scalaTestDependency),
+      zioLoggingDependencies ++ monocleDependencies ++ Seq(
+        zioKafkaDependency,
+        guavaDependency,
+        rocksDbDependency,
+        disruptorDependency,
+        scalaTestDependency,
+        akkaDependency
+      ),
     testFrameworks       := Seq(zTestFramework, TestFrameworks.ScalaTest),
     Docker / packageName := "command-processor"
-  ).settings(stdSettings("command-processor")).dependsOn(commons, actorSystem, kafkaCommons)
+  ).settings(stdSettings("command-processor")).dependsOn(commons, kafkaCommons)
 
 lazy val queryProcessor = module("query-processor", "query-processor")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.logic"))
@@ -69,19 +70,19 @@ lazy val queryProcessor = module("query-processor", "query-processor")
         testContainersDependency,
         testContainersMongoDependency,
         scalaTestDependency,
+        akkaDependency,
         "com.thesamet.scalapb" %% "scalapb-json4s" % "0.12.0"
       ),
     dependencyOverrides  := Seq("dev.zio" %% "zio-test" % zioVersion % "test"),
     testFrameworks       := Seq(zTestFramework, TestFrameworks.ScalaTest),
     Docker / packageName := "query-processor"
-  ).settings(stdSettings("query-processor", Seq.empty)).dependsOn(commons, actorSystem, kafkaCommons)
+  ).settings(stdSettings("query-processor", Seq.empty)).dependsOn(commons, kafkaCommons)
 
 lazy val gatewayService = module("gateway-service", "gateway-service")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.gateway"))
   .settings(
     libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
-      zioLoggingDependencies ++ http4sDependencies ++
-      Seq(zioKafkaDependency, scalaTestDependency),
+      zioLoggingDependencies ++ http4sDependencies ++ Seq(zioKafkaDependency, scalaTestDependency, akkaDependency),
     testFrameworks       := Seq(zTestFramework),
     Docker / packageName := "gateway-service"
-  ).settings(stdSettings("gateway-service")).dependsOn(commons, actorSystem, kafkaCommons)
+  ).settings(stdSettings("gateway-service")).dependsOn(commons, kafkaCommons)
