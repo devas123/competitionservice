@@ -1,35 +1,28 @@
 package compman.compsrv.logic.actor.kafka
 
+import akka.actor.typed.Behavior
+import akka.actor.typed.scaladsl.Behaviors
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
-import compman.compsrv.logic.actors.{ActorBehavior, Behaviors}
-import zio.{Promise, RIO}
-import zio.blocking.Blocking
-import zio.clock.Clock
-import zio.duration.Duration
-import zio.logging.Logging
 
-import scala.concurrent.TimeoutException
+import scala.concurrent.{Promise, TimeoutException}
+import scala.concurrent.duration.FiniteDuration
 
 object KafkaSyncQueryReceiverActor {
 
-  import Behaviors._
-  def behavior(
-    promise: Promise[Throwable, Seq[Array[Byte]]],
-    timeout: Duration
-  ): ActorBehavior[Logging with Clock with Blocking, Seq[Array[Byte]], KafkaConsumerApi] = Behaviors
-    .behavior[Logging with Clock with Blocking, Seq[Array[Byte]], KafkaConsumerApi]
-    .withReceive { (context, _, state, command, _) =>
-      command match {
-        case QueryStarted() => RIO(state)
-        case QueryFinished(_) => Logging.info(s"Successfully finished the query. Stopping.") *>
-            promise.succeed(state) *> context.stopSelf *> RIO(state)
-        case QueryError(error) => Logging.error(s"Error during kafka query: $error") *> promise.succeed(state) *>
-            context.stopSelf *> RIO(state)
-        case MessageReceived(_, committableRecord) => RIO(state :+ committableRecord.value)
+  private def updated(promise: Promise[Seq[Array[Byte]]], messages: Seq[Array[Byte]]): Behavior[KafkaConsumerApi] =
+    Behaviors.receiveMessage {
+      case QueryStarted()                     => Behaviors.same
+      case QueryFinished(_)                   => Behaviors.stopped(() => promise.success(messages))
+      case QueryError(error)                  => Behaviors.stopped(() => promise.failure(error))
+      case MessageReceived(_, consumerRecord) => updated(promise, messages :+ consumerRecord.value())
+    }
+
+  def behavior(promise: Promise[Seq[Array[Byte]]], timeout: FiniteDuration): Behavior[KafkaConsumerApi] = Behaviors
+    .setup[KafkaConsumerApi] { _ =>
+      Behaviors.withTimers { timers =>
+        timers.startSingleTimer("timeout", QueryError(new TimeoutException(s"Query timeout: $timeout")), timeout)
+        updated(promise, Seq.empty)
       }
-    }.withInit { (_, _, initState, timers) =>
-      timers.startSingleTimer("timeout", timeout, QueryError(new TimeoutException(s"Query timeout: $timeout")))
-        .as((Seq.empty, Seq.empty, initState))
     }
 
 }
