@@ -11,7 +11,7 @@ import zio.{ZLayer, ZManaged}
 
 object CompetitionOperationsStageOperationsTest extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
   type Env = Logging
-  val layers: ZLayer[Any, Throwable, Env] = CompetitionLogging.Live.loggingLayer
+  val layers: ZLayer[Any, Throwable, Env] = Compman.compsrv.interop.loggingLayer
   val mongoLayer: ZManaged[Any, Nothing, MongoDBContainer] = embeddedMongo()
 
   override def spec: ZSpec[Any, Throwable] = suite("competition operations")(testM("should save stage") {

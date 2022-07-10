@@ -1,75 +1,83 @@
 package compman.compsrv.query.service.repository
 
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import cats.Monad
+import cats.effect.IO
 import compman.compsrv.query.model.academy.FullAcademyInfo
 import org.mongodb.scala.{MongoClient, MongoCollection}
 import org.mongodb.scala.model.Filters.{equal, regex}
 import org.mongodb.scala.model.Updates.set
-import zio.{Ref, RIO}
+
+import java.util.concurrent.atomic.AtomicReference
 
 object AcademyOperations {
-  def test(academies: Ref[Map[String, FullAcademyInfo]]): AcademyService[LIO] = new AcademyService[LIO] {
-    override def getAcademies(
-      searchString: Option[String],
-      pagination: Option[Pagination]
-    ): LIO[(List[FullAcademyInfo], Pagination)] = {
-      for { map <- academies.get } yield (map.values.toList, Pagination(0, 0, 0))
+  def test[F[_]: Monad](academies: AtomicReference[Map[String, FullAcademyInfo]]): AcademyService[F] =
+    new AcademyService[F] {
+      override def getAcademies(
+        searchString: Option[String],
+        pagination: Option[Pagination]
+      ): F[(List[FullAcademyInfo], Pagination)] = {
+        val map = academies.get()
+        Monad[F].pure((map.values.toList, Pagination(0, 0, 0)))
+      }
+
+      override def addAcademy(competition: FullAcademyInfo): F[Unit] = {
+        Monad[F].pure(academies.updateAndGet(m => m + (competition.id -> competition)))
+      }
+
+      override def deleteAcademy(id: String): F[Unit] = Monad[F].pure { academies.updateAndGet(m => m - id) }
+      override def getAcademy(id: String): F[Option[FullAcademyInfo]] = Monad[F].pure { academies.get.get(id) }
+
+      override def updateAcademy(c: FullAcademyInfo): F[Unit] = Monad[F]
+        .pure(academies.updateAndGet(m => m.updatedWith(c.id)(_.map(_.copy(name = c.name, coaches = c.coaches)))))
     }
 
-    override def addAcademy(competition: FullAcademyInfo): LIO[Unit] = {
-      academies.update(m => m + (competition.id -> competition))
-    }
+  def live(mongo: MongoClient, name: String): AcademyService[IO] =
+    new AcademyService[IO] with CommonLiveOperations {
 
-    override def deleteAcademy(id: String): LIO[Unit] = { academies.update(m => m - id) }
-    override def getAcademy(id: String): LIO[Option[FullAcademyInfo]] = { academies.get.map(_.get(id)) }
+      override def mongoClient: MongoClient = mongo
 
-    override def updateAcademy(c: FullAcademyInfo): LIO[Unit] = academies
-      .update(m => m.updatedWith(c.id)(_.map(_.copy(name = c.name, coaches = c.coaches))))
-  }
+      override def dbName: String = name
 
-  def live(mongo: MongoClient, name: String): AcademyService[LIO] = new AcademyService[LIO] with CommonLiveOperations {
+      override def getAcademies(
+        searchString: Option[String],
+        pagination: Option[Pagination]
+      ): IO[(List[FullAcademyInfo], Pagination)] = {
+        val drop = pagination.map(_.offset).getOrElse(0)
+        val take = pagination.map(_.maxResults).getOrElse(0)
+        val call = searchString.map(str =>
+          (collection: MongoCollection[FullAcademyInfo]) => collection.find(regex("name", s".*$str.*", "im"))
+        ).getOrElse((collection: MongoCollection[FullAcademyInfo]) => collection.find())
+        for {
+          collection <- academyCollection
+          select = call(collection).skip(drop).limit(take)
+          total  = IO.fromFuture(IO(collection.countDocuments().toFuture()))
+          res <- selectWithPagination(select, pagination, total)
+        } yield res
+      }
 
-    override def mongoClient: MongoClient = mongo
+      override def addAcademy(academy: FullAcademyInfo): IO[Unit] =
+        insertElement(academyCollection)(academy.id, academy)
 
-    override def dbName: String = name
+      override def deleteAcademy(id: String): IO[Unit] = deleteById(academyCollection)(id)
 
-    override def getAcademies(
-      searchString: Option[String],
-      pagination: Option[Pagination]
-    ): LIO[(List[FullAcademyInfo], Pagination)] = {
-      val drop = pagination.map(_.offset).getOrElse(0)
-      val take = pagination.map(_.maxResults).getOrElse(0)
-      val call = searchString
-        .map(str => (collection: MongoCollection[FullAcademyInfo]) => collection.find(regex("name", s".*$str.*", "im")))
-        .getOrElse((collection: MongoCollection[FullAcademyInfo]) => collection.find())
-      for {
+      override def updateAcademy(academy: FullAcademyInfo): IO[Unit] = {
+        for {
+          collection <- academyCollection
+          update = collection.updateMany(
+            equal(idField, academy.id),
+            Seq(setOption("name", academy.name), set("coaches", academy.coaches))
+          )
+          _ <- IO.fromFuture(IO(update.toFuture()))
+        } yield ()
+      }
+
+      override def getAcademy(id: String): IO[Option[FullAcademyInfo]] = for {
         collection <- academyCollection
-        select = call(collection).skip(drop).limit(take)
-        total  = collection.countDocuments().toFuture()
-        res <- selectWithPagination(select, pagination, total)
+        select = collection.find(equal(idField, id))
+        res <- selectOne(select)
       } yield res
+
     }
-
-    override def addAcademy(academy: FullAcademyInfo): LIO[Unit] = insertElement(academyCollection)(academy.id, academy)
-
-    override def deleteAcademy(id: String): LIO[Unit] = deleteById(academyCollection)(id)
-
-    override def updateAcademy(academy: FullAcademyInfo): LIO[Unit] = {
-      for {
-        collection <- academyCollection
-        update = collection
-          .updateMany(equal(idField, academy.id), Seq(setOption("name", academy.name), set("coaches", academy.coaches)))
-        _ <- RIO.fromFuture(_ => update.toFuture())
-      } yield ()
-    }
-
-    override def getAcademy(id: String): LIO[Option[FullAcademyInfo]] = for {
-      collection <- academyCollection
-      select = collection.find(equal(idField, id))
-      res <- selectOne(select)
-    } yield res
-
-  }
 
   trait AcademyService[F[+_]] {
     def getAcademies(

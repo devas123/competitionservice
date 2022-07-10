@@ -8,7 +8,7 @@ import zio.test._
 
 object ManagedCompetitionsOperationsTest extends DefaultRunnableSpec with EmbeddedMongoDb with TestEntities {
   type Env = RepoEnvironment
-  private val layers = CompetitionLogging.Live.loggingLayer
+  private val layers = Compman.compsrv.interop.loggingLayer
   val mongoLayer: ZManaged[Any, Nothing, MongoDBContainer] = embeddedMongo()
 
   override def spec

@@ -1,8 +1,9 @@
 package compman.compsrv.logic.actors.behavior.api
 
-import compman.compsrv.logic.actors.{ActorBehavior, ActorRef, Behaviors}
-import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.scaladsl.Behaviors
+import cats.effect.IO
+import cats.effect.unsafe.IORuntime
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.{AcademyOperations, Pagination}
@@ -10,20 +11,17 @@ import compman.compsrv.query.service.repository.AcademyOperations.AcademyService
 import compservice.model.protobuf.query
 import compservice.model.protobuf.query.{PageInfo, QueryServiceResponse}
 import org.mongodb.scala.MongoClient
-import zio.Tag
-import zio.logging.Logging
 
 object AcademyApiActor {
 
   case class Live(mongoClient: MongoClient, mongodbConfig: MongodbConfig) extends ActorContext {
-    implicit val logging: CompetitionLogging.Service[LIO] = CompetitionLogging.Live.live[Any]
-    implicit val academyService: AcademyService[LIO] = AcademyOperations
+    implicit val academyService: AcademyService[IO] = AcademyOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
   }
 
   trait ActorContext {
-    implicit val logging: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO]
-    implicit val academyService: AcademyService[LIO]
+    implicit val academyService: AcademyService[IO]
+    implicit val runtime: IORuntime = cats.effect.unsafe.IORuntime.global
   }
 
   sealed trait AcademyApiCommand {
@@ -37,39 +35,41 @@ object AcademyApiActor {
     override type responseType = QueryServiceResponse
   }
 
-  final case class GetAcademy(id: String)(
-    override val replyTo: ActorRef[QueryServiceResponse]
-  ) extends AcademyApiCommand {
+  final case class GetAcademy(id: String)(override val replyTo: ActorRef[QueryServiceResponse])
+      extends AcademyApiCommand {
     override type responseType = QueryServiceResponse
   }
 
   case class ActorState()
   val initialState: ActorState = ActorState()
-  import Behaviors._
-  def behavior[R: Tag](ctx: ActorContext): ActorBehavior[R with Logging, ActorState, AcademyApiCommand] = Behaviors
-    .behavior[R with Logging, ActorState, AcademyApiCommand].withReceive { (_, _, state, command, _) =>
-      {
-        import ctx._
-        for {
-          _ <- Logging.info(s"Received academy API command $command")
-          res <- command match {
-            case c @ GetAcademy(id) => for {
+  def behavior(ctx: ActorContext): Behavior[AcademyApiCommand] = Behaviors.setup { _ =>
+    import ctx._
+    Behaviors.receive[AcademyApiCommand] { (_, command) =>
+      command match {
+        case c @ GetAcademy(id) => {
+            for {
               res <- AcademyOperations.getAcademy(id)
-              _ <- c.replyTo ! QueryServiceResponse()
-                .withGetAcademyResponse(query.GetAcademyResponse().update( _.academy.setIfDefined(res.map(DtoMapping.toDtoFullAcademyInfo))))
-            } yield state
-            case c @ GetAcademies(searchString, pagination) => for {
-                res <- AcademyOperations.getAcademies(searchString, pagination)
-                _ <- c.replyTo ! QueryServiceResponse()
-                  .withGetAcademiesResponse(query.GetAcademiesResponse().withAcademies(res._1.map(DtoMapping.toDtoFullAcademyInfo)).withPageInfo(
-                    PageInfo()
-                      .withPage(if (res._2.maxResults > 0) res._2.offset / res._2.maxResults else 0)
-                      .withTotal(res._2.totalResults)
-                      .withResultsOnPage(res._2.maxResults)
-                  ))
-              } yield state
-          }
-        } yield res
+              _ <- IO(
+                c.replyTo ! QueryServiceResponse().withGetAcademyResponse(
+                  query.GetAcademyResponse().update(_.academy.setIfDefined(res.map(DtoMapping.toDtoFullAcademyInfo)))
+                )
+              )
+            } yield Behaviors.same[AcademyApiCommand]
+          }.unsafeRunSync()
+        case c @ GetAcademies(searchString, pagination) => {
+            for {
+              res <- AcademyOperations.getAcademies(searchString, pagination)
+              _ <- IO(
+                c.replyTo ! QueryServiceResponse().withGetAcademiesResponse(
+                  query.GetAcademiesResponse().withAcademies(res._1.map(DtoMapping.toDtoFullAcademyInfo)).withPageInfo(
+                    PageInfo().withPage(if (res._2.maxResults > 0) res._2.offset / res._2.maxResults else 0)
+                      .withTotal(res._2.totalResults).withResultsOnPage(res._2.maxResults)
+                  )
+                )
+              )
+            } yield Behaviors.same[AcademyApiCommand]
+          }.unsafeRunSync()
       }
     }
+  }
 }

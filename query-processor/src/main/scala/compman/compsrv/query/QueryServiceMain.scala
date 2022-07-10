@@ -101,5 +101,5 @@ object QueryServiceMain extends zio.App {
     }
 
   override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = server().tapError(logError).exitCode
-    .provideLayer(CompetitionLogging.Live.loggingLayer ++ ZEnv.live)
+    .provideLayer(Compman.compsrv.interop.loggingLayer ++ ZEnv.live)
 }

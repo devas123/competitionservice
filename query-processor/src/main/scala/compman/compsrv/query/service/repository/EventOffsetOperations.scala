@@ -1,42 +1,42 @@
 package compman.compsrv.query.service.repository
 
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import cats.Monad
+import cats.effect.IO
 import compman.compsrv.query.model.EventOffset
 import org.mongodb.scala.MongoClient
 import org.mongodb.scala.model.Filters.equal
-import zio.RIO
 
 object EventOffsetOperations {
-  def test: EventOffsetService[LIO] = new EventOffsetService[LIO] {
-    override def getOffset(topic: String): LIO[Option[EventOffset]] = RIO.none
+  def test[F[_]: Monad]: EventOffsetService[F] = new EventOffsetService[F] {
+    override def getOffset(topic: String): F[Option[EventOffset]] = Monad[F].pure(None)
 
-    override def setOffset(offset: EventOffset): LIO[Unit] = RIO.unit
+    override def setOffset(offset: EventOffset): F[Unit] = Monad[F].pure(())
 
-    override def deleteOffset(topic: String): LIO[Unit] = RIO.unit
+    override def deleteOffset(topic: String): F[Unit] = Monad[F].pure(())
   }
-  def live(mongo: MongoClient, name: String): EventOffsetService[LIO] = new EventOffsetService[LIO]
-    with CommonLiveOperations {
+  def live(mongo: MongoClient, name: String): EventOffsetService[IO] =
+    new EventOffsetService[IO] with CommonLiveOperations {
 
-    override def mongoClient: MongoClient = mongo
+      override def mongoClient: MongoClient = mongo
 
-    override def dbName: String = name
+      override def dbName: String = name
 
-    override val idField = "topic"
+      override val idField = "topic"
 
-    override def getOffset(topic: String): LIO[Option[EventOffset]] = {
-      for {
-        collection <- eventOffsetCollection
-        select = collection.find(equal(idField, topic))
-        res <- selectOne(select)
-      } yield res
+      override def getOffset(topic: String): IO[Option[EventOffset]] = {
+        for {
+          collection <- eventOffsetCollection
+          select = collection.find(equal(idField, topic))
+          res <- selectOne(select)
+        } yield res
+      }
+
+      override def deleteOffset(id: String): IO[Unit] = deleteById(eventOffsetCollection)(id)
+
+      override def setOffset(offset: EventOffset): IO[Unit] = {
+        insertElement(eventOffsetCollection)(offset.topic, offset)
+      }
     }
-
-    override def deleteOffset(id: String): LIO[Unit] = deleteById(eventOffsetCollection)(id)
-
-    override def setOffset(offset: EventOffset): LIO[Unit] = {
-      insertElement(eventOffsetCollection)(offset.topic, offset)
-    }
-  }
 
   trait EventOffsetService[F[+_]] {
     def getOffset(topic: String): F[Option[EventOffset]]

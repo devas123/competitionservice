@@ -25,7 +25,7 @@ import java.time.Instant
 object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
   private val notificationTopic = "notifications"
   private val callbackTopic = "callback"
-  private val loggingLayer      = CompetitionLogging.Live.loggingLayer
+  private val loggingLayer      = compman.compsrv.interop.loggingLayer
 
   override def spec: ZSpec[TestEnvironment, Any] = suite("Competition event listener") {
     testM("Should subscribe to topics") {

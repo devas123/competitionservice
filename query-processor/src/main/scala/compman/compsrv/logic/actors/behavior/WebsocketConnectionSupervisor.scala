@@ -1,9 +1,9 @@
 package compman.compsrv.logic.actors.behavior
 
-import compman.compsrv.logic.actors.{ActorBehavior, Behaviors}
-import compman.compsrv.logic.actors.ActorSystem.ActorConfig
+import cats.effect.std.Queue
+import cats.effect.IO
 import compservice.model.protobuf.event.Event
-import zio.{Queue, Tag, Task}
+import zio.{Tag, Task}
 import zio.clock.Clock
 import zio.console.Console
 import zio.logging.Logging
@@ -12,7 +12,7 @@ object WebsocketConnectionSupervisor {
 
   sealed trait ApiCommand
 
-  final case class WebsocketConnectionRequest(clientId: String, competitionId: String, queue: Queue[Event])
+  final case class WebsocketConnectionRequest(clientId: String, competitionId: String, queue: Queue[IO, Event])
       extends ApiCommand
 
   final case class WebsocketConnectionClosed(clientId: String, competitionId: String) extends ApiCommand
@@ -24,7 +24,6 @@ object WebsocketConnectionSupervisor {
   private val CONNECTION_HANDLER_PREFIX = "ConnectionHandler-"
 
   val initialState: ActorState = ActorState()
-  import Behaviors._
   def behavior[R: Tag]: ActorBehavior[R with Logging with Clock with Console, ActorState, ApiCommand] = Behaviors
     .behavior[R with Logging with Clock with Console, ActorState, ApiCommand].withReceive { (context, _, state, command, _) =>
       {

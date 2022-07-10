@@ -20,7 +20,7 @@ import java.util.{Date, UUID}
 object FightOperationsSpec extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
   type Env = Logging
   val mongoLayer: ZManaged[Any, Nothing, MongoDBContainer] = embeddedMongo()
-  val layers: ZLayer[Any, Throwable, Env] = CompetitionLogging.Live.loggingLayer
+  val layers: ZLayer[Any, Throwable, Env] = Compman.compsrv.interop.loggingLayer
 
   override def spec: ZSpec[Environment, Throwable] = suite("Fight operations")(
     testM("Should save and load fight by id") {

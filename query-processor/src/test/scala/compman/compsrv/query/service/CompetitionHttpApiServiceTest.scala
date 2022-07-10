@@ -44,5 +44,5 @@ object CompetitionHttpApiServiceTest extends DefaultRunnableSpec with TestEntiti
         }
       }
     ) @@ sequential)
-      .provideLayer(Clock.live ++ CompetitionLogging.Live.loggingLayer ++ Blocking.live ++ zio.console.Console.live)
+      .provideLayer(Clock.live ++ Compman.compsrv.interop.loggingLayer ++ Blocking.live ++ zio.console.Console.live)
 }
