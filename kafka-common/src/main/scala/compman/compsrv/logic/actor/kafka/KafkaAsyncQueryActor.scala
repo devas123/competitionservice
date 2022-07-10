@@ -2,12 +2,10 @@ package compman.compsrv.logic.actor.kafka
 
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.kafka.{ConsumerSettings, Subscriptions}
-import akka.kafka.scaladsl.Consumer
+import akka.kafka.ConsumerSettings
 import akka.stream.Materializer
-import akka.stream.scaladsl.{Keep, Sink}
-import compman.compsrv.logic.actor.kafka.KafkaSubscribeActor.{ForwardMesage, KafkaQueryActorCommand, Start, Stop}
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, MessageReceived}
+import compman.compsrv.logic.actor.kafka.KafkaSubscribeActor._
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, QueryFinished, QueryStarted}
 import org.apache.kafka.clients.consumer.ConsumerConfig
 
 import java.util.UUID
@@ -24,15 +22,20 @@ private class KafkaAsyncQueryActor(
   endOffset: Option[Long]
 )(implicit val materializer: Materializer)
     extends QuerySubscribeBase(context, consumerSettings) {
+  replyTo ! QueryStarted()
   context.pipeToSelf(prepareOffsets(topic, startOffset)) {
-    case Failure(exception) =>
-      context.log.error(s"Error while getting the offsets for topic $topic", exception)
-      Stop
+    case Failure(exception) => FailureInOffsetsRetrieval("Unexpected failure", Some(exception))
     case Success(value) => value match {
-        case Some(offsets) => Start(offsets, endOffset)
-        case None =>
-          context.log.error(s"No offsets for $topic")
-          Stop
+        case Some(offsets) =>
+          val effectiveEndOffsets = offsets.endOffsets.map { case (k, v) =>
+            k -> endOffset.map(eo => Math.min(eo, v)).getOrElse(v)
+          }.filter(_._2 > 0)
+          if (effectiveEndOffsets.nonEmpty) { Start(offsets.startOffsets, effectiveEndOffsets) }
+          else {
+            FailureInOffsetsRetrieval(s"No messages to retrieve from topic $topic. Start offsets: ${offsets
+              .startOffsets}, provided end offset: $endOffset, calculated end offsets: $effectiveEndOffsets")
+          }
+        case None => Stop
       }
 
   }
@@ -41,20 +44,37 @@ private class KafkaAsyncQueryActor(
     msg: KafkaSubscribeActor.KafkaQueryActorCommand
   ): Behavior[KafkaSubscribeActor.KafkaQueryActorCommand] = {
     msg match {
-      case ForwardMesage(msg, to) =>
-        to ! msg
+      case ForwardMessage(msg, to) =>
+        context.log.warn(s"Query is not yet started, received unexpected ForwardMessage($msg, $to).")
         Behaviors.same
-      case Stop => Behaviors.stopped(() => ())
-      case Start(off, endOffset) => Behaviors.setup { ctx =>
-          val (consumerControl, _) = Consumer.plainSource(consumerSettings, Subscriptions.assignmentWithOffset(off))
-            .takeWhile(rec => endOffset.exists(e => e >= rec.offset()))
-            .map(e => replyTo ! MessageReceived(topic = topic, consumerRecord = e)).toMat(Sink.ignore)(Keep.both).run()
-          Behaviors.receiveMessage {
-            case KafkaSubscribeActor.Stop => Behaviors.stopped(() =>
-              Await.result(consumerControl.shutdown().map(_ => ()), 10.seconds)
-            )
-            case ForwardMesage(msg, to) =>
+      case Stop                                      => Behaviors.stopped { () =>
+        replyTo ! QueryFinished(0L)
+      }
+      case FailureInOffsetsRetrieval(msg, exception) => logMessage(msg, exception, replyTo)
+      case Start(off, endOffsets) => Behaviors.setup { ctx =>
+          val numberOfEventsToTake = endOffsets.foldLeft(endOffsets.values.max) { case (acc, (tp, endOffset)) =>
+            Math.min(acc, endOffset - off.getOrElse(tp, 0L))
+          }
+          ctx.log.info(
+            s"Starting query with start offset $off, end offsets: $endOffsets, number of events to take: $numberOfEventsToTake"
+          )
+          val (consumerControl, streamFinished) = startConsumerStream(off, replyTo)
+          ctx.pipeToSelf(streamFinished)(_ => Stop)
+          var messageCount = 0L
+          Behaviors.receiveMessagePartial {
+            case Stop => Behaviors.stopped { () =>
+                replyTo ! QueryFinished(messageCount)
+                Await.result(consumerControl.shutdown().map(_ => ()), 10.seconds)
+              }
+            case ForwardMessage(msg, to) =>
               to ! msg
+              messageCount += 1
+              if (messageCount >= numberOfEventsToTake) {
+                ctx.log.info(
+                  s"Finished query, message count: $messageCount, number of events to take: $numberOfEventsToTake"
+                )
+                context.self ! Stop
+              }
               Behaviors.same
             case _: Start =>
               ctx.log.warn("Query already in progress, no need to start again.")

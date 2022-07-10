@@ -9,13 +9,23 @@ import scala.concurrent.duration.FiniteDuration
 
 object KafkaSyncQueryReceiverActor {
 
-  private def updated(promise: Promise[Seq[Array[Byte]]], messages: Seq[Array[Byte]]): Behavior[KafkaConsumerApi] =
-    Behaviors.receiveMessage {
-      case QueryStarted()                     => Behaviors.same
-      case QueryFinished(_)                   => Behaviors.stopped(() => promise.success(messages))
-      case QueryError(error)                  => Behaviors.stopped(() => promise.failure(error))
-      case MessageReceived(_, consumerRecord) => updated(promise, messages :+ consumerRecord.value())
+  private def updated(promise: Promise[Seq[Array[Byte]]], messages: Seq[Array[Byte]]): Behavior[KafkaConsumerApi] = {
+    Behaviors.setup { ctx =>
+      Behaviors.receiveMessage {
+        case QueryStarted() =>
+          ctx.log.info(s"Query started.")
+          Behaviors.same
+        case QueryFinished(_) =>
+          ctx.log.info(s"Query finished.")
+          promise.success(messages)
+          Behaviors.stopped(() => ())
+        case QueryError(error) => Behaviors.stopped(() => promise.failure(error))
+        case MessageReceived(topic, consumerRecord) =>
+          ctx.log.info(s"Received message from topic $topic")
+          updated(promise, messages :+ consumerRecord.value())
+      }
     }
+  }
 
   def behavior(promise: Promise[Seq[Array[Byte]]], timeout: FiniteDuration): Behavior[KafkaConsumerApi] = Behaviors
     .setup[KafkaConsumerApi] { _ =>

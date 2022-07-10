@@ -1,9 +1,14 @@
 package compman.compsrv.logic.actor.kafka
 
-import akka.actor
-import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext}
-import akka.kafka.{ConsumerSettings, KafkaConsumerActor}
-import akka.kafka.scaladsl.MetadataClient
+import akka.{actor, Done}
+import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
+import akka.actor.typed.{ActorRef, Behavior}
+import akka.kafka.{ConsumerSettings, KafkaConsumerActor, Subscriptions}
+import akka.kafka.scaladsl.{Consumer, MetadataClient}
+import akka.stream.scaladsl.{Keep, Sink}
+import akka.stream.Materializer
+import compman.compsrv.logic.actor.kafka.KafkaSubscribeActor.ForwardMessage
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, MessageReceived, QueryFinished}
 import org.apache.kafka.common.TopicPartition
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
@@ -18,19 +23,39 @@ abstract class QuerySubscribeBase(
   protected val consumer: actor.ActorRef = context
     .actorOf(KafkaConsumerActor.props(consumerSettings), "kafka-consumer-actor")
 
-  def prepareOffsets(topic: String, startOffset: Option[Long]): Future[Option[Map[TopicPartition, Long]]] = {
+  case class StartOffsetsAndTopicEndOffset(
+    startOffsets: Map[TopicPartition, Long],
+    endOffsets: Map[TopicPartition, Long]
+  )
+
+  def prepareOffsets(topic: String, startOffset: Option[Long]): Future[Option[StartOffsetsAndTopicEndOffset]] = {
     val metadataClient = MetadataClient.create(consumer, 1.second)
     for {
       partitions <- metadataClient.getPartitionsFor(topic)
       topicPartitions = partitions.map(p => new TopicPartition(p.topic(), p.partition())).toSet
-      kafkaTopicEndOffsetsMap <- metadataClient.getEndOffsets(topicPartitions)
-      partitionsToEndOffsetsMap = kafkaTopicEndOffsetsMap
-      filteredOffsets           = partitionsToEndOffsetsMap.filter(_._2 > startOffset.getOrElse(0L))
+      partitionsToEndOffsetsMap <- metadataClient.getEndOffsets(topicPartitions)
+      startOffsets = partitionsToEndOffsetsMap.map(e => e._1 -> startOffset.map(o => Math.min(o, e._2)).getOrElse(e._2))
       res =
-        if (filteredOffsets.nonEmpty) {
-          val off = filteredOffsets.keySet.map(tp => (tp, partitionsToEndOffsetsMap(tp))).filter(o => o._2 > 0).toMap
-          Some(off)
-        } else None
+        if (startOffsets.nonEmpty) { Some(StartOffsetsAndTopicEndOffset(startOffsets, partitionsToEndOffsetsMap)) }
+        else None
     } yield res
   }
+
+  protected def logMessage(msg: String, exception: Option[Throwable], replyTo: ActorRef[KafkaConsumerApi]): Behavior[KafkaSubscribeActor.KafkaQueryActorCommand] = {
+    exception match {
+      case Some(value) => context.log.error(msg, value)
+      case None        => context.log.error(msg)
+    }
+    Behaviors.stopped[KafkaSubscribeActor.KafkaQueryActorCommand] { () =>
+      replyTo ! QueryFinished(0L)
+    }
+  }
+
+  protected def startConsumerStream(startOffsets: Map[TopicPartition, Long], replyTo: ActorRef[KafkaConsumerApi])(implicit mat: Materializer): (Consumer.Control, Future[Done]) = {
+    Consumer
+      .plainSource(consumerSettings, Subscriptions.assignmentWithOffset(startOffsets))
+      .map(e => context.self ! ForwardMessage(MessageReceived(topic = e.topic(), consumerRecord = e), replyTo)).toMat(Sink.ignore)(Keep.both).async
+      .run()
+  }
+
 }

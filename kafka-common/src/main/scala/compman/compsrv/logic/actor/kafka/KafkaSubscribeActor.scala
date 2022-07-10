@@ -2,11 +2,9 @@ package compman.compsrv.logic.actor.kafka
 
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.kafka.{ConsumerSettings, Subscriptions}
-import akka.kafka.scaladsl.Consumer
-import akka.stream.scaladsl.{Keep, Sink}
+import akka.kafka.ConsumerSettings
 import akka.stream.Materializer
-import compman.compsrv.logic.actor.kafka.KafkaSubscribeActor.{ForwardMesage, Start, Stop}
+import compman.compsrv.logic.actor.kafka.KafkaSubscribeActor.{FailureInOffsetsRetrieval, ForwardMessage, Start, Stop}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.TopicPartition
@@ -25,12 +23,10 @@ private class KafkaSubscribeActor(
     extends QuerySubscribeBase(context, consumerSettings) {
 
   context.pipeToSelf(prepareOffsets(topic, startOffset)) {
-    case Failure(exception) =>
-      context.log.error("Error while preparing offsets", exception)
-      Stop
+    case Failure(exception) => FailureInOffsetsRetrieval("Error while preparing offsets", Some(exception))
     case Success(value) => value match {
-        case Some(value) => Start(value, None)
-        case None        => Stop
+        case Some(value) => Start(value.startOffsets, value.endOffsets)
+        case None        => FailureInOffsetsRetrieval("No offsets were retrieved")
       }
   }
 
@@ -38,15 +34,15 @@ private class KafkaSubscribeActor(
     msg: KafkaSubscribeActor.KafkaQueryActorCommand
   ): Behavior[KafkaSubscribeActor.KafkaQueryActorCommand] = {
     msg match {
-      case ForwardMesage(msg, to) =>
+      case FailureInOffsetsRetrieval(msg, exception) => logMessage(msg, exception, replyTo)
+      case ForwardMessage(msg, to) =>
         to ! msg
         this
       case Stop => Behaviors.stopped(() => ())
       case Start(off, _) => Behaviors.setup { ctx =>
-          val (consumerControl, _) = Consumer.plainSource(consumerSettings, Subscriptions.assignmentWithOffset(off))
-            .map(e => replyTo ! MessageReceived(topic = topic, consumerRecord = e)).toMat(Sink.ignore)(Keep.both).run()
-          Behaviors.receiveMessage[KafkaSubscribeActor.KafkaQueryActorCommand] {
-            case ForwardMesage(msg, to) =>
+          val (consumerControl, _) = startConsumerStream(off, replyTo)
+          Behaviors.receiveMessagePartial {
+            case ForwardMessage(msg, to) =>
               to ! msg
               Behaviors.same
             case Stop => Behaviors.stopped(() => Await.result(consumerControl.shutdown().map(_ => ()), 10.seconds))
@@ -83,8 +79,9 @@ private[kafka] object KafkaSubscribeActor {
 
   sealed trait KafkaQueryActorCommand
 
-  case object Stop extends KafkaQueryActorCommand
+  case object Stop                                                                       extends KafkaQueryActorCommand
+  case class FailureInOffsetsRetrieval(msg: String, exception: Option[Throwable] = None) extends KafkaQueryActorCommand
 
-  case class ForwardMesage(msg: MessageReceived, to: ActorRef[KafkaConsumerApi]) extends KafkaQueryActorCommand
-  case class Start(off: Map[TopicPartition, Long], endOffset: Option[Long])      extends KafkaQueryActorCommand
+  case class ForwardMessage(msg: MessageReceived, to: ActorRef[KafkaConsumerApi])         extends KafkaQueryActorCommand
+  case class Start(off: Map[TopicPartition, Long], endOffsets: Map[TopicPartition, Long]) extends KafkaQueryActorCommand
 }

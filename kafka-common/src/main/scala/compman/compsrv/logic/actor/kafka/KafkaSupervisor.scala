@@ -38,8 +38,8 @@ object KafkaSupervisor {
     groupId: String,
     replyTo: ActorRef[KafkaConsumerApi],
     startOffset: Option[Long] = None,
-    endOffset: Option[Long] = None,
-    uuid: String = UUID.randomUUID().toString
+    uuid: String = UUID.randomUUID().toString,
+    commitOffsetToKafka: Boolean = false
   ) extends KafkaSupervisorCommand
 
   case class CreateTopicIfMissing(topic: String, topicConfig: KafkaTopicConfig) extends KafkaSupervisorCommand
@@ -110,7 +110,7 @@ object KafkaSupervisor {
         queryAndSubscribeActors.get(uuid).foreach(a => a ! KafkaSubscribeActor.Stop)
         Behaviors.same
       case SubscriberStopped(uuid) => updated(publishActor, queryAndSubscribeActors - uuid, consumerSettings, admin)
-      case QueryAndSubscribe(topic, groupId, replyTo, startOffset, _, uuid) =>
+      case QueryAndSubscribe(topic, groupId, replyTo, startOffset, uuid, commitOffsetToKafka) =>
         queryAndSubscribeActors.get(uuid).foreach(a => a ! KafkaSubscribeActor.Stop)
         val actorId = innerQueryActorId
         val actor = context.spawn(
@@ -120,7 +120,7 @@ object KafkaSupervisor {
             groupId,
             replyTo,
             startOffset = startOffset,
-            commitOffsetsToKafka = false
+            commitOffsetsToKafka = commitOffsetToKafka
           ),
           actorId
         )
