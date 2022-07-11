@@ -1,6 +1,6 @@
 package compman.compsrv.logic.actors.behavior.api
 
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{scaladsl, ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import cats.data.OptionT
 import cats.effect.IO
@@ -24,6 +24,8 @@ import compservice.model.protobuf.query.{MatFightsQueryResult, MatsQueryResult, 
 import org.mongodb.scala.MongoClient
 
 import java.util.concurrent.atomic.AtomicReference
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
 
 object CompetitionApiActor {
 
@@ -154,171 +156,183 @@ object CompetitionApiActor {
 
   case class ActorState()
   val initialState: ActorState = ActorState()
-  def behavior(ctx: ActorContext): Behavior[CompetitionApiCommand] = Behaviors.setup { _ =>
+  def behavior(ctx: ActorContext): Behavior[CompetitionApiCommand] = Behaviors.setup { context =>
     import cats.implicits._
     import ctx._
 
     Behaviors.receiveMessage {
-      case c @ GenerateCategoriesFromRestrictions(restrictions, idTrees, restrictionNames) => {
-          for {
-            restrictionNamesOrder <- IO(restrictionNames.zipWithIndex.toMap)
-            res <- idTrees.traverse(tree =>
-              IO(
-                CategoryGenerateService
-                  .generateCategoriesFromRestrictions(restrictions.toArray, tree, restrictionNamesOrder)
-              )
+      case c @ GenerateCategoriesFromRestrictions(restrictions, idTrees, restrictionNames) =>
+        val io = for {
+          restrictionNamesOrder <- IO(restrictionNames.zipWithIndex.toMap)
+          res <- idTrees.traverse(tree =>
+            IO(
+              CategoryGenerateService
+                .generateCategoriesFromRestrictions(restrictions.toArray, tree, restrictionNamesOrder)
             )
-            _ <- IO(
-              c.replyTo ! QueryServiceResponse()
-                .withGenerateCategoriesFromRestrictionsResponse(GenerateCategoriesFromRestrictionsResponse(res.flatten))
-            )
-          } yield Behaviors.same[CompetitionApiCommand]
-        }.unsafeRunSync()
-      case c: GetDefaultRestrictions => IO(DefaultRestrictions.restrictions).map(res =>
-          c.replyTo ! QueryServiceResponse().withGetDefaultRestrictionsResponse(GetDefaultRestrictionsResponse(res))
-        ).as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
-      case c: GetDefaultFightResults => IO(FightResultOptionConstants.values).map(res =>
-          c.replyTo ! QueryServiceResponse().withGetDefaultFightResultsResponse(GetDefaultFightResultsResponse(res))
-        ).as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
-      case c: GetAllCompetitions => ManagedCompetitionsOperations.getActiveCompetitions[IO].map(res =>
-          c.replyTo ! QueryServiceResponse()
+          )
+        } yield QueryServiceResponse().withGenerateCategoriesFromRestrictionsResponse(GenerateCategoriesFromRestrictionsResponse(res.flatten))
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c: GetDefaultRestrictions =>
+        val io = IO(DefaultRestrictions.restrictions)
+          .map(res => QueryServiceResponse().withGetDefaultRestrictionsResponse(GetDefaultRestrictionsResponse(res)))
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c: GetDefaultFightResults =>
+        val io = IO(FightResultOptionConstants.values)
+          .map(res => QueryServiceResponse().withGetDefaultFightResultsResponse(GetDefaultFightResultsResponse(res)))
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c: GetAllCompetitions =>
+        val io = ManagedCompetitionsOperations.getActiveCompetitions[IO].map(res =>
+          QueryServiceResponse()
             .withGetAllCompetitionsResponse(GetAllCompetitionsResponse(res.map(DtoMapping.toDtoManagedCompetition)))
-        ).as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
-      case c @ GetCompetitionProperties(id) => CompetitionQueryOperations[IO].getCompetitionProperties(id)
+        )
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetCompetitionProperties(id) =>
+        val io = CompetitionQueryOperations[IO].getCompetitionProperties(id)
           .map(_.map(DtoMapping.toDtoCompetitionProperties)).map(res =>
-            c.replyTo ! QueryServiceResponse()
-              .withGetCompetitionPropertiesResponse(GetCompetitionPropertiesResponse(res))
-          ).as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
-      case c @ GetCompetitionInfoTemplate(competitionId) => CompetitionQueryOperations[IO]
-          .getCompetitionInfoTemplate(competitionId).map(ci => ci.map(c => new String(c.template)).getOrElse(""))
-          .map(res =>
-            c.replyTo ! QueryServiceResponse()
+            QueryServiceResponse().withGetCompetitionPropertiesResponse(GetCompetitionPropertiesResponse(res))
+          )
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetCompetitionInfoTemplate(competitionId) =>
+        val io = CompetitionQueryOperations[IO].getCompetitionInfoTemplate(competitionId)
+          .map(ci => ci.map(c => new String(c.template)).getOrElse("")).map(res =>
+            QueryServiceResponse()
               .withGetCompetitionInfoTemplateResponse(GetCompetitionInfoTemplateResponse(Option(res)))
-          ).as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
+          )
+        runEffectAndReply(context, c.replyTo, io)
+
       case c @ GetSchedule(competitionId) =>
         import extensions._
-        {
-          for {
-            periods                <- CompetitionQueryOperations[IO].getPeriodsByCompetitionId(competitionId)
-            fighsByScheduleEntries <- FightQueryOperations[IO].getFightsByScheduleEntries(competitionId)
-            mats = periods.flatMap(period => period.mats.map(DtoMapping.toDtoMat(period.id)))
-            dtoPeriods = periods.map(DtoMapping.toDtoPeriod)
-              .map(_.enrichWithFightsByScheduleEntries(fighsByScheduleEntries))
-            _ <- IO(
-              c.replyTo ! QueryServiceResponse().withGetScheduleResponse(GetScheduleResponse(
-                Some(model.Schedule().withId(competitionId).withMats(mats).withPeriods(dtoPeriods))
-              ))
-            )
-          } yield Behaviors.same[CompetitionApiCommand]
-        }.unsafeRunSync()
-      case c @ GetCompetitors(competitionId, categoryId, searchString, pagination) => categoryId match {
+        val io = for {
+          periods                <- CompetitionQueryOperations[IO].getPeriodsByCompetitionId(competitionId)
+          fighsByScheduleEntries <- FightQueryOperations[IO].getFightsByScheduleEntries(competitionId)
+          mats = periods.flatMap(period => period.mats.map(DtoMapping.toDtoMat(period.id)))
+          dtoPeriods = periods.map(DtoMapping.toDtoPeriod)
+            .map(_.enrichWithFightsByScheduleEntries(fighsByScheduleEntries))
+        } yield QueryServiceResponse().withGetScheduleResponse(GetScheduleResponse(Some(model.Schedule().withId(competitionId).withMats(mats).withPeriods(dtoPeriods))))
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetCompetitors(competitionId, categoryId, searchString, pagination) =>
+        val io = categoryId match {
           case Some(value) => CompetitionQueryOperations[IO]
               .getCompetitorsByCategoryId(competitionId)(value, pagination, searchString)
-              .map(res => c.replyTo ! createGetCompetitorsResponse(res)).as(Behaviors.same[CompetitionApiCommand])
-              .unsafeRunSync()
+              .map(res => createGetCompetitorsResponse(res))
+
           case None => CompetitionQueryOperations[IO]
               .getCompetitorsByCompetitionId(competitionId)(pagination, searchString)
-              .map(res => c.replyTo ! createGetCompetitorsResponse(res)).as(Behaviors.same[CompetitionApiCommand])
-              .unsafeRunSync()
+              .map(res => createGetCompetitorsResponse(res))
+
         }
-      case c @ GetCompetitor(competitionId, competitorId) => CompetitionQueryOperations[IO]
-          .getCompetitorById(competitionId)(competitorId).map(res =>
-            c.replyTo ! QueryServiceResponse()
-              .withGetCompetitorResponse(GetCompetitorResponse(res.map(DtoMapping.toDtoCompetitor)))
-          ).as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
-      case c @ GetDashboard(competitionId) => CompetitionQueryOperations[IO].getPeriodsByCompetitionId(competitionId)
-          .map(res =>
-            c.replyTo ! QueryServiceResponse()
-              .withGetDashboardResponse(GetDashboardResponse(res.map(DtoMapping.toDtoPeriod)))
-          ).as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
-      case c @ GetMats(competitionId) => CompetitionQueryOperations[IO].getPeriodsByCompetitionId(competitionId)
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetCompetitor(competitionId, competitorId) =>
+        val io = CompetitionQueryOperations[IO].getCompetitorById(competitionId)(competitorId).map(res =>
+          QueryServiceResponse().withGetCompetitorResponse(GetCompetitorResponse(res.map(DtoMapping.toDtoCompetitor)))
+        )
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetDashboard(competitionId) =>
+        val io = CompetitionQueryOperations[IO].getPeriodsByCompetitionId(competitionId).map(res =>
+          QueryServiceResponse().withGetDashboardResponse(GetDashboardResponse(res.map(DtoMapping.toDtoPeriod)))
+        )
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetMats(competitionId) =>
+        val io = CompetitionQueryOperations[IO].getPeriodsByCompetitionId(competitionId)
           .map(_.flatMap(p => p.mats.map(DtoMapping.toDtoMat(p.id))))
-          .map(res => c.replyTo ! QueryServiceResponse().withGetMatsResponse(GetMatsResponse(res)))
-          .as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
-      case c @ GetMat(competitionId, matId) => CompetitionQueryOperations[IO].getPeriodsByCompetitionId(competitionId)
+          .map(res => QueryServiceResponse().withGetMatsResponse(GetMatsResponse(res)))
+
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetMat(competitionId, matId) =>
+        val io = CompetitionQueryOperations[IO].getPeriodsByCompetitionId(competitionId)
           .map(_.flatMap(p => p.mats.map(DtoMapping.toDtoMat(p.id))).find(_.id == matId))
-          .map(res => c.replyTo ! QueryServiceResponse().withGetMatResponse(GetMatResponse(res)))
-          .as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
-      case c @ GetMatFights(competitionId, matId) => {
-          for {
-            fights <- FightQueryOperations[IO].getFightsByMat(competitionId)(matId, 20)
-            fightDtos = fights.map(DtoMapping.toDtoFight)
-            competitors = fights.flatMap(_.scores).filter(_.competitorId.isDefined).map(cs =>
-              CompetitorDisplayInfo(
-                cs.competitorId.orNull,
-                cs.competitorFirstName,
-                cs.competitorLastName,
-                cs.competitorAcademyName
-              )
-            ).map(DtoMapping.toDtoCompetitor)
-            _ <- IO(
-              c.replyTo ! QueryServiceResponse()
-                .withGetMatFightsResponse(GetMatFightsResponse(Some(MatFightsQueryResult(competitors, fightDtos))))
+          .map(res => QueryServiceResponse().withGetMatResponse(GetMatResponse(res)))
+
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetMatFights(competitionId, matId) =>
+        val io = for {
+          fights <- FightQueryOperations[IO].getFightsByMat(competitionId)(matId, 20)
+          fightDtos = fights.map(DtoMapping.toDtoFight)
+          competitors = fights.flatMap(_.scores).filter(_.competitorId.isDefined).map(cs =>
+            CompetitorDisplayInfo(
+              cs.competitorId.orNull,
+              cs.competitorFirstName,
+              cs.competitorLastName,
+              cs.competitorAcademyName
             )
-          } yield Behaviors.same[CompetitionApiCommand]
-        }.unsafeRunSync()
-      case c @ GetRegistrationInfo(competitionId) => {
+          ).map(DtoMapping.toDtoCompetitor)
+        } yield QueryServiceResponse().withGetMatFightsResponse(GetMatFightsResponse(Some(MatFightsQueryResult(competitors, fightDtos))))
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetRegistrationInfo(competitionId) =>
+        val io =
           for {
             regInfo <- CompetitionQueryOperations[IO].getRegistrationInfo(competitionId)
-            _ <- IO {
-              c.replyTo ! QueryServiceResponse().withGetRegistrationInfoResponse(GetRegistrationInfoResponse(
-                regInfo.map(DtoMapping.toDtoRegistrationInfo)
-              ))
-            }
-          } yield Behaviors.same[CompetitionApiCommand]
-        }.unsafeRunSync()
-      case c @ GetCategories(competitionId) => {
-          for {
-            categories <- CompetitionQueryOperations[IO].getCategoriesByCompetitionId(competitionId)
-            periods    <- CompetitionQueryOperations[IO].getPeriodsByCompetitionId(competitionId)
-            categoryStartTimes = createCategoryIdToStartTimeMap(periods)
-            categoryStates <- categories.traverse { category =>
-              for {
-                numberOfFights <- FightQueryOperations[IO].getNumberOfFightsForCategory(competitionId)(category.id)
-                numberOfCompetitors <- CompetitionQueryOperations[IO]
-                  .getNumberOfCompetitorsForCategory(competitionId)(category.id)
-              } yield createCategoryState(
-                competitionId,
-                category,
-                numberOfFights,
-                numberOfCompetitors,
-                categoryStartTimes.get(category.id).map(Timestamps.fromDate).map(Timestamp.fromJavaProto)
-              )
-            }
-            _ <-
-              IO { c.replyTo ! QueryServiceResponse().withGetCategoriesResponse(GetCategoriesResponse(categoryStates)) }
-          } yield Behaviors.same[CompetitionApiCommand]
-        }.unsafeRunSync()
-      case c @ GetFightById(competitionId, fightId) => FightQueryOperations[IO].getFightById(competitionId)(fightId)
-          .map(_.map(DtoMapping.toDtoFight))
-          .map(res => c.replyTo ! QueryServiceResponse().withGetFightByIdResponse(GetFightByIdResponse(res)))
-          .as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
-      case c @ GetFightIdsByCategoryIds(competitionId) => FightQueryOperations[IO]
-          .getFightIdsByCategoryIds(competitionId).map(res =>
-            c.replyTo ! QueryServiceResponse().withGetFightIdsByCategoryIdsResponse(GetFightIdsByCategoryIdsResponse(
-              res.view.mapValues(ls => ListOfString(ls)).toMap
-            ))
-          ).as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
-      case c @ GetCategory(competitionId, categoryId) => {
-          for {
-            res <- (for {
-              category <- OptionT(CompetitionQueryOperations[IO].getCategoryById(competitionId)(categoryId))
-              periods  <- OptionT.liftF(CompetitionQueryOperations[IO].getPeriodsByCompetitionId(competitionId))
-              categoryStartTimes = createCategoryIdToStartTimeMap(periods)
-              numberOfFights <- OptionT
-                .liftF(FightQueryOperations[IO].getNumberOfFightsForCategory(competitionId)(category.id))
-              numberOfCompetitors <- OptionT
-                .liftF(CompetitionQueryOperations[IO].getNumberOfCompetitorsForCategory(competitionId)(category.id))
+          } yield QueryServiceResponse()
+            .withGetRegistrationInfoResponse(GetRegistrationInfoResponse(regInfo.map(DtoMapping.toDtoRegistrationInfo)))
+
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetCategories(competitionId) =>
+        val io = for {
+          categories <- CompetitionQueryOperations[IO].getCategoriesByCompetitionId(competitionId)
+          periods    <- CompetitionQueryOperations[IO].getPeriodsByCompetitionId(competitionId)
+          categoryStartTimes = createCategoryIdToStartTimeMap(periods)
+          categoryStates <- categories.traverse { category =>
+            for {
+              numberOfFights <- FightQueryOperations[IO].getNumberOfFightsForCategory(competitionId)(category.id)
+              numberOfCompetitors <- CompetitionQueryOperations[IO]
+                .getNumberOfCompetitorsForCategory(competitionId)(category.id)
             } yield createCategoryState(
               competitionId,
               category,
               numberOfFights,
               numberOfCompetitors,
               categoryStartTimes.get(category.id).map(Timestamps.fromDate).map(Timestamp.fromJavaProto)
-            )).value
-            _ <- IO { c.replyTo ! QueryServiceResponse().withGetCategoryResponse(GetCategoryResponse(res)) }
-          } yield Behaviors.same[CompetitionApiCommand]
-        }.unsafeRunSync()
+            )
+          }
+        } yield QueryServiceResponse().withGetCategoriesResponse(GetCategoriesResponse(categoryStates))
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetFightById(competitionId, fightId) =>
+        val io = FightQueryOperations[IO].getFightById(competitionId)(fightId).map(_.map(DtoMapping.toDtoFight))
+          .map(res => QueryServiceResponse().withGetFightByIdResponse(GetFightByIdResponse(res)))
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetFightIdsByCategoryIds(competitionId) =>
+        val io = FightQueryOperations[IO].getFightIdsByCategoryIds(competitionId).map(res =>
+          QueryServiceResponse().withGetFightIdsByCategoryIdsResponse(GetFightIdsByCategoryIdsResponse(
+            res.view.mapValues(ls => ListOfString(ls)).toMap
+          ))
+        )
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetCategory(competitionId, categoryId) =>
+        val io = for {
+          res <- (for {
+            category <- OptionT(CompetitionQueryOperations[IO].getCategoryById(competitionId)(categoryId))
+            periods  <- OptionT.liftF(CompetitionQueryOperations[IO].getPeriodsByCompetitionId(competitionId))
+            categoryStartTimes = createCategoryIdToStartTimeMap(periods)
+            numberOfFights <- OptionT
+              .liftF(FightQueryOperations[IO].getNumberOfFightsForCategory(competitionId)(category.id))
+            numberOfCompetitors <- OptionT
+              .liftF(CompetitionQueryOperations[IO].getNumberOfCompetitorsForCategory(competitionId)(category.id))
+          } yield createCategoryState(
+            competitionId,
+            category,
+            numberOfFights,
+            numberOfCompetitors,
+            categoryStartTimes.get(category.id).map(Timestamps.fromDate).map(Timestamp.fromJavaProto)
+          )).value
+        } yield QueryServiceResponse().withGetCategoryResponse(GetCategoryResponse(res))
+        runEffectAndReply(context, c.replyTo, io)
+
 
       case c @ GetPeriodMats(competitionId, periodId) =>
         val optionRes = for {
@@ -342,54 +356,61 @@ object CompetitionApiActor {
             } yield (matState, competitors, fights.map(DtoMapping.toDtoFight))
           )
         } yield MatsQueryResult(res.flatMap(_._2), res.map(_._1), res.flatMap(_._3))
-        optionRes.value.map(res =>
-          c.replyTo ! QueryServiceResponse().withGetPeriodMatsResponse(GetPeriodMatsResponse(
+        val io = optionRes.value.map(res =>
+          QueryServiceResponse().withGetPeriodMatsResponse(GetPeriodMatsResponse(
             Option(res.getOrElse(MatsQueryResult(List.empty, List.empty)))
           ))
-        ).as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
+        )
+        runEffectAndReply(context, c.replyTo, io)
+
       case c @ GetPeriodFightsByMats(competitionId, periodId, limit) =>
         import cats.implicits._
-        {
-          for {
-            period <- CompetitionQueryOperations[IO].getPeriodById(competitionId)(periodId)
-            mats = period.map(_.mats).getOrElse(List.empty).map(_.matId)
-            fights <- mats
-              .traverse(mat => FightQueryOperations[IO].getFightsByMat(competitionId)(mat, limit).map(mat -> _))
-            _ <- IO {
-              c.replyTo ! QueryServiceResponse().withGetPeriodFightsByMatsResponse(GetPeriodFightsByMatsResponse(
-                fights.map(entry => (entry._1, ListOfString(entry._2.map(_.id)))).toMap
-              ))
+        val io = for {
+          period <- CompetitionQueryOperations[IO].getPeriodById(competitionId)(periodId)
+          mats = period.map(_.mats).getOrElse(List.empty).map(_.matId)
+          fights <- mats
+            .traverse(mat => FightQueryOperations[IO].getFightsByMat(competitionId)(mat, limit).map(mat -> _))
+        } yield QueryServiceResponse().withGetPeriodFightsByMatsResponse(GetPeriodFightsByMatsResponse(fights.map(entry => (entry._1, ListOfString(entry._2.map(_.id)))).toMap))
+        runEffectAndReply(context, c.replyTo, io)
 
-            }
-          } yield Behaviors.same[CompetitionApiCommand]
-        }.unsafeRunSync()
-      case c @ GetFightResulOptions(competitionId, stageId) => {
-          for {
-            stage <- CompetitionQueryOperations[IO].getStageById(competitionId)(stageId)
-            fightResultOptions = stage.flatMap(_.stageResultDescriptor)
-              .map(_.fightResultOptions.map(DtoMapping.toDtoFightResultOption)).getOrElse(List.empty)
-            _ <- IO {
-              c.replyTo ! QueryServiceResponse()
-                .withGetFightResulOptionsResponse(GetFightResulOptionsResponse(fightResultOptions))
-            }
-          } yield Behaviors.same[CompetitionApiCommand]
-        }.unsafeRunSync()
-      case c @ GetStagesForCategory(competitionId, categoryId) => CompetitionQueryOperations[IO]
-          .getStagesByCategory(competitionId)(categoryId).map(res =>
-            c.replyTo ! QueryServiceResponse()
-              .withGetStagesForCategoryResponse(GetStagesForCategoryResponse(res.map(DtoMapping.toDtoStageDescriptor)))
-          ).as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
-      case c @ GetStageById(competitionId, _, stageId) => CompetitionQueryOperations[IO]
-          .getStageById(competitionId)(stageId).map(res =>
-            c.replyTo ! QueryServiceResponse()
-              .withGetStageByIdResponse(GetStageByIdResponse(res.map(DtoMapping.toDtoStageDescriptor)))
-          ).as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
-      case c @ GetStageFights(competitionId, categoryId, stageId) => FightQueryOperations[IO]
-          .getFightsByStage(competitionId)(categoryId, stageId).map(_.map(DtoMapping.toDtoFight))
-          .map(res => c.replyTo ! QueryServiceResponse().withGetStageFightsResponse(GetStageFightsResponse(res)))
-          .as(Behaviors.same[CompetitionApiCommand]).unsafeRunSync()
+      case c @ GetFightResulOptions(competitionId, stageId) =>
+        val io = for {
+          stage <- CompetitionQueryOperations[IO].getStageById(competitionId)(stageId)
+          fightResultOptions = stage.flatMap(_.stageResultDescriptor)
+            .map(_.fightResultOptions.map(DtoMapping.toDtoFightResultOption)).getOrElse(List.empty)
+        } yield QueryServiceResponse().withGetFightResulOptionsResponse(GetFightResulOptionsResponse(fightResultOptions))
+        runEffectAndReply(context, c.replyTo, io)
+      case c @ GetStagesForCategory(competitionId, categoryId) =>
+        val io = CompetitionQueryOperations[IO].getStagesByCategory(competitionId)(categoryId).map(res =>
+          QueryServiceResponse()
+            .withGetStagesForCategoryResponse(GetStagesForCategoryResponse(res.map(DtoMapping.toDtoStageDescriptor)))
+        )
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetStageById(competitionId, _, stageId) =>
+        val io = CompetitionQueryOperations[IO].getStageById(competitionId)(stageId).map(res =>
+          QueryServiceResponse()
+            .withGetStageByIdResponse(GetStageByIdResponse(res.map(DtoMapping.toDtoStageDescriptor)))
+        )
+        runEffectAndReply(context, c.replyTo, io)
+
+      case c @ GetStageFights(competitionId, categoryId, stageId) =>
+        val io = FightQueryOperations[IO].getFightsByStage(competitionId)(categoryId, stageId)
+          .map(_.map(DtoMapping.toDtoFight))
+          .map(res => QueryServiceResponse().withGetStageFightsResponse(GetStageFightsResponse(res)))
+        runEffectAndReply(context, c.replyTo, io)
     }
   }
+
+  private def runEffectAndReply(
+    context: scaladsl.ActorContext[CompetitionApiCommand],
+    replyTo: ActorRef[QueryServiceResponse],
+    io: IO[QueryServiceResponse]
+  )(implicit runtime: IORuntime) = {
+    context.spawn(EffectExecutor.behavior(io, replyTo, 10.seconds), s"Effect-executor-${UUID.randomUUID()}")
+    Behaviors.same[CompetitionApiCommand]
+  }
+
   private def createCategoryIdToStartTimeMap(periods: List[Period]) = {
     periods.flatMap(_.scheduleEntries).flatMap(se => se.categoryIds.map(catId => (catId, se.startTime)))
       .filter(_._2.isDefined).map(pair => (pair._1, pair._2.get))

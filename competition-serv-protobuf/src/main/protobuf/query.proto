@@ -17,6 +17,7 @@ message MatFightsQueryResult {
   repeated FightDescription fights = 2;
 }
 
+
 message PageInfo {
   int32 total = 1;
   int32 page = 2;
@@ -57,6 +58,7 @@ message QueryServiceResponse {
     GetStageFightsResponse         getStageFightsResponse = 24 ;
     GetAcademiesResponse getAcademiesResponse = 25;
     GetAcademyResponse getAcademyResponse = 26;
+    ErrorResponse errorResponse = 27;
   }
 }
 
@@ -132,6 +134,11 @@ message GetStageByIdResponse{
 }
 message GetStageFightsResponse{
   repeated FightDescription fights = 1;
+}
+
+message ErrorResponse {
+  optional string errorMessage = 1;
+  optional string errorReason = 2;
 }
 
 message GetAcademiesResponse {
