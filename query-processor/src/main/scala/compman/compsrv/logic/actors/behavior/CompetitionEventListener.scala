@@ -1,6 +1,10 @@
 package compman.compsrv.logic.actors.behavior
 
-import cats.implicits.catsSyntaxApplicativeError
+import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.scaladsl.Behaviors
+import cats.effect.IO
+import cats.effect.unsafe.IORuntime
+import cats.implicits._
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
   KafkaConsumerApi,
   KafkaSupervisorCommand,
@@ -8,13 +12,10 @@ import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
   PublishMessage
 }
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
-import compman.compsrv.logic.actors._
 import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{
   CompetitionDeletedMessage,
   CompetitionUpdated
 }
-import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model
 import compman.compsrv.model.{Errors, Mapping}
 import compman.compsrv.model.Mapping.EventMapping
@@ -33,68 +34,64 @@ import compman.compsrv.query.service.repository.EventOffsetOperations.EventOffse
 import compservice.model.protobuf.event.Event
 import compservice.model.protobuf.eventpayload.CompetitionPropertiesUpdatedPayload
 import org.mongodb.scala.MongoClient
-import zio.{Cause, Ref, Tag, Task, ZIO}
-import zio.clock.Clock
-import zio.console.Console
-import zio.logging.Logging
+
+import java.util.concurrent.atomic.AtomicReference
+import scala.util.{Failure, Success}
 
 object CompetitionEventListener {
   sealed trait ApiCommand
-  case class KafkaMessageReceived(kafkaMessage: KafkaConsumerApi) extends ApiCommand
-  case object Stop                                                extends ApiCommand
+  case class KafkaMessageReceived(kafkaMessage: KafkaConsumerApi)      extends ApiCommand
+  case class OffsetReceived(offset: EventOffset)                       extends ApiCommand
+  case class Stop(reason: String, throwable: Option[Throwable] = None) extends ApiCommand
 
   trait ActorContext {
-    implicit val eventMapping: Mapping.EventMapping[LIO]
-    implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO]
-    implicit val competitionQueryOperations: CompetitionQueryOperations[LIO]
-    implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO]
-    implicit val fightQueryOperations: FightQueryOperations[LIO]
-    implicit val fightUpdateOperations: FightUpdateOperations[LIO]
-    implicit val eventOffsetService: EventOffsetService[LIO]
+    implicit val eventMapping: Mapping.EventMapping[IO]
+    implicit val competitionQueryOperations: CompetitionQueryOperations[IO]
+    implicit val competitionUpdateOperations: CompetitionUpdateOperations[IO]
+    implicit val fightQueryOperations: FightQueryOperations[IO]
+    implicit val fightUpdateOperations: FightUpdateOperations[IO]
+    implicit val eventOffsetService: EventOffsetService[IO]
+    implicit val runtime: IORuntime = cats.effect.unsafe.IORuntime.global
   }
 
   case class Live(mongoClient: MongoClient, mongodbConfig: MongodbConfig) extends ActorContext {
-    implicit val eventMapping: Mapping.EventMapping[LIO] = model.Mapping.EventMapping.live
-    implicit val loggingLive: CompetitionLogging.Service[LIO] = compman.compsrv.logic.logging.CompetitionLogging.Live
-      .live[Any]
-    implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
+    implicit val eventMapping: Mapping.EventMapping[IO] = model.Mapping.EventMapping.live
+    implicit val competitionQueryOperations: CompetitionQueryOperations[IO] = CompetitionQueryOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
-    implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations
+    implicit val competitionUpdateOperations: CompetitionUpdateOperations[IO] = CompetitionUpdateOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
-    implicit val fightQueryOperations: FightQueryOperations[LIO] = FightQueryOperations
+    implicit val fightQueryOperations: FightQueryOperations[IO] = FightQueryOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
-    implicit val fightUpdateOperations: FightUpdateOperations[LIO] = FightUpdateOperations
+    implicit val fightUpdateOperations: FightUpdateOperations[IO] = FightUpdateOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
-    implicit val eventOffsetService: EventOffsetService[LIO] = EventOffsetOperations
+    implicit val eventOffsetService: EventOffsetService[IO] = EventOffsetOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
   }
 
   case class Test(
-    competitionProperties: Option[Ref[Map[String, CompetitionProperties]]] = None,
-    categories: Option[Ref[Map[String, Category]]] = None,
-    competitors: Option[Ref[Map[String, Competitor]]] = None,
-    fights: Option[Ref[Map[String, Fight]]] = None,
-    periods: Option[Ref[Map[String, Period]]] = None,
-    registrationInfo: Option[Ref[Map[String, RegistrationInfo]]] = None,
-    stages: Option[Ref[Map[String, StageDescriptor]]] = None
+    competitionProperties: Option[AtomicReference[Map[String, CompetitionProperties]]] = None,
+    categories: Option[AtomicReference[Map[String, Category]]] = None,
+    competitors: Option[AtomicReference[Map[String, Competitor]]] = None,
+    fights: Option[AtomicReference[Map[String, Fight]]] = None,
+    periods: Option[AtomicReference[Map[String, Period]]] = None,
+    registrationInfo: Option[AtomicReference[Map[String, RegistrationInfo]]] = None,
+    stages: Option[AtomicReference[Map[String, StageDescriptor]]] = None
   ) extends ActorContext {
-    implicit val eventMapping: Mapping.EventMapping[LIO] = model.Mapping.EventMapping.live
-    implicit val loggingLive: CompetitionLogging.Service[LIO] = compman.compsrv.logic.logging.CompetitionLogging.Live
-      .live[Any]
-    implicit val competitionQueryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
+    implicit val eventMapping: Mapping.EventMapping[IO] = model.Mapping.EventMapping.live
+    implicit val competitionQueryOperations: CompetitionQueryOperations[IO] = CompetitionQueryOperations
       .test(competitionProperties, registrationInfo, categories, competitors, periods, stages)
-    implicit val competitionUpdateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations
+    implicit val competitionUpdateOperations: CompetitionUpdateOperations[IO] = CompetitionUpdateOperations
       .test(competitionProperties, registrationInfo, categories, competitors, periods, stages)
-    implicit val fightUpdateOperations: FightUpdateOperations[LIO] = FightUpdateOperations.test(fights)
-    implicit val fightQueryOperations: FightQueryOperations[LIO]   = FightQueryOperations.test(fights, stages)
-    implicit val eventOffsetService: EventOffsetService[LIO]       = EventOffsetOperations.test
+    implicit val fightUpdateOperations: FightUpdateOperations[IO] = FightUpdateOperations.test(fights)
+    implicit val fightQueryOperations: FightQueryOperations[IO]   = FightQueryOperations.test(fights, stages)
+    implicit val eventOffsetService: EventOffsetService[IO]       = EventOffsetOperations.test
   }
 
   private[behavior] case class ActorState()
 
   val initialState: ActorState = ActorState()
 
-  def behavior[R: Tag](
+  def behavior(
     competitionId: String,
     topic: String,
     callbackTopic: String,
@@ -102,46 +99,45 @@ object CompetitionEventListener {
     kafkaSupervisorActor: ActorRef[KafkaSupervisorCommand],
     competitionEventListenerSupervisor: ActorRef[CompetitionEventListenerSupervisor.ActorMessages],
     websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
-  ): ActorBehavior[R with Logging with Clock with Console, ActorState, ApiCommand] = {
-    def notifyEventListenerSupervisor(topic: String, event: Event, mapped: Events.Event[Any]): Task[Unit] = {
+  ): Behavior[ApiCommand] = {
+    import context._
+    def notifyEventListenerSupervisor(topic: String, event: Event, mapped: Events.Event[Any]): IO[Unit] = {
       mapped match {
         case CompetitionCreatedEvent(_, _, _, _) => for {
-            payload <- ZIO.fromOption(event.messageInfo.flatMap(_.payload.competitionCreatedPayload))
-              .orElseFail(new Exception("No Payload"))
-            _ <- competitionEventListenerSupervisor ! CompetitionUpdated(
-              CompetitionPropertiesUpdatedPayload().update(_.properties.setIfDefined(payload.properties)),
-              topic
-            )
+            payload <- IO
+              .fromOption(event.messageInfo.flatMap(_.payload.competitionCreatedPayload))(new Exception("No Payload"))
+            _ <- IO {
+              competitionEventListenerSupervisor ! CompetitionUpdated(
+                CompetitionPropertiesUpdatedPayload().update(_.properties.setIfDefined(payload.properties)),
+                topic
+              )
+            }
           } yield ()
         case _: CompetitionPropertiesUpdatedEvent => for {
-            payload <- ZIO.fromOption(event.messageInfo.flatMap(_.payload.competitionPropertiesUpdatedPayload))
-              .orElseFail(new Exception("No Payload"))
-            _ <- competitionEventListenerSupervisor ! CompetitionUpdated(payload, topic)
+            payload <- IO
+              .fromOption(event.messageInfo.flatMap(_.payload.competitionPropertiesUpdatedPayload))(new Exception(
+                "No Payload"
+              ))
+            _ <- IO { competitionEventListenerSupervisor ! CompetitionUpdated(payload, topic) }
           } yield ()
         case CompetitionDeletedEvent(competitionId, _) => for {
-            id <- ZIO.fromOption(competitionId).orElseFail(new Exception("No Competition ID"))
-            _  <- competitionEventListenerSupervisor ! CompetitionDeletedMessage(id)
+            id <- IO.fromOption(competitionId)(new Exception("No Competition ID"))
+            _  <- IO { competitionEventListenerSupervisor ! CompetitionDeletedMessage(id) }
           } yield ()
-        case _ => ZIO.unit
+        case _ => IO.unit
       }
     }
 
-    import Behaviors._
-    import context._
-    import zio.interop.catz._
-
-    def sendSuccessfulExecutionCallbacks(event: Event) = {
-      for {
-        _ <- websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)
-        _ <- kafkaSupervisorActor ! PublishMessage(Commands.createSuccessCallbackMessageParameters(
-          callbackTopic,
-          Commands.correlationId(event).get,
-          event.numberOfEventsInBatch
-        ))
-      } yield ()
+    def sendSuccessfulExecutionCallbacks(event: Event): Unit = {
+      kafkaSupervisorActor ! PublishMessage(Commands.createSuccessCallbackMessageParameters(
+        callbackTopic,
+        Commands.correlationId(event).get,
+        event.numberOfEventsInBatch
+      ))
+      websocketConnectionSupervisor ! WebsocketConnectionSupervisor.EventReceived(event)
     }
 
-    def sendErrorCallback(event: Event, value: Throwable) = {
+    def sendErrorCallback(event: Event, value: Throwable): Unit = {
       kafkaSupervisorActor ! PublishMessage(Commands.createErrorCommandCallbackMessageParameters(
         callbackTopic,
         Commands.correlationId(event),
@@ -149,51 +145,60 @@ object CompetitionEventListener {
       ))
     }
 
-    Behaviors.behavior[R with Logging with Clock with Console, ActorState, ApiCommand].withReceive {
-      (context, _, state, command, _) =>
-        {
-          command match {
-            case KafkaMessageReceived(kafkaMessage) => kafkaMessage match {
-                case KafkaSupervisor.QueryStarted()   => Logging.info("Kafka query started.").as(state)
-                case KafkaSupervisor.QueryFinished(_) => Logging.info("Kafka query finished.").as(state)
-                case KafkaSupervisor.QueryError(error) => Logging.error("Error during kafka query: ", Cause.fail(error))
-                    .as(state)
-                case MessageReceived(topic, record) => {
-                    for {
-                      event  <- ZIO.effect(Event.parseFrom(record.value))
-                      mapped <- EventMapping.mapEventDto[LIO](event)
-                      _      <- Logging.info(s"Received event: $mapped")
-                      res    <- EventProcessors.applyEvent[LIO](mapped).attempt
-                      _      <- notifyEventListenerSupervisor(topic, event, mapped)
-                      _ <- res match {
-                        case Left(value) => sendErrorCallback(event, value)
-                        case Right(_) => for {
-                            _ <-
-                            (Logging.info(
-                              s"Sending callback, correlation ID is ${event.messageInfo.flatMap(_.correlationId)}"
-                            ) *> sendSuccessfulExecutionCallbacks(event))
-                              .when(event.localEventNumber == event.numberOfEventsInBatch - 1)
-                          } yield ()
+    Behaviors.setup[ApiCommand] { ctx =>
+      val adapter = ctx.messageAdapter[KafkaConsumerApi](fa => KafkaMessageReceived(fa))
+      ctx.pipeToSelf(EventOffsetOperations.getOffset[IO](topic).unsafeToFuture()) {
+        case Failure(exception) => Stop(exception.getMessage, Some(exception))
+        case Success(value)     => OffsetReceived(value.getOrElse(EventOffset(topic, 0)))
+      }
+
+      val groupId = s"query-service-$competitionId"
+      Behaviors.receiveMessage {
+        case OffsetReceived(offset) =>
+          kafkaSupervisorActor !
+            KafkaSupervisor.QueryAndSubscribe(topic, groupId, adapter, startOffset = Some(offset.offset))
+          Behaviors.same
+        case KafkaMessageReceived(kafkaMessage) => kafkaMessage match {
+            case KafkaSupervisor.QueryStarted() =>
+              ctx.log.info("Kafka query started.")
+              Behaviors.same
+            case KafkaSupervisor.QueryFinished(_) =>
+              ctx.log.info("Kafka query finished.")
+              Behaviors.same
+            case KafkaSupervisor.QueryError(error) =>
+              ctx.log.error("Error during kafka query: ", error)
+              Behaviors.same
+
+            case MessageReceived(topic, record) =>
+              (for {
+                event  <- IO(Event.parseFrom(record.value))
+                mapped <- EventMapping.mapEventDto[IO](event)
+                _      <- IO(ctx.log.info(s"Received event: $mapped"))
+                res    <- EventProcessors.applyEvent[IO](mapped).attempt
+                _      <- notifyEventListenerSupervisor(topic, event, mapped)
+                _ <- IO {
+                  res match {
+                    case Left(value) => sendErrorCallback(event, value)
+                    case Right(_) =>
+                      ctx.log.info(s"Sending callback, correlation ID is ${event.messageInfo.flatMap(_.correlationId)}")
+                      if (event.localEventNumber == event.numberOfEventsInBatch - 1) {
+                        sendSuccessfulExecutionCallbacks(event)
                       }
-                      competitionDeleted = mapped.isInstanceOf[CompetitionDeletedEvent]
-                      _ <-
-                        if (competitionDeleted) EventOffsetOperations.deleteOffset[LIO](topic)
-                        else EventOffsetOperations.setOffset[LIO](EventOffset(topic, record.offset.offset))
-                      _ <- (context.self ! Stop).when(competitionDeleted)
-                    } yield state
-                  }.onError(cause => logError(cause.squash))
-              }
-            case Stop => Logging.info("Received stop command. Stopping...") *> context.stopSelf.as(state)
+                  }
+                }
+                competitionDeleted = mapped.isInstanceOf[CompetitionDeletedEvent]
+                _ <-
+                  if (competitionDeleted) EventOffsetOperations.deleteOffset[IO](topic)
+                  else EventOffsetOperations.setOffset[IO](EventOffset(topic, record.offset))
+                _ <- IO(ctx.self ! Stop("Competition was deleted. Stopping")).whenA(competitionDeleted)
+              } yield ()).unsafeRunSync()
+              Behaviors.same
           }
-        }
-    }.withInit { (_, context, initState, _) =>
-      for {
-        adapter <- context.messageAdapter[KafkaConsumerApi](fa => Some(KafkaMessageReceived(fa)))
-        offset  <- EventOffsetOperations.getOffset[LIO](topic)
-        groupId = s"query-service-$competitionId"
-        _ <- kafkaSupervisorActor !
-          KafkaSupervisor.Subscribe(topic, groupId, adapter, startOffset = offset.map(_.offset).orElse(Some(0L)))
-      } yield (Seq(), Seq.empty[ApiCommand], initState)
+        case Stop(reason, throwable) => Behaviors.stopped { () =>
+            ctx.log.info(s"Received stop command. Stopping because $reason")
+            throwable.foreach(t => ctx.log.error(s"Received an exception with the stop command:", t))
+          }
+      }
     }
   }
 }

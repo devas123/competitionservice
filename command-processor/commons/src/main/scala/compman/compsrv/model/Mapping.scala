@@ -1,6 +1,7 @@
 package compman.compsrv.model
 
 import cats.Monad
+import cats.effect.IO
 import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.command.Commands
 import compman.compsrv.model.event.Events
@@ -340,10 +341,7 @@ object Mapping {
 
     def create[F[+_]: Monad]: EventMapping[F] = (dto: Event) => Monad[F].pure { mapEvent(dto) }
 
-    val live: EventMapping[LIO] = {
-      import zio.interop.catz._
-      create[LIO]
-    }
+    val live: EventMapping[IO] = create[IO]
 
     def mapEventDto[F[+_]: EventMapping](dto: Event): F[Events.Event[Any]] = EventMapping[F].mapEventDto(dto)
   }
