@@ -3,7 +3,6 @@ package compman.compsrv.logic.actors.behavior
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import akka.actor.typed.scaladsl.Behaviors
 import cats.effect.IO
-import cats.effect.unsafe.IORuntime
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, QueryAndSubscribe}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors.behavior.CompetitionEventListener.Stop
@@ -30,9 +29,8 @@ object CompetitionEventListenerSupervisor {
   case class KafkaNotification(msg: String)                                                      extends ActorMessages
   case class CompetitionEventListenerStopped(id: String)                                         extends ActorMessages
 
-  trait ActorContext {
+  trait ActorContext  extends WithIORuntime {
     implicit val managedCompetitionsOperations: ManagedCompetitionService[IO]
-    implicit val runtime: IORuntime = cats.effect.unsafe.IORuntime.global
   }
 
   case class Live(mongoclient: MongoClient, mongoConfig: MongodbConfig) extends ActorContext {

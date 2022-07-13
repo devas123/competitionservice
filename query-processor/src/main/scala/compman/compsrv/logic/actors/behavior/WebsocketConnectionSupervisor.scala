@@ -1,21 +1,26 @@
 package compman.compsrv.logic.actors.behavior
 
+import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.scaladsl.Behaviors
 import cats.effect.std.Queue
 import cats.effect.IO
 import compservice.model.protobuf.event.Event
-import zio.{Tag, Task}
-import zio.clock.Clock
-import zio.console.Console
-import zio.logging.Logging
+import fs2.concurrent.SignallingRef
 
 object WebsocketConnectionSupervisor {
 
   sealed trait ApiCommand
 
-  final case class WebsocketConnectionRequest(clientId: String, competitionId: String, queue: Queue[IO, Event])
-      extends ApiCommand
+  final case class WebsocketConnectionRequest(
+    clientId: String,
+    competitionId: String,
+    queue: Queue[IO, Event],
+    terminatedSignal: SignallingRef[IO, Boolean]
+  ) extends ApiCommand
 
   final case class WebsocketConnectionClosed(clientId: String, competitionId: String) extends ApiCommand
+
+  final case class WebsocketCompetitionSupervisorStopped(competitionId: String) extends ApiCommand
 
   final case class EventReceived(event: Event) extends ApiCommand
 
@@ -23,53 +28,36 @@ object WebsocketConnectionSupervisor {
 
   private val CONNECTION_HANDLER_PREFIX = "ConnectionHandler-"
 
-  val initialState: ActorState = ActorState()
-  def behavior[R: Tag]: ActorBehavior[R with Logging with Clock with Console, ActorState, ApiCommand] = Behaviors
-    .behavior[R with Logging with Clock with Console, ActorState, ApiCommand].withReceive { (context, _, state, command, _) =>
-      {
-        for {
-          res <- command match {
-            case EventReceived(event) =>
-              val competitionId = event.messageInfo.map(_.competitionId).get
-              val handlerName   = CONNECTION_HANDLER_PREFIX + competitionId
-              for {
-                childOption <- context.findChild[WebsocketConnection.ApiCommand](handlerName)
-                _ <- childOption match {
-                  case Some(value) => Logging.info(s"Forwarding event $event to ws") *>
-                      (value ! WebsocketConnection.ReceivedEvent(event))
-                  case None => Logging.info(s"Did not find any ws connection for competition $competitionId")
-                }
-              } yield state
-            case WebsocketConnectionRequest(clientId, competitionId, queue) =>
-              val handlerName = CONNECTION_HANDLER_PREFIX + competitionId
-              for {
-                _ <- Logging.info(s"New connection request for competition $competitionId, client id: $clientId")
-                childOption <- context.findChild[WebsocketConnection.ApiCommand](handlerName)
-                child <- childOption match {
-                  case Some(value) => Task(value)
-                  case None => for {
-                      c <- context.make(
-                        handlerName,
-                        ActorConfig(),
-                        WebsocketConnection.initialState,
-                        WebsocketConnection.behavior
-                      )
-                    } yield c
-                }
-                _ <- child ! WebsocketConnection.AddWebSocketConnection(clientId, queue)
-              } yield state
-            case WebsocketConnectionClosed(clientId, competitionId) =>
-              val handlerName = CONNECTION_HANDLER_PREFIX + competitionId
-              for {
-                _           <- Logging.info(s"Websocket connection closed for $competitionId, client id: $clientId")
-                childOption <- context.findChild[WebsocketConnection.ApiCommand](handlerName)
-                _ <- childOption match {
-                  case Some(child) => child ! WebsocketConnection.WebSocketConnectionTerminated(clientId)
-                  case None        => Task.unit
-                }
-              } yield state
-          }
-        } yield res
-      }
+  def behavior(
+    competitionConnectionHandlers: Map[String, ActorRef[WebsocketCompetitionConnectionSupervisor.ApiCommand]] =
+      Map.empty
+  ): Behavior[ApiCommand] = Behaviors.setup { context =>
+    def createNewCompetitionWsSupervisor(competitionId: String, handlerName: String) = {
+      val actor = context.spawn(WebsocketCompetitionConnectionSupervisor.behavior(competitionId), handlerName)
+      context.watchWith(actor, WebsocketCompetitionSupervisorStopped(competitionId))
+      actor
     }
+
+    Behaviors.receiveMessage {
+      case EventReceived(event) =>
+        val competitionId = event.messageInfo.flatMap(_.competitionId).get
+        competitionConnectionHandlers.get(competitionId)
+          .foreach(h => h ! WebsocketCompetitionConnectionSupervisor.ReceivedEvent(event))
+        Behaviors.same
+      case WebsocketConnectionRequest(clientId, competitionId, queue, terminatedSignal) =>
+        val handlerName = CONNECTION_HANDLER_PREFIX + competitionId
+        context.log.info(s"New connection request for competition $competitionId, client id: $clientId")
+        val handler = competitionConnectionHandlers
+          .getOrElse(competitionId, createNewCompetitionWsSupervisor(competitionId, handlerName))
+        handler ! WebsocketCompetitionConnectionSupervisor.AddWebSocketConnection(clientId, queue, terminatedSignal)
+        behavior(competitionConnectionHandlers + (competitionId -> handler))
+      case WebsocketConnectionClosed(clientId, competitionId) =>
+        context.log.info(s"Websocket connection closed for $competitionId, client id: $clientId")
+        competitionConnectionHandlers.get(competitionId)
+          .foreach(h => h ! WebsocketCompetitionConnectionSupervisor.WebSocketConnectionTerminated(clientId))
+        Behaviors.same
+      case WebsocketCompetitionSupervisorStopped(competitionId) =>
+        behavior(competitionConnectionHandlers - competitionId)
+    }
+  }
 }

@@ -3,7 +3,7 @@ package compman.compsrv.logic.actors.behavior.api
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import cats.effect.IO
-import cats.effect.unsafe.IORuntime
+import compman.compsrv.logic.actors.behavior.WithIORuntime
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.{AcademyOperations, Pagination}
@@ -19,9 +19,8 @@ object AcademyApiActor {
       .live(mongoClient, mongodbConfig.queryDatabaseName)
   }
 
-  trait ActorContext {
+  trait ActorContext extends WithIORuntime {
     implicit val academyService: AcademyService[IO]
-    implicit val runtime: IORuntime = cats.effect.unsafe.IORuntime.global
   }
 
   sealed trait AcademyApiCommand {

@@ -7,17 +7,13 @@ import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import com.google.protobuf.timestamp.Timestamp
 import com.google.protobuf.util.Timestamps
+import compman.compsrv.logic.actors.behavior.WithIORuntime
 import compman.compsrv.logic.category.CategoryGenerateService
 import compman.compsrv.logic.fight.FightResultOptionConstants
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.mapping.DtoMapping
-import compman.compsrv.query.service.repository.{
-  CompetitionQueryOperations,
-  FightQueryOperations,
-  ManagedCompetitionsOperations,
-  Pagination
-}
+import compman.compsrv.query.service.repository.{CompetitionQueryOperations, FightQueryOperations, ManagedCompetitionsOperations, Pagination}
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
 import compservice.model.protobuf.model
 import compservice.model.protobuf.query.{MatFightsQueryResult, MatsQueryResult, _}
@@ -55,11 +51,10 @@ object CompetitionApiActor {
       .test[IO](competitions)
   }
 
-  trait ActorContext {
+  trait ActorContext extends WithIORuntime {
     implicit val competitionQueryOperations: CompetitionQueryOperations[IO]
     implicit val fightQueryOperations: FightQueryOperations[IO]
     implicit val managedCompetitionService: ManagedCompetitionService[IO]
-    implicit val runtime: IORuntime = cats.effect.unsafe.IORuntime.global
   }
 
   sealed trait CompetitionApiCommand {
@@ -407,7 +402,7 @@ object CompetitionApiActor {
     replyTo: ActorRef[QueryServiceResponse],
     io: IO[QueryServiceResponse]
   )(implicit runtime: IORuntime) = {
-    context.spawn(EffectExecutor.behavior(io, replyTo, 10.seconds), s"Effect-executor-${UUID.randomUUID()}")
+    context.spawn(QueryServiceRequestEffectExecutor.behavior(io, replyTo, 10.seconds), s"Effect-executor-${UUID.randomUUID()}")
     Behaviors.same[CompetitionApiCommand]
   }
 

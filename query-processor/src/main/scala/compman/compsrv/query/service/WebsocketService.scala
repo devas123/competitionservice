@@ -6,6 +6,7 @@ import cats.effect.{std, IO}
 import compman.compsrv.logic.actors.behavior.WebsocketConnectionSupervisor
 import compman.compsrv.query.service.QueryHttpApiService.ServiceIO
 import compservice.model.protobuf.event.Event
+import fs2.concurrent.SignallingRef
 import org.http4s.HttpRoutes
 import org.http4s.dsl.Http4sDsl
 import org.http4s.server.websocket.WebSocketBuilder
@@ -28,7 +29,9 @@ object WebsocketService {
     for {
       queue <- std.Queue.dropping[IO, Event](100)
       clientId = UUID.randomUUID().toString
+      completed <- SignallingRef.of[ServiceIO, Boolean](false)
       fs2S     = fs2.Stream.fromQueueUnterminated(queue)
+        .interruptWhen(completed)
       ws <- WebSocketBuilder[ServiceIO].build(
         fs2S.map(event => WebSocketFrame.Binary(ByteVector(event.toByteArray))),
         s =>
@@ -50,7 +53,7 @@ object WebsocketService {
       _ <- IO {
         websocketConnectionHandler !
           WebsocketConnectionSupervisor
-            .WebsocketConnectionRequest(clientId = clientId, competitionId = competitionId, queue = queue)
+            .WebsocketConnectionRequest(clientId = clientId, competitionId = competitionId, queue = queue, terminatedSignal = completed)
       }
     } yield ws
   }

@@ -2,7 +2,6 @@ package compman.compsrv.logic.actors.behavior
 
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
-import cats.effect.unsafe.IORuntime
 import cats.effect.IO
 import cats.implicits.catsSyntaxApplicative
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, MessageReceived, PublishMessage}
@@ -24,10 +23,9 @@ object StatelessEventListener {
   case class EventReceived(kafkaMessage: KafkaConsumerApi) extends ApiCommand
   case object Stop                                         extends ApiCommand
 
-  trait StatelessEventListenerContext {
+  trait StatelessEventListenerContext extends WithIORuntime {
     implicit val eventMapping: Mapping.EventMapping[IO]
     implicit val academyService: AcademyService[IO]
-    implicit val runtime: IORuntime = cats.effect.unsafe.IORuntime.global
   }
 
   case class Live(mongoClient: MongoClient, mongodbConfig: MongodbConfig) extends StatelessEventListenerContext {

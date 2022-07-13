@@ -3,29 +3,16 @@ package compman.compsrv.logic.actors.behavior
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import cats.effect.IO
-import cats.effect.unsafe.IORuntime
 import cats.implicits._
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
-  KafkaConsumerApi,
-  KafkaSupervisorCommand,
-  MessageReceived,
-  PublishMessage
-}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, MessageReceived, PublishMessage}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
-import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{
-  CompetitionDeletedMessage,
-  CompetitionUpdated
-}
+import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{CompetitionDeletedMessage, CompetitionUpdated}
 import compman.compsrv.model
 import compman.compsrv.model.{Errors, Mapping}
 import compman.compsrv.model.Mapping.EventMapping
 import compman.compsrv.model.command.Commands
 import compman.compsrv.model.event.Events
-import compman.compsrv.model.event.Events.{
-  CompetitionCreatedEvent,
-  CompetitionDeletedEvent,
-  CompetitionPropertiesUpdatedEvent
-}
+import compman.compsrv.model.event.Events.{CompetitionCreatedEvent, CompetitionDeletedEvent, CompetitionPropertiesUpdatedEvent}
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.service.event.EventProcessors
@@ -44,14 +31,13 @@ object CompetitionEventListener {
   case class OffsetReceived(offset: EventOffset)                       extends ApiCommand
   case class Stop(reason: String, throwable: Option[Throwable] = None) extends ApiCommand
 
-  trait ActorContext {
+  trait ActorContext extends WithIORuntime {
     implicit val eventMapping: Mapping.EventMapping[IO]
     implicit val competitionQueryOperations: CompetitionQueryOperations[IO]
     implicit val competitionUpdateOperations: CompetitionUpdateOperations[IO]
     implicit val fightQueryOperations: FightQueryOperations[IO]
     implicit val fightUpdateOperations: FightUpdateOperations[IO]
     implicit val eventOffsetService: EventOffsetService[IO]
-    implicit val runtime: IORuntime = cats.effect.unsafe.IORuntime.global
   }
 
   case class Live(mongoClient: MongoClient, mongodbConfig: MongodbConfig) extends ActorContext {

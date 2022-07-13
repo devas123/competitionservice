@@ -9,15 +9,15 @@ import compservice.model.protobuf.query.{ErrorResponse, QueryServiceResponse}
 import scala.concurrent.duration.FiniteDuration
 import scala.util.{Failure, Success, Try}
 
-object EffectExecutor {
+object QueryServiceRequestEffectExecutor {
 
-  sealed trait EffectExecutorCommand
-  final case class ExecutionFinished(result: Try[QueryServiceResponse]) extends EffectExecutorCommand
-  object Timeout                                                        extends EffectExecutorCommand
+  sealed trait QueryServiceRequestEffectExecutorCommand
+  final case class ExecutionFinished(result: Try[QueryServiceResponse]) extends QueryServiceRequestEffectExecutorCommand
+  object Timeout                                                        extends QueryServiceRequestEffectExecutorCommand
 
   def behavior(effect: IO[QueryServiceResponse], replyTo: ActorRef[QueryServiceResponse], timeout: FiniteDuration)(
     implicit runtime: IORuntime
-  ): Behavior[EffectExecutorCommand] = Behaviors.setup { ctx =>
+  ): Behavior[QueryServiceRequestEffectExecutorCommand] = Behaviors.setup { ctx =>
     ctx.pipeToSelf(effect.unsafeToFuture())(ExecutionFinished)
     Behaviors.withTimers { timers =>
       timers.startSingleTimer("Timeout", Timeout, timeout)
