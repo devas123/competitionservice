@@ -1,6 +1,7 @@
 package compman.compsrv.query.service.repository
 
 import cats.Monad
+import cats.implicits._
 import cats.effect.IO
 import compman.compsrv.query.model.academy.FullAcademyInfo
 import org.mongodb.scala.{MongoClient, MongoCollection}
@@ -21,14 +22,14 @@ object AcademyOperations {
       }
 
       override def addAcademy(competition: FullAcademyInfo): F[Unit] = {
-        Monad[F].pure(academies.updateAndGet(m => m + (competition.id -> competition)))
+        Monad[F].pure(academies.updateAndGet(m => m + (competition.id -> competition))).void
       }
 
-      override def deleteAcademy(id: String): F[Unit] = Monad[F].pure { academies.updateAndGet(m => m - id) }
+      override def deleteAcademy(id: String): F[Unit] = Monad[F].pure { academies.updateAndGet(m => m - id) }.void
       override def getAcademy(id: String): F[Option[FullAcademyInfo]] = Monad[F].pure { academies.get.get(id) }
 
       override def updateAcademy(c: FullAcademyInfo): F[Unit] = Monad[F]
-        .pure(academies.updateAndGet(m => m.updatedWith(c.id)(_.map(_.copy(name = c.name, coaches = c.coaches)))))
+        .pure(academies.updateAndGet(m => m.updatedWith(c.id)(_.map(_.copy(name = c.name, coaches = c.coaches))))).void
     }
 
   def live(mongo: MongoClient, name: String): AcademyService[IO] =
@@ -58,7 +59,7 @@ object AcademyOperations {
       override def addAcademy(academy: FullAcademyInfo): IO[Unit] =
         insertElement(academyCollection)(academy.id, academy)
 
-      override def deleteAcademy(id: String): IO[Unit] = deleteById(academyCollection)(id)
+      override def deleteAcademy(id: String): IO[Unit] = deleteByField(academyCollection)(id)
 
       override def updateAcademy(academy: FullAcademyInfo): IO[Unit] = {
         for {
@@ -79,7 +80,7 @@ object AcademyOperations {
 
     }
 
-  trait AcademyService[F[+_]] {
+  trait AcademyService[F[_]] {
     def getAcademies(
       searchString: Option[String],
       pagination: Option[Pagination]
@@ -91,16 +92,16 @@ object AcademyOperations {
   }
 
   object AcademyService {
-    def apply[F[+_]](implicit F: AcademyService[F]): AcademyService[F] = F
+    def apply[F[_]](implicit F: AcademyService[F]): AcademyService[F] = F
   }
 
-  def getAcademy[F[+_]: AcademyService](id: String): F[Option[FullAcademyInfo]] = AcademyService[F].getAcademy(id)
-  def getAcademies[F[+_]: AcademyService](
+  def getAcademy[F[_]: AcademyService](id: String): F[Option[FullAcademyInfo]] = AcademyService[F].getAcademy(id)
+  def getAcademies[F[_]: AcademyService](
     searchString: Option[String],
     pagination: Option[Pagination]
   ): F[(List[FullAcademyInfo], Pagination)] = AcademyService[F].getAcademies(searchString, pagination)
-  def addAcademy[F[+_]: AcademyService](competition: FullAcademyInfo): F[Unit] = AcademyService[F]
+  def addAcademy[F[_]: AcademyService](competition: FullAcademyInfo): F[Unit] = AcademyService[F]
     .addAcademy(competition)
-  def updateAcademy[F[+_]: AcademyService](c: FullAcademyInfo): F[Unit] = AcademyService[F].updateAcademy(c)
-  def deleteAcademy[F[+_]: AcademyService](id: String): F[Unit]         = AcademyService[F].deleteAcademy(id)
+  def updateAcademy[F[_]: AcademyService](c: FullAcademyInfo): F[Unit] = AcademyService[F].updateAcademy(c)
+  def deleteAcademy[F[_]: AcademyService](id: String): F[Unit]         = AcademyService[F].deleteAcademy(id)
 }

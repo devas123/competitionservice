@@ -56,9 +56,9 @@ trait CompetitionQueryOperations[F[+_]] {
 }
 
 object CompetitionQueryOperations {
-  def apply[F[_]](implicit F: CompetitionQueryOperations[F]): CompetitionQueryOperations[F] = F
+  def apply[F[+_]](implicit F: CompetitionQueryOperations[F]): CompetitionQueryOperations[F] = F
 
-  def test[F[_]: Monad](
+  def test[F[+_]: Monad](
     competitionProperties: Option[AtomicReference[Map[String, CompetitionProperties]]] = None,
     registrationInfo: Option[AtomicReference[Map[String, RegistrationInfo]]] = None,
     categories: Option[AtomicReference[Map[String, Category]]] = None,
@@ -80,14 +80,14 @@ object CompetitionQueryOperations {
     override def getCompetitionInfoTemplate(competitionId: String): F[Option[CompetitionInfoTemplate]] =
       getCompetitionProperties(competitionId).map(_.map(_.infoTemplate))
 
-    override def getCategoryById(competitionId: String)(id: String): F[Option[Category]] = getById(categories)(id)
+    override def getCategoryById(competitionId: String)(id: String): F[Option[Category]] = getById[F, Category](categories)(id)
 
     override def searchCategory(
       competitionId: String
     )(searchString: String, pagination: Option[Pagination]): F[(List[Category], Pagination)] =
       getCategoriesByCompetitionId(competitionId).map(cats => (cats, Pagination(0, cats.size, cats.size)))
 
-    override def getCompetitorById(competitionId: String)(id: String): F[Option[Competitor]] = getById(competitors)(id)
+    override def getCompetitorById(competitionId: String)(id: String): F[Option[Competitor]] = getById[F, Competitor](competitors)(id)
 
     override def getCompetitorsByCategoryId(competitionId: String)(
       categoryId: String,
@@ -118,12 +118,12 @@ object CompetitionQueryOperations {
     ): F[(List[Competitor], Pagination)] = competitors match {
       case Some(value) =>
         val list = value.get.values.toList.filter(_.academy.exists(_.academyId == academyId))
-        Monad[F].pure(list, Pagination(0, list.size, list.size))
+        Monad[F].pure((list, Pagination(0, list.size, list.size)))
       case None => Monad[F].pure((List.empty, Pagination(0, 0, 0)))
     }
 
     override def getRegistrationInfo(competitionId: String): F[Option[RegistrationInfo]] =
-      getById(registrationInfo)(competitionId)
+      getById[F, RegistrationInfo](registrationInfo)(competitionId)
 
     override def getScheduleEntriesByPeriodId(competitionId: String)(periodId: String): F[List[ScheduleEntry]] =
       getPeriodById(competitionId)(periodId).map(_.map(_.scheduleEntries).getOrElse(List.empty))
@@ -138,12 +138,12 @@ object CompetitionQueryOperations {
       case None        => Monad[F].pure(List.empty)
     }
 
-    override def getPeriodById(competitionId: String)(id: String): F[Option[Period]] = getById(periods)(id)
+    override def getPeriodById(competitionId: String)(id: String): F[Option[Period]] = getById[F, Period](periods)(id)
 
     override def getStagesByCategory(competitionId: String)(categoryId: String): F[List[StageDescriptor]] =
-      getStagesByCategory(stages)(competitionId)(categoryId)
+      getStagesByCategory[F](stages)(competitionId)(categoryId)
 
-    override def getStageById(competitionId: String)(id: String): F[Option[StageDescriptor]] = getById(stages)(id)
+    override def getStageById(competitionId: String)(id: String): F[Option[StageDescriptor]] = getById[F, StageDescriptor](stages)(id)
 
     override def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): F[Int] = (for {
       cmtrs <- competitors

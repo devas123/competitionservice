@@ -24,37 +24,37 @@ trait FightUpdateOperations[F[+_]] {
   def removeFight(competitionId: String)(id: String): F[Unit]
   def removeFights(competitionId: String)(ids: List[String]): F[Unit]
   def removeFightsForCategory(competitionId: String)(categoryId: String): F[Unit]
-  def removeFightsForCompetition(competitionId: String): F[Unit]
+  def removeFightsByCompetitionId(competitionId: String): F[Unit]
 }
 
 object FightUpdateOperations {
   def apply[F[+_]](implicit F: FightUpdateOperations[F]): FightUpdateOperations[F] = F
 
-  def test[F[_]: Monad](fights: Option[AtomicReference[Map[String, Fight]]] = None): FightUpdateOperations[F] =
+  def test[F[+_]: Monad](fights: Option[AtomicReference[Map[String, Fight]]] = None): FightUpdateOperations[F] =
     new FightUpdateOperations[F] with CommonTestOperations {
       override def removeFightsForCategory(competitionId: String)(categoryId: String): F[Unit] = Monad[F]
         .pure(fights.foreach(_.updateAndGet(fs => fs.filter(f => f._2.categoryId != categoryId))))
 
       override def updateFightStartTime(fights: List[FightStartTimeUpdate]): F[Unit] = updateFightScores(List.empty)
-      override def addFight(fight: Fight): F[Unit] = add(fights)(fight.id)(Some(fight))
+      override def addFight(fight: Fight): F[Unit] = add[F, Fight](fights)(fight.id)(Some(fight))
 
       override def addFights(fights: List[Fight]): F[Unit] = fights.traverse(addFight).map(_ => ())
 
-      override def updateFight(fight: Fight): F[Unit] = update(fights)(fight.id)(_ => fight)
+      override def updateFight(fight: Fight): F[Unit] = update[F, Fight](fights)(fight.id)(_ => fight)
 
       override def updateFightScores(fights: List[Fight]): F[Unit] = fights.traverse(updateFight).map(_ => ())
 
-      override def removeFight(competitionId: String)(id: String): F[Unit] = remove(fights)(id)
+      override def removeFight(competitionId: String)(id: String): F[Unit] = remove[F, Fight](fights)(id)
 
       override def removeFights(competitionId: String)(ids: List[String]): F[Unit] = ids
         .traverse(removeFight(competitionId)).map(_ => ())
 
-      override def removeFightsForCompetition(competitionId: String): F[Unit] = Monad[F]
+      override def removeFightsByCompetitionId(competitionId: String): F[Unit] = Monad[F]
         .pure(fights.foreach(_.updateAndGet(_.filter(_._2.competitionId != competitionId))))
 
       override def updateFightScoresAndResultAndStatus(
         competitionId: String
-      )(fightId: String, scores: List[CompScore], fightResult: FightResult, status: FightStatus): F[Unit] = update(
+      )(fightId: String, scores: List[CompScore], fightResult: FightResult, status: FightStatus): F[Unit] = update[F, Fight](
         fights
       )(fightId)(f => f.copy(scores = scores, fightResult = Option(fightResult), status = Option(status)))
 
@@ -181,12 +181,8 @@ object FightUpdateOperations {
       } yield ()
     }
 
-    override def removeFightsForCompetition(competitionId: String): IO[Unit] = {
-      for {
-        collection <- fightCollection
-        statement = collection.deleteMany(equal(competitionIdField, competitionId))
-        _ <- IO.fromFuture(IO(statement.toFuture()))
-      } yield ()
+    override def removeFightsByCompetitionId(competitionId: String): IO[Unit] = {
+      deleteByField(fightCollection)(competitionId, competitionIdField)
     }
 
     override def updateFightScoresAndResultAndStatus(

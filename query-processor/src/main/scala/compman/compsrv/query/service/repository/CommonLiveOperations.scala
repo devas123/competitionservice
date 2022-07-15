@@ -158,7 +158,7 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
     createCollection[EventOffset](eventOffsetCollectionName, "topic").memoize.flatten
 
   protected def setOption[T](name: String, opt: Option[T]): Bson = opt.map(v => set(name, v)).getOrElse(unset(name))
-  protected def deleteById[T](collectionTask: IO[MongoCollection[T]])(id: String): IO[Unit] = {
+  protected def deleteByField[T](collectionTask: IO[MongoCollection[T]])(id: String, idField: String = idField): IO[Unit] = {
     for {
       collection <- collectionTask
       delete = collection.deleteMany(equal(idField, id))

@@ -16,7 +16,7 @@ object CompetitionDeletedProc {
       competitionId    <- OptionT.fromOption[F](event.competitionId)
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].removeCompetitionState(competitionId))
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].removeCompetitorsForCompetition(competitionId))
-      _ <- OptionT.liftF(FightUpdateOperations[F].removeFightsForCompetition(competitionId))
+      _ <- OptionT.liftF(FightUpdateOperations[F].removeFightsByCompetitionId(competitionId))
     } yield ()
   }.value.map(_ => ())
 }

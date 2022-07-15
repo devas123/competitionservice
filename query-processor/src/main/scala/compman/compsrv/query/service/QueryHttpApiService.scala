@@ -12,7 +12,6 @@ import org.http4s.{HttpRoutes, Response}
 import org.http4s.dsl.Http4sDsl
 
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.ExecutionContextExecutor
 
 object QueryHttpApiService {
 
@@ -39,7 +38,6 @@ object QueryHttpApiService {
   def service(competitionApiActor: ActorRef[CompetitionApiCommand], academyApiActor: ActorRef[AcademyApiCommand])(
     implicit system: ActorSystem[_]
   ): HttpRoutes[ServiceIO] = {
-    implicit val ec: ExecutionContextExecutor = system.executionContext
     HttpRoutes.of[ServiceIO] {
       case req @ POST -> Root / "generatecategories" / _ => for {
           body <- req.body.covary[ServiceIO].chunkAll.compile.toList

@@ -43,7 +43,7 @@ object CompetitionUpdateOperations {
 
   import cats.implicits._
 
-  def test[F[_]: Monad](
+  def test[F[+_]: Monad](
     competitionProperties: Option[AtomicReference[Map[String, CompetitionProperties]]] = None,
     registrationInfo: Option[AtomicReference[Map[String, RegistrationInfo]]] = None,
     categories: Option[AtomicReference[Map[String, Category]]] = None,
@@ -62,46 +62,46 @@ object CompetitionUpdateOperations {
       .pure(competitionProperties.foreach(_.updateAndGet(m => m - id)))
 
     override def addCompetitionInfoTemplate(competitionId: String)(newTemplate: CompetitionInfoTemplate): F[Unit] =
-      comPropsUpdate(competitionProperties)(competitionId)(_.copy(infoTemplate = newTemplate))
+      comPropsUpdate[F](competitionProperties)(competitionId)(_.copy(infoTemplate = newTemplate))
 
     override def removeCompetitionInfoTemplate(competitionId: String): F[Unit] =
-      comPropsUpdate(competitionProperties)(competitionId)(_.copy(infoTemplate = CompetitionInfoTemplate(Array.empty)))
+      comPropsUpdate[F](competitionProperties)(competitionId)(_.copy(infoTemplate = CompetitionInfoTemplate(Array.empty)))
 
     override def addStage(stageDescriptor: StageDescriptor): F[Unit] =
-      add(stages)(stageDescriptor.id)(Some(stageDescriptor))
+      add[F, StageDescriptor](stages)(stageDescriptor.id)(Some(stageDescriptor))
 
     override def updateStage(stageDescriptor: StageDescriptor): F[Unit] =
-      stagesUpdate(stages)(stageDescriptor.id)(_ => stageDescriptor)
+      stagesUpdate[F](stages)(stageDescriptor.id)(_ => stageDescriptor)
 
     override def updateStageStatus(
       competitionId: String
     )(categoryId: String, stageId: String, newStatus: StageStatus): F[Unit] =
-      stagesUpdate(stages)(stageId)(_.copy(stageStatus = newStatus))
+      stagesUpdate[F](stages)(stageId)(_.copy(stageStatus = newStatus))
 
-    override def addCategory(category: Category): F[Unit] = add(categories)(category.id)(Some(category))
+    override def addCategory(category: Category): F[Unit] = add[F, Category](categories)(category.id)(Some(category))
 
     override def updateCategoryRegistrationStatus(competitionId: String)(id: String, newStatus: Boolean): F[Unit] =
-      update(categories)(id)(_.copy(registrationOpen = newStatus))
+      update[F, Category](categories)(id)(_.copy(registrationOpen = newStatus))
 
-    override def removeCategory(competitionId: String)(id: String): F[Unit] = remove(categories)(id)
+    override def removeCategory(competitionId: String)(id: String): F[Unit] = remove[F, Category](categories)(id)
 
-    override def addCompetitor(competitor: Competitor): F[Unit] = add(competitors)(competitor.id)(Some(competitor))
+    override def addCompetitor(competitor: Competitor): F[Unit] = add[F, Competitor](competitors)(competitor.id)(Some(competitor))
 
-    override def updateCompetitor(competitor: Competitor): F[Unit] = update(competitors)(competitor.id)(_ => competitor)
+    override def updateCompetitor(competitor: Competitor): F[Unit] = update[F, Competitor](competitors)(competitor.id)(_ => competitor)
 
-    override def removeCompetitor(competitionId: String)(id: String): F[Unit] = remove(competitors)(id)
+    override def removeCompetitor(competitionId: String)(id: String): F[Unit] = remove[F, Competitor](competitors)(id)
 
     override def updateRegistrationInfo(competitionId: String)(info: RegistrationInfo): F[Unit] =
-      update(registrationInfo)(competitionId)(_ => info)
+      update[F, RegistrationInfo](registrationInfo)(competitionId)(_ => info)
 
-    override def addPeriod(entry: Period): F[Unit] = add(periods)(entry.id)(Some(entry))
+    override def addPeriod(entry: Period): F[Unit] = add[F, Period](periods)(entry.id)(Some(entry))
 
     override def addPeriods(entries: List[Period]): F[Unit] = entries.traverse(addPeriod).map(_ => ())
 
     override def updatePeriods(entries: List[Period]): F[Unit] = entries
       .traverse(e => update[F, Period](periods)(e.id)(_ => e)).map(_ => ())
 
-    override def removePeriod(competitionId: String)(id: String): F[Unit] = remove(periods)(id)
+    override def removePeriod(competitionId: String)(id: String): F[Unit] = remove[F, Period](periods)(id)
 
     override def removePeriods(competitionId: String): F[Unit] = Monad[F]
       .pure(periods.foreach(_.updateAndGet(m => m.filter { case (_, p) => p.competitionId == competitionId })))
@@ -114,7 +114,7 @@ object CompetitionUpdateOperations {
 
     override def removeCompetitorsForCategory(competitionId: String)(categoryId: String): F[Unit] = Monad[F].pure(
       competitors.map(_.updateAndGet(c => c.map(e => (e._1, e._2.copy(categories = e._2.categories - categoryId)))))
-    )
+    ).void
   }
 
   def live(mongo: MongoClient, name: String): CompetitionUpdateOperations[IO] = new CompetitionUpdateOperations[IO]
@@ -127,7 +127,7 @@ object CompetitionUpdateOperations {
     import org.mongodb.scala.model.Filters._
     import org.mongodb.scala.model.Updates._
 
-    override def addCompetitionProperties(competitionProperties: CompetitionProperties): IO[Unit] = {
+    override def addCompetitionProperties(competitionProperties: CompetitionProperties): IO[Unit] =
       for {
         collection <- competitionStateCollection
         statement = collection.replaceOne(
@@ -142,25 +142,24 @@ object CompetitionUpdateOperations {
           ),
           new ReplaceOptions().upsert(true)
         )
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
-    }.map(_ => ())
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
 
     override def updateCompetitionProperties(competitionProperties: CompetitionProperties): IO[Unit] = {
       for {
         collection <- competitionStateCollection
         statement = collection
           .findOneAndUpdate(equal(idField, competitionProperties.id), set("properties", competitionProperties))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def removeCompetitionState(id: String): IO[Unit] = {
       for {
         collection <- competitionStateCollection
         statement = collection.deleteMany(equal(idField, id))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def addCompetitionInfoTemplate(
@@ -170,8 +169,8 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         statement = collection
           .findOneAndUpdate(equal(idField, competitionId), set("properties.infoTemplate", competitionInfoTemplate))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def removeCompetitionInfoTemplate(competitionId: String): IO[Unit] =
@@ -184,8 +183,8 @@ object CompetitionUpdateOperations {
           equal(idField, stageDescriptor.competitionId),
           set(s"stages.${stageDescriptor.id}", stageDescriptor)
         )
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def updateStage(stageDescriptor: StageDescriptor): IO[Unit] = addStage(stageDescriptor)
@@ -198,7 +197,7 @@ object CompetitionUpdateOperations {
           if (ids.nonEmpty) IO
             .fromFuture(IO(collection.findOneAndUpdate(equal(idField, competition), combine(updates: _*)).toFuture()))
           else IO.unit
-      } yield res
+      } yield ()
     }
 
     override def updateStageStatus(
@@ -208,8 +207,8 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         statement = collection
           .findOneAndUpdate(equal(idField, competitionId), set(s"stages.$stageId.stageStatus", newStatus))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def addCategory(category: Category): IO[Unit] = {
@@ -217,8 +216,8 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         statement = collection
           .findOneAndUpdate(equal(idField, category.competitionId), set(s"categories.${category.id}", category))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def updateCategoryRegistrationStatus(competitionId: String)(id: String, newStatus: Boolean): IO[Unit] = {
@@ -226,16 +225,16 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         statement = collection
           .findOneAndUpdate(equal(idField, competitionId), set(s"categories.$id.registrationOpen", newStatus))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def removeCategory(competitionId: String)(id: String): IO[Unit] = {
       for {
         collection <- competitionStateCollection
         statement = collection.findOneAndUpdate(equal(idField, competitionId), unset(s"categories.$id"))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def addCompetitor(competitor: Competitor): IO[Unit] = {
@@ -243,32 +242,32 @@ object CompetitionUpdateOperations {
         collection <- competitorCollection
         statement = collection
           .replaceOne(Filters.eq(idField, competitor.id), competitor, new ReplaceOptions().upsert(true))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def updateCompetitor(competitor: Competitor): IO[Unit] = {
       for {
         collection <- competitorCollection
         statement = collection.replaceOne(equal(idField, competitor.id), competitor)
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def removeCompetitor(competitionId: String)(id: String): IO[Unit] = {
       for {
         collection <- competitorCollection
         statement = collection.deleteOne(equal(idField, id))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def removeCompetitorsForCompetition(competitionId: String): IO[Unit] = {
       for {
         collection <- competitorCollection
         statement = collection.deleteMany(equal(competitionIdField, competitionId))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def removeCompetitorsForCategory(competitionId: String)(categoryId: String): IO[Unit] = {
@@ -279,8 +278,8 @@ object CompetitionUpdateOperations {
           Updates.unset("categories.$[element]"),
           new UpdateOptions().arrayFilters(List(Document("element" -> Document("$eq" -> categoryId))).asJava)
         )
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def updateRegistrationInfo(competitionId: String)(registrationInfo: RegistrationInfo): IO[Unit] = {
@@ -288,16 +287,16 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         statement = collection
           .findOneAndUpdate(equal(idField, competitionId), set(s"registrationInfo", registrationInfo))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def addPeriod(entry: Period): IO[Unit] = {
       for {
         collection <- competitionStateCollection
         statement = collection.findOneAndUpdate(equal(idField, entry.competitionId), set(s"periods.${entry.id}", entry))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def addPeriods(entries: List[Period]): IO[Unit] = {
@@ -305,8 +304,8 @@ object CompetitionUpdateOperations {
         collection <- competitionStateCollection
         updates   = entries.map(period => set(s"periods.${period.id}", period))
         statement = collection.findOneAndUpdate(equal(idField, entries.head.competitionId), combine(updates: _*))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def updatePeriods(entries: List[Period]): IO[Unit] = addPeriods(entries)
@@ -315,16 +314,16 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitionStateCollection
         statement = collection.findOneAndUpdate(equal(idField, competitionId), unset(s"periods.$id"))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
 
     override def removePeriods(competitionId: String): IO[Unit] = {
       for {
         collection <- competitionStateCollection
         statement = collection.findOneAndUpdate(equal(idField, competitionId), set(s"periods", Document()))
-        res <- IO.fromFuture(IO(statement.toFuture()))
-      } yield res
+        _ <- IO.fromFuture(IO(statement.toFuture()))
+      } yield ()
     }
   }
 }

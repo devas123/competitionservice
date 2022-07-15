@@ -2,6 +2,7 @@ package compman.compsrv.query.service.repository
 
 import cats.Monad
 import cats.effect.IO
+import cats.implicits.toFunctorOps
 import compman.compsrv.query.model.ManagedCompetition
 import compservice.model.protobuf.model.CompetitionStatus
 import org.mongodb.scala.MongoClient
@@ -11,7 +12,7 @@ import org.mongodb.scala.model.Updates.set
 import java.util.concurrent.atomic.AtomicReference
 
 object ManagedCompetitionsOperations {
-  def test[F[_]: Monad](competitions: AtomicReference[Map[String, ManagedCompetition]]): ManagedCompetitionService[F] =
+  def test[F[+_]: Monad](competitions: AtomicReference[Map[String, ManagedCompetition]]): ManagedCompetitionService[F] =
     new ManagedCompetitionService[F] {
       override def getManagedCompetitions: F[List[ManagedCompetition]] = {
         Monad[F].pure(competitions.get().values.toList)
@@ -20,11 +21,11 @@ object ManagedCompetitionsOperations {
       override def getActiveCompetitions: F[List[ManagedCompetition]] = getManagedCompetitions
 
       override def addManagedCompetition(competition: ManagedCompetition): F[Unit] = {
-        Monad[F].pure(competitions.updateAndGet(m => m + (competition.id -> competition)))
+        Monad[F].pure(competitions.updateAndGet(m => m + (competition.id -> competition))).void
       }
 
       override def deleteManagedCompetition(id: String): F[Unit] = Monad[F]
-        .pure { competitions.updateAndGet(m => m - id) }
+        .pure { competitions.updateAndGet(m => m - id) }.void
 
       override def updateManagedCompetition(c: ManagedCompetition): F[Unit] = Monad[F]
         .pure(competitions.updateAndGet(m =>
@@ -35,7 +36,7 @@ object ManagedCompetitionsOperations {
             timeZone = c.timeZone,
             status = c.status
           )))
-        ))
+        )).void
     }
 
   def live(mongo: MongoClient, name: String): ManagedCompetitionService[IO] = new ManagedCompetitionService[IO]
@@ -63,7 +64,7 @@ object ManagedCompetitionsOperations {
     override def addManagedCompetition(competition: ManagedCompetition): IO[Unit] =
       insertElement(managedCompetitionCollection)(competition.id, competition)
 
-    override def deleteManagedCompetition(id: String): IO[Unit] = deleteById(managedCompetitionCollection)(id)
+    override def deleteManagedCompetition(id: String): IO[Unit] = deleteByField(managedCompetitionCollection)(id)
 
     override def updateManagedCompetition(competition: ManagedCompetition): IO[Unit] = {
       for {

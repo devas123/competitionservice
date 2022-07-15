@@ -26,7 +26,7 @@ trait FightQueryOperations[F[+_]] {
 object FightQueryOperations {
   def apply[F[+_]](implicit F: FightQueryOperations[F]): FightQueryOperations[F] = F
 
-  def test[F[_]: Monad](
+  def test[F[+_]: Monad](
     fights: Option[AtomicReference[Map[String, Fight]]] = None,
     stages: Option[AtomicReference[Map[String, StageDescriptor]]] = None
   ): FightQueryOperations[F] = new FightQueryOperations[F] with CommonTestOperations {
@@ -41,7 +41,7 @@ object FightQueryOperations {
             .pure(value.get.values.filter(f => f.competitionId == competitionId && f.stageId == stageId).toList)
         case None => Monad[F].pure(List.empty)
       }
-    override def getFightById(competitionId: String)(id: String): F[Option[Fight]] = getById(fights)(id)
+    override def getFightById(competitionId: String)(id: String): F[Option[Fight]] = getById[F, Fight](fights)(id)
     override def getFightsByIds(competitionId: String)(ids: Set[String]): F[List[Fight]] = ids.toList
       .traverse(getById[F, Fight](fights)).map(_.mapFilter(identity))
 
@@ -75,7 +75,7 @@ object FightQueryOperations {
     override def getNumberOfFightsForMat(competitionId: String)(matId: String): F[Int] = for {
       compStages <- stages match {
         case Some(value) => Monad[F].pure(value.get.values.toList)
-        case None        => Monad[F].pure(List.empty)
+        case None        => Monad[F].pure(List.empty[StageDescriptor])
       }
       stageFights <- compStages.traverse(s => getFightsByStage(competitionId)(s.categoryId, s.id))
     } yield stageFights.flatten.size

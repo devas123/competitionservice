@@ -7,7 +7,7 @@ import org.mongodb.scala.MongoClient
 import org.mongodb.scala.model.Filters.equal
 
 object EventOffsetOperations {
-  def test[F[_]: Monad]: EventOffsetService[F] = new EventOffsetService[F] {
+  def test[F[+_]: Monad]: EventOffsetService[F] = new EventOffsetService[F] {
     override def getOffset(topic: String): F[Option[EventOffset]] = Monad[F].pure(None)
 
     override def setOffset(offset: EventOffset): F[Unit] = Monad[F].pure(())
@@ -31,7 +31,7 @@ object EventOffsetOperations {
         } yield res
       }
 
-      override def deleteOffset(id: String): IO[Unit] = deleteById(eventOffsetCollection)(id)
+      override def deleteOffset(id: String): IO[Unit] = deleteByField(eventOffsetCollection)(id)
 
       override def setOffset(offset: EventOffset): IO[Unit] = {
         insertElement(eventOffsetCollection)(offset.topic, offset)
