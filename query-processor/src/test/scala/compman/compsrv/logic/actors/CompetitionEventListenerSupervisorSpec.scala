@@ -1,102 +1,84 @@
 package compman.compsrv.logic.actors
 
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor
+import akka.kafka.{ConsumerSettings, ProducerSettings}
+import akka.kafka.testkit.scaladsl.TestcontainersKafkaLike
+import compman.compsrv.logic.actor.kafka.{KafkaSupervisor, SpecBaseWithKafka}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaTopicConfig}
-import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.behavior.{CompetitionEventListener, CompetitionEventListenerSupervisor, WebsocketConnectionSupervisor}
-import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.extensions.InstantOps
 import compman.compsrv.query.model._
-import compman.compsrv.query.service.EmbeddedKafkaBroker
-import compman.compsrv.query.service.EmbeddedKafkaBroker.embeddedKafkaServer
 import compservice.model.protobuf.model.{CompetitionProcessingStarted, CompetitionProcessorNotification, CompetitionStatus}
-import zio._
-import zio.blocking.Blocking
-import zio.clock.Clock
-import zio.duration.durationInt
-import zio.kafka.producer.{Producer, ProducerSettings}
-import zio.kafka.serde
-import zio.test._
-import zio.test.TestAspect._
-import zio.test.environment._
+import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.common.serialization.{ByteArrayDeserializer, ByteArraySerializer, StringDeserializer, StringSerializer}
 
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicReference
+import scala.concurrent.duration.DurationInt
 
-object CompetitionEventListenerSupervisorSpec extends DefaultRunnableSpec {
+class CompetitionEventListenerSupervisorSpec extends SpecBaseWithKafka with TestcontainersKafkaLike {
   private val notificationTopic = "notifications"
-  private val callbackTopic = "callback"
-  private val loggingLayer      = compman.compsrv.interop.loggingLayer
+  private val callbackTopic     = "callback"
 
-  override def spec: ZSpec[TestEnvironment, Any] = suite("Competition event listener") {
-    testM("Should subscribe to topics") {
-      {
-        ActorSystem("Test").use { actorSystem =>
-          for {
-            brokerUrl <- ZIO.effectTotal(EmbeddedKafkaBroker.bootstrapServers.get())
-            producerSettings = ProducerSettings(List(brokerUrl))
-            producer         = Producer.make(producerSettings)
-            competitions          <- Ref.make(Map.empty[String, ManagedCompetition])
-            competitionProperties <- Ref.make(Map.empty[String, CompetitionProperties])
-            categories            <- Ref.make(Map.empty[String, Category])
-            competitors           <- Ref.make(Map.empty[String, Competitor])
-            fights                <- Ref.make(Map.empty[String, Fight])
-            periods               <- Ref.make(Map.empty[String, Period])
-            registrationInfo   <- Ref.make(Map.empty[String, RegistrationInfo])
-            stages                <- Ref.make(Map.empty[String, StageDescriptor])
-            websocketSupervisor   <- TestKit[WebsocketConnectionSupervisor.ApiCommand](actorSystem)
-            kafkaSupervisor <- actorSystem
-              .make("kafkaSupervisor", ActorConfig(), KafkaSupervisor.initialState, KafkaSupervisor.behavior[Any](List(brokerUrl)))
-            _ <- kafkaSupervisor ! CreateTopicIfMissing(notificationTopic, KafkaTopicConfig())
-            _ <- kafkaSupervisor ! CreateTopicIfMissing(callbackTopic, KafkaTopicConfig())
-            supervisorContext = CompetitionEventListenerSupervisor.Test(competitions)
-            eventListenerContext = CompetitionEventListener.Test(
-              Some(competitionProperties),
-              Some(categories),
-              Some(competitors),
-              Some(fights),
-              Some(periods),
-              Some(registrationInfo),
-              Some(stages)
-            )
-            _ <- actorSystem.make(
-              "competitionSupervisor",
-              ActorConfig(),
-              (),
-              CompetitionEventListenerSupervisor.behavior[Any](
-                notificationTopic,
-                callbackTopic,
-                supervisorContext,
-                kafkaSupervisor,
-                eventListenerContext,
-                websocketSupervisor.ref
-              )
-            )
-            competitionId = "competitionId"
-            notification = CompetitionProcessorNotification().withStarted(CompetitionProcessingStarted(
-              competitionId,
-              competitionId + "name",
-              competitionId + "events",
-              "creator",
-              Some(Instant.now().asTimestamp),
-              Some(Instant.now().asTimestamp),
-              Some(Instant.now().asTimestamp),
-              "UTC",
-              CompetitionStatus.CREATED
-            ))
-            _ <- ZIO.sleep(10.seconds)
-            _ <- producer.use(p =>
-              Producer.produce(
-                notificationTopic,
-                competitionId,
-                notification.toByteArray,
-                serde.Serde.string,
-                serde.Serde.byteArray
-              ).provide(Has(p))
-            )
-            _ <- ZIO.sleep(10.seconds)
-          } yield assertTrue(true)
-        }
-      }.provideLayer(Clock.live ++ loggingLayer ++ Blocking.live ++ zio.console.Console.live)
-    }
-  } @@ aroundAll(embeddedKafkaServer)(kafka => URIO(kafka.stop()))
+  test("Should subscribe to topics") {
+    val competitions          = new AtomicReference(Map.empty[String, ManagedCompetition])
+    val competitionProperties = new AtomicReference(Map.empty[String, CompetitionProperties])
+    val categories            = new AtomicReference(Map.empty[String, Category])
+    val competitors           = new AtomicReference(Map.empty[String, Competitor])
+    val fights                = new AtomicReference(Map.empty[String, Fight])
+    val periods               = new AtomicReference(Map.empty[String, Period])
+    val registrationInfo      = new AtomicReference(Map.empty[String, RegistrationInfo])
+    val stages                = new AtomicReference(Map.empty[String, StageDescriptor])
+    val producerConfig        = actorTestKit.system.settings.config.getConfig("akka.kafka.producer")
+    val producerSettings = ProducerSettings(producerConfig, new StringSerializer, new ByteArraySerializer)
+      .withBootstrapServers(bootstrapServers)
+    val consumerConfig = actorTestKit.system.settings.config.getConfig("akka.kafka.consumer")
+    val consumerSettings = ConsumerSettings(consumerConfig, new StringDeserializer, new ByteArrayDeserializer)
+      .withBootstrapServers(bootstrapServers).withGroupId("group1")
+      .withProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest")
+    val kafkaSupervisor = actorTestKit
+      .spawn(KafkaSupervisor.behavior(bootstrapServers, consumerSettings, producerSettings))
+    val websocketSupervisor = actorTestKit.createTestProbe[WebsocketConnectionSupervisor.ApiCommand]()
+
+    kafkaSupervisor ! CreateTopicIfMissing(notificationTopic, KafkaTopicConfig())
+    kafkaSupervisor ! CreateTopicIfMissing(callbackTopic, KafkaTopicConfig())
+    waitForTopic(notificationTopic)
+    waitForTopic(callbackTopic)
+    val supervisorContext = CompetitionEventListenerSupervisor.Test(competitions)
+    val eventListenerContext = CompetitionEventListener.Test(
+      Some(competitionProperties),
+      Some(categories),
+      Some(competitors),
+      Some(fights),
+      Some(periods),
+      Some(registrationInfo),
+      Some(stages)
+    )
+    actorTestKit.spawn(
+      CompetitionEventListenerSupervisor.behavior(
+        notificationTopic,
+        callbackTopic,
+        supervisorContext,
+        kafkaSupervisor,
+        eventListenerContext,
+        websocketSupervisor.ref
+      ),
+      "competitionSupervisor"
+    )
+    val competitionId = "competitionId"
+    val notification = CompetitionProcessorNotification().withStarted(CompetitionProcessingStarted(
+      competitionId,
+      competitionId + "name",
+      competitionId + "events",
+      "creator",
+      Some(Instant.now().asTimestamp),
+      Some(Instant.now().asTimestamp),
+      Some(Instant.now().asTimestamp),
+      "UTC",
+      CompetitionStatus.CREATED
+    ))
+    sleep(3.seconds)
+    val producer = producerSettings.createKafkaProducer()
+    producer.send(new ProducerRecord[String, Array[Byte]](notificationTopic, competitionId, notification.toByteArray))
+  }
 }

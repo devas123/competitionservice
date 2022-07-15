@@ -9,7 +9,7 @@ import org.scalatest.matchers.should.Matchers
 
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 
-abstract class SpecBase(kafkaPort: Int)
+abstract class SpecBaseWithKafka(kafkaPort: Int)
     extends ScalatestKafkaSpec(kafkaPort)
     with AnyFunSuiteLike
     with Matchers

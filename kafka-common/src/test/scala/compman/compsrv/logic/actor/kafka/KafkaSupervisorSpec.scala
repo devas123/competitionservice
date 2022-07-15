@@ -19,7 +19,7 @@ import scala.concurrent.{Await, Promise}
 import scala.concurrent.duration.DurationInt
 import scala.util.Random
 
-class KafkaSupervisorSpec extends SpecBase with TestcontainersKafkaLike {
+class KafkaSupervisorSpec extends SpecBaseWithKafka with TestcontainersKafkaLike {
   val messagesCount = 10
   val startOffset   = 5
 

@@ -57,11 +57,10 @@ lazy val commandProcessor = module("command-processor", "command-processor")
 lazy val queryProcessor = module("query-processor", "query-processor")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.logic"))
   .settings(
-    libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
-      zioLoggingDependencies ++ monocleDependencies ++ http4sDependencies ++ Seq(
+    libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ akkaKafkaTests ++
+      zioConfigDependencies ++ zioLoggingDependencies ++ monocleDependencies ++ http4sDependencies ++ Seq(
         mongoDbScalaDriver,
         disruptorDependency,
-        testContainersKafkaDependency,
         testContainersDependency,
         testContainersMongoDependency,
         scalaTestDependency,
