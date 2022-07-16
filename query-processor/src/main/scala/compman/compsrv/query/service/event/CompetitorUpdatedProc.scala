@@ -19,7 +19,7 @@ object CompetitorUpdatedProc {
       competitionId <- OptionT.fromOption[F](event.competitionId)
       dto           <- OptionT.fromOption[F](payload.competitor)
       existing      <- OptionT(CompetitionQueryOperations[F].getCompetitorById(competitionId)(dto.id))
-      newComp       <- OptionT.liftF(DtoMapping.mapCompetitor[F](dto))
+      newComp = DtoMapping.mapCompetitor(dto)
       updated = existing.copy(
         email = newComp.email,
         firstName = newComp.firstName,

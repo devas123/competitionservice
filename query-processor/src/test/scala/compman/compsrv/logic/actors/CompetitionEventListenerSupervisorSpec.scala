@@ -2,11 +2,12 @@ package compman.compsrv.logic.actors
 
 import akka.kafka.{ConsumerSettings, ProducerSettings}
 import akka.kafka.testkit.scaladsl.TestcontainersKafkaLike
-import compman.compsrv.logic.actor.kafka.{KafkaSupervisor, SpecBaseWithKafka}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaTopicConfig}
 import compman.compsrv.logic.actors.behavior.{CompetitionEventListener, CompetitionEventListenerSupervisor, WebsocketConnectionSupervisor}
 import compman.compsrv.model.extensions.InstantOps
 import compman.compsrv.query.model._
+import compman.compsrv.SpecBaseWithKafka
 import compservice.model.protobuf.model.{CompetitionProcessingStarted, CompetitionProcessorNotification, CompetitionStatus}
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerRecord

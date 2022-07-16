@@ -1,20 +1,18 @@
 package compman.compsrv.query.service.repository
 
-import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import cats.effect.IO
 import compman.compsrv.query.config.MongodbConfig
+import compman.compsrv.SpecBase
 import org.mongodb.scala.MongoClient
 import org.testcontainers.containers.MongoDBContainer
 import org.testcontainers.utility.DockerImageName
-import zio.test.DefaultRunnableSpec
-import zio.{ZIO, ZManaged}
 
 import java.io.IOException
 import java.net.{InetAddress, ServerSocket}
 import java.time.Duration
 
 trait EmbeddedMongoDb {
-  self: DefaultRunnableSpec =>
+  self: SpecBase =>
 
   @throws[IOException]
   def freeServerPort(hostAddress: InetAddress): Int = {
@@ -23,37 +21,33 @@ trait EmbeddedMongoDb {
     finally if (socket != null) socket.close()
   }
 
-  def embeddedMongo(): ZManaged[Any, Nothing, MongoDBContainer] = {
-    ZManaged.make(ZIO.effectTotal {
-      val mongoPort = 27017
-      val container = new MongoDBContainer(DockerImageName.parse("mongo:latest")).withExposedPorts(mongoPort)
-        .withStartupTimeout(Duration.ofSeconds(30))
-      container.start()
-      Runtime.getRuntime.addShutdownHook(new Thread(() => {
-        container.stop()
-        ()
-      }))
-      container
-    })(container => ZIO.effectTotal(container.stop()))
+  def embeddedMongo(): MongoDBContainer = {
+    val mongoPort = 27017
+    val container = new MongoDBContainer(DockerImageName.parse("mongo:latest")).withExposedPorts(mongoPort)
+      .withStartupTimeout(Duration.ofSeconds(30))
+    container.start()
+    Runtime.getRuntime.addShutdownHook(new Thread(() => {
+      container.stop()
+      ()
+    }))
+    container
   }
 }
 
 object EmbeddedMongoDb {
-  implicit val logging: CompetitionLogging.Service[LIO] = CompetitionLogging.Live.live[Any]
 
   class EmbeddedMongoContext(port: Int) {
     lazy val mongoClient: MongoClient = MongoClient(s"mongodb://localhost:$port")
     val mongodbConfig: MongodbConfig  = MongodbConfig("localhost", port, "user", "password", "admin", "query_service")
-    implicit val queryOperations: CompetitionQueryOperations[LIO] = CompetitionQueryOperations
+    implicit val queryOperations: CompetitionQueryOperations[IO] = CompetitionQueryOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
-    implicit val updateOperations: CompetitionUpdateOperations[LIO] = CompetitionUpdateOperations
+    implicit val updateOperations: CompetitionUpdateOperations[IO] = CompetitionUpdateOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
-
-    implicit val fightQueryOperations: FightQueryOperations[LIO] = FightQueryOperations
+    implicit val fightQueryOperations: FightQueryOperations[IO] = FightQueryOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
-    implicit val fightUpdateOperations: FightUpdateOperations[LIO] = FightUpdateOperations
+    implicit val fightUpdateOperations: FightUpdateOperations[IO] = FightUpdateOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
-    implicit val managedCompetitionsOperations: ManagedCompetitionsOperations.ManagedCompetitionService[LIO] =
+    implicit val managedCompetitionsOperations: ManagedCompetitionsOperations.ManagedCompetitionService[IO] =
       ManagedCompetitionsOperations.live(mongoClient, mongodbConfig.queryDatabaseName)
   }
 

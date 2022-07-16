@@ -16,7 +16,7 @@ object CompetitorAddedProc {
     for {
       payload    <- OptionT.fromOption[F](event.payload)
       dto        <- OptionT.fromOption[F](payload.competitor)
-      competitor <- OptionT.liftF(DtoMapping.mapCompetitor[F](dto))
+      competitor = DtoMapping.mapCompetitor(dto)
       _          <- OptionT.liftF(CompetitionUpdateOperations[F].addCompetitor(competitor))
     } yield ()
   }.value.map(_ => ())

@@ -1,30 +1,23 @@
 package compman.compsrv.query.service.repository
 
-import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
-import org.testcontainers.containers.MongoDBContainer
-import zio.logging.Logging
-import zio.test.Assertion._
-import zio.test.TestAspect._
-import zio.test._
-import zio.{ZLayer, ZManaged}
+import cats.effect.IO
+import compman.compsrv.SpecBase
+import compman.compsrv.logic.actors.behavior.WithIORuntime
 
-object CompetitionOperationsStageOperationsTest extends DefaultRunnableSpec with TestEntities with EmbeddedMongoDb {
-  type Env = Logging
-  val layers: ZLayer[Any, Throwable, Env] = Compman.compsrv.interop.loggingLayer
-  val mongoLayer: ZManaged[Any, Nothing, MongoDBContainer] = embeddedMongo()
+import scala.util.Using
 
-  override def spec: ZSpec[Any, Throwable] = suite("competition operations")(testM("should save stage") {
-    mongoLayer.use { mongo =>
+class CompetitionOperationsStageOperationsTest
+    extends SpecBase with TestEntities with EmbeddedMongoDb with WithIORuntime {
+  test("should save stage") {
+    Using(embeddedMongo()) { mongo =>
       val context = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
       import context._
       (for {
-        _ <- CompetitionUpdateOperations[LIO].removeCompetitionState(competitionId)
-        _ <- CompetitionUpdateOperations[LIO].addCompetitionProperties(competitionProperties)
-        _ <- CompetitionUpdateOperations[LIO].addStage(stageDescriptor)
-        stage <- CompetitionQueryOperations[LIO].getStageById(competitionId)(stageId)
-      } yield assert(stage)(isSome))
-        .provideLayer(layers)
+        _     <- CompetitionUpdateOperations[IO].removeCompetitionState(competitionId)
+        _     <- CompetitionUpdateOperations[IO].addCompetitionProperties(competitionProperties)
+        _     <- CompetitionUpdateOperations[IO].addStage(stageDescriptor)
+        stage <- CompetitionQueryOperations[IO].getStageById(competitionId)(stageId)
+      } yield assert(stage.isDefined)).unsafeRunSync()
     }
-  }) @@ sequential
+  }
 }

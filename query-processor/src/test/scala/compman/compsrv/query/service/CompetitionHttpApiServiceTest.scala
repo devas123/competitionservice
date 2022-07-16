@@ -1,48 +1,31 @@
 package compman.compsrv.query.service
 
-import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.logic.actors.behavior.api.CompetitionApiActor.Test
-import compman.compsrv.logic.actors.{ActorSystem, TestKit}
+import akka.actor.typed.ActorSystem
 import compman.compsrv.logic.actors.behavior.api.AcademyApiActor.AcademyApiCommand
 import compman.compsrv.logic.actors.behavior.api.CompetitionApiActor
-import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.service.QueryHttpApiService.ServiceIO
 import compman.compsrv.query.service.repository.TestEntities
+import compman.compsrv.SpecBase
+import compman.compsrv.logic.actors.behavior.WithIORuntime
 import compservice.model.protobuf.query.QueryServiceResponse
 import org.http4s._
 import org.http4s.implicits._
-import zio._
-import zio.blocking.Blocking
-import zio.clock.Clock
-import zio.interop.catz._
-import zio.logging.Logging
-import zio.test._
-import zio.test.TestAspect._
 
-object CompetitionHttpApiServiceTest extends DefaultRunnableSpec with TestEntities {
-  override def spec: ZSpec[Any, Throwable] =
-    (suite("routes suite")(
-      testM("root request returns Ok") {
-        ActorSystem("test").use { actorSystem =>
-          for {
-            managedCompetitions <- Ref.make(Map.empty[String, ManagedCompetition])
-            _ <- managedCompetitions.update(m => m + (managedCompetition.id -> managedCompetition))
-            actor <- actorSystem.make(
-              "test",
-              ActorConfig(),
-              CompetitionApiActor.initialState,
-              CompetitionApiActor.behavior[Any](Test(managedCompetitions))
-            )
-            academyApiActor <- TestKit[AcademyApiCommand](actorSystem)
-            response <- QueryHttpApiService.service(actor, academyApiActor.ref).orNotFound
-              .run(Request[ServiceIO](Method.GET, uri"/competition"))
-            body <- response.body.compile.toVector
-            _ <- Logging.info(new String(body.toArray))
-            comp = QueryServiceResponse.parseFrom(body.toArray)
-          } yield assertTrue(response.status == Status.Ok) && assertTrue(comp.getGetAllCompetitionsResponse.managedCompetitions.size == 1)
-        }
-      }
-    ) @@ sequential)
-      .provideLayer(Clock.live ++ Compman.compsrv.interop.loggingLayer ++ Blocking.live ++ zio.console.Console.live)
+import java.util.concurrent.atomic.AtomicReference
+
+class CompetitionHttpApiServiceTest extends SpecBase with TestEntities with WithIORuntime {
+  test("root request returns Ok") {
+    val managedCompetitions = new AtomicReference(Map.empty[String, ManagedCompetition])
+    managedCompetitions.updateAndGet(m => m + (managedCompetition.id -> managedCompetition))
+    val actor = actorTestKit.spawn(CompetitionApiActor.behavior(CompetitionApiActor.Test(managedCompetitions)), "test")
+    val academyApiActor                            = actorTestKit.createTestProbe[AcademyApiCommand]()
+    implicit val actorSystem: ActorSystem[Nothing] = actorTestKit.system
+    val response = QueryHttpApiService.service(actor, academyApiActor.ref).orNotFound
+      .run(Request[ServiceIO](Method.GET, uri"/competition")).unsafeRunSync()
+    val body = response.body.compile.toVector.unsafeRunSync()
+    val comp = QueryServiceResponse.parseFrom(body.toArray)
+    assert(response.status == Status.Ok)
+    assert(comp.getGetAllCompetitionsResponse.managedCompetitions.size == 1)
+  }
 }
