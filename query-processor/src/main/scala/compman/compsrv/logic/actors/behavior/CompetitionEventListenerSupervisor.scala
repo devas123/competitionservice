@@ -85,13 +85,12 @@ object CompetitionEventListenerSupervisor {
       kafkaSupervisorActor ! QueryAndSubscribe(notificationStopic, s"query-service-global-events-listener", adapter)
       context.pipeToSelf((for {
         activeCompetitions <- ManagedCompetitionsOperations.getActiveCompetitions[IO]
-          .flatTap(competitions => IO(context.log.info(s"Found following competitions: $competitions")))
       } yield activeCompetitions).unsafeToFuture()) {
         case Failure(exception) =>
-          context.log.error("Error while getting active competitions.", exception)
           ActiveCompetitions(List.empty)
         case Success(value) => ActiveCompetitions(value)
       }
+
       Behaviors.receiveMessage {
         case CompetitionEventListenerStopped(id) =>
           competitionListeners.remove(id)

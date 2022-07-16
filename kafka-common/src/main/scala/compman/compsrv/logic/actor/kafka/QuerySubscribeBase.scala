@@ -29,7 +29,7 @@ abstract class QuerySubscribeBase(
   )
 
   def prepareOffsets(topic: String, startOffset: Option[Long]): Future[Option[StartOffsetsAndTopicEndOffset]] = {
-    val metadataClient = MetadataClient.create(consumer, 1.second)
+    val metadataClient = MetadataClient.create(consumer, 30.second)
     for {
       partitions <- metadataClient.getPartitionsFor(topic)
       topicPartitions = partitions.map(p => new TopicPartition(p.topic(), p.partition())).toSet
