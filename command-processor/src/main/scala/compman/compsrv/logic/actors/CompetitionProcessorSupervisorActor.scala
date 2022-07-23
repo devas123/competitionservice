@@ -8,13 +8,16 @@ import compman.compsrv.CompetitionEventsTopic
 import compman.compsrv.logic.actor.kafka.persistence.KafkaBasedEventSourcedBehavior
 import compman.compsrv.logic.actor.kafka.persistence.KafkaBasedEventSourcedBehavior.KafkaBasedEventSourcedBehaviorApi
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
+import compman.compsrv.logic.actors.CompetitionProcessorActorV2.KafkaProducerFlow
 import compservice.model.protobuf.command.Command
 
 object CompetitionProcessorSupervisorActor {
 
   private def updated(children: Map[String, ActorRef[KafkaBasedEventSourcedBehaviorApi]])(
     commandProcessorConfig: CommandProcessorConfig,
-    kafkaSupervisor: ActorRef[KafkaSupervisorCommand]
+    kafkaSupervisor: ActorRef[KafkaSupervisorCommand],
+    snapshotServiceFactory: String => SnapshotService.Service,
+    kafkaProducerFlowOptional: Option[KafkaProducerFlow]
   ): Behavior[Message] = Behaviors.receive { (context, command) =>
     command match {
       case OtherMessageReceived(payload) =>
@@ -31,7 +34,8 @@ object CompetitionProcessorSupervisorActor {
               commandProcessorConfig.commandCallbackTopic,
               commandProcessorConfig.competitionNotificationsTopic,
               kafkaSupervisor,
-              SnapshotService.live(commandProcessorConfig.snapshotDbPath + "/" + competitionId)
+              snapshotServiceFactory(commandProcessorConfig.snapshotDbPath + "/" + competitionId),
+              kafkaProducerFlowOptional
             ),
             actorName
           )))
@@ -44,13 +48,15 @@ object CompetitionProcessorSupervisorActor {
           partition = partition,
           offset = offset
         )
-        updated(updatedChildren)(commandProcessorConfig, kafkaSupervisor)
+        updated(updatedChildren)(commandProcessorConfig, kafkaSupervisor, snapshotServiceFactory, kafkaProducerFlowOptional)
     }
   }
 
   def behavior(
     commandProcessorConfig: CommandProcessorConfig,
-    kafkaSupervisor: ActorRef[KafkaSupervisorCommand]
+    kafkaSupervisor: ActorRef[KafkaSupervisorCommand],
+    snapshotServiceFactory: String => SnapshotService.Service,
+    kafkaProducerFlowOptional: Option[KafkaProducerFlow] = None
   ): Behavior[Message] = Behaviors.setup { ctx =>
     val receiver = ctx.messageAdapter[KafkaConsumerApi] {
       case x @ KafkaSupervisor.QueryStarted()   => OtherMessageReceived(x)
@@ -66,7 +72,7 @@ object CompetitionProcessorSupervisorActor {
       replyTo = receiver,
       commitOffsetToKafka = true
     )
-    updated(Map.empty)(commandProcessorConfig, kafkaSupervisor)
+    updated(Map.empty)(commandProcessorConfig, kafkaSupervisor, snapshotServiceFactory, kafkaProducerFlowOptional)
   }
 
   sealed trait Message

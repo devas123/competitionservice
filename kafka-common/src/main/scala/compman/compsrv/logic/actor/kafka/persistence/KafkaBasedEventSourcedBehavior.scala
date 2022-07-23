@@ -6,17 +6,13 @@ import akka.kafka.{ProducerMessage, ProducerSettings}
 import akka.kafka.scaladsl.Transactional
 import akka.kafka.ConsumerMessage.{GroupTopicPartition, PartitionOffset, TransactionalMessage}
 import akka.stream.{Materializer, OverflowStrategy}
-import akka.stream.scaladsl.{Sink, Source}
-import compman.compsrv.logic.actor.kafka.persistence.KafkaBasedEventSourcedBehavior.{
-  CommandReceived,
-  KafkaBasedEventSourcedBehaviorApi,
-  Stop
-}
+import akka.stream.scaladsl.{Flow, Sink, Source}
+import akka.NotUsed
+import compman.compsrv.logic.actor.kafka.persistence.KafkaBasedEventSourcedBehavior.{CommandReceived, KafkaBasedEventSourcedBehaviorApi, Stop}
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.{Serializer, StringSerializer}
 
-import java.util.UUID
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 
@@ -26,13 +22,13 @@ abstract class KafkaBasedEventSourcedBehavior[State, KafkaCommand, KafkaEvent, E
   val commandClass: Class[KafkaCommand],
   context: ActorContext[KafkaBasedEventSourcedBehaviorApi]
 ) extends AbstractBehavior[KafkaBasedEventSourcedBehaviorApi](context) {
-  val operations: EventSourcingOperations[KafkaCommand, KafkaEvent, State, Error]
+  def operations: EventSourcingOperations[KafkaCommand, KafkaEvent, State, Error]
   def getEvents(startFrom: Long): Seq[KafkaEvent]
   def getInitialState: State
   def getLatestOffset(state: State): Long
   def serializeEvent(event: KafkaEvent): Array[Byte]
   def commandSideEffect(msg: CommandReceived): Unit
-  val transactionalId: String = UUID.randomUUID().toString
+  val transactionalId: String = competitionId
   val producerSettings: ProducerSettings[String, KafkaEvent] = ProducerSettings.create(
     context.system,
     new StringSerializer,
@@ -53,7 +49,11 @@ abstract class KafkaBasedEventSourcedBehavior[State, KafkaCommand, KafkaEvent, E
 
   private val stream = source.via(eventSourcingStage).map { msg =>
     ProducerMessage.multi(msg._1.map(evt => new ProducerRecord(eventsTopic, competitionId, evt)), msg._2)
-  }.via(Transactional.flow(producerSettings, transactionalId))
+  }.via(producerFlow)
+
+  protected def producerFlow: Flow[ProducerMessage.Envelope[String, KafkaEvent, PartitionOffset], ProducerMessage.Results[String, KafkaEvent, PartitionOffset], NotUsed] = {
+    Transactional.flow(producerSettings, transactionalId)
+  }
 
   stream.runWith(Sink.ignore)
 

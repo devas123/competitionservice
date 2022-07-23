@@ -1,10 +1,15 @@
 package compman.compsrv.service
 
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaSupervisorCommand, PublishMessage, QuerySync}
+import akka.kafka.ConsumerMessage.PartitionOffset
+import akka.kafka.ProducerMessage
+import akka.kafka.testkit.ProducerResultFactory
+import akka.stream.scaladsl.Flow
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaSupervisorCommand, PublishMessage, QuerySync}
 import compman.compsrv.logic.actors._
 import compman.compsrv.model.extensions.InstantOps
 import compman.compsrv.SpecBase
 import compman.compsrv.logic.actor.kafka.persistence.KafkaBasedEventSourcedBehavior.CommandReceived
+import compman.compsrv.logic.actors.CompetitionProcessorActorV2.KafkaProducerFlow
 import compservice.model.protobuf.command.{Command, CommandType}
 import compservice.model.protobuf.commandpayload.CreateCompetitionPayload
 import compservice.model.protobuf.common.MessageInfo
@@ -26,6 +31,16 @@ class CompetitionServiceSpec extends SpecBase {
 
   test("The Competition Processor should accept commands") {
     val kafkaSupervisor = actorTestKit.createTestProbe[KafkaSupervisorCommand]()
+    val mockedKafkaProducerFlow: KafkaProducerFlow = Flow[ProducerMessage.Envelope[String, Event, PartitionOffset]]
+      .map {
+        case msg: ProducerMessage.MultiMessage[String, Event, PartitionOffset] =>
+          msg.records.foreach(rec =>
+          kafkaSupervisor.ref ! PublishMessage(rec.topic(), rec.key(), rec.value().toByteArray))
+          ProducerResultFactory.multiResult(msg)
+        case other =>
+          throw new Exception(s"excluded: $other")
+      }
+
     val processor = actorTestKit.spawn(
       CompetitionProcessorActorV2.behavior(
         competitionId,
@@ -33,11 +48,11 @@ class CompetitionServiceSpec extends SpecBase {
         "test-commands-callback",
         "test-notifications",
         kafkaSupervisor.ref,
-        SnapshotService.test
+        SnapshotService.test,
+        Some(mockedKafkaProducerFlow)
       ),
       s"CompetitionProcessor-$competitionId"
     )
-    kafkaSupervisor.expectMessageType[CreateTopicIfMissing](3.seconds)
     val unwrapped = kafkaSupervisor.expectMessageType[QuerySync](3.seconds)
     val promise   = unwrapped.promise
     promise.success(Seq.empty)

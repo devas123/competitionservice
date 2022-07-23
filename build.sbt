@@ -46,7 +46,7 @@ lazy val commandProcessor = module("command-processor", "command-processor")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv"))
   .settings(
     libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
-      zioLoggingDependencies ++ monocleDependencies ++ akkaDependencies  ++
+      zioLoggingDependencies ++ monocleDependencies ++ akkaDependencies  ++ akkaKafkaTests ++
       Seq(guavaDependency, rocksDbDependency, disruptorDependency, scalaTestDependency),
     testFrameworks       := Seq(TestFrameworks.ScalaTest),
     Docker / packageName := "command-processor"

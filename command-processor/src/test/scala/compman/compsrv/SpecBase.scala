@@ -6,8 +6,8 @@ import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.funsuite.AnyFunSuiteLike
 import org.scalatest.matchers.should.Matchers
 
-abstract class SpecBase extends
-    AnyFunSuiteLike
+abstract class SpecBase
+    extends AnyFunSuiteLike
     with Matchers
     with ScalaFutures
     with Eventually

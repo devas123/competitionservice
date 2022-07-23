@@ -1,6 +1,5 @@
 package compman.compsrv.logic.actors
 
-import cats.effect.IO
 import compservice.model.protobuf.model.CommandProcessorCompetitionState
 import org.rocksdb.RocksDB
 
@@ -9,29 +8,33 @@ import java.util.concurrent.atomic.AtomicReference
 
 object SnapshotService {
   trait Service extends Serializable {
-    def saveSnapshot(state: CommandProcessorCompetitionState): IO[Unit]
-    def loadSnapshot(id: String): IO[Option[CommandProcessorCompetitionState]]
+    def saveSnapshot(state: CommandProcessorCompetitionState): Unit
+    def loadSnapshot(id: String): Option[CommandProcessorCompetitionState]
+    def close(): Unit
   }
 
   private final case class Live(rocksDB: RocksDB) extends Service {
-    override def saveSnapshot(state: CommandProcessorCompetitionState): IO[Unit] =
-      IO { rocksDB.put(state.id.getBytes, state.toByteArray) }
+    override def saveSnapshot(state: CommandProcessorCompetitionState): Unit = rocksDB
+      .put(state.id.getBytes, state.toByteArray)
 
-    override def loadSnapshot(id: String): IO[Option[CommandProcessorCompetitionState]] =
-      IO { Option(rocksDB.get(id.getBytes)).map(bytes => CommandProcessorCompetitionState.parseFrom(bytes)) }
+    override def loadSnapshot(id: String): Option[CommandProcessorCompetitionState] = Option(rocksDB.get(id.getBytes))
+      .map(bytes => CommandProcessorCompetitionState.parseFrom(bytes))
 
-    private[actors] def close: IO[Unit] = IO(rocksDB.close())
+    override def close(): Unit = rocksDB.close()
   }
 
   private final case class Test(map: AtomicReference[Map[String, CommandProcessorCompetitionState]]) extends Service {
-    override def saveSnapshot(state: CommandProcessorCompetitionState): IO[Unit] =
-      IO { map.updateAndGet(_ + (state.id -> state)) }.void
-    override def loadSnapshot(id: String): IO[Option[CommandProcessorCompetitionState]] = IO { map.get().get(id) }
+    override def saveSnapshot(state: CommandProcessorCompetitionState): Unit = {
+      map.updateAndGet(_ + (state.id -> state))
+      ()
+    }
+
+    override def loadSnapshot(id: String): Option[CommandProcessorCompetitionState] = map.get().get(id)
+    override def close(): Unit                                                      = ()
   }
 
-  def save(state: CommandProcessorCompetitionState)(implicit service: Service): IO[Unit] = service.saveSnapshot(state)
-  def load(id: String)(implicit service: Service): IO[Option[CommandProcessorCompetitionState]] = service
-    .loadSnapshot(id)
+  def save(state: CommandProcessorCompetitionState)(implicit service: Service): Unit = service.saveSnapshot(state)
+  def load(id: String)(implicit service: Service): Option[CommandProcessorCompetitionState] = service.loadSnapshot(id)
 
   def live(path: String): Service = {
     val p = Paths.get(path)

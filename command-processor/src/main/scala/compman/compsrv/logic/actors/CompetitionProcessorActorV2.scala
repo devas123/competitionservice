@@ -2,15 +2,22 @@ package compman.compsrv.logic.actors
 
 import akka.actor.typed.{ActorRef, Behavior, PostStop, Signal}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, TimerScheduler}
+import akka.kafka.ConsumerMessage.PartitionOffset
+import akka.kafka.ProducerMessage
+import akka.stream.scaladsl.Flow
+import akka.NotUsed
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import com.google.protobuf.timestamp.Timestamp
 import com.google.protobuf.util.Timestamps
 import compman.compsrv.logic.actor.kafka.persistence.{EventSourcingOperations, KafkaBasedEventSourcedBehavior}
-import compman.compsrv.logic.actor.kafka.persistence.KafkaBasedEventSourcedBehavior.{KafkaBasedEventSourcedBehaviorApi, Stop}
+import compman.compsrv.logic.actor.kafka.persistence.KafkaBasedEventSourcedBehavior.{
+  KafkaBasedEventSourcedBehaviorApi,
+  Stop
+}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaSupervisorCommand, PublishMessage, QuerySync}
 import compman.compsrv.logic.Operations
-import compman.compsrv.logic.actors.CompetitionProcessorActorV2.{createInitialState, DefaultTimerKey}
+import compman.compsrv.logic.actors.CompetitionProcessorActorV2.{createInitialState, DefaultTimerKey, KafkaProducerFlow}
 import compman.compsrv.model.Errors
 import compman.compsrv.model.command.Commands
 import compman.compsrv.model.command.Commands.createErrorCommandCallbackMessageParameters
@@ -30,7 +37,8 @@ class CompetitionProcessorActorV2(
   context: ActorContext[KafkaBasedEventSourcedBehaviorApi],
   kafkaSupervisor: ActorRef[KafkaSupervisorCommand],
   snapshotService: SnapshotService.Service,
-  timers: TimerScheduler[KafkaBasedEventSourcedBehaviorApi]
+  timers: TimerScheduler[KafkaBasedEventSourcedBehaviorApi],
+  kafkaProducerFlowOptional: Option[KafkaProducerFlow]
 ) extends KafkaBasedEventSourcedBehavior[CommandProcessorCompetitionState, Command, Event, Errors.Error](
       competitionId,
       eventsTopic,
@@ -45,7 +53,7 @@ class CompetitionProcessorActorV2(
 
   import compman.compsrv.CommandProcessorMain.Live._
 
-  override val operations: EventSourcingOperations[Command, Event, CommandProcessorCompetitionState, Errors.Error] =
+  override def operations: EventSourcingOperations[Command, Event, CommandProcessorCompetitionState, Errors.Error] =
     new EventSourcingOperations[Command, Event, CommandProcessorCompetitionState, Errors.Error] {
       override def processCommand(
         command: Command,
@@ -80,7 +88,7 @@ class CompetitionProcessorActorV2(
       }
 
       override def optionallySaveStateSnapshot(state: CommandProcessorCompetitionState): Unit = snapshotService
-        .saveSnapshot(state).unsafeRunSync()
+        .saveSnapshot(state)
 
       override def processError(
         command: Command,
@@ -95,6 +103,12 @@ class CompetitionProcessorActorV2(
       }
     }
 
+  override protected def producerFlow: Flow[
+    ProducerMessage.Envelope[String, Event, PartitionOffset],
+    ProducerMessage.Results[String, Event, PartitionOffset],
+    NotUsed
+  ] = kafkaProducerFlowOptional.getOrElse(super.producerFlow)
+
   override def getEvents(startFrom: Long): Seq[Event] = {
     val promise = Promise[Seq[Array[Byte]]]()
     context.log.info(s"Getting events from topic: $eventsTopic, starting from $startFrom")
@@ -105,7 +119,7 @@ class CompetitionProcessorActorV2(
   }
 
   override def getInitialState: CommandProcessorCompetitionState = snapshotService.loadSnapshot(competitionId)
-    .map(_.getOrElse(createInitialState(competitionId))).unsafeRunSync()
+    .getOrElse(createInitialState(competitionId))
 
   override def getLatestOffset(state: CommandProcessorCompetitionState): Long = state.revision.toLong
 
@@ -117,6 +131,7 @@ class CompetitionProcessorActorV2(
       competitionId,
       CompetitionProcessorNotification().withStopped(CompetitionProcessingStopped(competitionId)).toByteArray
     )
+    snapshotService.close()
     Behaviors.same
   }
 
@@ -128,13 +143,20 @@ class CompetitionProcessorActorV2(
 object CompetitionProcessorActorV2 {
   private val DefaultTimerKey = "stopTimer"
 
+  type KafkaProducerFlow = Flow[
+    ProducerMessage.Envelope[String, Event, PartitionOffset],
+    ProducerMessage.Results[String, Event, PartitionOffset],
+    NotUsed
+  ]
+
   def behavior(
     competitionId: String,
     eventsTopic: String,
     commandCallbackTopic: String,
     competitionNotificationsTopic: String,
     kafkaSupervisor: ActorRef[KafkaSupervisorCommand],
-    snapshotService: SnapshotService.Service
+    snapshotService: SnapshotService.Service,
+    kafkaProducerFlowOptional: Option[KafkaProducerFlow] = None
   ): Behavior[KafkaBasedEventSourcedBehaviorApi] = Behaviors.setup { context =>
     Behaviors.withTimers { timers =>
       new CompetitionProcessorActorV2(
@@ -145,7 +167,8 @@ object CompetitionProcessorActorV2 {
         context,
         kafkaSupervisor,
         snapshotService,
-        timers
+        timers,
+        kafkaProducerFlowOptional
       )
     }
   }
