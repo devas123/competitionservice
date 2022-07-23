@@ -17,7 +17,6 @@ inThisBuild(List(
   Global / onChangedBuildSource := ReloadOnSourceChanges
 ))
 
-val zTestFramework = TestFramework("zio.test.sbt.ZTestFramework")
 
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
@@ -38,7 +37,6 @@ lazy val kafkaCommons = module("kafka-common", "kafka-common").settings(
 lazy val commons = module("commons", "command-processor/commons").settings(
   libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioLoggingDependencies ++ zioTestDependencies ++
     akkaDependencies ++ protobufUtils,
-  testFrameworks := Seq(zTestFramework)
 ).dependsOn(competitionServiceModelProtobuf)
 
 lazy val competitionservice = project.in(file(".")).settings(publish / skip := true)
@@ -48,9 +46,9 @@ lazy val commandProcessor = module("command-processor", "command-processor")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv"))
   .settings(
     libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
-      zioLoggingDependencies ++ monocleDependencies ++ akkaDependencies ++
+      zioLoggingDependencies ++ monocleDependencies ++ akkaDependencies  ++
       Seq(guavaDependency, rocksDbDependency, disruptorDependency, scalaTestDependency),
-    testFrameworks       := Seq(zTestFramework, TestFrameworks.ScalaTest),
+    testFrameworks       := Seq(TestFrameworks.ScalaTest),
     Docker / packageName := "command-processor"
   ).settings(stdSettings("command-processor")).dependsOn(commons, kafkaCommons)
 
@@ -67,7 +65,7 @@ lazy val queryProcessor = module("query-processor", "query-processor")
         "com.thesamet.scalapb" %% "scalapb-json4s" % "0.12.0"
       ) ++ akkaDependencies,
     dependencyOverrides  := Seq("dev.zio" %% "zio-test" % zioVersion % "test"),
-    testFrameworks       := Seq(zTestFramework, TestFrameworks.ScalaTest),
+    testFrameworks       := Seq(TestFrameworks.ScalaTest),
     Docker / packageName := "query-processor"
   ).settings(stdSettings("query-processor", Seq.empty)).dependsOn(commons, kafkaCommons)
 
@@ -76,6 +74,6 @@ lazy val gatewayService = module("gateway-service", "gateway-service")
   .settings(
     libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
       akkaDependencies ++ zioLoggingDependencies ++ http4sDependencies ++ Seq(scalaTestDependency),
-    testFrameworks       := Seq(zTestFramework),
+    testFrameworks       := Seq(TestFrameworks.ScalaTest),
     Docker / packageName := "gateway-service"
   ).settings(stdSettings("gateway-service")).dependsOn(commons, kafkaCommons)
