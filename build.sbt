@@ -33,7 +33,7 @@ lazy val kafkaCommons = module("kafka-common", "kafka-common").settings(
   libraryDependencies += testContainersDependency,
   libraryDependencies += scalaTestDependency,
   testFrameworks := Seq(TestFrameworks.ScalaTest)
-)
+).dependsOn(competitionServiceModelProtobuf)
 
 lazy val commons = module("commons", "command-processor/commons").settings(
   libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioLoggingDependencies ++ zioTestDependencies ++

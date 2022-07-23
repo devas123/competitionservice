@@ -52,6 +52,13 @@ object KafkaSupervisor {
     endOffset: Option[Long] = None
   ) extends KafkaSupervisorCommand
 
+  case class QueryOffsetsSync(
+                               topic: String,
+                               groupId: String,
+                               promise: Promise[StartOffsetsAndTopicEndOffset],
+                               timeout: FiniteDuration = 10.seconds
+  ) extends KafkaSupervisorCommand
+
   private case class SubscriberStopped(uuid: String) extends KafkaSupervisorCommand
 
   case class QuerySync(
@@ -65,7 +72,8 @@ object KafkaSupervisor {
 
   case class Unsubscribe(uuid: String) extends KafkaSupervisorCommand
 
-  case class PublishMessage(topic: String, key: String, message: Array[Byte]) extends KafkaSupervisorCommand {}
+  case class PublishMessage(topic: String, key: String, message: Array[Byte]) extends KafkaSupervisorCommand
+  case class BatchPublishMessage(messages: Seq[PublishMessage])               extends KafkaSupervisorCommand
   object PublishMessage {
     def apply(tuple: (String, String, Array[Byte])): PublishMessage = PublishMessage(tuple._1, tuple._2, tuple._3)
   }
@@ -81,7 +89,7 @@ object KafkaSupervisor {
 
   def updated(
     publishActor: ActorRef[KafkaPublishActor.KafkaPublishActorCommand],
-    queryAndSubscribeActors: Map[String, ActorRef[KafkaSubscribeActor.KafkaQueryActorCommand]],
+    queryAndSubscribeActors: Map[String, ActorRef[_]],
     consumerSettings: ConsumerSettings[String, Array[Byte]],
     admin: Admin
   )(implicit materializer: Materializer): Behavior[KafkaSupervisorCommand] = Behaviors.setup { context =>
@@ -105,13 +113,31 @@ object KafkaSupervisor {
       updated(publishActor, queryAndSubscribeActors + (actorId -> actor), consumerSettings, admin)
     }
 
+    def queryOffsetsSync(
+               topic: String,
+               groupId: String,
+               replyTo: ActorRef[KafkaSyncOffsetQueryReceiverActor.KafkaSyncOffsetQueryReceiverActorApi],
+             ) = {
+      val actorId = innerQueryActorId
+      val actor = context.spawn(
+        KafkaOffsetsQueryActor(
+          consumerSettings = consumerSettings.withGroupId(groupId),
+          topic = topic,
+          replyTo = replyTo,
+        ),
+        actorId
+      )
+      updated(publishActor, queryAndSubscribeActors + (actorId -> actor), consumerSettings, admin)
+    }
+
+
     Behaviors.receiveMessage {
       case Unsubscribe(uuid) =>
-        queryAndSubscribeActors.get(uuid).foreach(a => a ! KafkaSubscribeActor.Stop)
+        queryAndSubscribeActors.get(uuid).foreach(a => context.stop(a))
         Behaviors.same
       case SubscriberStopped(uuid) => updated(publishActor, queryAndSubscribeActors - uuid, consumerSettings, admin)
       case QueryAndSubscribe(topic, groupId, replyTo, startOffset, uuid, commitOffsetToKafka) =>
-        queryAndSubscribeActors.get(uuid).foreach(a => a ! KafkaSubscribeActor.Stop)
+        queryAndSubscribeActors.get(uuid).foreach(a => context.stop(a))
         val actorId = innerQueryActorId
         val actor = context.spawn(
           KafkaSubscribeActor(
@@ -132,11 +158,20 @@ object KafkaSupervisor {
         val queryReceiver = context
           .spawn(KafkaSyncQueryReceiverActor.behavior(promise, timeout), UUID.randomUUID().toString)
         query(topic, queryReceiver, startOffset, endOffset)
+      case QueryOffsetsSync(topic, groupId, promise, timeout) =>
+        val queryReceiver = context
+          .spawn(KafkaSyncOffsetQueryReceiverActor.behavior(promise, timeout), UUID.randomUUID().toString)
+        queryOffsetsSync(topic, groupId, queryReceiver)
 
       case QueryAsync(topic, _, replyTo, startOffset, endOffset) => query(topic, replyTo, startOffset, endOffset)
       case Stop                                                  => stop(context)
       case PublishMessage(topic, key, message) =>
         publishActor ! PublishMessageToKafka(topic, key, message)
+        Behaviors.same
+      case BatchPublishMessage(messages) =>
+        messages.foreach { case PublishMessage(topic, key, message) =>
+          publishActor ! PublishMessageToKafka(topic, key, message)
+        }
         Behaviors.same
 
       case CreateTopicIfMissing(topic, topicConfig) =>

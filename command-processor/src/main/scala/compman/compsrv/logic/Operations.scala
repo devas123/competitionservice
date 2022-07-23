@@ -2,30 +2,25 @@ package compman.compsrv.logic
 
 import cats.data.EitherT
 import cats.Monad
+import cats.effect.IO
 import com.google.protobuf.timestamp.Timestamp
 import com.google.protobuf.util.Timestamps
 import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
-import compman.compsrv.logic.logging.{info, CompetitionLogging}
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.model.{Errors, Mapping}
 import compman.compsrv.model.Mapping.{CommandMapping, EventMapping}
 import compservice.model.protobuf.command.Command
 import compservice.model.protobuf.common.MessageInfo
 import compservice.model.protobuf.common.MessageInfo.Payload
 import compservice.model.protobuf.event.{Event, EventType}
-import compservice.model.protobuf.model.{
-  CategoryDescriptor,
-  CommandProcessorCompetitionState,
-  Competitor,
-  RegistrationGroup,
-  RegistrationPeriod
-}
-import zio.Task
+import compservice.model.protobuf.model._
+import org.slf4j.{Logger, LoggerFactory}
 
 import java.util
 import java.util.UUID
 
 object Operations {
+
+  val log: Logger = LoggerFactory.getLogger(classOf[Operations.type])
 
   trait IdOperations[F[_]] {
     def generateIdIfMissing(id: Option[String] = None): F[String]
@@ -52,10 +47,10 @@ object Operations {
   trait EventOperations[F[+_]] extends CommandEventOperations[F, Event]
 
   object EventOperations {
-    val live: EventOperations[LIO] = new EventOperations[LIO] {
-      override def lift(obj: => Seq[Event]): LIO[Seq[Event]] = Task(obj)
+    val live: EventOperations[IO] = new EventOperations[IO] {
+      override def lift(obj: => Seq[Event]): IO[Seq[Event]] = IO(obj)
 
-      override def error(error: => Errors.Error): LIO[Either[Errors.Error, Event]] = Task { Left(error) }
+      override def error(error: => Errors.Error): IO[Either[Errors.Error, Event]] = IO { Left(error) }
 
       override def create(
         `type`: EventType,
@@ -64,7 +59,7 @@ object Operations {
         fightId: Option[String],
         categoryId: Option[String],
         payload: Option[Payload]
-      ): LIO[Event] = Task {
+      ): IO[Event] = IO {
         Event().withType(`type`).withMessageInfo(MessageInfo().withId(UUID.randomUUID().toString).update(
           _.competitionId.setIfDefined(competitionId),
           _.categoryId.setIfDefined(categoryId),
@@ -84,39 +79,39 @@ object Operations {
 
     def apply[F[_]](implicit F: IdOperations[F]): IdOperations[F] = F
 
-    val live: IdOperations[LIO] = new IdOperations[LIO] {
-      override def competitorId(competitor: Competitor): LIO[String]       = Task(util.UUID.randomUUID().toString)
-      override def categoryId(competitor: CategoryDescriptor): LIO[String] = Task(util.UUID.randomUUID().toString)
-      override def registrationPeriodId(competitor: RegistrationPeriod): LIO[String] =
-        Task(util.UUID.randomUUID().toString)
+    val live: IdOperations[IO] = new IdOperations[IO] {
+      override def competitorId(competitor: Competitor): IO[String]       = IO(util.UUID.randomUUID().toString)
+      override def categoryId(competitor: CategoryDescriptor): IO[String] = IO(util.UUID.randomUUID().toString)
+      override def registrationPeriodId(competitor: RegistrationPeriod): IO[String] =
+        IO(util.UUID.randomUUID().toString)
 
-      override def registrationGroupId(group: RegistrationGroup): LIO[String] = Task(util.UUID.randomUUID().toString)
+      override def registrationGroupId(group: RegistrationGroup): IO[String] = IO(util.UUID.randomUUID().toString)
 
-      override def fightId(stageId: String, groupId: String): LIO[String] = Task(UUID.randomUUID().toString)
+      override def fightId(stageId: String, groupId: String): IO[String] = IO(UUID.randomUUID().toString)
 
-      override def uid: LIO[String] = Task(UUID.randomUUID().toString)
+      override def uid: IO[String] = IO(UUID.randomUUID().toString)
 
-      override def generateIdIfMissing(id: Option[String]): LIO[String] =
-        Task(id.filter(_.nonEmpty).getOrElse(UUID.randomUUID().toString))
+      override def generateIdIfMissing(id: Option[String]): IO[String] =
+        IO(id.filter(_.nonEmpty).getOrElse(UUID.randomUUID().toString))
     }
 
   }
 
-  def processStatelessCommand[F[
-    +_
-  ]: Monad: CommandMapping: IdOperations: CompetitionLogging.Service: EventOperations: Interpreter](
+  private def info[F[+_]: Monad](str: String): F[Unit] = Monad[F].pure(log.info(str))
+
+  def processStatelessCommand[F[+_]: Monad: CommandMapping: IdOperations: EventOperations: Interpreter](
     command: Command
   ): F[Either[Errors.Error, Seq[Event]]] = {
     import cats.implicits._
     val either: EitherT[F, Errors.Error, Seq[Event]] = for {
-      _             <- EitherT.liftF(info(s"Received stateless command: $command"))
-      mapped        <- EitherT.liftF(Mapping.mapCommandDto(command))
-      _             <- EitherT.liftF(info(s"Mapped stateless command: $mapped"))
-      eventsToApply <- EitherT(StatelessCommandProcessors.process(mapped))
-      _             <- EitherT.liftF(info(s"Received stateless events: $eventsToApply"))
+      _             <- EitherT.liftF(info[F](s"Received stateless command: $command"))
+      mapped        <- EitherT.liftF(Mapping.mapCommandDto[F](command))
+      _             <- EitherT.liftF(info[F](s"Mapped stateless command: $mapped"))
+      eventsToApply <- EitherT(StatelessCommandProcessors.process[F](mapped))
+      _             <- EitherT.liftF(info[F](s"Received stateless events: $eventsToApply"))
       numberOfEvents = eventsToApply.size
       enrichedEvents = eventsToApply.toList.mapWithIndex((ev, ind) => enrichEvent(command, numberOfEvents, ev, ind))
-      _ <- EitherT.liftF(info(s"Returning stateless events: $enrichedEvents"))
+      _ <- EitherT.liftF(info[F](s"Returning stateless events: $enrichedEvents"))
     } yield enrichedEvents
     either.value
   }
@@ -127,29 +122,27 @@ object Operations {
       .withMessageInfo(ev.getMessageInfo.update(_.correlationId.setIfDefined(command.messageInfo.flatMap(_.id))))
   }
 
-  def processStatefulCommand[F[
-    +_
-  ]: Monad: CommandMapping: IdOperations: CompetitionLogging.Service: EventOperations: Interpreter](
+  def processStatefulCommand[F[+_]: Monad: CommandMapping: IdOperations: EventOperations: Interpreter](
     latestState: CommandProcessorCompetitionState,
     command: Command
   ): F[Either[Errors.Error, Seq[Event]]] = {
     import cats.implicits._
     val either: EitherT[F, Errors.Error, Seq[Event]] = for {
-      _             <- EitherT.liftF(info(s"Received command: $command"))
+      _             <- EitherT.liftF(info[F](s"Received command: $command"))
       mapped        <- EitherT.liftF(Mapping.mapCommandDto(command))
-      _             <- EitherT.liftF(info(s"Mapped command: $mapped"))
-      eventsToApply <- EitherT(CompetitionCommandProcessors.process(mapped, latestState))
-      _             <- EitherT.liftF(info(s"Received events: $eventsToApply"))
+      _             <- EitherT.liftF(info[F](s"Mapped command: $mapped"))
+      eventsToApply <- EitherT(CompetitionCommandProcessors.process[F](mapped, latestState))
+      _             <- EitherT.liftF(info[F](s"Received events: $eventsToApply"))
       n              = latestState.revision
       numberOfEvents = eventsToApply.size
       enrichedEvents = eventsToApply.toList
         .mapWithIndex((ev, ind) => enrichEvent(command, numberOfEvents, ev, ind).withVersion(n + ind))
-      _ <- EitherT.liftF(info(s"Returning events: $enrichedEvents"))
+      _ <- EitherT.liftF(info[F](s"Returning events: $enrichedEvents"))
     } yield enrichedEvents
     either.value
   }
 
-  def applyEvent[F[+_]: CompetitionLogging.Service: Monad: EventMapping: IdOperations: EventOperations](
+  def applyEvent[F[+_]: Monad: EventMapping: IdOperations: EventOperations](
     latestState: CommandProcessorCompetitionState,
     event: Event
   ): F[CommandProcessorCompetitionState] = {

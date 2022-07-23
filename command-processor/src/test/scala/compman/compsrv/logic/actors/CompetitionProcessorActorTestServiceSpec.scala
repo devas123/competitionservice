@@ -7,6 +7,7 @@ import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, 
 import compman.compsrv.logic.actors.ActorSystem.ActorConfig
 import compman.compsrv.logic.actors.CompetitionProcessorSupervisorActor.CommandReceived
 import compman.compsrv.logic.logging.CompetitionLogging
+import compman.compsrv.SpecBase
 import compservice.model.protobuf.command.{Command, CommandType}
 import compservice.model.protobuf.commandpayload.CreateCompetitionPayload
 import compservice.model.protobuf.common.MessageInfo
@@ -22,7 +23,7 @@ import zio.test._
 
 import java.util.UUID
 
-object CompetitionProcessorActorTestServiceSpec extends DefaultRunnableSpec {
+class CompetitionProcessorActorTestServiceSpec extends SpecBase {
   object Deps {
     val competitionId   = "test-competition-id"
     val groupId: String = UUID.randomUUID().toString

@@ -1,10 +1,6 @@
 package compman.compsrv.config
 
-import zio._
-import zio.config.read
-import zio.config.magnolia.DeriveConfigDescriptor
-import zio.config.typesafe.TypesafeConfigSource
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.Config
 
 final case class AppConfig(
   commandProcessor: CommandProcessorConfig,
@@ -26,19 +22,42 @@ final case class ProducerConfig(bootstrapServers: String) {
 final case class SnapshotConfig(databasePath: String)
 
 object AppConfig {
-  private val descriptor = DeriveConfigDescriptor.descriptor[AppConfig]
 
-  def load(): Task[AppConfig] = for {
-    configSource <-
-      ZIO(TypesafeConfigSource.fromTypesafeConfig(ZIO.effect(ConfigFactory.load().getConfig("processor"))))
-    config <- read(AppConfig.descriptor.from(configSource))
-  } yield config
+  def load(config: Config): AppConfig = {
+    val commandProcessorConfig = CommandProcessorConfig(
+      actorIdleTimeoutMillis =
+        if (config.hasPath("processor.commandProcessor.actorIdleTimeoutMillis"))
+          Some(config.getLong("processor.commandProcessor.actorIdleTimeoutMillis"))
+        else None,
+      eventsTopicPrefix = config.getString("processor.commandProcessor.eventsTopicPrefix"),
+      competitionNotificationsTopic = config.getString("processor.commandProcessor.competitionNotificationsTopic"),
+      academyNotificationsTopic = config.getString("processor.commandProcessor.academyNotificationsTopic"),
+      commandCallbackTopic = config.getString("processor.commandProcessor.commandCallbackTopic"),
+      commandsTopic = config.getString("processor.consumer.commandTopics.competition"),
+      snapshotDbPath = config.getString("processor.snapshotConfig.databasePath"),
+      groupId = config.getString("processor.consumer.groupId")
+    )
+    val consumer = ConsumerConfig(
+      bootstrapServers = config.getString("processor.consumer.bootstrapServers"),
+      groupId = config.getString("processor.consumer.groupId"),
+      commandTopics = CommandTopics(
+        competition = config.getString("processor.consumer.commandTopics.competition"),
+        academy = config.getString("processor.consumer.commandTopics.academy")
+      )
+    )
+    val producer       = ProducerConfig(bootstrapServers = config.getString("processor.producer.bootstrapServers"))
+    val snapshotConfig = SnapshotConfig(databasePath = config.getString("processor.snapshotConfig.databasePath"))
+    AppConfig(commandProcessorConfig, consumer, producer, snapshotConfig)
+  }
 }
 
 case class CommandProcessorConfig(
-                                   actorIdleTimeoutMillis: Option[Long],
-                                   eventsTopicPrefix: String,
-                                   competitionNotificationsTopic: String,
-                                   academyNotificationsTopic: String,
-                                   commandCallbackTopic: String
+  actorIdleTimeoutMillis: Option[Long],
+  eventsTopicPrefix: String,
+  commandsTopic: String,
+  competitionNotificationsTopic: String,
+  academyNotificationsTopic: String,
+  commandCallbackTopic: String,
+  snapshotDbPath: String,
+  groupId: String
 )
