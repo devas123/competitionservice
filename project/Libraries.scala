@@ -1,11 +1,6 @@
 import sbt._
 
 object Libraries {
-  val zioVersion            = "1.0.14"
-  val zioConfigVersion      = "2.0.4"
-  val zioInteropCatsVersion = "3.2.9.1"
-  val zioLogging            = "0.5.14"
-  val zioCats               = "3.1.1.0"
   val circe                 = "0.14.1"
   val cats                  = "2.7.0"
   val catsEffect            = "3.3.11"
@@ -58,32 +53,13 @@ object Libraries {
   val monocleDependencies: Seq[ModuleID] =
     Seq("dev.optics" %% "monocle-core" % monocle, "dev.optics" %% "monocle-macro" % monocle)
 
-  val zioDependencies: Seq[ModuleID] = Seq(
-    "dev.zio" %% "zio"              % zioVersion,
-    "dev.zio" %% "zio-streams"      % zioVersion,
-    "dev.zio" %% "zio-interop-cats" % zioInteropCatsVersion
-  )
   val scalaTestDependency = "org.scalatest" %% "scalatest" % "3.2.12" % Test
-  val zioTestDependencies: Seq[ModuleID] = Seq(
-    "dev.zio" %% "zio-test-sbt" % zioVersion % "test",
-    "dev.zio" %% "zio-test"     % zioVersion % "test",
-    scalaTestDependency
-  )
-
-  val zioLoggingDependencies: Seq[ModuleID] = Seq(
-    "dev.zio"                 %% "zio-logging"       % zioLogging,
-    "dev.zio"                 %% "zio-logging-slf4j" % zioLogging,
-    "org.apache.logging.log4j" % "log4j-core"        % log4j,
-    "org.apache.logging.log4j" % "log4j-slf4j-impl"  % log4j
-  )
 
   val log4jDependencies: Seq[ModuleID] = Seq(
     "org.apache.logging.log4j" % "log4j-core"        % log4j,
     "org.apache.logging.log4j" % "log4j-slf4j-impl"  % log4j
   )
 
-  val zioConfigDependencies: Seq[ModuleID] =
-    Seq("dev.zio" %% "zio-config-magnolia" % zioConfigVersion, "dev.zio" %% "zio-config-typesafe" % zioConfigVersion)
 
   val http4sDependencies: Seq[ModuleID] = Seq(
     "org.http4s" %% "http4s-dsl"          % http4s,

@@ -17,7 +17,6 @@ inThisBuild(List(
   Global / onChangedBuildSource := ReloadOnSourceChanges
 ))
 
-
 addCommandAlias("fmt", "all scalafmtSbt scalafmt test:scalafmt")
 addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck")
 
@@ -34,10 +33,9 @@ lazy val kafkaCommons = module("kafka-common", "kafka-common").settings(
   testFrameworks := Seq(TestFrameworks.ScalaTest)
 ).dependsOn(competitionServiceModelProtobuf)
 
-lazy val commons = module("commons", "command-processor/commons").settings(
-  libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioLoggingDependencies ++ zioTestDependencies ++
-    akkaDependencies ++ protobufUtils,
-).dependsOn(competitionServiceModelProtobuf)
+lazy val commons = module("commons", "command-processor/commons")
+  .settings(libraryDependencies ++= catsDependencies ++ akkaDependencies ++ protobufUtils)
+  .dependsOn(competitionServiceModelProtobuf)
 
 lazy val competitionservice = project.in(file(".")).settings(publish / skip := true)
   .aggregate(commandProcessor, queryProcessor, gatewayService, kafkaCommons)
@@ -45,8 +43,7 @@ lazy val competitionservice = project.in(file(".")).settings(publish / skip := t
 lazy val commandProcessor = module("command-processor", "command-processor")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv"))
   .settings(
-    libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
-      zioLoggingDependencies ++ monocleDependencies ++ akkaDependencies  ++ akkaKafkaTests ++
+    libraryDependencies ++= catsDependencies ++ monocleDependencies ++ akkaDependencies ++ akkaKafkaTests ++
       Seq(guavaDependency, rocksDbDependency, disruptorDependency, scalaTestDependency),
     testFrameworks       := Seq(TestFrameworks.ScalaTest),
     Docker / packageName := "command-processor"
@@ -55,16 +52,14 @@ lazy val commandProcessor = module("command-processor", "command-processor")
 lazy val queryProcessor = module("query-processor", "query-processor")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.logic"))
   .settings(
-    libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ akkaKafkaTests ++
-      zioConfigDependencies ++ zioLoggingDependencies ++ monocleDependencies ++ http4sDependencies ++ Seq(
-        mongoDbScalaDriver,
-        disruptorDependency,
-        testContainersDependency,
-        testContainersMongoDependency,
-        scalaTestDependency,
-        "com.thesamet.scalapb" %% "scalapb-json4s" % "0.12.0"
-      ) ++ akkaDependencies,
-    dependencyOverrides  := Seq("dev.zio" %% "zio-test" % zioVersion % "test"),
+    libraryDependencies ++= catsDependencies ++ akkaKafkaTests ++ monocleDependencies ++ http4sDependencies ++ Seq(
+      mongoDbScalaDriver,
+      disruptorDependency,
+      testContainersDependency,
+      testContainersMongoDependency,
+      scalaTestDependency,
+      "com.thesamet.scalapb" %% "scalapb-json4s" % "0.12.0"
+    ) ++ akkaDependencies,
     testFrameworks       := Seq(TestFrameworks.ScalaTest),
     Docker / packageName := "query-processor"
   ).settings(stdSettings("query-processor", Seq.empty)).dependsOn(commons, kafkaCommons)
@@ -72,8 +67,7 @@ lazy val queryProcessor = module("query-processor", "query-processor")
 lazy val gatewayService = module("gateway-service", "gateway-service")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.gateway"))
   .settings(
-    libraryDependencies ++= catsDependencies ++ zioDependencies ++ zioTestDependencies ++ zioConfigDependencies ++
-      akkaDependencies ++ zioLoggingDependencies ++ http4sDependencies ++ Seq(scalaTestDependency),
+    libraryDependencies ++= catsDependencies ++ akkaDependencies ++ http4sDependencies ++ Seq(scalaTestDependency),
     testFrameworks       := Seq(TestFrameworks.ScalaTest),
     Docker / packageName := "gateway-service"
   ).settings(stdSettings("gateway-service")).dependsOn(commons, kafkaCommons)

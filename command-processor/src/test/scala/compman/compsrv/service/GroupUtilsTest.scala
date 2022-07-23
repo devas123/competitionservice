@@ -1,31 +1,27 @@
 package compman.compsrv.service
 
+import cats.Eval
 import compman.compsrv.logic.competitor.CompetitorService
 import compman.compsrv.logic.fight.GroupsUtils
-import zio.{Task, ZIO}
-import zio.interop.catz._
-import zio.test._
-import zio.test.TestAspect.sequential
+import compman.compsrv.SpecBase
 
-object GroupUtilsTest extends DefaultRunnableSpec with TestEntities {
-  override def spec: ZSpec[_root_.zio.test.environment.TestEnvironment, Any] =
-    suite("Group utils")(testM("Should generate brackets for 8 fighters") {
-      for {
-        fighters <- ZIO.effect(CompetitorService.generateRandomCompetitorsForCategory(
-          size = totalNumberOfCompetitors,
-          categoryId = categoryId,
-          competitionId = competitionId
-        ))
-        fights <- GroupsUtils.generateStageFights[Task](
-          competitionId,
-          categoryId,
-          stageForGroupsGeneration,
-          600,
-          fighters
-        )
-        unfolded = fights.fold(_ => List.empty, identity)
-        totalFights = groupRange.map(startingCompetitorsSizeForGroup + _).map(s => s * (s - 1)).sum / 2
-      } yield assertTrue(fights.isRight) &&
-        assertTrue(unfolded.size == totalFights)
-    }) @@ sequential
+class GroupUtilsTest extends SpecBase with TestEntities {
+  test("Should generate brackets for 8 fighters") {
+      val fighters = CompetitorService.generateRandomCompetitorsForCategory(
+        size = totalNumberOfCompetitors,
+        categoryId = categoryId,
+        competitionId = competitionId
+      )
+      val fights = GroupsUtils.generateStageFights[Eval](
+        competitionId,
+        categoryId,
+        stageForGroupsGeneration,
+        600,
+        fighters
+      ).value
+      val unfolded = fights.fold(_ => List.empty, identity)
+      val totalFights = groupRange.map(startingCompetitorsSizeForGroup + _).map(s => s * (s - 1)).sum / 2
+      assert(fights.isRight)
+        assert(unfolded.size == totalFights)
+  }
 }
