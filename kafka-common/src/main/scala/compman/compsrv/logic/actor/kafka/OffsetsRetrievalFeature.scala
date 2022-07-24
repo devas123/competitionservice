@@ -1,7 +1,8 @@
 package compman.compsrv.logic.actor.kafka
 
-import akka.actor.ActorRef
+import akka.actor.ActorSystem
 import akka.kafka.scaladsl.MetadataClient
+import akka.kafka.ConsumerSettings
 import org.apache.kafka.common.TopicPartition
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -9,11 +10,14 @@ import scala.concurrent.duration.DurationInt
 
 trait OffsetsRetrievalFeature {
 
-  def prepareOffsetsForConsumer(consumer: ActorRef)(topic: String, startOffset: Option[Long])(implicit
-    ec: ExecutionContext
+  def prepareOffsetsForConsumer(
+    consumerSettings: ConsumerSettings[String, Array[Byte]]
+  )(topic: String, startOffset: Option[Long])(implicit
+    ec: ExecutionContext,
+    actorSystem: ActorSystem
   ): Future[Option[StartOffsetsAndTopicEndOffset]] = {
-    val metadataClient = MetadataClient.create(consumer, 30.second)
-    for {
+    val metadataClient = MetadataClient.create(consumerSettings, 10.seconds)
+    (for {
       partitions <- metadataClient.getPartitionsFor(topic)
       topicPartitions = partitions.map(p => new TopicPartition(p.topic(), p.partition())).toSet
       partitionsToEndOffsetsMap <- metadataClient.getEndOffsets(topicPartitions)
@@ -21,6 +25,10 @@ trait OffsetsRetrievalFeature {
       res =
         if (startOffsets.nonEmpty) { Some(StartOffsetsAndTopicEndOffset(startOffsets, partitionsToEndOffsetsMap)) }
         else None
-    } yield res
+    } yield res).andThen { case _ =>
+      Future.successful {
+        metadataClient.close()
+      }
+    }
   }
 }

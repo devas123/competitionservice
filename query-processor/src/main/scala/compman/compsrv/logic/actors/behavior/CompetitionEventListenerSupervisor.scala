@@ -29,7 +29,7 @@ object CompetitionEventListenerSupervisor {
   case class KafkaNotification(msg: String)                                                      extends ActorMessages
   case class CompetitionEventListenerStopped(id: String)                                         extends ActorMessages
 
-  trait ActorContext  extends WithIORuntime {
+  trait ActorContext extends WithIORuntime {
     implicit val managedCompetitionsOperations: ManagedCompetitionService[IO]
   }
 
@@ -70,8 +70,7 @@ object CompetitionEventListenerSupervisor {
           )
           context.watchWith(actor, CompetitionEventListenerStopped(id))
           competitionListeners.put(id, actor)
-          context.log.info(s"Created actor to process the competition $id")
-        } else { context.log.debug(s"Actor already exists with id $id") }
+        }
       }
 
       val adapter = context.messageAdapter[KafkaConsumerApi] {
@@ -86,8 +85,7 @@ object CompetitionEventListenerSupervisor {
       context.pipeToSelf((for {
         activeCompetitions <- ManagedCompetitionsOperations.getActiveCompetitions[IO]
       } yield activeCompetitions).unsafeToFuture()) {
-        case Failure(exception) =>
-          ActiveCompetitions(List.empty)
+        case Failure(_)     => ActiveCompetitions(List.empty)
         case Success(value) => ActiveCompetitions(value)
       }
 
@@ -127,7 +125,6 @@ object CompetitionEventListenerSupervisor {
           if (notification.isStarted) {
             val s = notification.started.get
             (for {
-              _ <- IO(context.log.info(s"Processing competition processing started notification ${s.id}"))
               _ <- ManagedCompetitionsOperations.addManagedCompetition[IO](ManagedCompetition(
                 s.id,
                 Option(s.name),
@@ -138,8 +135,7 @@ object CompetitionEventListenerSupervisor {
                 s.endsAt.map(toInstant),
                 s.timeZone,
                 s.status
-              )).onError(err => IO(context.log.error(s"Error while saving.", err)))
-              _   <- IO(context.log.info(s"Added competition ${s.id} to db."))
+              ))
               res <- IO(createCompetitionProcessingActorIfMissing(s.id, s.topic))
             } yield res).unsafeRunSync()
           }

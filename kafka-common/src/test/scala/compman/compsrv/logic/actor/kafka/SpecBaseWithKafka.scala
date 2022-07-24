@@ -2,7 +2,7 @@ package compman.compsrv.logic.actor.kafka
 
 import akka.actor.testkit.typed.scaladsl.ActorTestKit
 import akka.kafka.testkit.scaladsl.ScalatestKafkaSpec
-import org.scalatest.{BeforeAndAfter, CancelAfterFailure}
+import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, CancelAfterFailure}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.funsuite.AnyFunSuiteLike
 import org.scalatest.matchers.should.Matchers
@@ -16,6 +16,7 @@ abstract class SpecBaseWithKafka(kafkaPort: Int)
     with ScalaFutures
     with Eventually
     with BeforeAndAfter
+    with BeforeAndAfterAll
     with CancelAfterFailure {
 
   protected val actorTestKit: ActorTestKit = ActorTestKit()
@@ -30,4 +31,6 @@ abstract class SpecBaseWithKafka(kafkaPort: Int)
     }
   }
   protected def this() = this(kafkaPort = -1)
+
+  override def afterAll(): Unit = { actorTestKit.shutdownTestKit() }
 }

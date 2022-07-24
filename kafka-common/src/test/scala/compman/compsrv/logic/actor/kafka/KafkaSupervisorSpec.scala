@@ -46,7 +46,7 @@ class KafkaSupervisorSpec extends SpecBaseWithKafka with TestcontainersKafkaLike
     kafkaSupervisor ! CreateTopicIfMissing(notificationTopic, KafkaTopicConfig())
     waitForTopic(notificationTopic)
     kafkaSupervisor !
-      QueryAndSubscribe(notificationTopic, UUID.randomUUID().toString, messageReceiver.ref, startOffset = Some(0))
+      QueryAndSubscribe(notificationTopic, s"group-${UUID.randomUUID()}", messageReceiver.ref, startOffset = Some(0))
     val competitionId = "competitionId"
     val notification  = Random.nextBytes(100)
     kafkaSupervisor ! PublishMessage(notificationTopic, competitionId, notification)
@@ -73,7 +73,7 @@ class KafkaSupervisorSpec extends SpecBaseWithKafka with TestcontainersKafkaLike
     (0 until messagesCount).toList
       .foreach(_ => kafkaSupervisor ! PublishMessage(notificationTopic, competitionId, notification))
     sleep(1.seconds)
-    kafkaSupervisor ! QueryAndSubscribe(notificationTopic, UUID.randomUUID().toString, messageReceiver.ref)
+    kafkaSupervisor ! QueryAndSubscribe(notificationTopic, s"group-${UUID.randomUUID()}", messageReceiver.ref)
     sleep(1.seconds)
     kafkaSupervisor ! PublishMessage(notificationTopic, competitionId, Random.nextBytes(100))
     messageReceiver.expectMessageType[MessageReceived](5.seconds)
@@ -82,7 +82,7 @@ class KafkaSupervisorSpec extends SpecBaseWithKafka with TestcontainersKafkaLike
 
   test("Should query and subscribe respecting Kafka Committed offset") {
     val topic          = UUID.randomUUID().toString
-    val groupId        = UUID.randomUUID().toString
+    val groupId        = s"group-${UUID.randomUUID()}"
     val actorId        = UUID.randomUUID().toString
     val producerConfig = actorTestKit.system.settings.config.getConfig("akka.kafka.producer")
     val producerSettings = ProducerSettings(producerConfig, new StringSerializer, new ByteArraySerializer)
@@ -146,7 +146,7 @@ class KafkaSupervisorSpec extends SpecBaseWithKafka with TestcontainersKafkaLike
     messageReceiver.expectMessageType[MessageReceived](5.seconds)
     messageReceiver.expectMessageType[QueryFinished](5.seconds)
     messageReceiver.expectNoMessage(1.seconds)
-    kafkaSupervisor ! QueryAndSubscribe(notificationTopic, UUID.randomUUID().toString, messageReceiver.ref)
+    kafkaSupervisor ! QueryAndSubscribe(notificationTopic, s"group-${UUID.randomUUID()}", messageReceiver.ref)
     sleep(1.seconds)
     (0 until messagesCount).toList
       .foreach(_ => kafkaSupervisor ! PublishMessage(notificationTopic, competitionId, notification))

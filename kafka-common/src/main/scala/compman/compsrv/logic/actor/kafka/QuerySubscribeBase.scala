@@ -1,9 +1,10 @@
 package compman.compsrv.logic.actor.kafka
 
-import akka.{actor, Done}
+import akka.Done
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
-import akka.kafka.{ConsumerSettings, KafkaConsumerActor, Subscriptions}
+import akka.actor.ActorSystem
+import akka.kafka.{ConsumerSettings, Subscriptions}
 import akka.kafka.scaladsl.Consumer
 import akka.stream.scaladsl.{Keep, Sink}
 import akka.stream.Materializer
@@ -11,20 +12,18 @@ import compman.compsrv.logic.actor.kafka.KafkaSubscribeActor.ForwardMessage
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, MessageReceived, QueryFinished}
 import org.apache.kafka.common.TopicPartition
 
-import java.util.UUID
 import scala.concurrent.{ExecutionContextExecutor, Future}
 
 abstract class QuerySubscribeBase(
   context: ActorContext[KafkaSubscribeActor.KafkaQueryActorCommand],
   consumerSettings: ConsumerSettings[String, Array[Byte]]
 ) extends AbstractBehavior[KafkaSubscribeActor.KafkaQueryActorCommand](context) with OffsetsRetrievalFeature {
-  import akka.actor.typed.scaladsl.adapter._
   protected implicit val dispatcher: ExecutionContextExecutor = context.executionContext
-  protected val consumer: actor.ActorRef = context
-    .actorOf(KafkaConsumerActor.props(consumerSettings), s"kafka-consumer-actor-${UUID.randomUUID()}")
-
+  protected implicit val classicActorSystem: ActorSystem      = context.system.classicSystem
+  protected var consumerControl: Option[Consumer.Control]     = None
   def prepareOffsets(topic: String, startOffset: Option[Long]): Future[Option[StartOffsetsAndTopicEndOffset]] =
-    prepareOffsetsForConsumer(consumer)(topic, startOffset)
+    prepareOffsetsForConsumer(consumerSettings)(topic, startOffset)
+  protected def stopConsumer(): Unit = { consumerControl.foreach(cc => cc.shutdown()) }
 
   protected def logMessage(
     msg: String,

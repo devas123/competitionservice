@@ -85,7 +85,6 @@ object KafkaSupervisor {
     queryAndSubscribeActors: Map[String, ActorRef[KafkaSubscribeActor.KafkaQueryActorCommand]]
   )
 
-  val initialState: KafkaSupervisorState = KafkaSupervisorState(None, Map.empty)
 
   def updated(
     publishActor: ActorRef[KafkaPublishActor.KafkaPublishActorCommand],

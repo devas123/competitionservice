@@ -1,6 +1,6 @@
 package compman.compsrv.logic.actor.kafka
 
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, Behavior, PostStop, Signal}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.kafka.ConsumerSettings
 import akka.stream.Materializer
@@ -9,8 +9,6 @@ import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.TopicPartition
 
-import scala.concurrent.Await
-import scala.concurrent.duration.DurationInt
 import scala.util.{Failure, Success}
 
 private class KafkaSubscribeActor(
@@ -30,6 +28,12 @@ private class KafkaSubscribeActor(
       }
   }
 
+  override def onSignal: PartialFunction[Signal, Behavior[KafkaSubscribeActor.KafkaQueryActorCommand]] = {
+    case _: PostStop =>
+      stopConsumer()
+      Behaviors.same
+  }
+
   override def onMessage(
     msg: KafkaSubscribeActor.KafkaQueryActorCommand
   ): Behavior[KafkaSubscribeActor.KafkaQueryActorCommand] = {
@@ -41,11 +45,14 @@ private class KafkaSubscribeActor(
       case Stop => Behaviors.stopped(() => ())
       case Start(off, _) => Behaviors.setup { ctx =>
           val (consumerControl, _) = startConsumerStream(off, replyTo)
+          this.consumerControl = Some(consumerControl)
           Behaviors.receiveMessagePartial {
             case ForwardMessage(msg, to) =>
               to ! msg
               Behaviors.same
-            case Stop => Behaviors.stopped(() => Await.result(consumerControl.shutdown().map(_ => ()), 10.seconds))
+            case Stop =>
+              consumerControl.shutdown()
+              Behaviors.stopped(() => ())
             case _: Start =>
               ctx.log.error("Stream already started.")
               Behaviors.same

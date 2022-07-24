@@ -1,6 +1,6 @@
 package compman.compsrv.logic.actor.kafka
 
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, Behavior, PostStop, Signal}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.kafka.ConsumerSettings
 import akka.stream.Materializer
@@ -9,8 +9,6 @@ import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, Quer
 import org.apache.kafka.clients.consumer.ConsumerConfig
 
 import java.util.UUID
-import scala.concurrent.Await
-import scala.concurrent.duration.DurationInt
 import scala.util.{Failure, Success}
 
 private class KafkaAsyncQueryActor(
@@ -40,6 +38,11 @@ private class KafkaAsyncQueryActor(
 
   }
 
+  override def onSignal: PartialFunction[Signal, Behavior[KafkaQueryActorCommand]] = { case _: PostStop =>
+    stopConsumer()
+    Behaviors.same
+  }
+
   override def onMessage(
     msg: KafkaSubscribeActor.KafkaQueryActorCommand
   ): Behavior[KafkaSubscribeActor.KafkaQueryActorCommand] = {
@@ -47,9 +50,7 @@ private class KafkaAsyncQueryActor(
       case ForwardMessage(msg, to) =>
         context.log.warn(s"Query is not yet started, received unexpected ForwardMessage($msg, $to).")
         Behaviors.same
-      case Stop                                      => Behaviors.stopped { () =>
-        replyTo ! QueryFinished(0L)
-      }
+      case Stop                                      => Behaviors.stopped { () => replyTo ! QueryFinished(0L) }
       case FailureInOffsetsRetrieval(msg, exception) => logMessage(msg, exception, replyTo)
       case Start(off, endOffsets) => Behaviors.setup { ctx =>
           val numberOfEventsToTake = endOffsets.foldLeft(endOffsets.values.max) { case (acc, (tp, endOffset)) =>
@@ -59,12 +60,13 @@ private class KafkaAsyncQueryActor(
             s"Starting query with start offset $off, end offsets: $endOffsets, number of events to take: $numberOfEventsToTake"
           )
           val (consumerControl, streamFinished) = startConsumerStream(off, replyTo)
+          this.consumerControl = Some(consumerControl)
           ctx.pipeToSelf(streamFinished)(_ => Stop)
           var messageCount = 0L
           Behaviors.receiveMessagePartial {
             case Stop => Behaviors.stopped { () =>
+                consumerControl.shutdown()
                 replyTo ! QueryFinished(messageCount)
-                Await.result(consumerControl.shutdown().map(_ => ()), 10.seconds)
               }
             case ForwardMessage(msg, to) =>
               to ! msg
