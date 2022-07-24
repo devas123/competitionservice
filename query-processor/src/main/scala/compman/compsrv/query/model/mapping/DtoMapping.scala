@@ -168,22 +168,20 @@ object DtoMapping {
     )
   }
 
-  def mapCompetitor[F[+_]: Monad](dto: model.Competitor): F[Competitor] = Monad[F].pure {
-    Competitor(
-      dto.competitionId,
-      Option(dto.userId),
-      dto.email,
-      dto.id,
-      dto.firstName,
-      dto.lastName,
-      dto.birthDate.map(toInstant),
-      dto.academy.map(a => Academy(a.id, a.name)),
-      Option(dto.categories).map(_.toSet).getOrElse(Set.empty),
-      dto.placeholder,
-      Option(dto.promo),
-      Option(dto.registrationStatus)
-    )
-  }
+  def mapCompetitor(dto: model.Competitor): Competitor =     Competitor(
+    dto.competitionId,
+    Option(dto.userId),
+    dto.email,
+    dto.id,
+    dto.firstName,
+    dto.lastName,
+    dto.birthDate.map(toInstant),
+    dto.academy.map(a => Academy(a.id, a.name)),
+    Option(dto.categories).map(_.toSet).getOrElse(Set.empty),
+    dto.placeholder,
+    Option(dto.promo),
+    Option(dto.registrationStatus)
+  )
 
   def mapCategoryDescriptor[F[+_]: Monad](competitionId: String)(dto: model.CategoryDescriptor): F[Category] = {
     Monad[F].pure(Category(

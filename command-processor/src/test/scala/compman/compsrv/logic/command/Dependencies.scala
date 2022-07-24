@@ -5,7 +5,6 @@ import cats.data.EitherT
 import cats.implicits.toFoldableOps
 import compman.compsrv.logic.Operations.{EventOperations, IdOperations}
 import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
-import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.logic.Operations
 import compman.compsrv.model.Errors
 import compman.compsrv.model.Mapping.EventMapping
@@ -38,32 +37,6 @@ object Dependencies {
 
   implicit val mapping: EventMapping[Eval] = (dto: Event) => Eval.later(EventMapping.mapEvent(dto))
 
-  implicit val logging: CompetitionLogging.Service[Eval] = new CompetitionLogging.Service[Eval] {
-    override def info(msg: => String): Eval[Unit] = Eval.now(println(msg))
-
-    override def info(msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
-
-    override def info(error: Throwable, msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
-
-    override def error(msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
-
-    override def error(error: Throwable, msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
-
-    override def error(msg: => String): Eval[Unit] = Eval.now(println(msg))
-
-    override def warn(msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
-
-    override def warn(error: Throwable, msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
-
-    override def warn(msg: => String): Eval[Unit] = Eval.now(println(msg))
-
-    override def debug(msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
-
-    override def debug(error: Throwable, msg: => String, args: Any*): Eval[Unit] = Eval.now(println(msg))
-
-    override def debug(msg: => String): Eval[Unit] = Eval.now(println(msg))
-  }
-
   implicit val eventOps: EventOperations[Eval] = new EventOperations[Eval] {
     override def lift(obj: => Seq[Event]): Eval[Seq[Event]] = Eval.later(obj)
 
@@ -88,7 +61,7 @@ object Dependencies {
 
   implicit val selectInterpreter: Interpreter[Eval] = Interpreter.asTask[Eval]
 
-  def progressStage[F[+_]: Monad: IdOperations: EventMapping: EventOperations: CompetitionLogging.Service: Interpreter](
+  def progressStage[F[+_]: Monad: IdOperations: EventMapping: EventOperations: Interpreter](
     state: CommandProcessorCompetitionState,
     stageId: String,
     eventsContainer: Seq[Event]

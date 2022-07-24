@@ -1,64 +1,48 @@
 package compman.compsrv.gateway
 
+import akka.actor.typed.{ActorSystem, SupervisorStrategy}
+import akka.actor.typed.scaladsl.Behaviors
+import akka.kafka.{ConsumerSettings, ProducerSettings}
+import cats.effect.unsafe.IORuntime
 import compman.compsrv.gateway.actors.CommandForwardingActor
 import compman.compsrv.gateway.config.AppConfig
 import compman.compsrv.gateway.service.GatewayService
+import compman.compsrv.gateway.service.GatewayService.ServiceIO
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaTopicConfig}
-import compman.compsrv.logic.actors.ActorSystem
-import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.logic.logging.CompetitionLogging.logError
+import org.apache.kafka.common.serialization.{ByteArrayDeserializer, ByteArraySerializer, StringDeserializer, StringSerializer}
 import org.http4s.blaze.server.BlazeServerBuilder
-import zio._
-import zio.blocking.Blocking
-import zio.clock.Clock
-import zio.interop.catz._
-import zio.kafka.producer.{Producer, ProducerSettings}
-import zio.logging.Logging
 
-object GatewayServiceMain extends zio.App {
+object GatewayServiceMain extends App {
 
-  type ServiceEnv   = Clock with Logging with Blocking
-  type ServiceIO[A] = RIO[ServiceEnv, A]
+  sealed trait MainGuardianMessages
 
-  def server(config: AppConfig): ZIO[zio.ZEnv with Clock with Logging, Throwable, Unit] = ActorSystem("gateway-service")
-    .use { actorSystem =>
-      for {
-        kafkaSupervisor <- actorSystem
-          .make("kafkaSupervisor", ActorConfig(), KafkaSupervisor.initialState, KafkaSupervisor.behavior[ZEnv](config.producer.brokers))
-        _ <- kafkaSupervisor ! CreateTopicIfMissing(config.consumer.callbackTopic, KafkaTopicConfig())
-        commandForwardingActor <- actorSystem.make(
-          "commandForwarder",
-          ActorConfig(),
-          CommandForwardingActor.initialState,
-          CommandForwardingActor.behavior[ZEnv](
-            kafkaSupervisorActor = kafkaSupervisor,
-            producerConfig = config.producer,
-            consumerConfig = config.consumer,
-            groupId = config.consumer.groupId,
-            config.callbackTimeoutMs
-          )
-        )
-        _ <- Logging.debug("Starting server...")
-        srv <- ZIO.runtime[ZEnv] *> {
-          BlazeServerBuilder[ServiceIO].bindHttp(8080, "0.0.0.0").withWebSockets(true).withSocketKeepAlive(true)
-            .withHttpApp(GatewayService.service(commandForwardingActor).orNotFound).serve.compile.drain
-        }
-      } yield srv
-    }
+  def behavior() = Behaviors.setup[MainGuardianMessages] { context =>
+    val config           = AppConfig.load(context.system.settings.config)
+    val consumerSettings = ConsumerSettings(context.system, new StringDeserializer, new ByteArrayDeserializer)
+    val producerSettings = ProducerSettings(context.system, new StringSerializer, new ByteArraySerializer)
+    val kafkaSupervisor = context.spawn(
+      KafkaSupervisor.behavior(config.producer.bootstrapServers, consumerSettings, producerSettings),
+      "kafkaSupervisor"
+    )
+    kafkaSupervisor ! CreateTopicIfMissing(config.consumer.callbackTopic, KafkaTopicConfig())
+    val commandForwardingActor = context.spawn(
+      Behaviors.supervise(CommandForwardingActor.behavior(
+        kafkaSupervisorActor = kafkaSupervisor,
+        producerConfig = config.producer,
+        consumerConfig = config.consumer,
+        groupId = config.consumer.groupId,
+        config.callbackTimeoutMs
+      )).onFailure(SupervisorStrategy.restart),
+      "commandForwarder"
+    )
 
-  def createServer(config: AppConfig): ZIO[zio.ZEnv with ServiceEnv, Throwable, Unit] = for {
-    producerSettings <- ZIO.effect(ProducerSettings(config.producer.brokers))
-    producerLayer = Producer.make(producerSettings).toLayer
-    srv <- server(config).provideSomeLayer[ZEnv with Logging](producerLayer)
-  } yield srv
-
-  override def run(args: List[String]): URIO[zio.ZEnv, ExitCode] = {
-    (for {
-      config <- AppConfig.load()
-      srv    <- createServer(config)
-    } yield srv).tapError(logError).exitCode.provideLayer(CompetitionLogging.Live.loggingLayer ++ ZEnv.live)
+    implicit val actorSystem: ActorSystem[Nothing] = context.system
+    implicit val runtime: IORuntime                = IORuntime.global
+    BlazeServerBuilder[ServiceIO].bindHttp(8080, "0.0.0.0").withWebSockets(true).withSocketKeepAlive(true)
+      .withHttpApp(GatewayService.service(commandForwardingActor).orNotFound).serve.compile.drain.unsafeRunSync()
+    Behaviors.ignore
   }
 
+  ActorSystem(behavior(), "GatewayService")
 }

@@ -1,7 +1,7 @@
 package compman.compsrv.model
 
 import cats.Monad
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import cats.effect.IO
 import compman.compsrv.model.command.Commands
 import compman.compsrv.model.event.Events
 import compman.compsrv.model.event.Events._
@@ -9,7 +9,6 @@ import compservice.model.protobuf.command.{Command, CommandType}
 import compservice.model.protobuf.command.CommandType._
 import compservice.model.protobuf.event.{Event, EventType}
 import compservice.model.protobuf.event.EventType._
-import zio.Task
 
 object Mapping {
   trait CommandMapping[F[_]] {
@@ -19,8 +18,8 @@ object Mapping {
   object CommandMapping {
     def apply[F[_]](implicit F: CommandMapping[F]): CommandMapping[F] = F
 
-    val live: CommandMapping[LIO] = (dto: Command) =>
-      Task {
+    val live: CommandMapping[IO] = (dto: Command) =>
+      IO {
         dto.`type` match {
           case CHANGE_COMPETITOR_CATEGORY_COMMAND => Commands.ChangeCompetitorCategoryCommand(
               payload = dto.messageInfo.map(_.getChangeCompetitorCategoryPayload),
@@ -340,10 +339,7 @@ object Mapping {
 
     def create[F[+_]: Monad]: EventMapping[F] = (dto: Event) => Monad[F].pure { mapEvent(dto) }
 
-    val live: EventMapping[LIO] = {
-      import zio.interop.catz._
-      create[LIO]
-    }
+    val live: EventMapping[IO] = create[IO]
 
     def mapEventDto[F[+_]: EventMapping](dto: Event): F[Events.Event[Any]] = EventMapping[F].mapEventDto(dto)
   }

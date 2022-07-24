@@ -1,11 +1,11 @@
 package compman.compsrv.logic.actors.behavior
 
-import cats.implicits.catsSyntaxApplicativeError
+import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.scaladsl.Behaviors
+import cats.effect.IO
+import cats.implicits.catsSyntaxApplicative
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, MessageReceived, PublishMessage}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
-import compman.compsrv.logic.actors._
-import compman.compsrv.logic.logging.CompetitionLogging
-import compman.compsrv.logic.logging.CompetitionLogging.{logError, LIO}
 import compman.compsrv.model
 import compman.compsrv.model.{Errors, Mapping}
 import compman.compsrv.model.Mapping.EventMapping
@@ -17,81 +17,76 @@ import compman.compsrv.query.service.repository.AcademyOperations.AcademyService
 import compservice.model.protobuf.callback.{CommandCallback, CommandExecutionResult}
 import compservice.model.protobuf.event.Event
 import org.mongodb.scala.MongoClient
-import zio.{Cause, Tag, ZIO}
-import zio.clock.Clock
-import zio.console.Console
-import zio.logging.Logging
 
 object StatelessEventListener {
   sealed trait ApiCommand
   case class EventReceived(kafkaMessage: KafkaConsumerApi) extends ApiCommand
   case object Stop                                         extends ApiCommand
 
-  trait StatelessEventListenerContext {
-    implicit val eventMapping: Mapping.EventMapping[LIO]
-    implicit val loggingLive: compman.compsrv.logic.logging.CompetitionLogging.Service[LIO]
-    implicit val academyService: AcademyService[LIO]
+  trait StatelessEventListenerContext extends WithIORuntime {
+    implicit val eventMapping: Mapping.EventMapping[IO]
+    implicit val academyService: AcademyService[IO]
   }
 
   case class Live(mongoClient: MongoClient, mongodbConfig: MongodbConfig) extends StatelessEventListenerContext {
-    implicit val eventMapping: Mapping.EventMapping[LIO] = model.Mapping.EventMapping.live
-    implicit val loggingLive: CompetitionLogging.Service[LIO] = compman.compsrv.logic.logging.CompetitionLogging.Live
-      .live[Any]
-    override implicit val academyService: AcademyService[LIO] = AcademyOperations
+    implicit val eventMapping: Mapping.EventMapping[IO] = model.Mapping.EventMapping.live
+    override implicit val academyService: AcademyService[IO] = AcademyOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
   }
 
-  def behavior[R: Tag](
+  def behavior(
     config: StatelessEventListenerConfig,
     context: StatelessEventListenerContext,
     kafkaSupervisorActor: ActorRef[KafkaSupervisorCommand]
-  ): ActorBehavior[R with Logging with Clock with Console, Unit, ApiCommand] = {
+  ): Behavior[ApiCommand] = {
 
-    import Behaviors._
     import context._
-    import zio.interop.catz._
 
-    Behaviors.behavior[R with Logging with Clock with Console, Unit, ApiCommand].withReceive {
-      (context, _, state, command, _) =>
-        {
-          command match {
-            case EventReceived(kafkaMessage) => kafkaMessage match {
-                case KafkaSupervisor.QueryStarted()  => Logging.info("Kafka query started.").as(state)
-                case KafkaSupervisor.QueryFinished(_) => Logging.info("Kafka query finished.").as(state)
-                case KafkaSupervisor.QueryError(error) => Logging.error("Error during kafka query: ", Cause.fail(error))
-                    .as(state)
-                case MessageReceived(key, record) => {
-                    for {
-                      event  <- ZIO.effect(Event.parseFrom(record.value))
-                      mapped <- EventMapping.mapEventDto[LIO](event)
-                      _      <- Logging.info(s"Received event: $mapped")
-                      result <- EventProcessors.applyStatelessEvent[LIO](mapped).attempt
-                      message = result match {
-                        case Left(value) => Commands
-                            .createErrorCallback(Commands.correlationId(event), Errors.InternalException(value))
-                        case Right(_) => new CommandCallback()
-                            .withCorrelationId(event.messageInfo.flatMap(_.correlationId).get)
-                            .withResult(CommandExecutionResult.SUCCESS)
-                          .withNumberOfEvents(event.numberOfEventsInBatch)
-                      }
-                      _ <-
-                      (kafkaSupervisorActor ! PublishMessage(config.commandCallbackTopic, key, message.toByteArray))
-                        .when(
-                          event.numberOfEventsInBatch - 1 == event.localEventNumber ||
-                            message.result != CommandExecutionResult.SUCCESS
-                        )
-                    } yield state
-                  }.onError(cause => logError(cause.squash))
-              }
-            case Stop => Logging.info("Received stop command. Stopping...") *> context.stopSelf.as(state)
-          }
+    Behaviors.setup { context =>
+      val adapter = context.messageAdapter[KafkaConsumerApi](fa => EventReceived(fa))
+      val groupId = s"query-service-stateless-listener"
+      kafkaSupervisorActor !
+        KafkaSupervisor
+          .QueryAndSubscribe(config.academyNotificationsTopic, groupId, adapter, commitOffsetToKafka = true)
+
+      Behaviors.receiveMessage {
+        case EventReceived(kafkaMessage) => kafkaMessage match {
+            case KafkaSupervisor.QueryStarted() =>
+              context.log.info("Kafka query started.")
+              Behaviors.same
+
+            case KafkaSupervisor.QueryFinished(_) =>
+              context.log.info("Kafka query finished.")
+              Behaviors.same
+
+            case KafkaSupervisor.QueryError(error) =>
+              context.log.error("Error during kafka query: ", error)
+              Behaviors.same
+
+            case MessageReceived(key, record) =>
+              val event = Event.parseFrom(record.value)
+              (for {
+                mapped <- EventMapping.mapEventDto[IO](event)
+                _      <- IO(context.log.info(s"Received event: $mapped"))
+                result <- EventProcessors.applyStatelessEvent[IO](mapped).attempt
+                message = result match {
+                  case Left(value) => Commands
+                      .createErrorCallback(Commands.correlationId(event), Errors.InternalException(value))
+                  case Right(_) => new CommandCallback()
+                      .withCorrelationId(event.messageInfo.flatMap(_.correlationId).get)
+                      .withResult(CommandExecutionResult.SUCCESS).withNumberOfEvents(event.numberOfEventsInBatch)
+                }
+                _ <- IO(kafkaSupervisorActor ! PublishMessage(config.commandCallbackTopic, key, message.toByteArray))
+                  .whenA(
+                    event.numberOfEventsInBatch - 1 == event.localEventNumber ||
+                      message.result != CommandExecutionResult.SUCCESS
+                  )
+              } yield ()).onError(cause => IO(context.log.error("Error in stateless event listener.", cause)))
+                .unsafeRunSync()
+              Behaviors.same
         }
-    }.withInit { (_, context, initState, _) =>
-      for {
-        adapter <- context.messageAdapter[KafkaConsumerApi](fa => Some(EventReceived(fa)))
-        groupId = s"query-service-stateless-listener"
-        _ <- kafkaSupervisorActor ! KafkaSupervisor.Subscribe(config.academyNotificationsTopic, groupId, adapter, commitOffsetsToKafka = true)
-      } yield (Seq(), Seq.empty[ApiCommand], initState)
+        case Stop => Behaviors.stopped(() => context.log.info("Received stop command. Stopping..."))
+      }
     }
   }
 }

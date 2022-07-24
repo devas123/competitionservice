@@ -1,35 +1,37 @@
 package compman.compsrv.query.service.repository
 
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
+import cats.Monad
 import compman.compsrv.query.model.{CompetitionProperties, StageDescriptor}
-import zio.{IO, Ref, Task, ZIO}
+
+import java.util.concurrent.atomic.AtomicReference
 
 trait CommonTestOperations {
-  def getById[T](map: Option[Ref[Map[String, T]]])(id: String): Task[Option[T]] = map match {
-    case Some(value) => value.get.map(_.get(id))
-    case None        => Task.none
+  def getById[F[_]: Monad, T](map: Option[AtomicReference[Map[String, T]]])(id: String): F[Option[T]] = map match {
+    case Some(value) => Monad[F].pure(value.get.get(id))
+    case None        => Monad[F].pure(None)
   }
-  def getStagesByCategory(
-    stages: Option[Ref[Map[String, StageDescriptor]]]
-  )(competitionId: String)(categoryId: String): LIO[List[StageDescriptor]] = stages match {
-    case Some(value) => value.get.map(_.values.toList.filter(_.categoryId == categoryId))
-    case None        => Task(List.empty)
+  def getStagesByCategory[F[_]: Monad](
+    stages: Option[AtomicReference[Map[String, StageDescriptor]]]
+  )(competitionId: String)(categoryId: String): F[List[StageDescriptor]] = stages match {
+    case Some(value) => Monad[F].pure(value.get.values.toList.filter(_.categoryId == categoryId))
+    case None        => Monad[F].pure(List.empty)
   }
 
-  def update[T](coll: Option[Ref[Map[String, T]]])(id: String)(u: T => T): IO[Nothing, Unit] = coll
-    .map(_.update(m => m.updatedWith(id)(optComp => optComp.map(u)))).getOrElse(ZIO.unit)
+  def update[F[_]: Monad, T](coll: Option[AtomicReference[Map[String, T]]])(id: String)(u: T => T): F[Unit] = Monad[F]
+    .pure(coll.foreach(_.updateAndGet(m => m.updatedWith(id)(optComp => optComp.map(u)))))
 
-  def add[T](coll: Option[Ref[Map[String, T]]])(id: String)(a: => Option[T]): IO[Nothing, Unit] = coll
-    .map(_.update(m => m.updatedWith(id)(_ => a))).getOrElse(ZIO.unit)
+  def add[F[_]: Monad, T](coll: Option[AtomicReference[Map[String, T]]])(id: String)(a: => Option[T]): F[Unit] =
+    Monad[F].pure(coll.foreach(_.updateAndGet(m => m.updatedWith(id)(_ => a))))
 
-  def remove[T](coll: Option[Ref[Map[String, T]]])(id: String): IO[Nothing, Unit] = coll.map(_.update(m => m - id)).getOrElse(ZIO.unit)
+  def remove[F[_]: Monad, T](coll: Option[AtomicReference[Map[String, T]]])(id: String): F[Unit] = Monad[F]
+    .pure(coll.foreach(_.updateAndGet(m => m - id)))
 
-  def comPropsUpdate(competitionProperties: Option[Ref[Map[String, CompetitionProperties]]])(competitionId: String)(
-    u: CompetitionProperties => CompetitionProperties
-  ): IO[Nothing, Unit] = { update(competitionProperties)(competitionId)(u) }
+  def comPropsUpdate[F[_]: Monad](competitionProperties: Option[AtomicReference[Map[String, CompetitionProperties]]])(
+    competitionId: String
+  )(u: CompetitionProperties => CompetitionProperties): F[Unit] = { update(competitionProperties)(competitionId)(u) }
 
-  def stagesUpdate(stages: Option[Ref[Map[String, StageDescriptor]]])(stageId: String)(
+  def stagesUpdate[F[_]: Monad](stages: Option[AtomicReference[Map[String, StageDescriptor]]])(stageId: String)(
     u: StageDescriptor => StageDescriptor
-  ): IO[Nothing, Unit] = { update(stages)(stageId)(u) }
+  ): F[Unit] = { update(stages)(stageId)(u) }
 
 }

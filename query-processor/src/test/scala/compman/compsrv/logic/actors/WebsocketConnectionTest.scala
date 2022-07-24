@@ -1,45 +1,38 @@
 package compman.compsrv.logic.actors
 
-import compman.compsrv.logic.actors.ActorSystem.ActorConfig
-import compman.compsrv.logic.actors.behavior.WebsocketConnection
-import compman.compsrv.logic.logging.CompetitionLogging
+import akka.actor.typed.{ActorRef, Scheduler}
+import akka.actor.typed.scaladsl.AskPattern.{schedulerFromActorSystem, Askable}
+import akka.util.Timeout
+import cats.effect.{std, IO}
+import compman.compsrv.logic.actors.behavior.{WebsocketCompetitionConnectionSupervisor, WithIORuntime}
 import compman.compsrv.query.service.repository.TestEntities
+import compman.compsrv.SpecBase
+import compman.compsrv.query.service.QueryHttpApiService.ServiceIO
 import compservice.model.protobuf.event.Event
-import zio._
-import zio.blocking.Blocking
-import zio.clock.Clock
-import zio.duration.{durationInt, Duration}
-import zio.logging.Logging
-import zio.test._
-import zio.test.TestAspect._
+import fs2.concurrent.SignallingRef
 
 import java.util.UUID
+import scala.concurrent.duration.DurationInt
 
-object WebsocketConnectionTest extends DefaultRunnableSpec with TestEntities {
-  import compman.compsrv.logic.actors.patterns.Patterns._
-  implicit val timeout: Duration = 10.seconds
+class WebsocketConnectionTest extends SpecBase with TestEntities with WithIORuntime {
+  implicit val timeout: Timeout = 10.seconds
 
-  override def spec: ZSpec[Any, Throwable] =
-    (suite("Websocket connection actor suite")(
-      testM("should handle connect and receive messages and stop") {
-        ActorSystem("Test").use { actorSystem =>
-          for {
-            wsActor <- actorSystem
-              .make("WsActor", ActorConfig(), WebsocketConnection.initialState, WebsocketConnection.behavior)
-            queue <- Queue.unbounded[Event]
-            clientId <- ZIO.effect(UUID.randomUUID().toString)
-            _ <- wsActor ! WebsocketConnection.AddWebSocketConnection(clientId, queue)
-            test <- (for {
-              msg <- queue.takeN(1)
-              _ <- Logging.info(msg.mkString("\n"))
-            } yield ()).fork
-            _ <- wsActor ! WebsocketConnection.ReceivedEvent(new Event())
-            _ <- wsActor ? ((actor: ActorRef[Boolean]) => WebsocketConnection.Stop(Some(actor)))
-            _ <- test.join
-            shutdown <- queue.isShutdown
-          } yield assertTrue(shutdown)
-        }
+  test("should handle connect and receive messages and stop") {
+    val competitionId = "competitionId"
+    val wsActor       = actorTestKit.spawn(WebsocketCompetitionConnectionSupervisor.behavior(competitionId), "WsActor")
+    implicit val k: Scheduler = schedulerFromActorSystem(actorTestKit.system)
+
+    val effect = for {
+      queue     <- std.Queue.dropping[IO, Event](100)
+      completed <- SignallingRef.of[ServiceIO, Boolean](false)
+      clientId = UUID.randomUUID().toString
+      _ <- IO {
+        wsActor ! WebsocketCompetitionConnectionSupervisor.AddWebSocketConnection(clientId, queue, completed)
+        wsActor ! WebsocketCompetitionConnectionSupervisor.ReceivedEvent(new Event())
+        wsActor ? ((actor: ActorRef[Boolean]) => WebsocketCompetitionConnectionSupervisor.Stop(Some(actor)))
       }
-    ) @@ sequential)
-      .provideLayer(Clock.live ++ CompetitionLogging.Live.loggingLayer ++ Blocking.live ++ zio.console.Console.live)
+      msg <- queue.take
+    } yield assert(msg != null)
+    effect.unsafeRunSync()
+  }
 }

@@ -1,11 +1,29 @@
 package compman.compsrv.query.service.repository
 
+import cats.effect.IO
 import com.mongodb.client.model.{IndexOptions, ReplaceOptions}
-import compman.compsrv.logic.logging.CompetitionLogging.LIO
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import compman.compsrv.query.model.academy.FullAcademyInfo
-import compservice.model.protobuf.model.{BracketType, CategoryRestrictionType, CompetitionStatus, CompetitorRegistrationStatus, DistributionType, FightReferenceType, FightStatus, GroupSortDirection, GroupSortSpecifier, LogicalOperator, OperatorType, ScheduleEntryType, ScheduleRequirementType, SelectorClassifier, StageRoundType, StageStatus, StageType}
+import compservice.model.protobuf.model.{
+  BracketType,
+  CategoryRestrictionType,
+  CompetitionStatus,
+  CompetitorRegistrationStatus,
+  DistributionType,
+  FightReferenceType,
+  FightStatus,
+  GroupSortDirection,
+  GroupSortSpecifier,
+  LogicalOperator,
+  OperatorType,
+  ScheduleEntryType,
+  ScheduleRequirementType,
+  SelectorClassifier,
+  StageRoundType,
+  StageStatus,
+  StageType
+}
 import org.bson.{BsonReader, BsonWriter}
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 import org.mongodb.scala.{FindObservable, MongoClient, MongoCollection, MongoDatabase, Observable}
@@ -14,9 +32,7 @@ import org.mongodb.scala.model.{Filters, Indexes}
 import org.mongodb.scala.model.Filters.{and, equal}
 import org.mongodb.scala.model.Updates.{set, unset}
 import scalapb.{GeneratedEnum, GeneratedEnumCompanion}
-import zio.{RIO, Task, ZIO}
 
-import scala.concurrent.Future
 import scala.reflect.ClassTag
 
 trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
@@ -118,40 +134,42 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
   def mongoClient: MongoClient
   def dbName: String
 
-  private def createCollection[T: ClassTag](name: String, id: String) = {
-    (for {
-      collection <- ZIO.effect(database.getCollection[T](name))
-      _ <- ZIO
-        .fromFuture(_ => collection.createIndex(Indexes.ascending(id), new IndexOptions().unique(true)).toFuture())
-    } yield collection).memoize.flatten
-  }
+  private def createCollection[T: ClassTag](name: String, id: String): IO[MongoCollection[T]] = for {
+    collection <- IO { database.getCollection[T](name) }
+    _ <- IO.fromFuture(IO(collection.createIndex(Indexes.ascending(id), new IndexOptions().unique(true)).toFuture()))
+  } yield collection
 
   val database: MongoDatabase = mongoClient.getDatabase(dbName).withCodecRegistry(fromRegistries(caseClassRegistry))
-  val competitionStateCollection: Task[MongoCollection[CompetitionState]] =
-    createCollection(competitionStateCollectionName, idField)
-  val competitorCollection: Task[MongoCollection[Competitor]] = createCollection(competitorsCollectionName, idField)
-  val fightCollection: Task[MongoCollection[Fight]] = for {
-    coll <- createCollection[Fight](fightsCollectionName, idField)
-    _    <- ZIO.fromFuture(_ => coll.createIndex(fightsCollectionIndex).toFuture())
-  } yield coll
-  val managedCompetitionCollection: Task[MongoCollection[ManagedCompetition]] =
-    createCollection(managedCompetitionCollectionName, idField)
-  val academyCollection: Task[MongoCollection[FullAcademyInfo]] = createCollection(academyCollectionName, idField)
-  val eventOffsetCollection: Task[MongoCollection[EventOffset]] = createCollection(eventOffsetCollectionName, "topic")
+  def competitionStateCollection: IO[MongoCollection[CompetitionState]] =
+    createCollection[CompetitionState](competitionStateCollectionName, idField).memoize.flatten
+  def competitorCollection: IO[MongoCollection[Competitor]] =
+    createCollection[Competitor](competitorsCollectionName, idField).memoize.flatten
+  def fightCollection: IO[MongoCollection[Fight]] = {
+    for {
+      coll <- createCollection[Fight](fightsCollectionName, idField)
+      _    <- IO.fromFuture(IO(coll.createIndex(fightsCollectionIndex).toFuture()))
+    } yield coll
+  }.memoize.flatten
+  def managedCompetitionCollection: IO[MongoCollection[ManagedCompetition]] =
+    createCollection[ManagedCompetition](managedCompetitionCollectionName, idField).memoize.flatten
+  def academyCollection: IO[MongoCollection[FullAcademyInfo]] =
+    createCollection[FullAcademyInfo](academyCollectionName, idField).memoize.flatten
+  def eventOffsetCollection: IO[MongoCollection[EventOffset]] =
+    createCollection[EventOffset](eventOffsetCollectionName, "topic").memoize.flatten
 
   protected def setOption[T](name: String, opt: Option[T]): Bson = opt.map(v => set(name, v)).getOrElse(unset(name))
-  protected def deleteById[T](collectionTask: Task[MongoCollection[T]])(id: String): LIO[Unit] = {
+  protected def deleteByField[T](collectionTask: IO[MongoCollection[T]])(id: String, idField: String = idField): IO[Unit] = {
     for {
       collection <- collectionTask
       delete = collection.deleteMany(equal(idField, id))
-      _ <- RIO.fromFuture(_ => delete.toFuture())
+      _ <- IO.fromFuture(IO(delete.toFuture()))
     } yield ()
   }
-  protected def insertElement[T](collectionTask: Task[MongoCollection[T]])(id: String, element: T): LIO[Unit] = {
+  protected def insertElement[T](collectionTask: IO[MongoCollection[T]])(id: String, element: T): IO[Unit] = {
     for {
       collection <- collectionTask
       insert = collection.replaceOne(Filters.eq(idField, id), element, new ReplaceOptions().upsert(true))
-      _ <- RIO.fromFuture(_ => insert.toFuture())
+      _ <- IO.fromFuture(IO(insert.toFuture()))
     } yield ()
   }
 
@@ -174,29 +192,26 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
   protected def selectWithPagination[T](
     select: FindObservable[T],
     pagination: Option[Pagination],
-    total: Future[Long]
-  ): ZIO[Any, Throwable, (List[T], Pagination)] = {
+    total: IO[Long]
+  ): IO[(List[T], Pagination)] = {
     for {
       res <- runQuery(select)
-      tr  <- RIO.fromFuture(_ => total)
+      tr  <- total
     } yield (res, pagination.map(_.copy(totalResults = tr.toInt)).getOrElse(Pagination(0, res.size, tr.toInt)))
   }
 
-  protected def selectOne[T](select: Observable[T]): ZIO[Any, Throwable, Option[T]] = {
+  protected def selectOne[T](select: Observable[T]): IO[Option[T]] = {
     for { res <- runQuery(select) } yield res.headOption
   }
 
-  protected def runQuery[T](select: Observable[T]): ZIO[Any, Throwable, List[T]] = {
-    for { res <- RIO.fromFuture(_ => select.toFuture()) } yield res.toList
+  protected def runQuery[T](select: Observable[T]): IO[List[T]] = {
+    for { res <- IO.fromFuture(IO(select.toFuture())) } yield res.toList
   }
 
-
-  protected def getByIdAndCompetitionId[T: ClassTag](collection: MongoCollection[T])(competitionId: String, id: String): LIO[Option[T]] = {
-    for {
-      statement <- ZIO.effect(collection
-        .find(and(equal(competitionIdField, competitionId), equal(idField, id))))
-      res <- selectOne(statement)
-    } yield res
+  protected def getByIdAndCompetitionId[T: ClassTag](
+    collection: MongoCollection[T]
+  )(competitionId: String, id: String): IO[Option[T]] = {
+    selectOne(collection.find(and(equal(competitionIdField, competitionId), equal(idField, id))))
   }
 
 }

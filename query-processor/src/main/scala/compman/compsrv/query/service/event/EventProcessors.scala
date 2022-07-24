@@ -1,17 +1,16 @@
 package compman.compsrv.query.service.event
 
 import cats.Monad
-import compman.compsrv.logic.logging.CompetitionLogging
 import compman.compsrv.model.event.Events
 import compman.compsrv.query.service.repository.{CompetitionQueryOperations, CompetitionUpdateOperations, FightQueryOperations, FightUpdateOperations}
 import compman.compsrv.query.service.repository.AcademyOperations.AcademyService
 
 object EventProcessors {
-  def applyStatelessEvent[F[+_]: CompetitionLogging.Service: Monad: AcademyService](event: Events.Event[Any]): F[Unit] =
+  def applyStatelessEvent[F[+_]: Monad: AcademyService](event: Events.Event[Any]): F[Unit] =
     List(AcademyAddedProc(), AcademyRemovedProc(), AcademyUpdatedProc()).reduce((a, b) => a.orElse(b)).apply(event)
   def applyEvent[F[
     +_
-  ]: CompetitionLogging.Service: Monad: CompetitionQueryOperations: CompetitionUpdateOperations: FightQueryOperations: FightUpdateOperations](
+  ]: Monad: CompetitionQueryOperations: CompetitionUpdateOperations: FightQueryOperations: FightUpdateOperations](
     event: Events.Event[Any]
   ): F[Unit] = List(
     CategoryDeletedProc(),
