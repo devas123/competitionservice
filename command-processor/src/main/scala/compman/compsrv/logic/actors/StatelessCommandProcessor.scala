@@ -4,7 +4,7 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, PublishMessage, QueryAndSubscribe}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, PublishMessage, Subscribe}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.Operations
 import compman.compsrv.model.command.Commands
@@ -30,7 +30,7 @@ object StatelessCommandProcessor {
         AcademyCommandReceived(Command.parseFrom(committableRecord.value))
     }
     kafkaSupervisor !
-      QueryAndSubscribe(statelessCommandsTopic, groupId = groupId, replyTo = receiver, commitOffsetToKafka = true)
+      Subscribe(statelessCommandsTopic, groupId = groupId, replyTo = receiver, commitOffsetToKafka = true)
 
     Behaviors.receiveMessage[AcademyCommandProcessorMessage] {
       case AcademyCommandReceived(cmd) =>

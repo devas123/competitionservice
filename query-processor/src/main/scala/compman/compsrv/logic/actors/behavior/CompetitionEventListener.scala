@@ -4,15 +4,27 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import cats.effect.IO
 import cats.implicits._
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, MessageReceived, PublishMessage}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
+  KafkaConsumerApi,
+  KafkaSupervisorCommand,
+  MessageReceived,
+  PublishMessage
+}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
-import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{CompetitionDeletedMessage, CompetitionUpdated}
+import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{
+  CompetitionDeletedMessage,
+  CompetitionUpdated
+}
 import compman.compsrv.model
 import compman.compsrv.model.{Errors, Mapping}
 import compman.compsrv.model.Mapping.EventMapping
 import compman.compsrv.model.command.Commands
 import compman.compsrv.model.event.Events
-import compman.compsrv.model.event.Events.{CompetitionCreatedEvent, CompetitionDeletedEvent, CompetitionPropertiesUpdatedEvent}
+import compman.compsrv.model.event.Events.{
+  CompetitionCreatedEvent,
+  CompetitionDeletedEvent,
+  CompetitionPropertiesUpdatedEvent
+}
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.service.event.EventProcessors
@@ -75,8 +87,6 @@ object CompetitionEventListener {
 
   private[behavior] case class ActorState()
 
-  val initialState: ActorState = ActorState()
-
   def behavior(
     competitionId: String,
     topic: String,
@@ -132,6 +142,8 @@ object CompetitionEventListener {
     }
 
     Behaviors.setup[ApiCommand] { ctx =>
+      ctx.log.info(s"Starting competition processing for competition: $competitionId, from topic: $topic.")
+      ctx.log.info(s"Will send callbacks to $callbackTopic")
       val adapter = ctx.messageAdapter[KafkaConsumerApi](fa => KafkaMessageReceived(fa))
       ctx.pipeToSelf(EventOffsetOperations.getOffset[IO](topic).unsafeToFuture()) {
         case Failure(exception) => Stop(exception.getMessage, Some(exception))
@@ -141,10 +153,11 @@ object CompetitionEventListener {
       val groupId = s"query-service-$competitionId"
       Behaviors.receiveMessage {
         case OffsetReceived(offset) =>
-          kafkaSupervisorActor !
-            KafkaSupervisor.QueryAndSubscribe(topic, groupId, adapter, startOffset = Some(offset.offset))
+          kafkaSupervisorActor ! KafkaSupervisor.Subscribe(topic, groupId, adapter, startOffset = Some(offset.offset))
           Behaviors.same
-        case KafkaMessageReceived(kafkaMessage) => kafkaMessage match {
+        case KafkaMessageReceived(kafkaMessage) =>
+          ctx.log.info(s"Received message from kafka: $kafkaMessage")
+          kafkaMessage match {
             case KafkaSupervisor.QueryStarted() =>
               ctx.log.info("Kafka query started.")
               Behaviors.same
@@ -156,18 +169,16 @@ object CompetitionEventListener {
               Behaviors.same
 
             case MessageReceived(topic, record) =>
+              val event = Event.parseFrom(record.value)
+              ctx.log.info(s"Received event: $event")
               (for {
-                event  <- IO(Event.parseFrom(record.value))
                 mapped <- EventMapping.mapEventDto[IO](event)
-                _      <- IO(ctx.log.info(s"Received event: $mapped"))
                 res    <- EventProcessors.applyEvent[IO](mapped).attempt
                 _      <- notifyEventListenerSupervisor(topic, event, mapped)
                 _ <- IO {
                   res match {
                     case Left(value) => sendErrorCallback(event, value)
-                    case Right(_) =>
-                      ctx.log.info(s"Sending callback, correlation ID is ${event.messageInfo.flatMap(_.correlationId)}")
-                      if (event.localEventNumber == event.numberOfEventsInBatch - 1) {
+                    case Right(_) => if (event.localEventNumber == event.numberOfEventsInBatch - 1) {
                         sendSuccessfulExecutionCallbacks(event)
                       }
                   }

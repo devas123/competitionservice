@@ -1,26 +1,21 @@
 package compman.compsrv.logic.actors
 
+import akka.kafka.{ProducerMessage, ProducerSettings}
 import akka.kafka.testkit.ProducerResultFactory
-import akka.kafka.ConsumerMessage.PartitionOffset
-import akka.kafka.ProducerMessage
 import akka.stream.scaladsl.Flow
+import akka.NotUsed
 import com.google.protobuf.timestamp.Timestamp
 import com.google.protobuf.util.Timestamps
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{
-  KafkaSupervisorCommand,
-  PublishMessage,
-  QueryAndSubscribe,
-  QuerySync
-}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaSupervisorCommand, PublishMessage, QuerySync, Subscribe}
 import compman.compsrv.SpecBase
 import compman.compsrv.config.CommandProcessorConfig
-import compman.compsrv.logic.actors.CompetitionProcessorActorV2.KafkaProducerFlow
+import compman.compsrv.logic.actor.kafka.persistence.KafkaBasedEventSourcedBehavior.KafkaProducerFlow
 import compman.compsrv.logic.actors.CompetitionProcessorSupervisorActor.CommandReceived
 import compservice.model.protobuf.command.{Command, CommandType}
 import compservice.model.protobuf.commandpayload.CreateCompetitionPayload
 import compservice.model.protobuf.common.MessageInfo
-import compservice.model.protobuf.event.Event
 import compservice.model.protobuf.model.{CompetitionProperties, CompetitionStatus, RegistrationInfo}
+import org.apache.kafka.common.serialization.{ByteArraySerializer, StringSerializer}
 
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
@@ -35,17 +30,18 @@ class CompetitionProcessorActorTestServiceSpec extends SpecBase {
   test("test end to end") {
 
     val kafkaSupervisor = actorTestKit.createTestProbe[KafkaSupervisorCommand]()
-    val mockedKafkaProducerFlow: KafkaProducerFlow = Flow[ProducerMessage.Envelope[String, Event, PartitionOffset]]
-      .map {
-        case msg: ProducerMessage.MultiMessage[String, Event, PartitionOffset] =>
-          msg.records
-            .foreach(rec => kafkaSupervisor.ref ! PublishMessage(rec.topic(), rec.key(), rec.value().toByteArray))
-          ProducerResultFactory.multiResult(msg)
-        case other => throw new Exception(s"excluded: $other")
-      }
+    val mockedKafkaProducerFlow: KafkaProducerFlow = Flow[ProducerMessage.Envelope[String, Array[Byte], NotUsed]].map {
+      case msg: ProducerMessage.MultiMessage[String, Array[Byte], NotUsed] =>
+        msg.records.foreach(rec => kafkaSupervisor.ref ! PublishMessage(rec.topic(), rec.key(), rec.value()))
+        ProducerResultFactory.multiResult(msg)
+      case other => throw new Exception(s"excluded: $other")
+    }
+
+    val producerSettings = ProducerSettings.create(actorTestKit.system, new StringSerializer, new ByteArraySerializer)
 
     val processor = actorTestKit.spawn(
       CompetitionProcessorSupervisorActor.behavior(
+        producerSettings,
         CommandProcessorConfig(
           actorIdleTimeoutMillis = Some(30000L),
           eventsTopicPrefix = "event",
@@ -80,7 +76,7 @@ class CompetitionProcessorActorTestServiceSpec extends SpecBase {
 
     }
     processor ! CommandReceived(competitionId, command, 10, 11)
-    kafkaSupervisor.expectMessageType[QueryAndSubscribe](10.seconds)
+    kafkaSupervisor.expectMessageType[Subscribe](10.seconds)
     val unwrapped = kafkaSupervisor.expectMessageType[QuerySync](3.seconds)
     val promise   = unwrapped.promise
     promise.success(Seq.empty)

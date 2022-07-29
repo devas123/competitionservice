@@ -9,6 +9,8 @@ import compman.compsrv.gateway.config.{ConsumerConfig, ProducerConfig}
 import compservice.model.protobuf.callback.CommandCallback
 import compservice.model.protobuf.command.Command
 
+import java.util.UUID
+
 object CommandForwardingActor {
 
   sealed trait GatewayApiCommand
@@ -30,7 +32,7 @@ object CommandForwardingActor {
     callbackTimeoutMs: Int
   ): Behavior[GatewayApiCommand] = Behaviors.setup[GatewayApiCommand] { ctx =>
     Behaviors.receiveMessage { command =>
-      ctx.log.info(s"Received academy API command $command")
+      ctx.log.info(s"Received API command $command")
       command match {
         case _ @ForwardCommand(competitionId, body) =>
           kafkaSupervisorActor ! KafkaSupervisor.PublishMessage(producerConfig.globalCommandsTopic, competitionId, body)
@@ -43,7 +45,7 @@ object CommandForwardingActor {
               kafkaSupervisorActor,
               CompetitionEventsTopic(consumerConfig.eventsTopicPrefix)(x.competitionId),
               consumerConfig.callbackTopic,
-              groupId,
+              UUID.randomUUID().toString,
               x.replyTo
             )(callbackTimeoutMs),
             s"CallbackWaiter-${x.competitionId}-${cmd.messageInfo.flatMap(_.id).getOrElse("")}"

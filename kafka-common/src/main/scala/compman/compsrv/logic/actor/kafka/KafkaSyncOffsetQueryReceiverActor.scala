@@ -21,10 +21,10 @@ object KafkaSyncOffsetQueryReceiverActor {
         case OffsetsReceived(offsets) =>
           ctx.log.info(s"Received offsets: $offsets")
           promise.success(offsets)
-          Behaviors.stopped(() => ())
+          Behaviors.stopped
         case ErrorDuringMetadataRequest(exception) =>
           promise.failure(exception)
-          Behaviors.stopped(() => ())
+          Behaviors.stopped
       }
     }
   }

@@ -18,7 +18,7 @@ object KafkaSyncQueryReceiverActor {
         case QueryFinished(_) =>
           ctx.log.info(s"Query finished.")
           promise.success(messages)
-          Behaviors.stopped(() => ())
+          Behaviors.stopped
         case QueryError(error) => Behaviors.stopped(() => promise.failure(error))
         case MessageReceived(topic, consumerRecord) =>
           ctx.log.info(s"Received message from topic $topic")

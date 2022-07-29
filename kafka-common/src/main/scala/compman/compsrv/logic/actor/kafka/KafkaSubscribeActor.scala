@@ -9,6 +9,7 @@ import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.TopicPartition
 
+import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 private class KafkaSubscribeActor(
@@ -19,6 +20,8 @@ private class KafkaSubscribeActor(
   replyTo: ActorRef[KafkaConsumerApi]
 )(implicit val materializer: Materializer)
     extends QuerySubscribeBase(context, consumerSettings) {
+
+  context.watchWith(replyTo, Stop)
 
   context.pipeToSelf(prepareOffsets(topic, startOffset)) {
     case Failure(exception) => FailureInOffsetsRetrieval("Error while preparing offsets", Some(exception))
@@ -42,7 +45,7 @@ private class KafkaSubscribeActor(
       case ForwardMessage(msg, to) =>
         to ! msg
         this
-      case Stop => Behaviors.stopped(() => ())
+      case Stop => Behaviors.stopped
       case Start(off, _) => Behaviors.setup { ctx =>
           val (consumerControl, _) = startConsumerStream(off, replyTo)
           this.consumerControl = Some(consumerControl)
@@ -51,8 +54,8 @@ private class KafkaSubscribeActor(
               to ! msg
               Behaviors.same
             case Stop =>
-              consumerControl.shutdown()
-              Behaviors.stopped(() => ())
+              consumerControl.drainAndShutdown(Future.successful(()))
+              Behaviors.stopped
             case _: Start =>
               ctx.log.error("Stream already started.")
               Behaviors.same

@@ -55,7 +55,7 @@ object WebsocketCompetitionConnectionSupervisor {
         case Stop(replyTo) =>
           context.log.info(s"Stopping: $command")
           replyTo.foreach(_ ! true)
-          Behaviors.stopped(() => ())
+          Behaviors.stopped
       }
     }
   }

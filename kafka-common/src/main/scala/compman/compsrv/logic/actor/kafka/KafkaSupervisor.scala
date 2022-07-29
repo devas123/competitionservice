@@ -1,12 +1,13 @@
 package compman.compsrv.logic.actor.kafka
 
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, Behavior, PostStop}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.kafka.{ConsumerSettings, ProducerSettings}
 import akka.stream.Materializer
 import compman.compsrv.logic.actor.kafka.KafkaPublishActor.PublishMessageToKafka
 import org.apache.kafka.clients.admin.{Admin, AdminClientConfig, NewTopic}
 import org.apache.kafka.clients.consumer.ConsumerRecord
+import org.apache.kafka.clients.producer.Producer
 
 import java.util.{Properties, UUID}
 import scala.concurrent.Promise
@@ -33,7 +34,7 @@ object KafkaSupervisor {
 
   sealed trait KafkaSupervisorCommand
 
-  case class QueryAndSubscribe(
+  case class Subscribe(
     topic: String,
     groupId: String,
     replyTo: ActorRef[KafkaConsumerApi],
@@ -53,10 +54,10 @@ object KafkaSupervisor {
   ) extends KafkaSupervisorCommand
 
   case class QueryOffsetsSync(
-                               topic: String,
-                               groupId: String,
-                               promise: Promise[StartOffsetsAndTopicEndOffset],
-                               timeout: FiniteDuration = 10.seconds
+    topic: String,
+    groupId: String,
+    promise: Promise[StartOffsetsAndTopicEndOffset],
+    timeout: FiniteDuration = 10.seconds
   ) extends KafkaSupervisorCommand
 
   private case class SubscriberStopped(uuid: String) extends KafkaSupervisorCommand
@@ -80,17 +81,12 @@ object KafkaSupervisor {
 
   case object Stop extends KafkaSupervisorCommand
 
-  final case class KafkaSupervisorState(
-    publishActor: Option[ActorRef[KafkaPublishActor.KafkaPublishActorCommand]],
-    queryAndSubscribeActors: Map[String, ActorRef[KafkaSubscribeActor.KafkaQueryActorCommand]]
-  )
-
-
   def updated(
     publishActor: ActorRef[KafkaPublishActor.KafkaPublishActorCommand],
     queryAndSubscribeActors: Map[String, ActorRef[_]],
     consumerSettings: ConsumerSettings[String, Array[Byte]],
-    admin: Admin
+    admin: Admin,
+    producer: Producer[String, Array[Byte]]
   )(implicit materializer: Materializer): Behavior[KafkaSupervisorCommand] = Behaviors.setup { context =>
     def query(
       topic: String,
@@ -109,33 +105,33 @@ object KafkaSupervisor {
         ),
         actorId
       )
-      updated(publishActor, queryAndSubscribeActors + (actorId -> actor), consumerSettings, admin)
+      updated(publishActor, queryAndSubscribeActors + (actorId -> actor), consumerSettings, admin, producer)
     }
 
     def queryOffsetsSync(
-               topic: String,
-               groupId: String,
-               replyTo: ActorRef[KafkaSyncOffsetQueryReceiverActor.KafkaSyncOffsetQueryReceiverActorApi],
-             ) = {
+      topic: String,
+      groupId: String,
+      replyTo: ActorRef[KafkaSyncOffsetQueryReceiverActor.KafkaSyncOffsetQueryReceiverActorApi]
+    ) = {
       val actorId = innerQueryActorId
       val actor = context.spawn(
         KafkaOffsetsQueryActor(
           consumerSettings = consumerSettings.withGroupId(groupId),
           topic = topic,
-          replyTo = replyTo,
+          replyTo = replyTo
         ),
         actorId
       )
-      updated(publishActor, queryAndSubscribeActors + (actorId -> actor), consumerSettings, admin)
+      updated(publishActor, queryAndSubscribeActors + (actorId -> actor), consumerSettings, admin, producer)
     }
 
-
-    Behaviors.receiveMessage {
+    Behaviors.receiveMessage[KafkaSupervisorCommand] {
       case Unsubscribe(uuid) =>
         queryAndSubscribeActors.get(uuid).foreach(a => context.stop(a))
         Behaviors.same
-      case SubscriberStopped(uuid) => updated(publishActor, queryAndSubscribeActors - uuid, consumerSettings, admin)
-      case QueryAndSubscribe(topic, groupId, replyTo, startOffset, uuid, commitOffsetToKafka) =>
+      case SubscriberStopped(uuid) =>
+        updated(publishActor, queryAndSubscribeActors - uuid, consumerSettings, admin, producer)
+      case Subscribe(topic, groupId, replyTo, startOffset, uuid, commitOffsetToKafka) =>
         queryAndSubscribeActors.get(uuid).foreach(a => context.stop(a))
         val actorId = innerQueryActorId
         val actor = context.spawn(
@@ -150,8 +146,10 @@ object KafkaSupervisor {
           actorId
         )
         context.watchWith(actor, SubscriberStopped(uuid))
-        context.log.info(s"Created actor with id $actorId to process query and subscribe request.")
-        updated(publishActor, queryAndSubscribeActors + (actorId -> actor), consumerSettings, admin)
+        context.log.info(
+          s"Created actor with id $actorId to process query and subscribe request from topic $topic with groupId $groupId, start offset: $startOffset, commit offsets to Kafka: $commitOffsetToKafka."
+        )
+        updated(publishActor, queryAndSubscribeActors + (actorId -> actor), consumerSettings, admin, producer)
 
       case QuerySync(topic, _, promise, timeout, startOffset, endOffset) =>
         val queryReceiver = context
@@ -178,6 +176,13 @@ object KafkaSupervisor {
         topics.add(new NewTopic(topic, topicConfig.numPartitions, topicConfig.replicationFactor))
         admin.createTopics(topics)
         Behaviors.same
+    }.receiveSignal { case (_, signal) =>
+      signal match {
+        case _: PostStop =>
+          producer.close()
+          Behaviors.same
+        case _ => Behaviors.same
+      }
     }
   }
 
@@ -191,11 +196,13 @@ object KafkaSupervisor {
     producerSettings: ProducerSettings[String, Array[Byte]]
   ): Behavior[KafkaSupervisorCommand] = Behaviors.setup { context =>
     implicit val materializer: Materializer = Materializer.createMaterializer(context.system)
-    val publishActor = context.spawn(KafkaPublishActor.behavior(producerSettings), UUID.randomUUID().toString)
-    val properties   = new Properties()
+    val producer                            = producerSettings.createKafkaProducer()
+    val publishActor = context
+      .spawn(KafkaPublishActor.behavior(producerSettings.withProducer(producer)), UUID.randomUUID().toString)
+    val properties = new Properties()
     properties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, brokers)
     val adminClient = Admin.create(properties)
-    updated(publishActor, Map.empty, consumerSettings, adminClient)
+    updated(publishActor, Map.empty, consumerSettings, adminClient, producer)
   }
 
   private def innerQueryActorId = { s"queryAndSubscribe-${UUID.randomUUID()}" }

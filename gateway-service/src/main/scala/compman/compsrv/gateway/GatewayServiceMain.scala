@@ -20,7 +20,10 @@ object GatewayServiceMain extends App {
   def behavior() = Behaviors.setup[MainGuardianMessages] { context =>
     val config           = AppConfig.load(context.system.settings.config)
     val consumerSettings = ConsumerSettings(context.system, new StringDeserializer, new ByteArrayDeserializer)
+      .withBootstrapServers(config.producer.bootstrapServers)
+
     val producerSettings = ProducerSettings(context.system, new StringSerializer, new ByteArraySerializer)
+      .withBootstrapServers(config.producer.bootstrapServers)
     val kafkaSupervisor = context.spawn(
       KafkaSupervisor.behavior(config.producer.bootstrapServers, consumerSettings, producerSettings),
       "kafkaSupervisor"

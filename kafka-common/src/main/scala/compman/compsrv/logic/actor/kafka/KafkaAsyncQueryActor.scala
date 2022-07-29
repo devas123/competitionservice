@@ -9,6 +9,7 @@ import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, Quer
 import org.apache.kafka.clients.consumer.ConsumerConfig
 
 import java.util.UUID
+import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 private class KafkaAsyncQueryActor(
@@ -20,6 +21,7 @@ private class KafkaAsyncQueryActor(
   endOffset: Option[Long]
 )(implicit val materializer: Materializer)
     extends QuerySubscribeBase(context, consumerSettings) {
+  context.watchWith(replyTo, Stop)
   replyTo ! QueryStarted()
   context.pipeToSelf(prepareOffsets(topic, startOffset)) {
     case Failure(exception) => FailureInOffsetsRetrieval("Unexpected failure", Some(exception))
@@ -65,7 +67,7 @@ private class KafkaAsyncQueryActor(
           var messageCount = 0L
           Behaviors.receiveMessagePartial {
             case Stop => Behaviors.stopped { () =>
-                consumerControl.shutdown()
+                consumerControl.drainAndShutdown(Future.successful(()))
                 replyTo ! QueryFinished(messageCount)
               }
             case ForwardMessage(msg, to) =>

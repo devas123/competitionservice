@@ -47,7 +47,7 @@ object StatelessEventListener {
       val groupId = s"query-service-stateless-listener"
       kafkaSupervisorActor !
         KafkaSupervisor
-          .QueryAndSubscribe(config.academyNotificationsTopic, groupId, adapter, commitOffsetToKafka = true)
+          .Subscribe(config.academyNotificationsTopic, groupId, adapter, commitOffsetToKafka = true)
 
       Behaviors.receiveMessage {
         case EventReceived(kafkaMessage) => kafkaMessage match {

@@ -3,7 +3,7 @@ package compman.compsrv.logic.actors.behavior
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import akka.actor.typed.scaladsl.Behaviors
 import cats.effect.IO
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, QueryAndSubscribe}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, Subscribe}
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actors.behavior.CompetitionEventListener.Stop
 import compman.compsrv.query.config.MongodbConfig
@@ -55,7 +55,7 @@ object CompetitionEventListenerSupervisor {
     val competitionListeners = mutable.HashMap.empty[String, ActorRef[CompetitionEventListener.ApiCommand]]
     Behaviors.setup { context =>
       def createCompetitionProcessingActorIfMissing(id: String, eventsTopic: String): Unit = {
-        if (competitionListeners.contains(id)) {
+        if (!competitionListeners.contains(id)) {
           val actor = context.spawn(
             Behaviors.supervise(CompetitionEventListener.behavior(
               id,
@@ -81,7 +81,7 @@ object CompetitionEventListenerSupervisor {
           val notif = CompetitionProcessorNotification.parseFrom(record.value)
           ReceivedNotification(notif.notification)
       }
-      kafkaSupervisorActor ! QueryAndSubscribe(notificationStopic, s"query-service-global-events-listener", adapter)
+      kafkaSupervisorActor ! Subscribe(notificationStopic, s"query-service-global-events-listener", adapter)
       context.pipeToSelf((for {
         activeCompetitions <- ManagedCompetitionsOperations.getActiveCompetitions[IO]
       } yield activeCompetitions).unsafeToFuture()) {
@@ -117,11 +117,13 @@ object CompetitionEventListenerSupervisor {
           } yield ()).unsafeRunSync()
           Behaviors.same
         case ActiveCompetitions(competitions) =>
+          context.log.info(s"Received active competitions: ${competitions.map(_.competitionName.getOrElse(""))}")
           competitions.foreach { competition =>
             createCompetitionProcessingActorIfMissing(competition.id, competition.eventsTopic)
           }
           Behaviors.same
         case ReceivedNotification(notification) =>
+          context.log.info(s"Received notification: $notification")
           if (notification.isStarted) {
             val s = notification.started.get
             (for {
@@ -136,8 +138,8 @@ object CompetitionEventListenerSupervisor {
                 s.timeZone,
                 s.status
               ))
-              res <- IO(createCompetitionProcessingActorIfMissing(s.id, s.topic))
-            } yield res).unsafeRunSync()
+            } yield ()).unsafeRunSync()
+            createCompetitionProcessingActorIfMissing(s.id, s.topic)
           }
           if (notification.isStopped) {
             val s = notification.stopped.get

@@ -30,10 +30,10 @@ object QueryServiceRequestEffectExecutor {
                 )
               case Success(value) => value
             })
-          Behaviors.stopped(() => ())
+          Behaviors.stopped
         case Timeout =>
           replyTo ! QueryServiceResponse().withErrorResponse(ErrorResponse().withErrorReason("Internal timeout"))
-          Behaviors.stopped(() => ())
+          Behaviors.stopped
       }
     }
   }

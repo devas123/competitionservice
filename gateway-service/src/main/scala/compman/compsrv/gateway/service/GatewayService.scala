@@ -24,7 +24,7 @@ object GatewayService {
     object CompetitionIdParamMatcher extends OptionalQueryParamDecoderMatcher[String]("competitionId")
   }
 
-  implicit val timeout: Timeout = 10.seconds
+  implicit val timeout: Timeout = 20.seconds
   type ServiceIO[A] = IO[A]
 
   private val dsl = Http4sDsl[ServiceIO]
@@ -68,7 +68,7 @@ object GatewayService {
     apiActor: ActorRef[Command],
     apiCommandWithCallbackCreator: ActorRef[CommandCallback] => Command
   )(implicit scheduler: Scheduler): ServiceIO[Response[ServiceIO]] = {
-    IO.fromFuture[CommandCallback](IO.pure(apiActor.ask(apiCommandWithCallbackCreator))).attempt.flatMap {
+    IO.fromFuture[CommandCallback](IO(apiActor.ask(apiCommandWithCallbackCreator))).attempt.flatMap {
       case Left(_)      => InternalServerError()
       case Right(value) => Ok(value.toByteArray)
     }

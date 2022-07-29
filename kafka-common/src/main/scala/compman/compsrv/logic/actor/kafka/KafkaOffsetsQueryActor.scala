@@ -5,7 +5,12 @@ import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import akka.actor.ActorSystem
 import akka.kafka.ConsumerSettings
 import akka.stream.Materializer
-import compman.compsrv.logic.actor.kafka.KafkaOffsetsQueryActor.{ErrorDuringQuery, KafkaOffsetsQueryActorApi, ReceivedOffsets}
+import compman.compsrv.logic.actor.kafka.KafkaOffsetsQueryActor.{
+  ErrorDuringQuery,
+  KafkaOffsetsQueryActorApi,
+  ReceivedOffsets,
+  Stop
+}
 import compman.compsrv.logic.actor.kafka.KafkaSyncOffsetQueryReceiverActor.{ErrorDuringMetadataRequest, OffsetsReceived}
 
 import scala.concurrent.ExecutionContextExecutor
@@ -20,6 +25,7 @@ private class KafkaOffsetsQueryActor(
     extends AbstractBehavior[KafkaOffsetsQueryActorApi](context) with OffsetsRetrievalFeature {
   protected implicit val dispatcher: ExecutionContextExecutor = context.executionContext
   protected implicit val classicActorSystem: ActorSystem      = context.system.classicSystem
+  context.watchWith(replyTo, Stop)
 
   context.pipeToSelf(prepareOffsetsForConsumer(consumerSettings)(topic, None)) {
     case Failure(exception) => ErrorDuringQuery(exception)
@@ -33,10 +39,11 @@ private class KafkaOffsetsQueryActor(
   override def onMessage(msg: KafkaOffsetsQueryActorApi): Behavior[KafkaOffsetsQueryActorApi] = msg match {
     case ReceivedOffsets(offsets) =>
       replyTo ! OffsetsReceived(offsets)
-      Behaviors.stopped(() => ())
+      Behaviors.stopped
     case ErrorDuringQuery(error) =>
       replyTo ! ErrorDuringMetadataRequest(error)
-      Behaviors.stopped(() => ())
+      Behaviors.stopped
+    case Stop => Behaviors.stopped
   }
 }
 
@@ -51,4 +58,5 @@ object KafkaOffsetsQueryActor {
   sealed trait KafkaOffsetsQueryActorApi
   case class ReceivedOffsets(offsets: StartOffsetsAndTopicEndOffset) extends KafkaOffsetsQueryActorApi
   case class ErrorDuringQuery(error: Throwable)                      extends KafkaOffsetsQueryActorApi
+  case object Stop                                                   extends KafkaOffsetsQueryActorApi
 }
