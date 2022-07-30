@@ -48,17 +48,12 @@ object CommandCallbackAggregator {
           forwardTo ! Error(error, source = ctx.self.toString)
           Behaviors.stopped
         case KafkaSupervisor.MessageReceived(_, committableRecord) =>
-          val msg = Try {
-            deserialize(committableRecord.value)
-          }.filter(filter).map(map)
+          val msg = Try { deserialize(committableRecord.value) }.filter(filter).map(map)
             .fold(err => Error(err, ctx.self.toString), identity)
           forwardTo ! msg
           Behaviors.same
       }
-    }.receiveSignal {
-      case (_, Terminated(_)) =>
-        Behaviors.stopped
-    }
+    }.receiveSignal { case (_, Terminated(_)) => Behaviors.stopped }
   }
 
   def behavior(
@@ -90,17 +85,19 @@ object CommandCallbackAggregator {
         "Callback_receiver"
       )
 
+      kafkaSupervisorActor !
+        KafkaSupervisor
+          .Subscribe(topic = eventsTopic, groupId = groupId, replyTo = eventReceiver, commitOffsetToKafka = true)
+
+      kafkaSupervisorActor ! KafkaSupervisor.Subscribe(
+        topic = callbackTopic,
+        groupId = groupId,
+        replyTo = callbackReceiverAdapter,
+        commitOffsetToKafka = true
+      )
+
       Behaviors.withTimers[CommandCallbackAggregatorCommand] { timers =>
         timers.startSingleTimer("Stop", Stop, timeoutMs.millis)
-        kafkaSupervisorActor !
-          KafkaSupervisor
-            .Subscribe(topic = eventsTopic, groupId = groupId, replyTo = eventReceiver, commitOffsetToKafka = true)
-        kafkaSupervisorActor ! KafkaSupervisor.Subscribe(
-          topic = callbackTopic,
-          groupId = groupId,
-          replyTo = callbackReceiverAdapter,
-          commitOffsetToKafka = true
-        )
         Behaviors.receiveMessage[CommandCallbackAggregatorCommand] {
           case Stop =>
             ctx.log.info(s"Stopping after $timeoutMs milliseconds and sending a TIMEOUT response.")
