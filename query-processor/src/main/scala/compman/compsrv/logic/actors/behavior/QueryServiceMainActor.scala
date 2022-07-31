@@ -5,7 +5,7 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.kafka.{ConsumerSettings, ProducerSettings}
 import com.mongodb.connection.ClusterSettings
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaTopicConfig}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.{CreateTopicIfMissing, KafkaTopicConfig}
 import compman.compsrv.logic.actors.behavior.api.{AcademyApiActor, CompetitionApiActor}
 import compman.compsrv.query.config.AppConfig
 import compman.compsrv.query.service.{QueryHttpApiService, WebsocketService}

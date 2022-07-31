@@ -4,9 +4,10 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, PublishMessage, Subscribe}
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor
+import compman.compsrv.logic.actor.kafka.{KafkaConsumerApi, KafkaSupervisorCommand}
 import compman.compsrv.logic.Operations
+import compman.compsrv.logic.actor.kafka.KafkaConsumerApi._
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.{PublishMessage, SubscribeToEnd}
 import compman.compsrv.model.command.Commands
 import compservice.model.protobuf.command.Command
 
@@ -23,14 +24,13 @@ object StatelessCommandProcessor {
     kafkaSupervisor: ActorRef[KafkaSupervisorCommand]
   ): Behavior[AcademyCommandProcessorMessage] = Behaviors.setup { context =>
     val receiver = context.messageAdapter[KafkaConsumerApi] {
-      case x @ KafkaSupervisor.QueryStarted()   => OtherMessageReceived(x)
-      case x @ KafkaSupervisor.QueryFinished(_) => OtherMessageReceived(x)
-      case x @ KafkaSupervisor.QueryError(_)    => OtherMessageReceived(x)
-      case KafkaSupervisor.MessageReceived(_, committableRecord) =>
-        AcademyCommandReceived(Command.parseFrom(committableRecord.value))
+      case x @ QueryStarted()                    => OtherMessageReceived(x)
+      case x @ QueryFinished(_)                  => OtherMessageReceived(x)
+      case x @ QueryError(_)                     => OtherMessageReceived(x)
+      case MessageReceived(_, committableRecord) => AcademyCommandReceived(Command.parseFrom(committableRecord.value))
     }
     kafkaSupervisor !
-      Subscribe(statelessCommandsTopic, groupId = groupId, replyTo = receiver, commitOffsetToKafka = true)
+      SubscribeToEnd(statelessCommandsTopic, groupId = groupId, replyTo = receiver, commitOffsetToKafka = true)
 
     Behaviors.receiveMessage[AcademyCommandProcessorMessage] {
       case AcademyCommandReceived(cmd) =>

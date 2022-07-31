@@ -4,11 +4,12 @@ import akka.kafka.{ProducerMessage, ProducerSettings}
 import akka.kafka.testkit.ProducerResultFactory
 import akka.stream.scaladsl.Flow
 import akka.NotUsed
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaSupervisorCommand, PublishMessage, QuerySync}
 import compman.compsrv.logic.actors._
 import compman.compsrv.model.extensions.InstantOps
 import compman.compsrv.SpecBase
 import compman.compsrv.logic.actor.kafka.persistence.KafkaBasedEventSourcedBehavior.{CommandReceived, KafkaProducerFlow}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.{PublishMessage, QuerySync}
 import compservice.model.protobuf.command.{Command, CommandType}
 import compservice.model.protobuf.commandpayload.CreateCompetitionPayload
 import compservice.model.protobuf.common.MessageInfo
@@ -31,13 +32,12 @@ class CompetitionServiceSpec extends SpecBase {
 
   test("The Competition Processor should accept commands") {
     val kafkaSupervisor = actorTestKit.createTestProbe[KafkaSupervisorCommand]()
-    val mockedKafkaProducerFlow: KafkaProducerFlow =
-      Flow[ProducerMessage.Envelope[String, Array[Byte], NotUsed]].map {
-        case msg: ProducerMessage.MultiMessage[String, Array[Byte], NotUsed] =>
-          msg.records.foreach(rec => kafkaSupervisor.ref ! PublishMessage(rec.topic(), rec.key(), rec.value()))
-          ProducerResultFactory.multiResult(msg)
-        case other => throw new Exception(s"excluded: $other")
-      }
+    val mockedKafkaProducerFlow: KafkaProducerFlow = Flow[ProducerMessage.Envelope[String, Array[Byte], NotUsed]].map {
+      case msg: ProducerMessage.MultiMessage[String, Array[Byte], NotUsed] =>
+        msg.records.foreach(rec => kafkaSupervisor.ref ! PublishMessage(rec.topic(), rec.key(), rec.value()))
+        ProducerResultFactory.multiResult(msg)
+      case other => throw new Exception(s"excluded: $other")
+    }
     val producerSettings = ProducerSettings.create(actorTestKit.system, new StringSerializer, new ByteArraySerializer)
 
     val processor = actorTestKit.spawn(

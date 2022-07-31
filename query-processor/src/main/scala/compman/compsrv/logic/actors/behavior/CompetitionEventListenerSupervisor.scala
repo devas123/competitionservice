@@ -3,8 +3,9 @@ package compman.compsrv.logic.actors.behavior
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import akka.actor.typed.scaladsl.Behaviors
 import cats.effect.IO
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, Subscribe}
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor
+import compman.compsrv.logic.actor.kafka.{KafkaConsumerApi, KafkaSupervisorCommand}
+import compman.compsrv.logic.actor.kafka.KafkaConsumerApi._
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.SubscribeToEnd
 import compman.compsrv.logic.actors.behavior.CompetitionEventListener.Stop
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model.ManagedCompetition
@@ -70,18 +71,19 @@ object CompetitionEventListenerSupervisor {
           )
           context.watchWith(actor, CompetitionEventListenerStopped(id))
           competitionListeners.put(id, actor)
+          ()
         }
       }
 
       val adapter = context.messageAdapter[KafkaConsumerApi] {
-        case KafkaSupervisor.QueryStarted()    => KafkaNotification("Query started.")
-        case KafkaSupervisor.QueryFinished(_)  => KafkaNotification("Query finished.")
-        case KafkaSupervisor.QueryError(error) => KafkaNotification(s"Query error. $error")
-        case KafkaSupervisor.MessageReceived(_, record) =>
+        case QueryStarted()    => KafkaNotification("Query started.")
+        case QueryFinished(_)  => KafkaNotification("Query finished.")
+        case QueryError(error) => KafkaNotification(s"Query error. $error")
+        case MessageReceived(_, record) =>
           val notif = CompetitionProcessorNotification.parseFrom(record.value)
           ReceivedNotification(notif.notification)
       }
-      kafkaSupervisorActor ! Subscribe(notificationStopic, s"query-service-global-events-listener", adapter)
+      kafkaSupervisorActor ! SubscribeToEnd(notificationStopic, s"query-service-global-events-listener", adapter)
       context.pipeToSelf((for {
         activeCompetitions <- ManagedCompetitionsOperations.getActiveCompetitions[IO]
       } yield activeCompetitions).unsafeToFuture()) {

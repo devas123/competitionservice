@@ -4,8 +4,9 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import cats.effect.IO
 import cats.implicits.catsSyntaxApplicative
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, MessageReceived, PublishMessage}
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor
+import compman.compsrv.logic.actor.kafka.{KafkaConsumerApi, KafkaSupervisorCommand}
+import compman.compsrv.logic.actor.kafka.KafkaConsumerApi._
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.{PublishMessage, SubscribeToEnd}
 import compman.compsrv.model
 import compman.compsrv.model.{Errors, Mapping}
 import compman.compsrv.model.Mapping.EventMapping
@@ -46,20 +47,19 @@ object StatelessEventListener {
       val adapter = context.messageAdapter[KafkaConsumerApi](fa => EventReceived(fa))
       val groupId = s"query-service-stateless-listener"
       kafkaSupervisorActor !
-        KafkaSupervisor
-          .Subscribe(config.academyNotificationsTopic, groupId, adapter, commitOffsetToKafka = true)
+        SubscribeToEnd(config.academyNotificationsTopic, groupId, adapter, commitOffsetToKafka = true)
 
       Behaviors.receiveMessage {
         case EventReceived(kafkaMessage) => kafkaMessage match {
-            case KafkaSupervisor.QueryStarted() =>
+            case QueryStarted() =>
               context.log.info("Kafka query started.")
               Behaviors.same
 
-            case KafkaSupervisor.QueryFinished(_) =>
+            case QueryFinished(_) =>
               context.log.info("Kafka query finished.")
               Behaviors.same
 
-            case KafkaSupervisor.QueryError(error) =>
+            case QueryError(error) =>
               context.log.error("Error during kafka query: ", error)
               Behaviors.same
 
@@ -84,7 +84,7 @@ object StatelessEventListener {
               } yield ()).onError(cause => IO(context.log.error("Error in stateless event listener.", cause)))
                 .unsafeRunSync()
               Behaviors.same
-        }
+          }
         case Stop => Behaviors.stopped(() => context.log.info("Received stop command. Stopping..."))
       }
     }

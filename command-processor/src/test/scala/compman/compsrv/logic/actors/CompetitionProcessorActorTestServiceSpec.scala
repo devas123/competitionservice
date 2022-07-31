@@ -6,10 +6,11 @@ import akka.stream.scaladsl.Flow
 import akka.NotUsed
 import com.google.protobuf.timestamp.Timestamp
 import com.google.protobuf.util.Timestamps
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaSupervisorCommand, PublishMessage, QuerySync, Subscribe}
 import compman.compsrv.SpecBase
 import compman.compsrv.config.CommandProcessorConfig
 import compman.compsrv.logic.actor.kafka.persistence.KafkaBasedEventSourcedBehavior.KafkaProducerFlow
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.{PublishMessage, QuerySync, SubscribeToEnd}
 import compman.compsrv.logic.actors.CompetitionProcessorSupervisorActor.CommandReceived
 import compservice.model.protobuf.command.{Command, CommandType}
 import compservice.model.protobuf.commandpayload.CreateCompetitionPayload
@@ -76,7 +77,7 @@ class CompetitionProcessorActorTestServiceSpec extends SpecBase {
 
     }
     processor ! CommandReceived(competitionId, command, 10, 11)
-    kafkaSupervisor.expectMessageType[Subscribe](10.seconds)
+    kafkaSupervisor.expectMessageType[SubscribeToEnd](10.seconds)
     val unwrapped = kafkaSupervisor.expectMessageType[QuerySync](3.seconds)
     val promise   = unwrapped.promise
     promise.success(Seq.empty)

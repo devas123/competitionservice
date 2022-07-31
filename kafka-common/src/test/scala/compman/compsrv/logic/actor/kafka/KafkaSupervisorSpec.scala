@@ -4,7 +4,8 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.Behavior
 import akka.kafka.{ConsumerSettings, ProducerSettings}
 import akka.kafka.testkit.scaladsl.TestcontainersKafkaLike
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
+import compman.compsrv.logic.actor.kafka.KafkaConsumerApi.{MessageReceived, QueryFinished, QueryStarted}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand._
 import org.apache.kafka.clients.admin.AdminClientConfig
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.{
@@ -45,8 +46,7 @@ class KafkaSupervisorSpec extends SpecBaseWithKafka with TestcontainersKafkaLike
     actorTestKit.spawn(Behaviors.monitor(messageReceiver.ref, mockedMessageReceiverBehavior))
     kafkaSupervisor ! CreateTopicIfMissing(notificationTopic, KafkaTopicConfig())
     waitForTopic(notificationTopic)
-    kafkaSupervisor !
-      Subscribe(notificationTopic, s"group-${UUID.randomUUID()}", messageReceiver.ref, startOffset = Some(0))
+    kafkaSupervisor ! SubscribeToBeginning(notificationTopic, s"group-${UUID.randomUUID()}", messageReceiver.ref)
     val competitionId = "competitionId"
     val notification  = Random.nextBytes(100)
     kafkaSupervisor ! PublishMessage(notificationTopic, competitionId, notification)
@@ -73,7 +73,7 @@ class KafkaSupervisorSpec extends SpecBaseWithKafka with TestcontainersKafkaLike
     (0 until messagesCount).toList
       .foreach(_ => kafkaSupervisor ! PublishMessage(notificationTopic, competitionId, notification))
     sleep(1.seconds)
-    kafkaSupervisor ! Subscribe(notificationTopic, s"group-${UUID.randomUUID()}", messageReceiver.ref)
+    kafkaSupervisor ! SubscribeToEnd(notificationTopic, s"group-${UUID.randomUUID()}", messageReceiver.ref)
     sleep(1.seconds)
     kafkaSupervisor ! PublishMessage(notificationTopic, competitionId, Random.nextBytes(100))
     messageReceiver.expectMessageType[MessageReceived](5.seconds)
@@ -101,7 +101,7 @@ class KafkaSupervisorSpec extends SpecBaseWithKafka with TestcontainersKafkaLike
     actorTestKit.spawn(Behaviors.monitor(messageReceiver2.ref, mockedMessageReceiverBehavior))
     kafkaSupervisor ! CreateTopicIfMissing(topic, KafkaTopicConfig())
     waitForTopic(topic)
-    kafkaSupervisor ! Subscribe(topic, actorId, messageReceiver.ref, commitOffsetToKafka = true)
+    kafkaSupervisor ! SubscribeToBeginning(topic, actorId, messageReceiver.ref, commitOffsetToKafka = true)
     sleep(1.seconds)
     (0 until messagesCount).toList.foreach(_ => kafkaSupervisor ! PublishMessage(topic, competitionId, notification))
 
@@ -111,7 +111,7 @@ class KafkaSupervisorSpec extends SpecBaseWithKafka with TestcontainersKafkaLike
     sleep(1.seconds)
     (0 until messagesCount).toList.foreach(_ => kafkaSupervisor ! PublishMessage(topic, competitionId, notification))
     sleep(1.seconds)
-    kafkaSupervisor ! Subscribe(topic, groupId, messageReceiver2.ref, Some(startOffset.toLong))
+    kafkaSupervisor ! Subscribe(topic, groupId, messageReceiver2.ref, Map(0 -> startOffset.toLong))
 
     (0 until messagesCount - startOffset).toList
       .foreach(_ => messageReceiver2.expectMessageType[MessageReceived](5.seconds))
@@ -146,7 +146,7 @@ class KafkaSupervisorSpec extends SpecBaseWithKafka with TestcontainersKafkaLike
     messageReceiver.expectMessageType[MessageReceived](5.seconds)
     messageReceiver.expectMessageType[QueryFinished](5.seconds)
     messageReceiver.expectNoMessage(1.seconds)
-    kafkaSupervisor ! Subscribe(notificationTopic, s"group-${UUID.randomUUID()}", messageReceiver.ref)
+    kafkaSupervisor ! SubscribeToEnd(notificationTopic, s"group-${UUID.randomUUID()}", messageReceiver.ref)
     sleep(1.seconds)
     (0 until messagesCount).toList
       .foreach(_ => kafkaSupervisor ! PublishMessage(notificationTopic, competitionId, notification))
@@ -175,8 +175,7 @@ class KafkaSupervisorSpec extends SpecBaseWithKafka with TestcontainersKafkaLike
     kafkaSupervisor ! PublishMessage(notificationTopic, competitionId, notification)
     val promise = Promise[Seq[Array[Byte]]]()
     sleep(1.seconds)
-    kafkaSupervisor !
-      QuerySync(notificationTopic, UUID.randomUUID().toString, promise, 10.seconds)
+    kafkaSupervisor ! QuerySync(notificationTopic, UUID.randomUUID().toString, promise, 10.seconds)
     val msgs = Await.result(promise.future, 10.seconds)
     assert(msgs.size == 2)
   }
@@ -197,7 +196,7 @@ class KafkaSupervisorSpec extends SpecBaseWithKafka with TestcontainersKafkaLike
     kafkaSupervisor ! CreateTopicIfMissing(notificationTopic, KafkaTopicConfig())
     val promise = Promise[Seq[Array[Byte]]]()
     kafkaSupervisor !
-      QuerySync(notificationTopic, UUID.randomUUID().toString, promise, 10.seconds, Some(startOffset.toLong))
+      QuerySync(notificationTopic, UUID.randomUUID().toString, promise, 10.seconds, Map(0 -> startOffset.toLong))
     val msgs = Await.result(promise.future, 10.seconds)
     assert(msgs.isEmpty)
     kafkaSupervisor ! QueryAsync(notificationTopic, UUID.randomUUID().toString, messageReceiver.ref)

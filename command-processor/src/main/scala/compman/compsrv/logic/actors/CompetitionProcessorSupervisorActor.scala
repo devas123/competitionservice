@@ -4,14 +4,15 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import akka.kafka.ProducerSettings
 import compman.compsrv.config.CommandProcessorConfig
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand, Subscribe}
 import compman.compsrv.CompetitionEventsTopic
+import compman.compsrv.logic.actor.kafka.{KafkaConsumerApi, KafkaSupervisorCommand}
 import compman.compsrv.logic.actor.kafka.persistence.KafkaBasedEventSourcedBehavior
 import compman.compsrv.logic.actor.kafka.persistence.KafkaBasedEventSourcedBehavior.{
   KafkaBasedEventSourcedBehaviorApi,
   KafkaProducerFlow
 }
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor
+import compman.compsrv.logic.actor.kafka.KafkaConsumerApi.{MessageReceived, QueryError, QueryFinished, QueryStarted}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.SubscribeToEnd
 import compservice.model.protobuf.command.Command
 
 object CompetitionProcessorSupervisorActor {
@@ -27,7 +28,14 @@ object CompetitionProcessorSupervisorActor {
       case OtherMessageReceived(payload) =>
         context.log.debug(s"Received message $payload")
         Behaviors.same
-      case CommandReceived(competitionId, fa, partition, offset) =>
+      case CompetitionProcessorStopped(id) => updated(children - id)(
+          producerSettings,
+          commandProcessorConfig,
+          kafkaSupervisor,
+          snapshotServiceFactory,
+          kafkaProducerFlowOptional
+        )
+      case CommandReceived(competitionId, fa, partition, _) =>
         val actorName = s"CompetitionProcessor-$competitionId"
         context.log.info(s"Received command: $fa")
         val updatedChildren = children.updatedWith(actorName) { optActor =>
@@ -45,7 +53,9 @@ object CompetitionProcessorSupervisorActor {
             actorName
           )))
         }
-        updatedChildren(actorName) ! KafkaBasedEventSourcedBehavior.CommandReceived(
+        val actor = updatedChildren(actorName)
+        context.watchWith(actor, CompetitionProcessorStopped(actorName))
+        actor ! KafkaBasedEventSourcedBehavior.CommandReceived(
           commandProcessorConfig.commandsTopic,
           competitionId = competitionId,
           command = fa,
@@ -69,14 +79,14 @@ object CompetitionProcessorSupervisorActor {
     kafkaProducerFlowOptional: Option[KafkaProducerFlow] = None
   ): Behavior[Message] = Behaviors.setup { ctx =>
     val receiver = ctx.messageAdapter[KafkaConsumerApi] {
-      case x @ KafkaSupervisor.QueryStarted()   => OtherMessageReceived(x)
-      case x @ KafkaSupervisor.QueryFinished(_) => OtherMessageReceived(x)
-      case x @ KafkaSupervisor.QueryError(_)    => OtherMessageReceived(x)
-      case KafkaSupervisor.MessageReceived(_, committableRecord) =>
+      case x @ QueryStarted()   => OtherMessageReceived(x)
+      case x @ QueryFinished(_) => OtherMessageReceived(x)
+      case x @ QueryError(_)    => OtherMessageReceived(x)
+      case MessageReceived(_, committableRecord) =>
         val command = Command.parseFrom(committableRecord.value)
         CommandReceived(committableRecord.key(), command, committableRecord.partition(), committableRecord.offset())
     }
-    kafkaSupervisor ! Subscribe(
+    kafkaSupervisor ! SubscribeToEnd(
       commandProcessorConfig.commandsTopic,
       groupId = commandProcessorConfig.groupId,
       replyTo = receiver,
@@ -95,5 +105,7 @@ object CompetitionProcessorSupervisorActor {
 
   final case class CommandReceived(competitionId: String, fa: Command, partition: Int, offset: Long) extends Message
   final case class OtherMessageReceived(payload: Any)                                                extends Message
+
+  private final case class CompetitionProcessorStopped(id: String) extends Message
 
 }

@@ -2,26 +2,38 @@ package compman.compsrv.gateway.actors
 
 import akka.actor.typed.{ActorRef, Behavior, MessageAdaptionFailure, Terminated}
 import akka.actor.typed.scaladsl.Behaviors
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaConsumerApi, KafkaSupervisorCommand}
+import akka.util.Timeout
+import compman.compsrv.gateway.actors.CommandCallbackListener.RegisterListener
+import compman.compsrv.logic.actor.kafka.{KafkaConsumerApi, KafkaSupervisorCommand}
+import compman.compsrv.logic.actor.kafka.KafkaConsumerApi._
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.{
+  CreateTopicWithResponse,
+  KafkaTopicConfig,
+  PublishMessage,
+  SubscribeSince
+}
 import compman.compsrv.model.command.Commands
 import compman.compsrv.model.Errors
 import compservice.model.protobuf.callback.{CommandCallback, CommandExecutionResult, ErrorCallback}
-import compservice.model.protobuf.command.Command
+import compservice.model.protobuf.command.{Command, CommandType}
 import compservice.model.protobuf.event.Event
 
+import java.util.UUID
 import scala.concurrent.duration.DurationInt
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 object CommandCallbackAggregator {
+  implicit val timeout: Timeout = 3.seconds
 
   sealed trait CommandCallbackAggregatorCommand
 
+  private final case object TopicCreated                                extends CommandCallbackAggregatorCommand
   private final case object Stop                                        extends CommandCallbackAggregatorCommand
   private final case class EventReceived(event: Event)                  extends CommandCallbackAggregatorCommand
   private final case class CallbackReceived(callback: CommandCallback)  extends CommandCallbackAggregatorCommand
   private final case object CallbackComplete                            extends CommandCallbackAggregatorCommand
   private final case class Error(error: Throwable, source: String = "") extends CommandCallbackAggregatorCommand
+  private final case class Publish(payload: PublishMessage)             extends CommandCallbackAggregatorCommand
   private final case class UnknownMessage(payload: Any)                 extends CommandCallbackAggregatorCommand
 
   case class ActorState(receivedEvents: Seq[Event], callback: Option[CommandCallback])
@@ -38,16 +50,16 @@ object CommandCallbackAggregator {
     Behaviors.receiveMessage[KafkaConsumerApi] { msg =>
       ctx.log.info(s"Received message $msg")
       msg match {
-        case KafkaSupervisor.QueryStarted() =>
+        case QueryStarted() =>
           forwardTo ! UnknownMessage(())
           Behaviors.same
-        case KafkaSupervisor.QueryFinished(_) =>
+        case QueryFinished(_) =>
           forwardTo ! UnknownMessage(())
           Behaviors.stopped
-        case KafkaSupervisor.QueryError(error) =>
+        case QueryError(error) =>
           forwardTo ! Error(error, source = ctx.self.toString)
           Behaviors.stopped
-        case KafkaSupervisor.MessageReceived(_, committableRecord) =>
+        case MessageReceived(_, committableRecord) =>
           val msg = Try { deserialize(committableRecord.value) }.filter(filter).map(map)
             .fold(err => Error(err, ctx.self.toString), identity)
           forwardTo ! msg
@@ -58,10 +70,10 @@ object CommandCallbackAggregator {
 
   def behavior(
     commandToWaitCallbackFor: Command,
+    messageToPublish: PublishMessage,
+    commandCallbackListener: ActorRef[CommandCallbackListener.CommandCallbackListenerApi],
     kafkaSupervisorActor: ActorRef[KafkaSupervisorCommand],
     eventsTopic: String,
-    callbackTopic: String,
-    groupId: String,
     replyTo: ActorRef[CommandCallback]
   )(timeoutMs: Int): Behavior[CommandCallbackAggregatorCommand] = Behaviors
     .setup[CommandCallbackAggregatorCommand] { ctx =>
@@ -85,20 +97,43 @@ object CommandCallbackAggregator {
         "Callback_receiver"
       )
 
-      kafkaSupervisorActor !
-        KafkaSupervisor
-          .Subscribe(topic = eventsTopic, groupId = groupId, replyTo = eventReceiver, commitOffsetToKafka = true)
-
-      kafkaSupervisorActor ! KafkaSupervisor.Subscribe(
-        topic = callbackTopic,
-        groupId = groupId,
-        replyTo = callbackReceiverAdapter,
-        commitOffsetToKafka = true
+      kafkaSupervisorActor ! SubscribeSince(
+        topic = eventsTopic,
+        groupId = UUID.randomUUID().toString,
+        replyTo = eventReceiver,
+        commitOffsetToKafka = true,
+        since = System.currentTimeMillis()
       )
 
       Behaviors.withTimers[CommandCallbackAggregatorCommand] { timers =>
         timers.startSingleTimer("Stop", Stop, timeoutMs.millis)
+
+        if (commandToWaitCallbackFor.`type` == CommandType.CREATE_COMPETITION_COMMAND) {
+          ctx.ask(
+            kafkaSupervisorActor,
+            resp => CreateTopicWithResponse(eventsTopic, KafkaTopicConfig(), resp)
+          ) {
+            case Failure(exception) => Error(error = exception, source = "Creating topic")
+            case Success(value) => value match {
+                case Left(error) => Error(error = error, source = "Creating topic response")
+                case Right(_)    => TopicCreated
+              }
+          }
+        } else { ctx.self ! TopicCreated }
+
         Behaviors.receiveMessage[CommandCallbackAggregatorCommand] {
+          case TopicCreated =>
+            ctx.ask(commandCallbackListener, resp => RegisterListener(callbackReceiverAdapter, resp)) {
+              case Failure(exception) => Error(error = exception, source = "Registering with callback listener")
+              case Success(value) => value match {
+                  case Left(value) => Error(error = value, source = "Registering with callback listener")
+                  case Right(_)    => Publish(messageToPublish)
+                }
+            }
+            Behaviors.same
+          case Publish(payload) =>
+            kafkaSupervisorActor ! payload
+            Behaviors.same
           case Stop =>
             ctx.log.info(s"Stopping after $timeoutMs milliseconds and sending a TIMEOUT response.")
             replyTo ! CommandCallback().update(

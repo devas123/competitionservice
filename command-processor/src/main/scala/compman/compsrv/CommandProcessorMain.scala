@@ -7,7 +7,7 @@ import cats.effect.IO
 import compman.compsrv.config.AppConfig
 import compman.compsrv.logic.Operations._
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{CreateTopicIfMissing, KafkaTopicConfig}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.{CreateTopicIfMissing, KafkaTopicConfig}
 import compman.compsrv.logic.actors._
 import compman.compsrv.logic.fight.CompetitorSelectionUtils.Interpreter
 import compman.compsrv.model.Mapping

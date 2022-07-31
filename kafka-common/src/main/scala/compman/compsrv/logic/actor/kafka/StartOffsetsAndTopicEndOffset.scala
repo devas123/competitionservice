@@ -7,3 +7,7 @@ case class StartOffsetsAndTopicEndOffset(
                                           endOffsets: Map[TopicPartition, Long]
                                         )
 
+object StartOffsetsAndTopicEndOffset {
+  def apply(): StartOffsetsAndTopicEndOffset = StartOffsetsAndTopicEndOffset(Map.empty, Map.empty)
+}
+

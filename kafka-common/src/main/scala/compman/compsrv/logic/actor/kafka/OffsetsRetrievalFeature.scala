@@ -8,11 +8,11 @@ import org.apache.kafka.common.TopicPartition
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.DurationInt
 
-trait OffsetsRetrievalFeature {
+object OffsetsRetrievalFeature {
 
   def prepareOffsetsForConsumer(
     consumerSettings: ConsumerSettings[String, Array[Byte]]
-  )(topic: String, startOffset: Option[Long])(implicit
+  )(topic: String, startOffset: Map[Int, Long])(implicit
     ec: ExecutionContext,
     actorSystem: ActorSystem
   ): Future[Option[StartOffsetsAndTopicEndOffset]] = {
@@ -20,15 +20,16 @@ trait OffsetsRetrievalFeature {
     (for {
       partitions <- metadataClient.getPartitionsFor(topic)
       topicPartitions = partitions.map(p => new TopicPartition(p.topic(), p.partition())).toSet
-      partitionsToEndOffsetsMap <- metadataClient.getEndOffsets(topicPartitions)
-      startOffsets = partitionsToEndOffsetsMap.map(e => e._1 -> startOffset.map(o => Math.min(o, e._2)).getOrElse(e._2))
+      partitionsToStartOffsetsMap <- metadataClient.getBeginningOffsets(topicPartitions)
+      partitionsToEndOffsetsMap   <- metadataClient.getEndOffsets(topicPartitions)
+      startOffsetsBoundedRight = partitionsToEndOffsetsMap
+        .map(e => e._1 -> Math.min(e._2, startOffset.getOrElse(e._1.partition(), 0L)))
+      startOffsetsBounded = partitionsToStartOffsetsMap
+        .map(e => e._1 -> Math.max(e._2, startOffsetsBoundedRight.getOrElse(e._1, 0L)))
       res =
-        if (startOffsets.nonEmpty) { Some(StartOffsetsAndTopicEndOffset(startOffsets, partitionsToEndOffsetsMap)) }
-        else None
-    } yield res).andThen { case _ =>
-      Future.successful {
-        metadataClient.close()
-      }
-    }
+        if (startOffsetsBounded.nonEmpty) {
+          Some(StartOffsetsAndTopicEndOffset(startOffsetsBounded, partitionsToEndOffsetsMap))
+        } else None
+    } yield res).andThen { case _ => Future.successful { metadataClient.close() } }
   }
 }

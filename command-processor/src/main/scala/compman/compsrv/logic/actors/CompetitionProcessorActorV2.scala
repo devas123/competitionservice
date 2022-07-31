@@ -8,9 +8,14 @@ import cats.effect.unsafe.IORuntime
 import com.google.protobuf.timestamp.Timestamp
 import com.google.protobuf.util.Timestamps
 import compman.compsrv.logic.actor.kafka.persistence.{EventSourcingOperations, KafkaBasedEventSourcedBehavior}
-import compman.compsrv.logic.actor.kafka.persistence.KafkaBasedEventSourcedBehavior.{KafkaBasedEventSourcedBehaviorApi, KafkaProducerFlow, Stop}
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor.{KafkaSupervisorCommand, PublishMessage, QuerySync}
+import compman.compsrv.logic.actor.kafka.persistence.KafkaBasedEventSourcedBehavior.{
+  KafkaBasedEventSourcedBehaviorApi,
+  KafkaProducerFlow,
+  Stop
+}
 import compman.compsrv.logic.Operations
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.{PublishMessage, QuerySync}
 import compman.compsrv.logic.actors.CompetitionProcessorActorV2.{createInitialState, DefaultTimerKey}
 import compman.compsrv.model.Errors
 import compman.compsrv.model.command.Commands
@@ -104,7 +109,8 @@ class CompetitionProcessorActorV2(
   override def getEvents(startFrom: Long): Seq[Event] = {
     val promise = Promise[Seq[Array[Byte]]]()
     context.log.info(s"Getting events from topic: $eventsTopic, starting from $startFrom")
-    kafkaSupervisor ! QuerySync(eventsTopic, UUID.randomUUID().toString, promise, 30.seconds, Some(startFrom))
+    kafkaSupervisor !
+      QuerySync(eventsTopic, UUID.randomUUID().toString, promise, 30.seconds, Map(0 -> startFrom).withDefault(_ => startFrom))
     val events = Await.result(promise.future, 1.minute).map(Event.parseFrom)
     context.log.info(s"Done getting events! ${events.size} events were received.")
     events

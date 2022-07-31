@@ -2,7 +2,7 @@ package compman.compsrv.logic.actor.kafka
 
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
-import compman.compsrv.logic.actor.kafka.KafkaSupervisor._
+import compman.compsrv.logic.actor.kafka.KafkaConsumerApi.{MessageReceived, QueryError, QueryFinished, QueryStarted}
 
 import scala.concurrent.{Promise, TimeoutException}
 import scala.concurrent.duration.FiniteDuration
@@ -21,7 +21,9 @@ object KafkaSyncQueryReceiverActor {
           Behaviors.stopped
         case QueryError(error) => Behaviors.stopped(() => promise.failure(error))
         case MessageReceived(topic, consumerRecord) =>
-          ctx.log.info(s"Received message from topic $topic")
+          ctx.log.info(
+            s"Received message from topic $topic with offset ${consumerRecord.offset()} and partition ${consumerRecord.partition()}"
+          )
           updated(promise, messages :+ consumerRecord.value())
       }
     }
