@@ -8,6 +8,7 @@ import compman.compsrv.logic.actor.kafka.KafkaConsumerApi.{QueryFinished, QueryS
 import compman.compsrv.logic.actor.kafka.KafkaSubscribeActor._
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
+import scala.concurrent.duration.DurationInt
 
 private class KafkaAsyncQueryActor(
   context: ActorContext[KafkaSubscribeActor.KafkaSubscribeActorApi],
@@ -50,6 +51,7 @@ private class KafkaAsyncQueryActor(
             this.consumerControl = Some(consumerControl)
             ctx.pipeToSelf(streamFinished)(_ => Stop)
             var messageCount = 0L
+            context.setReceiveTimeout(1.seconds, Stop)
             Behaviors.receiveMessage {
               case FailureInOffsetsRetrieval(msg, exception) =>
                 context.log.warn(s"Unexpected failure in offsets retrieval during query: $msg")

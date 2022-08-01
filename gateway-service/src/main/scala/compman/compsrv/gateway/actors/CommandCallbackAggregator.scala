@@ -6,12 +6,7 @@ import akka.util.Timeout
 import compman.compsrv.gateway.actors.CommandCallbackListener.RegisterListener
 import compman.compsrv.logic.actor.kafka.{KafkaConsumerApi, KafkaSupervisorCommand}
 import compman.compsrv.logic.actor.kafka.KafkaConsumerApi._
-import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.{
-  CreateTopicWithResponse,
-  KafkaTopicConfig,
-  PublishMessage,
-  SubscribeSince
-}
+import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.{CreateTopicWithResponse, KafkaTopicConfig, PublishMessage, SubscribeSince}
 import compman.compsrv.model.command.Commands
 import compman.compsrv.model.Errors
 import compservice.model.protobuf.callback.{CommandCallback, CommandExecutionResult, ErrorCallback}
@@ -47,24 +42,25 @@ object CommandCallbackAggregator {
     map: T => CommandCallbackAggregatorCommand
   ): Behavior[KafkaConsumerApi] = Behaviors.setup { ctx =>
     ctx.watch(forwardTo)
-    Behaviors.receiveMessage[KafkaConsumerApi] { msg =>
-      ctx.log.info(s"Received message $msg")
-      msg match {
-        case QueryStarted() =>
-          forwardTo ! UnknownMessage(())
-          Behaviors.same
-        case QueryFinished(_) =>
-          forwardTo ! UnknownMessage(())
-          Behaviors.stopped
-        case QueryError(error) =>
-          forwardTo ! Error(error, source = ctx.self.toString)
-          Behaviors.stopped
-        case MessageReceived(_, committableRecord) =>
-          val msg = Try { deserialize(committableRecord.value) }.filter(filter).map(map)
-            .fold(err => Error(err, ctx.self.toString), identity)
-          forwardTo ! msg
-          Behaviors.same
-      }
+    Behaviors.receiveMessage[KafkaConsumerApi] {
+      case QueryStarted() =>
+        forwardTo ! UnknownMessage(())
+        Behaviors.same
+      case QueryFinished(_) =>
+        forwardTo ! UnknownMessage(())
+        Behaviors.stopped
+      case QueryError(error) =>
+        forwardTo ! Error(error, source = ctx.self.toString)
+        Behaviors.stopped
+      case MessageReceived(_, committableRecord) =>
+        Try {
+          val deserialized = deserialize(committableRecord.value)
+          if (filter(deserialized)) {
+            val mapped = map(deserialized)
+            forwardTo ! mapped
+          }
+        }.recover(err => forwardTo ! Error(err, ctx.self.toString))
+        Behaviors.same
     }.receiveSignal { case (_, Terminated(_)) => Behaviors.stopped }
   }
 
@@ -105,14 +101,14 @@ object CommandCallbackAggregator {
         since = System.currentTimeMillis()
       )
 
+      ctx.log.info(s"Starting callback aggregator for command with id ${commandToWaitCallbackFor.getMessageInfo
+        .getId}, correlation id: ${commandToWaitCallbackFor.getMessageInfo.getCorrelationId}")
+
       Behaviors.withTimers[CommandCallbackAggregatorCommand] { timers =>
         timers.startSingleTimer("Stop", Stop, timeoutMs.millis)
 
         if (commandToWaitCallbackFor.`type` == CommandType.CREATE_COMPETITION_COMMAND) {
-          ctx.ask(
-            kafkaSupervisorActor,
-            resp => CreateTopicWithResponse(eventsTopic, KafkaTopicConfig(), resp)
-          ) {
+          ctx.ask(kafkaSupervisorActor, resp => CreateTopicWithResponse(eventsTopic, KafkaTopicConfig(), resp)) {
             case Failure(exception) => Error(error = exception, source = "Creating topic")
             case Success(value) => value match {
                 case Left(error) => Error(error = error, source = "Creating topic response")
@@ -143,7 +139,7 @@ object CommandCallbackAggregator {
             )
             Behaviors.stopped
           case CallbackReceived(callback) =>
-            ctx.log.info(s"Received callback: $callback")
+            ctx.log.info(s"Received callback with correlation id: ${callback.correlationId}")
             state = state.copy(callback = Some(callback))
             if (
               callback.result != CommandExecutionResult.SUCCESS || callback.numberOfEvents <= state.receivedEvents.size
@@ -157,7 +153,7 @@ object CommandCallbackAggregator {
             replyTo ! callbackToSend
             Behaviors.stopped
           case EventReceived(event) =>
-            ctx.log.info(s"Received an event: $event")
+            ctx.log.info(s"Received an event with correlation id: ${event.getMessageInfo.getCorrelationId}: $event")
             val newState = state.copy(receivedEvents = state.receivedEvents :+ event)
             if (newState.callback.exists(_.numberOfEvents == newState.receivedEvents.size)) {
               ctx.self ! CallbackComplete
