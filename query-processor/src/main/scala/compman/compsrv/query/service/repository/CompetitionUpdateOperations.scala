@@ -13,7 +13,6 @@ import java.util.concurrent.atomic.AtomicReference
 import scala.jdk.CollectionConverters._
 
 trait CompetitionUpdateOperations[F[+_]] {
-  def addCompetitionProperties(competitionProperties: CompetitionProperties): F[Unit]
   def updateCompetitionProperties(competitionProperties: CompetitionProperties): F[Unit]
   def removeCompetitionState(id: String): F[Unit]
   def addCompetitionInfoTemplate(competitionId: String)(competitionInfoTemplate: CompetitionInfoTemplate): F[Unit]
@@ -52,7 +51,7 @@ object CompetitionUpdateOperations {
     stages: Option[AtomicReference[Map[String, StageDescriptor]]] = None
   ): CompetitionUpdateOperations[F] = new CompetitionUpdateOperations[F] with CommonTestOperations {
 
-    override def addCompetitionProperties(newProperties: CompetitionProperties): F[Unit] = Monad[F]
+    def addCompetitionProperties(newProperties: CompetitionProperties): F[Unit] = Monad[F]
       .pure(competitionProperties.foreach(_.updateAndGet(m => m.updated(newProperties.id, newProperties))))
 
     override def updateCompetitionProperties(competitionProperties: CompetitionProperties): F[Unit] =
@@ -64,8 +63,9 @@ object CompetitionUpdateOperations {
     override def addCompetitionInfoTemplate(competitionId: String)(newTemplate: CompetitionInfoTemplate): F[Unit] =
       comPropsUpdate[F](competitionProperties)(competitionId)(_.copy(infoTemplate = newTemplate))
 
-    override def removeCompetitionInfoTemplate(competitionId: String): F[Unit] =
-      comPropsUpdate[F](competitionProperties)(competitionId)(_.copy(infoTemplate = CompetitionInfoTemplate(Array.empty)))
+    override def removeCompetitionInfoTemplate(competitionId: String): F[Unit] = comPropsUpdate[F](
+      competitionProperties
+    )(competitionId)(_.copy(infoTemplate = CompetitionInfoTemplate(Array.empty)))
 
     override def addStage(stageDescriptor: StageDescriptor): F[Unit] =
       add[F, StageDescriptor](stages)(stageDescriptor.id)(Some(stageDescriptor))
@@ -85,9 +85,11 @@ object CompetitionUpdateOperations {
 
     override def removeCategory(competitionId: String)(id: String): F[Unit] = remove[F, Category](categories)(id)
 
-    override def addCompetitor(competitor: Competitor): F[Unit] = add[F, Competitor](competitors)(competitor.id)(Some(competitor))
+    override def addCompetitor(competitor: Competitor): F[Unit] =
+      add[F, Competitor](competitors)(competitor.id)(Some(competitor))
 
-    override def updateCompetitor(competitor: Competitor): F[Unit] = update[F, Competitor](competitors)(competitor.id)(_ => competitor)
+    override def updateCompetitor(competitor: Competitor): F[Unit] =
+      update[F, Competitor](competitors)(competitor.id)(_ => competitor)
 
     override def removeCompetitor(competitionId: String)(id: String): F[Unit] = remove[F, Competitor](competitors)(id)
 
@@ -126,24 +128,6 @@ object CompetitionUpdateOperations {
 
     import org.mongodb.scala.model.Filters._
     import org.mongodb.scala.model.Updates._
-
-    override def addCompetitionProperties(competitionProperties: CompetitionProperties): IO[Unit] =
-      for {
-        collection <- competitionStateCollection
-        statement = collection.replaceOne(
-          Filters.eq(idField, competitionProperties.id),
-          CompetitionState(
-            competitionProperties.id,
-            competitionProperties,
-            Map.empty,
-            Map.empty,
-            Map.empty,
-            RegistrationInfo(competitionProperties.id)
-          ),
-          new ReplaceOptions().upsert(true)
-        )
-        _ <- IO.fromFuture(IO(statement.toFuture()))
-      } yield ()
 
     override def updateCompetitionProperties(competitionProperties: CompetitionProperties): IO[Unit] = {
       for {

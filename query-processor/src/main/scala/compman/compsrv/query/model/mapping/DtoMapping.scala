@@ -33,9 +33,9 @@ object DtoMapping {
       _.competitionName.setIfDefined(o.competitionName),
       _.eventsTopic := o.eventsTopic,
       _.creatorId.setIfDefined(o.creatorId),
-      _.createdAt := o.createdAt.asTimestamp,
-      _.startsAt  := o.startsAt.asTimestamp,
-      _.endsAt.setIfDefined(o.endsAt.map(_.asTimestamp)),
+      _.createdAt := o.creationTimestamp.asTimestamp,
+      _.startsAt  := o.startDate.asTimestamp,
+      _.endsAt.setIfDefined(o.endDate.map(_.asTimestamp)),
       _.timeZone := o.timeZone,
       _.status   := o.status
     )

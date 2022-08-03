@@ -13,8 +13,8 @@ class CompetitionOperationsStageOperationsTest
       val context = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
       import context._
       (for {
-        _     <- CompetitionUpdateOperations[IO].removeCompetitionState(competitionId)
-        _     <- CompetitionUpdateOperations[IO].addCompetitionProperties(competitionProperties)
+        _ <- CompetitionUpdateOperations[IO].removeCompetitionState(competitionId)
+        _ <- ManagedCompetitionsOperations.addManagedCompetition[IO](managedCompetition)
         _     <- CompetitionUpdateOperations[IO].addStage(stageDescriptor)
         stage <- CompetitionQueryOperations[IO].getStageById(competitionId)(stageId)
       } yield assert(stage.isDefined)).unsafeRunSync()

@@ -5,29 +5,12 @@ import com.mongodb.client.model.{IndexOptions, ReplaceOptions}
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import compman.compsrv.query.model.academy.FullAcademyInfo
-import compservice.model.protobuf.model.{
-  BracketType,
-  CategoryRestrictionType,
-  CompetitionStatus,
-  CompetitorRegistrationStatus,
-  DistributionType,
-  FightReferenceType,
-  FightStatus,
-  GroupSortDirection,
-  GroupSortSpecifier,
-  LogicalOperator,
-  OperatorType,
-  ScheduleEntryType,
-  ScheduleRequirementType,
-  SelectorClassifier,
-  StageRoundType,
-  StageStatus,
-  StageType
-}
+import compservice.model.protobuf.model.{BracketType, CategoryRestrictionType, CompetitionStatus, CompetitorRegistrationStatus, DistributionType, FightReferenceType, FightStatus, GroupSortDirection, GroupSortSpecifier, LogicalOperator, OperatorType, ScheduleEntryType, ScheduleRequirementType, SelectorClassifier, StageRoundType, StageStatus, StageType}
 import org.bson.{BsonReader, BsonWriter}
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
 import org.mongodb.scala.{FindObservable, MongoClient, MongoCollection, MongoDatabase, Observable}
 import org.mongodb.scala.bson.conversions.Bson
+import org.mongodb.scala.bson.BsonDocument
 import org.mongodb.scala.model.{Filters, Indexes}
 import org.mongodb.scala.model.Filters.{and, equal}
 import org.mongodb.scala.model.Updates.{set, unset}
@@ -40,7 +23,6 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
   private final val competitionStateCollectionName   = "competition_state"
   private final val competitorsCollectionName        = "competitor"
   private final val fightsCollectionName             = "fight"
-  private final val managedCompetitionCollectionName = "managed_competition"
   private final val academyCollectionName            = "academy"
   private final val eventOffsetCollectionName        = "event_offset"
 
@@ -150,8 +132,8 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
       _    <- IO.fromFuture(IO(coll.createIndex(fightsCollectionIndex).toFuture()))
     } yield coll
   }.memoize.flatten
-  def managedCompetitionCollection: IO[MongoCollection[ManagedCompetition]] =
-    createCollection[ManagedCompetition](managedCompetitionCollectionName, idField).memoize.flatten
+  def managedCompetitionCollection: IO[MongoCollection[BsonDocument]] =
+    createCollection[BsonDocument](competitionStateCollectionName, idField).memoize.flatten
   def academyCollection: IO[MongoCollection[FullAcademyInfo]] =
     createCollection[FullAcademyInfo](academyCollectionName, idField).memoize.flatten
   def eventOffsetCollection: IO[MongoCollection[EventOffset]] =

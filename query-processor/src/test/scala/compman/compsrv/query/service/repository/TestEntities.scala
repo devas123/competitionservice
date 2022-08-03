@@ -14,7 +14,7 @@ trait TestEntities {
   private[repository] val matId         = "mat_id"
   private[repository] val periodId      = "period_id"
   val managedCompetition: ManagedCompetition = ManagedCompetition(
-    "competitionId",
+    competitionId,
     Option("competitionName"),
     "ecompetition-id-topic",
     Option("valera_protas"),

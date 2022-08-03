@@ -21,7 +21,7 @@ object CompetitionCreatedProc {
       regInfo = DtoMapping.mapRegistrationInfo(competitionId)(registrationInfoRaw)
       compPropertiesDTO     <- OptionT.fromOption[F](Option(payload.getProperties))
       competitionProperties <- OptionT.liftF(DtoMapping.mapCompetitionProperties[F](compPropertiesDTO))
-      _ <- OptionT.liftF(CompetitionUpdateOperations[F].addCompetitionProperties(competitionProperties))
+      _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateCompetitionProperties(competitionProperties))
       _ <- OptionT.liftF(CompetitionUpdateOperations[F].updateRegistrationInfo(competitionId)(regInfo))
     } yield ()
   }.value.map(_ => ())

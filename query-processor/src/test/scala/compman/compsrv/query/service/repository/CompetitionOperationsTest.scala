@@ -26,7 +26,7 @@ class CompetitionOperationsTest extends SpecBase with TestEntities with Embedded
       import context._
       (for {
         _     <- CompetitionUpdateOperations[IO].removeCompetitionState(competitionId)
-        _     <- CompetitionUpdateOperations[IO].addCompetitionProperties(competitionProperties)
+        _     <- ManagedCompetitionsOperations.addManagedCompetition[IO](managedCompetition)
         props <- CompetitionQueryOperations.getCompetitionProperties(competitionId)
       } yield assert(props.isDefined)).unsafeRunSync()
     }
@@ -60,7 +60,7 @@ class CompetitionOperationsTest extends SpecBase with TestEntities with Embedded
       import context._
       (for {
         _        <- CompetitionUpdateOperations[IO].removeCompetitionState(competitionId)
-        _        <- CompetitionUpdateOperations[IO].addCompetitionProperties(competitionProperties)
+        _        <- ManagedCompetitionsOperations.addManagedCompetition[IO](managedCompetition)
         _        <- CompetitionUpdateOperations[IO].addCategory(category)
         category <- CompetitionQueryOperations.getCategoryById(competitionId)(categoryId)
       } yield assert(category.isDefined)).unsafeRunSync()

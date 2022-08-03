@@ -9,19 +9,19 @@ import scala.util.Using
 class ManagedCompetitionsOperationsTest extends SpecBase with EmbeddedMongoDb with TestEntities with WithIORuntime {
 
   test("Managed competitions operations test") {
-    Using(embeddedMongo()) { mongo =>
+    val result = Using(embeddedMongo()) { mongo =>
       val context = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
       import context._
-      (for {
-        _             <- ManagedCompetitionsOperations.addManagedCompetition[IO](managedCompetition)
-        competitions  <- ManagedCompetitionsOperations.getActiveCompetitions[IO]
-        _             <- ManagedCompetitionsOperations.deleteManagedCompetition[IO](managedCompetition.id)
-        shouldBeEmpty <- ManagedCompetitionsOperations.getActiveCompetitions[IO]
-        _ <- IO {
-          assert(competitions.nonEmpty)
-          assert(shouldBeEmpty.isEmpty)
-        }
-      } yield ()).unsafeRunSync()
+      ManagedCompetitionsOperations.addManagedCompetition[IO](managedCompetition).unsafeRunSync()
+      val competitions = ManagedCompetitionsOperations.getActiveCompetitions[IO].unsafeRunSync()
+      ManagedCompetitionsOperations.deleteManagedCompetition[IO](managedCompetition.id).unsafeRunSync()
+      val shouldBeEmpty = ManagedCompetitionsOperations.getActiveCompetitions[IO].unsafeRunSync()
+      println("Dadadada")
+      println(competitions)
+      assert(competitions.nonEmpty)
+      assert(shouldBeEmpty.isEmpty)
     }
+
+    result.get
   }
 }

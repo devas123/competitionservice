@@ -98,7 +98,7 @@ object CommandCallbackAggregator {
         groupId = UUID.randomUUID().toString,
         replyTo = eventReceiver,
         commitOffsetToKafka = true,
-        since = System.currentTimeMillis()
+        since = System.currentTimeMillis() - 5000
       )
 
       ctx.log.info(s"Starting callback aggregator for command with id ${commandToWaitCallbackFor.getMessageInfo
