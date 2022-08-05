@@ -21,7 +21,7 @@ class CompetitionOperationsTest extends SpecBase with TestEntities with Embedded
     }
   }
   test("should save competition") {
-    Using(embeddedMongo()) { mongo =>
+    val result = Using(embeddedMongo()) { mongo =>
       val context = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
       import context._
       (for {
@@ -30,6 +30,7 @@ class CompetitionOperationsTest extends SpecBase with TestEntities with Embedded
         props <- CompetitionQueryOperations.getCompetitionProperties(competitionId)
       } yield assert(props.isDefined)).unsafeRunSync()
     }
+    result.get
   }
   test("should save and load competitor") {
     Using(embeddedMongo()) { mongo =>

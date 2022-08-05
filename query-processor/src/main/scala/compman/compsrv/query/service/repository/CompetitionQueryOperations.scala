@@ -4,8 +4,9 @@ import cats.Monad
 import cats.effect.IO
 import cats.implicits._
 import compman.compsrv.query.model._
-import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
+import compman.compsrv.query.model.CompetitionState.CompetitionInfoTemplate
 import org.mongodb.scala.MongoClient
+import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.Filters._
 
 import java.util.concurrent.atomic.AtomicReference
@@ -77,17 +78,19 @@ object CompetitionQueryOperations {
       }
     }
 
-    override def getCompetitionInfoTemplate(competitionId: String): F[Option[CompetitionInfoTemplate]] =
-      getCompetitionProperties(competitionId).map(_.map(_.infoTemplate))
+    override def getCompetitionInfoTemplate(competitionId: String): F[Option[CompetitionInfoTemplate]] = Monad[F]
+      .pure(none)
 
-    override def getCategoryById(competitionId: String)(id: String): F[Option[Category]] = getById[F, Category](categories)(id)
+    override def getCategoryById(competitionId: String)(id: String): F[Option[Category]] =
+      getById[F, Category](categories)(id)
 
     override def searchCategory(
       competitionId: String
     )(searchString: String, pagination: Option[Pagination]): F[(List[Category], Pagination)] =
       getCategoriesByCompetitionId(competitionId).map(cats => (cats, Pagination(0, cats.size, cats.size)))
 
-    override def getCompetitorById(competitionId: String)(id: String): F[Option[Competitor]] = getById[F, Competitor](competitors)(id)
+    override def getCompetitorById(competitionId: String)(id: String): F[Option[Competitor]] =
+      getById[F, Competitor](competitors)(id)
 
     override def getCompetitorsByCategoryId(competitionId: String)(
       categoryId: String,
@@ -143,7 +146,8 @@ object CompetitionQueryOperations {
     override def getStagesByCategory(competitionId: String)(categoryId: String): F[List[StageDescriptor]] =
       getStagesByCategory[F](stages)(competitionId)(categoryId)
 
-    override def getStageById(competitionId: String)(id: String): F[Option[StageDescriptor]] = getById[F, StageDescriptor](stages)(id)
+    override def getStageById(competitionId: String)(id: String): F[Option[StageDescriptor]] =
+      getById[F, StageDescriptor](stages)(id)
 
     override def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): F[Int] = (for {
       cmtrs <- competitors
@@ -151,192 +155,204 @@ object CompetitionQueryOperations {
     } yield Monad[F].pure(result)).getOrElse(Monad[F].pure(0))
   }
 
-  def live(mongo: MongoClient, name: String): CompetitionQueryOperations[IO] =
-    new CompetitionQueryOperations[IO] with CommonLiveOperations {
+  def live(mongo: MongoClient, name: String): CompetitionQueryOperations[IO] = new CompetitionQueryOperations[IO]
+    with CommonLiveOperations {
 
-      override def mongoClient: MongoClient = mongo
+    import org.mongodb.scala.model.Projections._
 
-      override def dbName: String = name
+    private val includeCompetitionInfoProjection = include("infoTemplate")
+    private val includeRegistrationInfoProjection = include("registrationInfo")
+    private val includePeriodsProjection = include("periods")
 
-      override def getCompetitionProperties(id: String): IO[Option[CompetitionProperties]] = {
-        for {
-          collection <- competitionStateCollection
-          select = collection.find(equal(idField, id)).map(_.properties)
-          res <- selectOne(select)
-        } yield res
-      }
+    private val competitionPropertiesProjection = include("properties")
+    private val categoriesProjection            = include("categories")
 
-      override def getCategoriesByCompetitionId(competitionId: String): IO[List[Category]] = {
-        for {
-          collection <- competitionStateCollection
-          select = collection.find(equal(idField, competitionId)).map(_.categories)
-          res <- IO.fromFuture(IO(select.toFuture()))
-        } yield res.headOption.map(_.values.toList).getOrElse(List.empty)
-      }
+    override def mongoClient: MongoClient = mongo
 
-      override def getCompetitionInfoTemplate(competitionId: String): IO[Option[CompetitionInfoTemplate]] = {
-        for {
-          collection <- competitionStateCollection
-          select = collection.find(equal(idField, competitionId)).map(_.properties.infoTemplate)
-          res <- selectOne(select)
-        } yield res
-      }
+    override def dbName: String = name
 
-      override def getCategoryById(competitionId: String)(id: String): IO[Option[Category]] = {
-        for {
-          collection <- competitionStateCollection
-          select = collection.find(and(equal(idField, competitionId), exists(s"categories.$id")))
-          res <- IO.fromFuture(IO(select.headOption()))
-        } yield res.flatMap(_.categories.get(id))
-      }
+    override def getCompetitionProperties(id: String): IO[Option[CompetitionProperties]] = {
+      for {
+        collection <- competitionStateCollection
+        select = collection.find(equal(idField, id)).projection(competitionPropertiesProjection).map(_.properties)
+        res <- selectOne(select)
+      } yield res.flatten
+    }
 
-      override def searchCategory(
-        competitionId: String
-      )(searchString: String, pagination: Option[Pagination]): IO[(List[Category], Pagination)] = {
-        val drop = pagination.map(_.offset).getOrElse(0)
-        val take = pagination.map(_.maxResults).getOrElse(30)
-        for {
-          collection <- competitionStateCollection
-          select = collection.find(and(equal(idField, competitionId)))
-          res <- IO.fromFuture(IO(select.head()))
-        } yield (
-          res.categories.filter(c =>
-            searchString == null || searchString.isBlank ||
-              c._2.restrictions.exists(_.name.exists(_.matches(searchString)))
-          ).slice(drop, drop + take).values.toList,
-          pagination.getOrElse(Pagination(0, res.categories.size, res.categories.size))
-        )
-      }
+    override def getCategoriesByCompetitionId(competitionId: String): IO[List[Category]] = {
+      for {
+        collection <- competitionStateCollection
+        select = collection.find(equal(idField, competitionId)).projection(categoriesProjection).map(_.categories)
+        res <- IO.fromFuture(IO(select.toFuture()))
+      } yield res.headOption.flatten.map(_.values.toList).getOrElse(List.empty)
+    }
 
-      override def getCompetitorById(competitionId: String)(id: String): IO[Option[Competitor]] = {
-        for {
-          collection <- competitorCollection
-          select = collection.find(and(equal(competitionIdField, competitionId), equal(idField, id)))
-          res <- IO.fromFuture(IO(select.headOption()))
-        } yield res
-      }
+    override def getCompetitionInfoTemplate(competitionId: String): IO[Option[CompetitionInfoTemplate]] = {
+      for {
+        collection <- competitionStateCollection
+        select = collection.find(equal(idField, competitionId)).projection(includeCompetitionInfoProjection)
+          .map(_.infoTemplate)
+        res <- selectOne(select)
+      } yield res.flatten
+    }
 
-      override def getCompetitorsByCategoryId(competitionId: String)(
-        categoryId: String,
-        pagination: Option[Pagination],
-        searchString: Option[String]
-      ): IO[(List[Competitor], Pagination)] = {
-        val drop   = pagination.map(_.offset).getOrElse(0)
-        val take   = pagination.map(_.maxResults).getOrElse(0)
-        val filter = and(equal(competitionIdField, competitionId), equal("categories", categoryId))
-        for {
-          collection <- competitorCollection
-          select = collection.find(filter).skip(drop).limit(take)
-          total  = IO.fromFuture(IO(collection.countDocuments(filter).toFuture()))
-          res <- selectWithPagination(select, pagination, total)
-        } yield res
-      }
+    override def getCategoryById(competitionId: String)(id: String): IO[Option[Category]] = {
+      for {
+        collection <- competitionStateCollection
+        select = collection.find(and(equal(idField, competitionId), exists(s"categories.$id")))
+          .projection(categoriesProjection).map(_.categories.get(id))
+        res <- IO.fromFuture(IO(select.headOption()))
+      } yield res
+    }
 
-      override def getCompetitorsByCompetitionId(
-        competitionId: String
-      )(pagination: Option[Pagination], searchString: Option[String]): IO[(List[Competitor], Pagination)] = {
+    override def searchCategory(
+      competitionId: String
+    )(searchString: String, pagination: Option[Pagination]): IO[(List[Category], Pagination)] = {
+      val drop = pagination.map(_.offset).getOrElse(0)
+      val take = pagination.map(_.maxResults).getOrElse(30)
+      for {
+        collection <- competitionStateCollection
+        select = collection.find(and(equal(idField, competitionId))).projection(categoriesProjection)
+        res <- IO.fromFuture(IO(select.head())).map(_.categories)
+      } yield (
+        res.map(_.filter(c =>
+          searchString == null || searchString.isBlank ||
+            c._2.restrictions.exists(_.name.exists(_.matches(searchString)))
+        ).slice(drop, drop + take).values.toList).getOrElse(List.empty),
+        pagination.getOrElse(Pagination(0, res.map(_.size).getOrElse(0), res.map(_.size).getOrElse(0)))
+      )
+    }
 
-        val drop = pagination.map(_.offset).getOrElse(0)
-        val take = pagination.map(_.maxResults).getOrElse(0)
-        for {
-          collection <- competitorCollection
-          select = collection.find(equal(competitionIdField, competitionId)).skip(drop).limit(take)
-          total  = IO.fromFuture(IO(collection.countDocuments(equal(competitionIdField, competitionId)).toFuture()))
-          res <- selectWithPagination(select, pagination, total)
-        } yield res
-      }
+    override def getCompetitorById(competitionId: String)(id: String): IO[Option[Competitor]] = {
+      for {
+        collection <- competitorCollection
+        select = collection.find(and(equal(competitionIdField, competitionId), equal(idField, id)))
+        res <- IO.fromFuture(IO(select.headOption()))
+      } yield res
+    }
 
-      override def getCompetitorsByAcademyId(competitionId: String)(
-        academyId: String,
-        pagination: Option[Pagination],
-        searchString: Option[String]
-      ): IO[(List[Competitor], Pagination)] = {
-        val drop = pagination.map(_.offset).getOrElse(0)
-        val take = pagination.map(_.maxResults).getOrElse(0)
-        for {
-          collection <- competitorCollection
-          select = collection.find(and(equal(competitionIdField, competitionId), equal("academy.id", academyId)))
-            .skip(drop).limit(take)
-          total = IO.fromFuture(IO(collection.countDocuments(equal(competitionIdField, competitionId)).toFuture()))
-          res <- selectWithPagination(select, pagination, total)
-        } yield res
-      }
+    override def getCompetitorsByCategoryId(competitionId: String)(
+      categoryId: String,
+      pagination: Option[Pagination],
+      searchString: Option[String]
+    ): IO[(List[Competitor], Pagination)] = {
+      val drop   = pagination.map(_.offset).getOrElse(0)
+      val take   = pagination.map(_.maxResults).getOrElse(0)
+      val filter = and(equal(competitionIdField, competitionId), equal("categories", categoryId))
+      for {
+        collection <- competitorCollection
+        select = collection.find(filter).skip(drop).limit(take)
+        total  = IO.fromFuture(IO(collection.countDocuments(filter).toFuture()))
+        res <- selectWithPagination(select, pagination, total)
+      } yield res
+    }
 
-      private def getStateById(competitionId: String) = {
-        for {
-          collection <- competitionStateCollection
-          select = collection.find(equal(idField, competitionId))
-          res <- IO.fromFuture(IO(select.headOption()))
-        } yield res
-      }
+    override def getCompetitorsByCompetitionId(
+      competitionId: String
+    )(pagination: Option[Pagination], searchString: Option[String]): IO[(List[Competitor], Pagination)] = {
 
-      override def getRegistrationInfo(competitionId: String): IO[Option[RegistrationInfo]] = {
-        for { res <- getStateById(competitionId).map(_.map(_.registrationInfo)) } yield res
-      }
+      val drop = pagination.map(_.offset).getOrElse(0)
+      val take = pagination.map(_.maxResults).getOrElse(0)
+      for {
+        collection <- competitorCollection
+        select = collection.find(equal(competitionIdField, competitionId)).skip(drop).limit(take)
+        total  = IO.fromFuture(IO(collection.countDocuments(equal(competitionIdField, competitionId)).toFuture()))
+        res <- selectWithPagination(select, pagination, total)
+      } yield res
+    }
 
-      override def getScheduleEntriesByPeriodId(
-        competitionId: String
-      )(periodId: String): IO[List[ScheduleEntry]] = {
-        for { res <- getStateById(competitionId) } yield res match {
-          case Some(value) => value.periods.get(periodId).map(_.scheduleEntries).getOrElse(List.empty)
-          case None        => List.empty
-        }
-      }
+    override def getCompetitorsByAcademyId(competitionId: String)(
+      academyId: String,
+      pagination: Option[Pagination],
+      searchString: Option[String]
+    ): IO[(List[Competitor], Pagination)] = {
+      val drop = pagination.map(_.offset).getOrElse(0)
+      val take = pagination.map(_.maxResults).getOrElse(0)
+      for {
+        collection <- competitorCollection
+        select = collection.find(and(equal(competitionIdField, competitionId), equal("academy.id", academyId)))
+          .skip(drop).limit(take)
+        total = IO.fromFuture(IO(collection.countDocuments(equal(competitionIdField, competitionId)).toFuture()))
+        res <- selectWithPagination(select, pagination, total)
+      } yield res
+    }
 
-      override def getScheduleRequirementsByPeriodId(
-        competitionId: String
-      )(periodId: String): IO[List[ScheduleRequirement]] = {
-        for { res <- getStateById(competitionId) } yield res match {
-          case Some(value) => value.periods.get(periodId).map(_.scheduleRequirements).getOrElse(List.empty)
-          case None        => List.empty
-        }
-      }
+    private def getStateById(competitionId: String)(projection: Bson*) = {
+      for {
+        collection <- competitionStateCollection
+        select =
+          if (projection.nonEmpty) collection.find(equal(idField, competitionId))
+            .projection(projection.reduce((a, b) => and(a, b)))
+          else collection.find(equal(idField, competitionId))
+        res <- IO.fromFuture(IO(select.headOption()))
+      } yield res
+    }
 
-      override def getPeriodsByCompetitionId(competitionId: String): IO[List[Period]] = {
-        for { res <- getStateById(competitionId) } yield res match {
-          case Some(value) => value.periods.values.toList
-          case None        => List.empty
-        }
-      }
+    override def getRegistrationInfo(competitionId: String): IO[Option[RegistrationInfo]] = {
+      for { res <- getStateById(competitionId)(includeRegistrationInfoProjection).map(_.map(_.registrationInfo)) } yield res.flatten
+    }
 
-      override def getPeriodById(competitionId: String)(id: String): IO[Option[Period]] = {
-        for { res <- getStateById(competitionId) } yield res match {
-          case Some(value) => value.periods.get(id)
-          case None        => None
-        }
-      }
-
-      override def getStagesByCategory(competitionId: String)(categoryId: String): IO[List[StageDescriptor]] = {
-        for {
-          collection <- competitionStateCollection
-          select = collection.find(and(equal(idField, competitionId)))
-          res <- IO.fromFuture(IO(select.headOption()))
-        } yield res match {
-          case Some(value) => value.stages.values.filter(_.categoryId == categoryId).toList
-          case None        => List.empty
-        }
-      }
-
-      override def getStageById(competitionId: String)(id: String): IO[Option[StageDescriptor]] = {
-        for {
-          collection <- competitionStateCollection
-          select = collection.find(and(equal(idField, competitionId), exists(s"stages.$id")))
-          res <- IO.fromFuture(IO(select.headOption()))
-        } yield res match {
-          case Some(value) => value.stages.get(id)
-          case None        => None
-        }
-      }
-
-      override def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): IO[Int] = {
-        for {
-          collection <- competitorCollection
-          select = collection
-            .countDocuments(and(equal(competitionIdField, competitionId), equal("categories", categoryId)))
-          res <- IO.fromFuture(IO(select.toFuture())).map(_.toInt)
-        } yield res
+    override def getScheduleEntriesByPeriodId(competitionId: String)(periodId: String): IO[List[ScheduleEntry]] = {
+      for { res <- getStateById(competitionId)(includePeriodsProjection) } yield res match {
+        case Some(value) => value.periods.flatMap(_.get(periodId).map(_.scheduleEntries)).getOrElse(List.empty)
+        case None        => List.empty
       }
     }
+
+    override def getScheduleRequirementsByPeriodId(
+      competitionId: String
+    )(periodId: String): IO[List[ScheduleRequirement]] = {
+      for { res <- getStateById(competitionId)(includePeriodsProjection) } yield res match {
+        case Some(value) => value.periods.flatMap(_.get(periodId)).map(_.scheduleRequirements).getOrElse(List.empty)
+        case None        => List.empty
+      }
+    }
+
+    override def getPeriodsByCompetitionId(competitionId: String): IO[List[Period]] = {
+      for { res <- getStateById(competitionId)(includePeriodsProjection) } yield res match {
+        case Some(value) => value.periods.map(_.values.toList).getOrElse(List.empty)
+        case None        => List.empty
+      }
+    }
+
+    override def getPeriodById(competitionId: String)(id: String): IO[Option[Period]] = {
+      for { res <- getStateById(competitionId)(include(s"periods.$id")) } yield res match {
+        case Some(value) => value.periods.flatMap(_.get(id))
+        case None        => None
+      }
+    }
+
+    override def getStagesByCategory(competitionId: String)(categoryId: String): IO[List[StageDescriptor]] = {
+      for {
+        collection <- competitionStateCollection
+        select = collection.find(and(equal(idField, competitionId)))
+        res <- IO.fromFuture(IO(select.headOption()))
+      } yield res match {
+        case Some(value) => value.stages.map(_.values.filter(_.categoryId == categoryId).toList).getOrElse(List.empty)
+        case None        => List.empty
+      }
+    }
+
+    override def getStageById(competitionId: String)(id: String): IO[Option[StageDescriptor]] = {
+      for {
+        collection <- competitionStateCollection
+        select = collection.find(and(equal(idField, competitionId), exists(s"stages.$id")))
+        res <- IO.fromFuture(IO(select.headOption()))
+      } yield res match {
+        case Some(value) => value.stages.flatMap(_.get(id))
+        case None        => None
+      }
+    }
+
+    override def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): IO[Int] = {
+      for {
+        collection <- competitorCollection
+        select = collection
+          .countDocuments(and(equal(competitionIdField, competitionId), equal("categories", categoryId)))
+        res <- IO.fromFuture(IO(select.toFuture())).map(_.toInt)
+      } yield res
+    }
+  }
 
   def getCompetitionProperties[F[+_]: CompetitionQueryOperations](id: String): F[Option[CompetitionProperties]] =
     CompetitionQueryOperations[F].getCompetitionProperties(id)

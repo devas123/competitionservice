@@ -5,7 +5,7 @@ import akka.actor.typed.scaladsl.AskPattern._
 import akka.util.Timeout
 import cats.effect.IO
 import compman.compsrv.logic.actors.behavior.api.AcademyApiActor.{AcademyApiCommand, GetAcademies, GetAcademy}
-import compman.compsrv.logic.actors.behavior.api.CompetitionApiActor._
+import compman.compsrv.logic.actors.behavior.api.CompetitionApiCommands._
 import compman.compsrv.query.service.repository.Pagination
 import compservice.model.protobuf.query.{GenerateCategoriesFromRestrictionsRequest, QueryServiceResponse}
 import org.http4s.{HttpRoutes, Response}

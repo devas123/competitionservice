@@ -30,6 +30,16 @@ message MatsQueryResult {
   repeated FightDescription topFiveFightsForEachMat = 3;
 }
 
+message QueryServiceRequest {
+  oneof payload {
+    AddCompetitionInfoRequest addCompetitionInfoRequest = 1;
+  }
+}
+
+message AddCompetitionInfoRequest {
+  repeated bytes competitionInfo = 1;
+}
+
 message QueryServiceResponse {
   oneof payload {
     GetDefaultRestrictionsResponse     getDefaultRestrictionsResponse = 1;
@@ -58,8 +68,13 @@ message QueryServiceResponse {
     GetStageFightsResponse         getStageFightsResponse = 24 ;
     GetAcademiesResponse getAcademiesResponse = 25;
     GetAcademyResponse getAcademyResponse = 26;
-    ErrorResponse errorResponse = 27;
+    GetCompetitionInfoResponse getCompetitionInfoResponse = 27;
+    ErrorResponse errorResponse = 2700;
   }
+}
+
+message GetCompetitionInfoResponse {
+  bytes infoTemplate = 1;
 }
 
 message GetDefaultRestrictionsResponse{

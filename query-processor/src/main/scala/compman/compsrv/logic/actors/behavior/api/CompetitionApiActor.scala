@@ -8,6 +8,7 @@ import cats.effect.unsafe.IORuntime
 import com.google.protobuf.timestamp.Timestamp
 import com.google.protobuf.util.Timestamps
 import compman.compsrv.logic.actors.behavior.WithIORuntime
+import compman.compsrv.logic.actors.behavior.api.CompetitionApiCommands._
 import compman.compsrv.logic.category.CategoryGenerateService
 import compman.compsrv.logic.fight.FightResultOptionConstants
 import compman.compsrv.query.config.MongodbConfig
@@ -57,100 +58,6 @@ object CompetitionApiActor {
     implicit val managedCompetitionService: ManagedCompetitionService[IO]
   }
 
-  sealed trait CompetitionApiCommand {
-    type responseType = QueryServiceResponse
-    val replyTo: ActorRef[responseType]
-  }
-
-  final case class GetDefaultRestrictions(override val replyTo: ActorRef[QueryServiceResponse])
-      extends CompetitionApiCommand {}
-  final case class GetDefaultFightResults(override val replyTo: ActorRef[QueryServiceResponse])
-      extends CompetitionApiCommand {}
-  final case class GetAllCompetitions(override val replyTo: ActorRef[QueryServiceResponse])
-      extends CompetitionApiCommand {}
-
-  final case class GenerateCategoriesFromRestrictions(
-    restrictions: List[model.CategoryRestriction],
-    idTrees: List[model.AdjacencyList],
-    restrictionNames: List[String]
-  )(override val replyTo: ActorRef[QueryServiceResponse])
-      extends CompetitionApiCommand {}
-
-  final case class GetCompetitionProperties(id: String)(override val replyTo: ActorRef[QueryServiceResponse])
-      extends CompetitionApiCommand {}
-
-  final case class GetCompetitionInfoTemplate(competitionId: String)(
-    override val replyTo: ActorRef[QueryServiceResponse]
-  ) extends CompetitionApiCommand {}
-
-  final case class GetSchedule(competitionId: String)(override val replyTo: ActorRef[QueryServiceResponse])
-      extends CompetitionApiCommand {}
-
-  final case class GetCompetitors(
-    competitionId: String,
-    categoryId: Option[String],
-    searchString: Option[String],
-    pagination: Option[Pagination]
-  )(override val replyTo: ActorRef[QueryServiceResponse])
-      extends CompetitionApiCommand {}
-
-  final case class GetCompetitor(competitionId: String, competitorId: String)(
-    override val replyTo: ActorRef[QueryServiceResponse]
-  ) extends CompetitionApiCommand {}
-
-  final case class GetDashboard(competitionId: String)(override val replyTo: ActorRef[QueryServiceResponse])
-      extends CompetitionApiCommand {}
-
-  final case class GetMats(competitionId: String)(override val replyTo: ActorRef[QueryServiceResponse])
-      extends CompetitionApiCommand {}
-
-  final case class GetPeriodMats(competitionId: String, periodId: String)(
-    override val replyTo: ActorRef[QueryServiceResponse]
-  ) extends CompetitionApiCommand {}
-
-  final case class GetMat(competitionId: String, matId: String)(override val replyTo: ActorRef[QueryServiceResponse])
-      extends CompetitionApiCommand {}
-
-  final case class GetMatFights(competitionId: String, matId: String)(
-    override val replyTo: ActorRef[QueryServiceResponse]
-  ) extends CompetitionApiCommand {}
-
-  final case class GetRegistrationInfo(competitionId: String)(override val replyTo: ActorRef[QueryServiceResponse])
-      extends CompetitionApiCommand {}
-
-  final case class GetCategories(competitionId: String)(override val replyTo: ActorRef[QueryServiceResponse])
-      extends CompetitionApiCommand {}
-
-  final case class GetFightById(competitionId: String, fightId: String)(
-    override val replyTo: ActorRef[QueryServiceResponse]
-  ) extends CompetitionApiCommand {}
-  final case class GetFightIdsByCategoryIds(competitionId: String)(override val replyTo: ActorRef[QueryServiceResponse])
-      extends CompetitionApiCommand {}
-
-  final case class GetCategory(competitionId: String, categoryId: String)(
-    override val replyTo: ActorRef[QueryServiceResponse]
-  ) extends CompetitionApiCommand {}
-
-  final case class GetPeriodFightsByMats(competitionId: String, periodId: String, limit: Int)(
-    override val replyTo: ActorRef[QueryServiceResponse]
-  ) extends CompetitionApiCommand {}
-
-  final case class GetFightResulOptions(competitionId: String, stageId: String)(
-    override val replyTo: ActorRef[QueryServiceResponse]
-  ) extends CompetitionApiCommand {}
-
-  final case class GetStagesForCategory(competitionId: String, categoryId: String)(
-    override val replyTo: ActorRef[QueryServiceResponse]
-  ) extends CompetitionApiCommand {}
-  final case class GetStageById(competitionId: String, categoryId: String, stageId: String)(
-    override val replyTo: ActorRef[QueryServiceResponse]
-  ) extends CompetitionApiCommand {}
-  final case class GetStageFights(competitionId: String, categoryId: String, stageId: String)(
-    override val replyTo: ActorRef[QueryServiceResponse]
-  ) extends CompetitionApiCommand {}
-
-  case class ActorState()
-  val initialState: ActorState = ActorState()
   def behavior(ctx: ActorContext): Behavior[CompetitionApiCommand] = Behaviors.setup { context =>
     import cats.implicits._
     import ctx._
@@ -328,7 +235,6 @@ object CompetitionApiActor {
         } yield QueryServiceResponse().withGetCategoryResponse(GetCategoryResponse(res))
         runEffectAndReply(context, c.replyTo, io)
 
-
       case c @ GetPeriodMats(competitionId, periodId) =>
         val optionRes = for {
           period <- OptionT(CompetitionQueryOperations[IO].getPeriodById(competitionId)(periodId))
@@ -402,7 +308,10 @@ object CompetitionApiActor {
     replyTo: ActorRef[QueryServiceResponse],
     io: IO[QueryServiceResponse]
   )(implicit runtime: IORuntime) = {
-    context.spawn(QueryServiceRequestEffectExecutor.behavior(io, replyTo, 10.seconds), s"Effect-executor-${UUID.randomUUID()}")
+    context.spawn(
+      QueryServiceRequestEffectExecutor.behavior(io, replyTo, 10.seconds),
+      s"Effect-executor-${UUID.randomUUID()}"
+    )
     Behaviors.same[CompetitionApiCommand]
   }
 

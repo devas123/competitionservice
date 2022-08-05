@@ -333,7 +333,6 @@ message CompetitionProperties {
   repeated string staffIds = 3;
   bool emailNotificationsEnabled = 4;
   string competitionName = 5;
-  optional string emailTemplate = 6;
   repeated PromoCode promoCodes = 7;
   google.protobuf.Timestamp startDate = 8;
   bool schedulePublished = 9;
@@ -429,6 +428,7 @@ message CompetitionState {
   repeated CategoryState categories = 2;
   CompetitionProperties properties = 3;
   Schedule schedule = 4;
+  optional bytes infoTemplate = 5;
 }
 
 message Schedule {

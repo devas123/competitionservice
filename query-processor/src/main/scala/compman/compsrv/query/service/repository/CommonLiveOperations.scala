@@ -3,8 +3,8 @@ package compman.compsrv.query.service.repository
 import cats.effect.IO
 import com.mongodb.client.model.{IndexOptions, ReplaceOptions}
 import compman.compsrv.query.model._
-import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import compman.compsrv.query.model.academy.FullAcademyInfo
+import compman.compsrv.query.model.CompetitionState.CompetitionInfoTemplate
 import compservice.model.protobuf.model.{BracketType, CategoryRestrictionType, CompetitionStatus, CompetitorRegistrationStatus, DistributionType, FightReferenceType, FightStatus, GroupSortDirection, GroupSortSpecifier, LogicalOperator, OperatorType, ScheduleEntryType, ScheduleRequirementType, SelectorClassifier, StageRoundType, StageStatus, StageType}
 import org.bson.{BsonReader, BsonWriter}
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}

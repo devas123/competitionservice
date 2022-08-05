@@ -6,7 +6,6 @@ import com.google.protobuf.timestamp.Timestamp.toJavaProto
 import com.google.protobuf.util.Timestamps
 import compman.compsrv.model.extensions.InstantOps
 import compman.compsrv.query.model._
-import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import compman.compsrv.query.model.academy.FullAcademyInfo
 import compservice.model.protobuf.model
 
@@ -257,7 +256,7 @@ object DtoMapping {
     model.CompetitionProperties().withId(competitionProperties.id).withCreatorId(competitionProperties.creatorId)
       .withStaffIds(competitionProperties.staffIds.getOrElse(Set.empty).toSeq).withEmailNotificationsEnabled(false)
       .withCompetitionName(competitionProperties.competitionName)
-      .withEmailTemplate(new String(competitionProperties.infoTemplate.template)).withPromoCodes(Seq.empty)
+      .withPromoCodes(Seq.empty)
       .withStartDate(competitionProperties.startDate.toInstant.asTimestamp)
       .withSchedulePublished(competitionProperties.schedulePublished)
       .withBracketsPublished(competitionProperties.bracketsPublished).withTimeZone(competitionProperties.timeZone)
@@ -527,7 +526,6 @@ object DtoMapping {
       r.creatorId,
       Option(r.staffIds).map(_.toSet).orElse(Option(Set.empty)),
       r.competitionName,
-      CompetitionInfoTemplate(r.emailTemplate.map(_.getBytes).getOrElse(Array.empty)),
       toDate(r.getStartDate),
       r.schedulePublished,
       r.bracketsPublished,

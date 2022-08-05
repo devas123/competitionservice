@@ -4,7 +4,7 @@ import cats.Monad
 import cats.effect.IO
 import cats.implicits.toFunctorOps
 import compman.compsrv.query.model.{CompetitionProperties, CompetitionState, ManagedCompetition, RegistrationInfo}
-import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
+import compman.compsrv.query.model.CompetitionState.CompetitionInfoTemplate
 import compservice.model.protobuf.model.CompetitionStatus
 import org.mongodb.scala.MongoClient
 import org.mongodb.scala.bson.BsonDocument
@@ -83,14 +83,13 @@ object ManagedCompetitionsOperations {
     }
     override def addManagedCompetition(competition: ManagedCompetition): IO[Unit] = {
       val state = CompetitionState(
-        id = competition.id,
-        eventsTopic = competition.eventsTopic,
-        properties = CompetitionProperties(
+        id = Some(competition.id),
+        eventsTopic = Some(competition.eventsTopic),
+        properties = Some(CompetitionProperties(
           id = competition.id,
           creatorId = competition.creatorId.getOrElse(""),
           staffIds = None,
           competitionName = competition.competitionName.getOrElse(""),
-          infoTemplate = CompetitionInfoTemplate(Array.empty),
           startDate = Date.from(competition.startDate),
           schedulePublished = false,
           bracketsPublished = false,
@@ -98,21 +97,19 @@ object ManagedCompetitionsOperations {
           timeZone = competition.timeZone,
           creationTimestamp = Date.from(competition.creationTimestamp),
           status = competition.status
-        ),
-        periods = Map.empty,
-        categories = Map.empty,
-        stages = Map.empty,
-        registrationInfo = RegistrationInfo(
+        )),
+        periods = None,
+        categories = None,
+        stages = None,
+        registrationInfo = Some(RegistrationInfo(
           id = competition.id,
           registrationGroups = Map.empty,
           registrationPeriods = Map.empty,
           registrationOpen = false
-        )
+        )),
+        infoTemplate = Some(CompetitionInfoTemplate(Array.empty))
       )
-      insertElement(competitionStateCollection)(
-        competition.id,
-        state
-      )
+      insertElement(competitionStateCollection)(competition.id, state)
     }
 
     override def deleteManagedCompetition(id: String): IO[Unit] = deleteByField(managedCompetitionCollection)(id)
@@ -159,9 +156,8 @@ object ManagedCompetitionsOperations {
   }
 
   private def getOptionalDate(document: BsonDocument): Option[Instant] = {
-    if (document.containsKey("endDate")) {
-      Option(Instant.ofEpochMilli(document.get("endDate").asDateTime().getValue))
-    } else { None }
+    if (document.containsKey("endDate")) { Option(Instant.ofEpochMilli(document.get("endDate").asDateTime().getValue)) }
+    else { None }
   }
 
   trait ManagedCompetitionService[F[+_]] {

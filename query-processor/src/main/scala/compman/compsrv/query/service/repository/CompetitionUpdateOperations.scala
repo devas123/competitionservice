@@ -4,7 +4,7 @@ import cats.Monad
 import cats.effect.IO
 import com.mongodb.client.model.{ReplaceOptions, UpdateOptions}
 import compman.compsrv.query.model._
-import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
+import compman.compsrv.query.model.CompetitionState.CompetitionInfoTemplate
 import compservice.model.protobuf.model.StageStatus
 import org.mongodb.scala.{Document, MongoClient}
 import org.mongodb.scala.model.{Filters, Updates}
@@ -61,11 +61,11 @@ object CompetitionUpdateOperations {
       .pure(competitionProperties.foreach(_.updateAndGet(m => m - id)))
 
     override def addCompetitionInfoTemplate(competitionId: String)(newTemplate: CompetitionInfoTemplate): F[Unit] =
-      comPropsUpdate[F](competitionProperties)(competitionId)(_.copy(infoTemplate = newTemplate))
+      comPropsUpdate[F](competitionProperties)(competitionId)(identity)
 
     override def removeCompetitionInfoTemplate(competitionId: String): F[Unit] = comPropsUpdate[F](
       competitionProperties
-    )(competitionId)(_.copy(infoTemplate = CompetitionInfoTemplate(Array.empty)))
+    )(competitionId)(identity)
 
     override def addStage(stageDescriptor: StageDescriptor): F[Unit] =
       add[F, StageDescriptor](stages)(stageDescriptor.id)(Some(stageDescriptor))
@@ -152,7 +152,7 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitionStateCollection
         statement = collection
-          .findOneAndUpdate(equal(idField, competitionId), set("properties.infoTemplate", competitionInfoTemplate))
+          .findOneAndUpdate(equal(idField, competitionId), set("infoTemplate", competitionInfoTemplate))
         _ <- IO.fromFuture(IO(statement.toFuture()))
       } yield ()
     }
@@ -177,7 +177,7 @@ object CompetitionUpdateOperations {
       for {
         collection <- competitionStateCollection
         updates = ids.map(id => unset(s"stages.$id")).toSeq
-        res <-
+        _ <-
           if (ids.nonEmpty) IO
             .fromFuture(IO(collection.findOneAndUpdate(equal(idField, competition), combine(updates: _*)).toFuture()))
           else IO.unit

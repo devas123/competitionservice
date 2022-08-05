@@ -11,7 +11,12 @@ import compman.compsrv.query.config.AppConfig
 import compman.compsrv.query.service.{QueryHttpApiService, WebsocketService}
 import compman.compsrv.query.service.QueryHttpApiService.ServiceIO
 import org.apache.kafka.clients.consumer.ConsumerConfig
-import org.apache.kafka.common.serialization.{ByteArrayDeserializer, ByteArraySerializer, StringDeserializer, StringSerializer}
+import org.apache.kafka.common.serialization.{
+  ByteArrayDeserializer,
+  ByteArraySerializer,
+  StringDeserializer,
+  StringSerializer
+}
 import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.server.Router
 import org.mongodb.scala.{MongoClient, MongoClientSettings, MongoCredential, ServerAddress}
@@ -93,7 +98,7 @@ object QueryServiceMainActor {
     )
 
     implicit val actorSystem: ActorSystem[Nothing] = context.system
-    val serviceVersion       = "v1"
+    val serviceVersion                             = "v1"
     val httpApp = Router[ServiceIO](
       s"/query/$serviceVersion"    -> QueryHttpApiService.service(competitionApiActor, academyApiActor),
       s"/query/$serviceVersion/ws" -> WebsocketService.wsRoutes(webSocketSupervisor)

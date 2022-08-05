@@ -1,7 +1,6 @@
 package compman.compsrv.query.service.repository
 
 import compman.compsrv.query.model._
-import compman.compsrv.query.model.CompetitionProperties.CompetitionInfoTemplate
 import compservice.model.protobuf.model.{BracketType, CategoryRestrictionType, CompetitionStatus, DistributionType, FightReferenceType, FightStatus, GroupSortDirection, GroupSortSpecifier, LogicalOperator, OperatorType, SelectorClassifier, StageRoundType, StageStatus, StageType}
 
 import java.time.Instant
@@ -30,7 +29,6 @@ trait TestEntities {
     "creatorId",
     Some(Set("a", "b", "c")),
     "Some competition",
-    CompetitionInfoTemplate("superlongdescriptionblob".getBytes),
     Date.from(Instant.now()),
     schedulePublished = false,
     bracketsPublished = false,

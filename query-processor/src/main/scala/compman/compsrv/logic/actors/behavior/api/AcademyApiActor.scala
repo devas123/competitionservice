@@ -39,8 +39,6 @@ object AcademyApiActor {
     override type responseType = QueryServiceResponse
   }
 
-  case class ActorState()
-  val initialState: ActorState = ActorState()
   def behavior(ctx: ActorContext): Behavior[AcademyApiCommand] = Behaviors.setup { _ =>
     import ctx._
     Behaviors.receive[AcademyApiCommand] { (_, command) =>

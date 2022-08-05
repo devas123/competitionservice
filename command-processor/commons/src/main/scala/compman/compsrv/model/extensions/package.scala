@@ -20,7 +20,6 @@ package object extensions {
         endDate                   = pr.endDate.orElse(c.endDate)
         emailNotificationsEnabled = Option(pr.emailNotificationsEnabled).getOrElse(c.emailNotificationsEnabled)
         competitionName           = Option(pr.competitionName).getOrElse(c.competitionName)
-        emailTemplate             = pr.emailTemplate.orElse(c.emailTemplate)
         schedulePublished         = Option(pr.schedulePublished).getOrElse(c.schedulePublished)
         timeZone                  = Option(pr.timeZone).getOrElse(c.timeZone)
         status = Option(pr.status).getOrElse(c.status)
@@ -30,7 +29,6 @@ package object extensions {
         _.endDate.setIfDefined(endDate),
         _.emailNotificationsEnabled := emailNotificationsEnabled,
         _.competitionName := competitionName,
-        _.emailTemplate.setIfDefined(emailTemplate),
         _.schedulePublished := schedulePublished,
         _.timeZone := timeZone,
         _.status := status
