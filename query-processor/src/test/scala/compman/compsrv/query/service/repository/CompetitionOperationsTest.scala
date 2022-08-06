@@ -18,7 +18,7 @@ class CompetitionOperationsTest extends SpecBase with TestEntities with Embedded
         _     <- CompetitionUpdateOperations[IO].removeCompetitionState(competitionId)
         props <- CompetitionQueryOperations.getCompetitionProperties(competitionId)
       } yield assert(props.isEmpty)).unsafeRunSync()
-    }
+    }.get
   }
   test("should save competition") {
     val result = Using(embeddedMongo()) { mongo =>
@@ -53,7 +53,7 @@ class CompetitionOperationsTest extends SpecBase with TestEntities with Embedded
           assert(pagination.totalResults == competitors.size)
         }
       } yield ()).unsafeRunSync()
-    }
+    }.get
   }
   test("should save category") {
     Using(embeddedMongo()) { mongo =>
@@ -65,6 +65,6 @@ class CompetitionOperationsTest extends SpecBase with TestEntities with Embedded
         _        <- CompetitionUpdateOperations[IO].addCategory(category)
         category <- CompetitionQueryOperations.getCategoryById(competitionId)(categoryId)
       } yield assert(category.isDefined)).unsafeRunSync()
-    }
+    }.get
   }
 }

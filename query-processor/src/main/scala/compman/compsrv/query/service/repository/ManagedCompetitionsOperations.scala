@@ -98,9 +98,9 @@ object ManagedCompetitionsOperations {
           creationTimestamp = Date.from(competition.creationTimestamp),
           status = competition.status
         )),
-        periods = None,
-        categories = None,
-        stages = None,
+        periods = Some(Map.empty),
+        categories = Some(Map.empty),
+        stages = Some(Map.empty),
         registrationInfo = Some(RegistrationInfo(
           id = competition.id,
           registrationGroups = Map.empty,
