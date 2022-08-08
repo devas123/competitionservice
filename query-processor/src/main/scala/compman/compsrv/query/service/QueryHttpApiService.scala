@@ -7,7 +7,11 @@ import cats.effect.IO
 import compman.compsrv.logic.actors.behavior.api.AcademyApiActor.{AcademyApiCommand, GetAcademies, GetAcademy}
 import compman.compsrv.logic.actors.behavior.api.CompetitionApiCommands._
 import compman.compsrv.query.service.repository.Pagination
-import compservice.model.protobuf.query.{GenerateCategoriesFromRestrictionsRequest, QueryServiceResponse}
+import compservice.model.protobuf.query.{
+  GenerateCategoriesFromRestrictionsRequest,
+  QueryServiceRequest,
+  QueryServiceResponse
+}
 import org.http4s.{HttpRoutes, Response}
 import org.http4s.dsl.Http4sDsl
 
@@ -52,6 +56,15 @@ object QueryHttpApiService {
             )
           )
         } yield res
+      case req @ POST -> Root / "competition" / id / "info" => for {
+          body <- req.body.covary[ServiceIO].chunkAll.compile.toList
+          bytes   = body.flatMap(_.toList).toArray
+          request = QueryServiceRequest.parseFrom(bytes)
+          res <- sendApiCommandAndReturnResponse[CompetitionApiCommand](
+            competitionApiActor,
+            PutCompetitionInfo(competitionId = id, request = request)
+          )
+        } yield res
       case GET -> Root / "defaultfightresults" =>
         sendApiCommandAndReturnResponse(competitionApiActor, GetDefaultFightResults)
       case GET -> Root / "defaultrestrictions" =>
@@ -63,7 +76,7 @@ object QueryHttpApiService {
         sendApiCommandAndReturnResponse(competitionApiActor, GetFightIdsByCategoryIds(id))
       case GET -> Root / "competition" / id / "fight" / fightId =>
         sendApiCommandAndReturnResponse(competitionApiActor, GetFightById(id, fightId))
-      case GET -> Root / "competition" / id / "infotemplate" =>
+      case GET -> Root / "competition" / id / "info" =>
         sendApiCommandAndReturnResponse(competitionApiActor, GetCompetitionInfoTemplate(id))
       case GET -> Root / "competition" / id / "schedule" =>
         sendApiCommandAndReturnResponse(competitionApiActor, GetSchedule(id))
