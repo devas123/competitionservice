@@ -65,6 +65,24 @@ object QueryHttpApiService {
             PutCompetitionInfo(competitionId = id, request = request)
           )
         } yield res
+      case req @ POST -> Root / "competition" / id / "image" => for {
+          body <- req.body.covary[ServiceIO].chunkAll.compile.toList
+          bytes   = body.flatMap(_.toList).toArray
+          request = QueryServiceRequest.parseFrom(bytes)
+          res <- sendApiCommandAndReturnResponse[CompetitionApiCommand](
+            competitionApiActor,
+            PutCompetitionImage(competitionId = id, request = request)
+          )
+        } yield res
+      case req @ DELETE -> Root / "competition" / id / "image" => for {
+          body <- req.body.covary[ServiceIO].chunkAll.compile.toList
+          bytes   = body.flatMap(_.toList).toArray
+          request = QueryServiceRequest.parseFrom(bytes)
+          res <- sendApiCommandAndReturnResponse[CompetitionApiCommand](
+            competitionApiActor,
+            RemoveCompetitionImage(competitionId = id, request = request)
+          )
+        } yield res
       case GET -> Root / "defaultfightresults" =>
         sendApiCommandAndReturnResponse(competitionApiActor, GetDefaultFightResults)
       case GET -> Root / "defaultrestrictions" =>

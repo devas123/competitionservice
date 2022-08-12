@@ -33,11 +33,18 @@ message MatsQueryResult {
 message QueryServiceRequest {
   oneof payload {
     AddCompetitionInfoRequest addCompetitionInfoRequest = 1;
+    AddCompetitionImageRequest addCompetitionImageRequest = 2;
+    RemoveCompetitionImageRequest removeCompetitionImageRequest = 3;
   }
 }
 
 message AddCompetitionInfoRequest {
   bytes competitionInfo = 1;
+}
+message AddCompetitionImageRequest {
+  bytes image = 1;
+}
+message RemoveCompetitionImageRequest {
 }
 
 message QueryServiceResponse {

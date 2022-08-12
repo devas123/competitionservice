@@ -121,9 +121,25 @@ object CompetitionApiActor {
           runEffectAndReply(context, c.replyTo, io)
         } else {
           c.replyTo ! QueryServiceResponse()
-            .withErrorResponse(ErrorResponse().withErrorReason("Wrong request for PutCompetitionInfo"))
+            .withErrorResponse(ErrorResponse().withErrorReason(s"Wrong request for PutCompetitionInfo: $request"))
           Behaviors.same[CompetitionApiCommand]
         }
+
+      case c @ PutCompetitionImage(competitionId, request) =>
+        if (request.payload.isAddCompetitionImageRequest) {
+          val io = CompetitionUpdateOperations[IO]
+            .addCompetitionInfoImage(competitionId)(request.getAddCompetitionImageRequest.image.toByteArray)
+            .map(_ => QueryServiceResponse.defaultInstance)
+          runEffectAndReply(context, c.replyTo, io)
+        } else {
+          c.replyTo ! QueryServiceResponse()
+            .withErrorResponse(ErrorResponse().withErrorReason(s"Wrong request for PutCompetitionImage: $request"))
+          Behaviors.same[CompetitionApiCommand]
+        }
+      case c @ RemoveCompetitionImage(competitionId, _) =>
+        val io = CompetitionUpdateOperations[IO].removeCompetitionInfoImage(competitionId)
+          .map(_ => QueryServiceResponse.defaultInstance)
+        runEffectAndReply(context, c.replyTo, io)
 
       case c @ GetSchedule(competitionId) =>
         import extensions._
