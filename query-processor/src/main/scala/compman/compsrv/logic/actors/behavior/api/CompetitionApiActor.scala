@@ -107,9 +107,9 @@ object CompetitionApiActor {
 
       case c @ GetCompetitionInfoTemplate(competitionId) =>
         val io = CompetitionQueryOperations[IO].getCompetitionInfoTemplate(competitionId)
-          .map(ci => ci.map(_.template).getOrElse(Array.empty)).map(res =>
+          .map(ci => ci.flatMap(_.template)).map(res =>
             QueryServiceResponse()
-              .withGetCompetitionInfoTemplateResponse(GetCompetitionInfoTemplateResponse(ByteString.copyFrom(res)))
+              .withGetCompetitionInfoTemplateResponse(GetCompetitionInfoTemplateResponse(ByteString.copyFrom(res.getOrElse(Array.emptyByteArray))))
           )
         runEffectAndReply(context, c.replyTo, io)
 
@@ -117,7 +117,7 @@ object CompetitionApiActor {
         if (request.payload.isAddCompetitionInfoRequest) {
           val io = CompetitionUpdateOperations[IO]
             .addCompetitionInfoTemplate(competitionId)(CompetitionState.CompetitionInfoTemplate(
-              request.getAddCompetitionInfoRequest.competitionInfo.toByteArray
+              Some(request.getAddCompetitionInfoRequest.competitionInfo.toByteArray)
             )).map(_ => QueryServiceResponse.defaultInstance)
           runEffectAndReply(context, c.replyTo, io)
         } else {

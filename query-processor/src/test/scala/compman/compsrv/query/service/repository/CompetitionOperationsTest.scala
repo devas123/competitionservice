@@ -35,16 +35,18 @@ class CompetitionOperationsTest extends SpecBase with TestEntities with Embedded
   test("should save and load competition info template") {
     Using(embeddedMongo()) { mongo =>
       val context                 = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
-      val competitionInfoTemplate = CompetitionState.CompetitionInfoTemplate(scala.util.Random.nextBytes(256))
+      val competitionInfoTemplate = CompetitionState.CompetitionInfoTemplate(Some(scala.util.Random.nextBytes(256)))
       import context._
       (for {
-        _     <- CompetitionUpdateOperations[IO].removeCompetitionState(competitionId)
-        _     <- ManagedCompetitionsOperations.addManagedCompetition[IO](managedCompetition)
-        _     <- CompetitionUpdateOperations[IO].addCompetitionInfoTemplate(competitionId)(competitionInfoTemplate)
+        _        <- CompetitionUpdateOperations[IO].removeCompetitionState(competitionId)
+        _        <- ManagedCompetitionsOperations.addManagedCompetition[IO](managedCompetition)
+        _        <- CompetitionUpdateOperations[IO].addCompetitionInfoTemplate(competitionId)(competitionInfoTemplate)
         template <- CompetitionQueryOperations.getCompetitionInfoTemplate(competitionId)
         _ <- IO {
           assert(template.isDefined)
-          assert(template.exists(t => t.template.sameElements(competitionInfoTemplate.template)))
+          assert(template.exists(t =>
+            t.template.exists(_.sameElements(competitionInfoTemplate.template.getOrElse(Array.emptyByteArray)))
+          ))
         }
       } yield ()).unsafeRunSync()
     }.get

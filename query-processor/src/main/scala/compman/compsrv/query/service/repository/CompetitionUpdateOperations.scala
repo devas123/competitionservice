@@ -158,7 +158,7 @@ object CompetitionUpdateOperations {
     }
 
     override def removeCompetitionInfoTemplate(competitionId: String): IO[Unit] =
-      addCompetitionInfoTemplate(competitionId)(CompetitionInfoTemplate(Array.empty))
+      addCompetitionInfoTemplate(competitionId)(CompetitionInfoTemplate(None))
 
     override def addStage(stageDescriptor: StageDescriptor): IO[Unit] = {
       for {
