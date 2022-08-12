@@ -37,7 +37,7 @@ message QueryServiceRequest {
 }
 
 message AddCompetitionInfoRequest {
-  repeated bytes competitionInfo = 1;
+  bytes competitionInfo = 1;
 }
 
 message QueryServiceResponse {
@@ -68,13 +68,8 @@ message QueryServiceResponse {
     GetStageFightsResponse         getStageFightsResponse = 24 ;
     GetAcademiesResponse getAcademiesResponse = 25;
     GetAcademyResponse getAcademyResponse = 26;
-    GetCompetitionInfoResponse getCompetitionInfoResponse = 27;
     ErrorResponse errorResponse = 2700;
   }
-}
-
-message GetCompetitionInfoResponse {
-  bytes infoTemplate = 1;
 }
 
 message GetDefaultRestrictionsResponse{
@@ -93,7 +88,7 @@ message GetCompetitionPropertiesResponse{
   optional CompetitionProperties competitionProperties = 1;
 }
 message GetCompetitionInfoTemplateResponse{
-  optional string template = 1;
+  bytes template = 1;
 }
 message GetScheduleResponse{
   optional Schedule schedule = 1;

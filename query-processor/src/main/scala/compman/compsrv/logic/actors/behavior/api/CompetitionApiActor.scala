@@ -7,6 +7,7 @@ import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import com.google.protobuf.timestamp.Timestamp
 import com.google.protobuf.util.Timestamps
+import com.google.protobuf.ByteString
 import compman.compsrv.logic.actors.behavior.WithIORuntime
 import compman.compsrv.logic.actors.behavior.api.CompetitionApiCommands._
 import compman.compsrv.logic.category.CategoryGenerateService
@@ -14,7 +15,7 @@ import compman.compsrv.logic.fight.FightResultOptionConstants
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.mapping.DtoMapping
-import compman.compsrv.query.service.repository.{CompetitionQueryOperations, FightQueryOperations, ManagedCompetitionsOperations, Pagination}
+import compman.compsrv.query.service.repository._
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
 import compservice.model.protobuf.model
 import compservice.model.protobuf.query.{MatFightsQueryResult, MatsQueryResult, _}
@@ -28,6 +29,8 @@ object CompetitionApiActor {
 
   case class Live(mongoClient: MongoClient, mongodbConfig: MongodbConfig) extends ActorContext {
     implicit val competitionQueryOperations: CompetitionQueryOperations[IO] = CompetitionQueryOperations
+      .live(mongoClient, mongodbConfig.queryDatabaseName)
+    implicit val competitionUpdateOperations: CompetitionUpdateOperations[IO] = CompetitionUpdateOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
     implicit val fightQueryOperations: FightQueryOperations[IO] = FightQueryOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
@@ -47,6 +50,8 @@ object CompetitionApiActor {
   ) extends ActorContext {
     implicit val competitionQueryOperations: CompetitionQueryOperations[IO] = CompetitionQueryOperations
       .test[IO](competitionProperties, registrationInfo, categories, competitors, periods, stages)
+    implicit val competitionUpdateOperations: CompetitionUpdateOperations[IO] = CompetitionUpdateOperations
+      .test[IO](competitionProperties, registrationInfo, categories, competitors, periods, stages)
     implicit val fightQueryOperations: FightQueryOperations[IO] = FightQueryOperations.test[IO](fights)
     implicit val managedCompetitionService: ManagedCompetitionService[IO] = ManagedCompetitionsOperations
       .test[IO](competitions)
@@ -54,6 +59,7 @@ object CompetitionApiActor {
 
   trait ActorContext extends WithIORuntime {
     implicit val competitionQueryOperations: CompetitionQueryOperations[IO]
+    implicit val competitionUpdateOperations: CompetitionUpdateOperations[IO]
     implicit val fightQueryOperations: FightQueryOperations[IO]
     implicit val managedCompetitionService: ManagedCompetitionService[IO]
   }
@@ -101,11 +107,24 @@ object CompetitionApiActor {
 
       case c @ GetCompetitionInfoTemplate(competitionId) =>
         val io = CompetitionQueryOperations[IO].getCompetitionInfoTemplate(competitionId)
-          .map(ci => ci.map(c => new String(c.template)).getOrElse("")).map(res =>
+          .map(ci => ci.map(_.template).getOrElse(Array.empty)).map(res =>
             QueryServiceResponse()
-              .withGetCompetitionInfoTemplateResponse(GetCompetitionInfoTemplateResponse(Option(res)))
+              .withGetCompetitionInfoTemplateResponse(GetCompetitionInfoTemplateResponse(ByteString.copyFrom(res)))
           )
         runEffectAndReply(context, c.replyTo, io)
+
+      case c @ PutCompetitionInfo(competitionId, request) =>
+        if (request.payload.isAddCompetitionInfoRequest) {
+          val io = CompetitionUpdateOperations[IO]
+            .addCompetitionInfoTemplate(competitionId)(CompetitionState.CompetitionInfoTemplate(
+              request.getAddCompetitionInfoRequest.competitionInfo.toByteArray
+            )).map(_ => QueryServiceResponse.defaultInstance)
+          runEffectAndReply(context, c.replyTo, io)
+        } else {
+          c.replyTo ! QueryServiceResponse()
+            .withErrorResponse(ErrorResponse().withErrorReason("Wrong request for PutCompetitionInfo"))
+          Behaviors.same[CompetitionApiCommand]
+        }
 
       case c @ GetSchedule(competitionId) =>
         import extensions._

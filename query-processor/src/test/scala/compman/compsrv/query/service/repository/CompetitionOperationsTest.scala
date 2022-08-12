@@ -5,6 +5,7 @@ import compman.compsrv.logic.competitor.CompetitorService
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.SpecBase
 import compman.compsrv.logic.actors.behavior.WithIORuntime
+import compman.compsrv.query.model.CompetitionState
 
 import scala.util.Using
 
@@ -21,7 +22,7 @@ class CompetitionOperationsTest extends SpecBase with TestEntities with Embedded
     }.get
   }
   test("should save competition") {
-    val result = Using(embeddedMongo()) { mongo =>
+    Using(embeddedMongo()) { mongo =>
       val context = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
       import context._
       (for {
@@ -29,8 +30,24 @@ class CompetitionOperationsTest extends SpecBase with TestEntities with Embedded
         _     <- ManagedCompetitionsOperations.addManagedCompetition[IO](managedCompetition)
         props <- CompetitionQueryOperations.getCompetitionProperties(competitionId)
       } yield assert(props.isDefined)).unsafeRunSync()
-    }
-    result.get
+    }.get
+  }
+  test("should save and load competition info template") {
+    Using(embeddedMongo()) { mongo =>
+      val context                 = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
+      val competitionInfoTemplate = CompetitionState.CompetitionInfoTemplate(scala.util.Random.nextBytes(256))
+      import context._
+      (for {
+        _     <- CompetitionUpdateOperations[IO].removeCompetitionState(competitionId)
+        _     <- ManagedCompetitionsOperations.addManagedCompetition[IO](managedCompetition)
+        _     <- CompetitionUpdateOperations[IO].addCompetitionInfoTemplate(competitionId)(competitionInfoTemplate)
+        template <- CompetitionQueryOperations.getCompetitionInfoTemplate(competitionId)
+        _ <- IO {
+          assert(template.isDefined)
+          assert(template.exists(t => t.template.sameElements(competitionInfoTemplate.template)))
+        }
+      } yield ()).unsafeRunSync()
+    }.get
   }
   test("should save and load competitor") {
     Using(embeddedMongo()) { mongo =>
