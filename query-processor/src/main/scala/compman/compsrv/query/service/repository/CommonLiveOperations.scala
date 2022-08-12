@@ -4,7 +4,7 @@ import cats.effect.IO
 import com.mongodb.client.model.{IndexOptions, ReplaceOptions}
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.academy.FullAcademyInfo
-import compman.compsrv.query.model.CompetitionState.CompetitionInfoTemplate
+import compman.compsrv.query.model.CompetitionState.CompetitionInfo
 import compservice.model.protobuf.model.{BracketType, CategoryRestrictionType, CompetitionStatus, CompetitorRegistrationStatus, DistributionType, FightReferenceType, FightStatus, GroupSortDirection, GroupSortSpecifier, LogicalOperator, OperatorType, ScheduleEntryType, ScheduleRequirementType, SelectorClassifier, StageRoundType, StageStatus, StageType}
 import org.bson.{BsonReader, BsonWriter}
 import org.bson.codecs.{Codec, DecoderContext, EncoderContext}
@@ -92,7 +92,7 @@ trait CommonLiveOperations extends CommonFields with FightFieldsAndFilters {
     fromProviders(classOf[FightResultOption]),
     fromProviders(classOf[CompetitorStageResult]),
     fromProviders(classOf[AdditionalGroupSortingDescriptor]),
-    fromProviders(classOf[CompetitionInfoTemplate]),
+    fromProviders(classOf[CompetitionInfo]),
     fromProviders(classOf[ScheduleEntry]),
     fromProviders(classOf[MatIdAndSomeId]),
     fromProviders(classOf[Restriction]),

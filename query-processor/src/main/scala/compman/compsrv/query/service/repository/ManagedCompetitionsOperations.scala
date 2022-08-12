@@ -4,7 +4,7 @@ import cats.Monad
 import cats.effect.IO
 import cats.implicits.toFunctorOps
 import compman.compsrv.query.model.{CompetitionProperties, CompetitionState, ManagedCompetition, RegistrationInfo}
-import compman.compsrv.query.model.CompetitionState.CompetitionInfoTemplate
+import compman.compsrv.query.model.CompetitionState.CompetitionInfo
 import compservice.model.protobuf.model.CompetitionStatus
 import org.mongodb.scala.MongoClient
 import org.mongodb.scala.bson.BsonDocument
@@ -107,7 +107,7 @@ object ManagedCompetitionsOperations {
           registrationPeriods = Map.empty,
           registrationOpen = false
         )),
-        infoTemplate = Some(CompetitionInfoTemplate(None))
+        info = Some(CompetitionInfo(None))
       )
       insertElement(competitionStateCollection)(competition.id, state)
     }

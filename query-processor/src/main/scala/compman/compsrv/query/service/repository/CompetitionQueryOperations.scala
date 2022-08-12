@@ -4,7 +4,6 @@ import cats.Monad
 import cats.effect.IO
 import cats.implicits._
 import compman.compsrv.query.model._
-import compman.compsrv.query.model.CompetitionState.CompetitionInfoTemplate
 import org.mongodb.scala.MongoClient
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.Filters._
@@ -16,7 +15,8 @@ trait CompetitionQueryOperations[F[+_]] {
   def getCategoriesByCompetitionId(competitionId: String): F[List[Category]]
   def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): F[Int]
 
-  def getCompetitionInfoTemplate(competitionId: String): F[Option[CompetitionInfoTemplate]]
+  def getCompetitionInfoTemplate(competitionId: String): F[Option[Array[Byte]]]
+  def getCompetitionInfoImage(competitionId: String): F[Option[Array[Byte]]]
 
   def getCategoryById(competitionId: String)(id: String): F[Option[Category]]
 
@@ -78,8 +78,7 @@ object CompetitionQueryOperations {
       }
     }
 
-    override def getCompetitionInfoTemplate(competitionId: String): F[Option[CompetitionInfoTemplate]] = Monad[F]
-      .pure(none)
+    override def getCompetitionInfoTemplate(competitionId: String): F[Option[Array[Byte]]] = Monad[F].pure(none)
 
     override def getCategoryById(competitionId: String)(id: String): F[Option[Category]] =
       getById[F, Category](categories)(id)
@@ -153,6 +152,8 @@ object CompetitionQueryOperations {
       cmtrs <- competitors
       result = cmtrs.get.values.count(_.categories.contains(categoryId))
     } yield Monad[F].pure(result)).getOrElse(Monad[F].pure(0))
+
+    override def getCompetitionInfoImage(competitionId: String): F[Option[Array[Byte]]] = Monad[F].pure(none)
   }
 
   def live(mongo: MongoClient, name: String): CompetitionQueryOperations[IO] = new CompetitionQueryOperations[IO]
@@ -160,9 +161,10 @@ object CompetitionQueryOperations {
 
     import org.mongodb.scala.model.Projections._
 
-    private val includeCompetitionInfoProjection = include("infoTemplate")
+    private val includeCompetitionInfoTemplateProjection  = include("info.template")
+    private val includeCompetitionInfoImageProjection  = include("info.image")
     private val includeRegistrationInfoProjection = include("registrationInfo")
-    private val includePeriodsProjection = include("periods")
+    private val includePeriodsProjection          = include("periods")
 
     private val competitionPropertiesProjection = include("properties")
     private val categoriesProjection            = include("categories")
@@ -187,11 +189,11 @@ object CompetitionQueryOperations {
       } yield res.headOption.flatten.map(_.values.toList).getOrElse(List.empty)
     }
 
-    override def getCompetitionInfoTemplate(competitionId: String): IO[Option[CompetitionInfoTemplate]] = {
+    override def getCompetitionInfoTemplate(competitionId: String): IO[Option[Array[Byte]]] = {
       for {
         collection <- competitionStateCollection
-        select = collection.find(equal(idField, competitionId)).projection(includeCompetitionInfoProjection)
-          .map(_.infoTemplate)
+        select = collection.find(equal(idField, competitionId)).projection(includeCompetitionInfoTemplateProjection)
+          .map(_.info.flatMap(_.template))
         res <- selectOne(select)
       } yield res.flatten
     }
@@ -215,10 +217,12 @@ object CompetitionQueryOperations {
         select = collection.find(and(equal(idField, competitionId))).projection(categoriesProjection)
         res <- IO.fromFuture(IO(select.head())).map(_.categories)
       } yield (
-        res.map(_.filter(c =>
-          searchString == null || searchString.isBlank ||
-            c._2.restrictions.exists(_.name.exists(_.matches(searchString)))
-        ).slice(drop, drop + take).values.toList).getOrElse(List.empty),
+        res.map(
+          _.filter(c =>
+            searchString == null || searchString.isBlank ||
+              c._2.restrictions.exists(_.name.exists(_.matches(searchString)))
+          ).slice(drop, drop + take).values.toList
+        ).getOrElse(List.empty),
         pagination.getOrElse(Pagination(0, res.map(_.size).getOrElse(0), res.map(_.size).getOrElse(0)))
       )
     }
@@ -289,7 +293,9 @@ object CompetitionQueryOperations {
     }
 
     override def getRegistrationInfo(competitionId: String): IO[Option[RegistrationInfo]] = {
-      for { res <- getStateById(competitionId)(includeRegistrationInfoProjection).map(_.map(_.registrationInfo)) } yield res.flatten
+      for {
+        res <- getStateById(competitionId)(includeRegistrationInfoProjection).map(_.map(_.registrationInfo))
+      } yield res.flatten
     }
 
     override def getScheduleEntriesByPeriodId(competitionId: String)(periodId: String): IO[List[ScheduleEntry]] = {
@@ -352,6 +358,13 @@ object CompetitionQueryOperations {
         res <- IO.fromFuture(IO(select.toFuture())).map(_.toInt)
       } yield res
     }
+
+    override def getCompetitionInfoImage(competitionId: String): IO[Option[Array[Byte]]] = for {
+      collection <- competitionStateCollection
+      select = collection.find(equal(idField, competitionId)).projection(includeCompetitionInfoImageProjection)
+        .map(_.info.flatMap(_.template))
+      res <- selectOne(select)
+    } yield res.flatten
   }
 
   def getCompetitionProperties[F[+_]: CompetitionQueryOperations](id: String): F[Option[CompetitionProperties]] =
@@ -360,9 +373,8 @@ object CompetitionQueryOperations {
   def getCategoriesByCompetitionId[F[+_]: CompetitionQueryOperations](competitionId: String): F[List[Category]] =
     CompetitionQueryOperations[F].getCategoriesByCompetitionId(competitionId)
 
-  def getCompetitionInfoTemplate[F[+_]: CompetitionQueryOperations](
-    competitionId: String
-  ): F[Option[CompetitionInfoTemplate]] = CompetitionQueryOperations[F].getCompetitionInfoTemplate(competitionId)
+  def getCompetitionInfoTemplate[F[+_]: CompetitionQueryOperations](competitionId: String): F[Option[Array[Byte]]] =
+    CompetitionQueryOperations[F].getCompetitionInfoTemplate(competitionId)
 
   def getCategoryById[F[+_]: CompetitionQueryOperations](competitionId: String)(id: String): F[Option[Category]] =
     CompetitionQueryOperations[F].getCategoryById(competitionId)(id)

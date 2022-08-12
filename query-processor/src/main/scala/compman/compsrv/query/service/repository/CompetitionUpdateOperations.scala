@@ -4,7 +4,6 @@ import cats.Monad
 import cats.effect.IO
 import com.mongodb.client.model.{ReplaceOptions, UpdateOptions}
 import compman.compsrv.query.model._
-import compman.compsrv.query.model.CompetitionState.CompetitionInfoTemplate
 import compservice.model.protobuf.model.StageStatus
 import org.mongodb.scala.{Document, MongoClient}
 import org.mongodb.scala.model.{Filters, Updates}
@@ -15,8 +14,10 @@ import scala.jdk.CollectionConverters._
 trait CompetitionUpdateOperations[F[+_]] {
   def updateCompetitionProperties(competitionProperties: CompetitionProperties): F[Unit]
   def removeCompetitionState(id: String): F[Unit]
-  def addCompetitionInfoTemplate(competitionId: String)(competitionInfoTemplate: CompetitionInfoTemplate): F[Unit]
+  def addCompetitionInfoTemplate(competitionId: String)(competitionInfoTemplate: Array[Byte]): F[Unit]
   def removeCompetitionInfoTemplate(competitionId: String): F[Unit]
+  def addCompetitionInfoImage(competitionId: String)(competitionInfoImage: Array[Byte]): F[Unit]
+  def removeCompetitionInfoImage(competitionId: String): F[Unit]
   def addStage(stageDescriptor: StageDescriptor): F[Unit]
   def updateStage(stageDescriptor: StageDescriptor): F[Unit]
   def removeStages(competition: String)(ids: Set[String]): F[Unit]
@@ -60,12 +61,11 @@ object CompetitionUpdateOperations {
     override def removeCompetitionState(id: String): F[Unit] = Monad[F]
       .pure(competitionProperties.foreach(_.updateAndGet(m => m - id)))
 
-    override def addCompetitionInfoTemplate(competitionId: String)(newTemplate: CompetitionInfoTemplate): F[Unit] =
+    override def addCompetitionInfoTemplate(competitionId: String)(newTemplate: Array[Byte]): F[Unit] =
       comPropsUpdate[F](competitionProperties)(competitionId)(identity)
 
-    override def removeCompetitionInfoTemplate(competitionId: String): F[Unit] = comPropsUpdate[F](
-      competitionProperties
-    )(competitionId)(identity)
+    override def removeCompetitionInfoTemplate(competitionId: String): F[Unit] =
+      comPropsUpdate[F](competitionProperties)(competitionId)(identity)
 
     override def addStage(stageDescriptor: StageDescriptor): F[Unit] =
       add[F, StageDescriptor](stages)(stageDescriptor.id)(Some(stageDescriptor))
@@ -117,6 +117,12 @@ object CompetitionUpdateOperations {
     override def removeCompetitorsForCategory(competitionId: String)(categoryId: String): F[Unit] = Monad[F].pure(
       competitors.map(_.updateAndGet(c => c.map(e => (e._1, e._2.copy(categories = e._2.categories - categoryId)))))
     ).void
+
+    override def addCompetitionInfoImage(competitionId: String)(competitionInfoImage: Array[Byte]): F[Unit] =
+      addCompetitionInfoTemplate(competitionId)(competitionInfoImage)
+
+    override def removeCompetitionInfoImage(competitionId: String): F[Unit] =
+      removeCompetitionInfoTemplate(competitionId)
   }
 
   def live(mongo: MongoClient, name: String): CompetitionUpdateOperations[IO] = new CompetitionUpdateOperations[IO]
@@ -146,19 +152,20 @@ object CompetitionUpdateOperations {
       } yield ()
     }
 
-    override def addCompetitionInfoTemplate(
-      competitionId: String
-    )(competitionInfoTemplate: CompetitionInfoTemplate): IO[Unit] = {
+    override def addCompetitionInfoTemplate(competitionId: String)(competitionInfoTemplate: Array[Byte]): IO[Unit] = {
       for {
         collection <- competitionStateCollection
         statement = collection
-          .findOneAndUpdate(equal(idField, competitionId), set("infoTemplate", competitionInfoTemplate))
+          .findOneAndUpdate(equal(idField, competitionId), set("info.template", competitionInfoTemplate))
         _ <- IO.fromFuture(IO(statement.toFuture()))
       } yield ()
     }
 
-    override def removeCompetitionInfoTemplate(competitionId: String): IO[Unit] =
-      addCompetitionInfoTemplate(competitionId)(CompetitionInfoTemplate(None))
+    override def removeCompetitionInfoTemplate(competitionId: String): IO[Unit] = for {
+      collection <- competitionStateCollection
+      statement = collection.findOneAndUpdate(equal(idField, competitionId), unset("info.template"))
+      _ <- IO.fromFuture(IO(statement.toFuture()))
+    } yield ()
 
     override def addStage(stageDescriptor: StageDescriptor): IO[Unit] = {
       for {
@@ -309,5 +316,18 @@ object CompetitionUpdateOperations {
         _ <- IO.fromFuture(IO(statement.toFuture()))
       } yield ()
     }
+
+    override def addCompetitionInfoImage(competitionId: String)(competitionInfoImage: Array[Byte]): IO[Unit] = for {
+      collection <- competitionStateCollection
+      statement = collection.findOneAndUpdate(equal(idField, competitionId), set("info.image", competitionInfoImage))
+      _ <- IO.fromFuture(IO(statement.toFuture()))
+    } yield ()
+
+    override def removeCompetitionInfoImage(competitionId: String): IO[Unit] = for {
+      collection <- competitionStateCollection
+      statement = collection.findOneAndUpdate(equal(idField, competitionId), unset("info.image"))
+      _ <- IO.fromFuture(IO(statement.toFuture()))
+    } yield ()
+
   }
 }
