@@ -362,7 +362,7 @@ object CompetitionQueryOperations {
     override def getCompetitionInfoImage(competitionId: String): IO[Option[Array[Byte]]] = for {
       collection <- competitionStateCollection
       select = collection.find(equal(idField, competitionId)).projection(includeCompetitionInfoImageProjection)
-        .map(_.info.flatMap(_.template))
+        .map(_.info.flatMap(_.image))
       res <- selectOne(select)
     } yield res.flatten
   }
@@ -375,6 +375,8 @@ object CompetitionQueryOperations {
 
   def getCompetitionInfoTemplate[F[+_]: CompetitionQueryOperations](competitionId: String): F[Option[Array[Byte]]] =
     CompetitionQueryOperations[F].getCompetitionInfoTemplate(competitionId)
+  def getCompetitionInfoImage[F[+_]: CompetitionQueryOperations](competitionId: String): F[Option[Array[Byte]]] =
+    CompetitionQueryOperations[F].getCompetitionInfoImage(competitionId)
 
   def getCategoryById[F[+_]: CompetitionQueryOperations](competitionId: String)(id: String): F[Option[Category]] =
     CompetitionQueryOperations[F].getCategoryById(competitionId)(id)

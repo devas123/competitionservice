@@ -15,5 +15,5 @@ case class CompetitionState(
                            )
 
 object CompetitionState {
-  case class CompetitionInfo(template: Option[Array[Byte]])
+  case class CompetitionInfo(template: Option[Array[Byte]], image: Option[Array[Byte]])
 }

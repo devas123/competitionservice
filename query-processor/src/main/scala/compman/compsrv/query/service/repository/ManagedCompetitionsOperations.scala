@@ -107,7 +107,7 @@ object ManagedCompetitionsOperations {
           registrationPeriods = Map.empty,
           registrationOpen = false
         )),
-        info = Some(CompetitionInfo(None))
+        info = Some(CompetitionInfo(None, None))
       )
       insertElement(competitionStateCollection)(competition.id, state)
     }

@@ -35,7 +35,7 @@ class CompetitionOperationsTest extends SpecBase with TestEntities with Embedded
   test("should save and load competition info template") {
     Using(embeddedMongo()) { mongo =>
       val context                 = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
-      val competitionInfoTemplate = CompetitionState.CompetitionInfo(Some(scala.util.Random.nextBytes(256)))
+      val competitionInfoTemplate = CompetitionState.CompetitionInfo(Some(scala.util.Random.nextBytes(256)), None)
       import context._
       (for {
         _ <- CompetitionUpdateOperations[IO].removeCompetitionState(competitionId)
@@ -50,6 +50,25 @@ class CompetitionOperationsTest extends SpecBase with TestEntities with Embedded
       } yield ()).unsafeRunSync()
     }.get
   }
+  test("should save and load competition info image") {
+    Using(embeddedMongo()) { mongo =>
+      val context                 = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
+      val competitionInfoTemplate = CompetitionState.CompetitionInfo(None, Some(scala.util.Random.nextBytes(256)))
+      import context._
+      (for {
+        _ <- CompetitionUpdateOperations[IO].removeCompetitionState(competitionId)
+        _ <- ManagedCompetitionsOperations.addManagedCompetition[IO](managedCompetition)
+        _ <- CompetitionUpdateOperations[IO]
+          .addCompetitionInfoImage(competitionId)(competitionInfoTemplate.template.getOrElse(Array.emptyByteArray))
+        template <- CompetitionQueryOperations.getCompetitionInfoImage(competitionId)
+        _ <- IO {
+          assert(template.isDefined)
+          assert(template.exists(_.sameElements(competitionInfoTemplate.template.getOrElse(Array.emptyByteArray))))
+        }
+      } yield ()).unsafeRunSync()
+    }.get
+  }
+
   test("should save and load competitor") {
     Using(embeddedMongo()) { mongo =>
       val context = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
