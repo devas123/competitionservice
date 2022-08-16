@@ -8,9 +8,8 @@ import compman.compsrv.query.model.CompetitionState.CompetitionInfo
 import compservice.model.protobuf.model.CompetitionStatus
 import org.mongodb.scala.MongoClient
 import org.mongodb.scala.bson.BsonDocument
-import org.mongodb.scala.model.Filters.{equal, not}
 import org.mongodb.scala.model.Filters
-import org.mongodb.scala.model.Updates.set
+import org.mongodb.scala.model.Filters.not
 
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicReference
@@ -29,19 +28,7 @@ object ManagedCompetitionsOperations {
         Monad[F].pure(competitions.updateAndGet(m => m + (competition.id -> competition))).void
       }
 
-      override def deleteManagedCompetition(id: String): F[Unit] = Monad[F]
-        .pure { competitions.updateAndGet(m => m - id) }.void
-
-      override def updateManagedCompetition(c: ManagedCompetition): F[Unit] = Monad[F]
-        .pure(competitions.updateAndGet(m =>
-          m.updatedWith(c.id)(_.map(_.copy(
-            competitionName = c.competitionName,
-            startDate = c.startDate,
-            endDate = c.endDate,
-            timeZone = c.timeZone,
-            status = c.status
-          )))
-        )).void
+      override def competitionExists(id: String): F[Boolean] = Monad[F].pure(competitions.get().contains(id))
     }
 
   def live(mongo: MongoClient, name: String): ManagedCompetitionService[IO] = new ManagedCompetitionService[IO]
@@ -112,27 +99,12 @@ object ManagedCompetitionsOperations {
       insertElement(competitionStateCollection)(competition.id, state)
     }
 
-    override def deleteManagedCompetition(id: String): IO[Unit] = deleteByField(managedCompetitionCollection)(id)
-
-    override def updateManagedCompetition(competition: ManagedCompetition): IO[Unit] = {
-      for {
-        collection <- managedCompetitionCollection
-        update = collection.updateMany(
-          equal(idField, competition.id),
-          Seq(
-            setOption("properties.competitionName", competition.competitionName),
-            set("eventsTopic", competition.eventsTopic),
-            setOption("properties.creatorId", competition.creatorId),
-            set("properties.creationTimestamp", competition.creationTimestamp),
-            set("properties.startDate", competition.startDate),
-            setOption("properties.endDate", competition.endDate),
-            set("properties.timeZone", competition.timeZone),
-            set("properties.status", competition.status)
-          )
-        )
-        _ <- IO.fromFuture(IO(update.toFuture()))
-      } yield ()
-    }
+    override def competitionExists(id: String): IO[Boolean] = for {
+      collection <- managedCompetitionCollection
+      select = collection.countDocuments(Filters.and(not(Filters.eq("properties.status", CompetitionStatus.DELETED)), Filters.eq(idField, id)))
+        .map(_ > 0)
+      res <- IO.fromFuture(IO(select.toFuture())).map(_.headOption.getOrElse(false))
+    } yield res
   }
 
   private def decodeBson(document: BsonDocument) = {
@@ -164,8 +136,7 @@ object ManagedCompetitionsOperations {
     def getManagedCompetitions: F[List[ManagedCompetition]]
     def getActiveCompetitions: F[List[ManagedCompetition]]
     def addManagedCompetition(competition: ManagedCompetition): F[Unit]
-    def updateManagedCompetition(c: ManagedCompetition): F[Unit]
-    def deleteManagedCompetition(id: String): F[Unit]
+    def competitionExists(id: String): F[Boolean]
   }
 
   object ManagedCompetitionService {
@@ -175,8 +146,6 @@ object ManagedCompetitionsOperations {
     ManagedCompetitionService[F].getActiveCompetitions
   def addManagedCompetition[F[+_]: ManagedCompetitionService](competition: ManagedCompetition): F[Unit] =
     ManagedCompetitionService[F].addManagedCompetition(competition)
-  def updateManagedCompetition[F[+_]: ManagedCompetitionService](c: ManagedCompetition): F[Unit] =
-    ManagedCompetitionService[F].updateManagedCompetition(c)
-  def deleteManagedCompetition[F[+_]: ManagedCompetitionService](id: String): F[Unit] = ManagedCompetitionService[F]
-    .deleteManagedCompetition(id)
+  def competitionExists[F[+_]: ManagedCompetitionService](competitionId: String): F[Boolean] =
+    ManagedCompetitionService[F].competitionExists(competitionId)
 }

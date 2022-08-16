@@ -110,6 +110,9 @@ object CompetitionApiCommands {
   final case class PutCompetitionImage(competitionId: String, request: QueryServiceRequest)(
     override val replyTo: ActorRef[QueryServiceResponse]
   ) extends CompetitionApiCommand
+  final case class GetCompetitionImage(competitionId: String)(
+    override val replyTo: ActorRef[QueryServiceResponse]
+  ) extends CompetitionApiCommand
 
   final case class RemoveCompetitionImage(competitionId: String, request: QueryServiceRequest)(
     override val replyTo: ActorRef[QueryServiceResponse]

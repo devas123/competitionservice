@@ -113,6 +113,14 @@ object CompetitionApiActor {
         )
         runEffectAndReply(context, c.replyTo, io)
 
+      case c @ GetCompetitionImage(competitionId) =>
+        val io = CompetitionQueryOperations[IO].getCompetitionInfoImage(competitionId).map(res =>
+          QueryServiceResponse().withGetCompetitionInfoImageResponse(GetCompetitionInfoImageResponse(
+            ByteString.copyFrom(res.getOrElse(Array.emptyByteArray))
+          ))
+        )
+        runEffectAndReply(context, c.replyTo, io)
+
       case c @ PutCompetitionInfo(competitionId, request) =>
         if (request.payload.isAddCompetitionInfoRequest) {
           val io = CompetitionUpdateOperations[IO]

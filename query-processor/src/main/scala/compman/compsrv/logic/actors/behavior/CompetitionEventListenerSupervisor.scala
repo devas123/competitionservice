@@ -12,7 +12,6 @@ import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.model.mapping.DtoMapping.toInstant
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
-import compservice.model.protobuf.eventpayload.CompetitionPropertiesUpdatedPayload
 import compservice.model.protobuf.model.CompetitionProcessorNotification
 import org.mongodb.scala.MongoClient
 
@@ -23,12 +22,10 @@ import scala.util.{Failure, Success}
 
 object CompetitionEventListenerSupervisor {
   sealed trait ActorMessages
-  case class ReceivedNotification(notification: CompetitionProcessorNotification.Notification)   extends ActorMessages
-  case class ActiveCompetitions(managedCompetitions: List[ManagedCompetition])                   extends ActorMessages
-  case class CompetitionUpdated(update: CompetitionPropertiesUpdatedPayload, eventTopic: String) extends ActorMessages
-  case class CompetitionDeletedMessage(competitionId: String)                                    extends ActorMessages
-  case class KafkaNotification(msg: String)                                                      extends ActorMessages
-  case class CompetitionEventListenerStopped(id: String)                                         extends ActorMessages
+  case class ReceivedNotification(notification: CompetitionProcessorNotification.Notification) extends ActorMessages
+  case class ActiveCompetitions(managedCompetitions: List[ManagedCompetition])                 extends ActorMessages
+  case class KafkaNotification(msg: String)                                                    extends ActorMessages
+  case class CompetitionEventListenerStopped(id: String)                                       extends ActorMessages
 
   trait ActorContext extends WithIORuntime {
     implicit val managedCompetitionsOperations: ManagedCompetitionService[IO]
@@ -64,7 +61,6 @@ object CompetitionEventListenerSupervisor {
               callbackTopic,
               eventListenerContext,
               kafkaSupervisorActor,
-              context.self,
               websocketConnectionSupervisor
             )).onFailure(SupervisorStrategy.restart.withLimit(100, 1.minute)),
             id
@@ -98,26 +94,6 @@ object CompetitionEventListenerSupervisor {
         case KafkaNotification(msg) =>
           context.log.info(msg)
           Behaviors.same
-        case CompetitionDeletedMessage(competitionId) =>
-          ManagedCompetitionsOperations.deleteManagedCompetition[IO](competitionId).unsafeRunSync()
-          Behaviors.same
-        case CompetitionUpdated(update, eventTopic) =>
-          context.log.info(s"Competition properties updated $update")
-          val props = update.getProperties
-          (for {
-            _ <- ManagedCompetitionsOperations.updateManagedCompetition[IO](ManagedCompetition(
-              props.id,
-              Option(props.competitionName),
-              eventTopic,
-              Option(props.creatorId),
-              toInstant(props.getCreationTimestamp),
-              toInstant(props.getStartDate),
-              Option(props.getEndDate).map(toInstant),
-              props.timeZone,
-              props.status
-            ))
-          } yield ()).unsafeRunSync()
-          Behaviors.same
         case ActiveCompetitions(competitions) =>
           context.log.info(s"Received active competitions: ${competitions.map(_.competitionName.getOrElse(""))}")
           competitions.foreach { competition =>
@@ -139,7 +115,7 @@ object CompetitionEventListenerSupervisor {
                 s.endsAt.map(toInstant),
                 s.timeZone,
                 s.status
-              ))
+              )).whileM_(ManagedCompetitionsOperations.competitionExists[IO](s.id).map(res => !res))
             } yield ()).unsafeRunSync()
             createCompetitionProcessingActorIfMissing(s.id, s.topic)
           }

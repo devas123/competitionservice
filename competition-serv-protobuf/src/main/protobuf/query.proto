@@ -75,6 +75,7 @@ message QueryServiceResponse {
     GetStageFightsResponse         getStageFightsResponse = 24 ;
     GetAcademiesResponse getAcademiesResponse = 25;
     GetAcademyResponse getAcademyResponse = 26;
+    GetCompetitionInfoImageResponse         getCompetitionInfoImageResponse = 27;
     ErrorResponse errorResponse = 2700;
   }
 }
@@ -96,6 +97,9 @@ message GetCompetitionPropertiesResponse{
 }
 message GetCompetitionInfoTemplateResponse{
   bytes template = 1;
+}
+message GetCompetitionInfoImageResponse{
+  bytes image = 1;
 }
 message GetScheduleResponse{
   optional Schedule schedule = 1;

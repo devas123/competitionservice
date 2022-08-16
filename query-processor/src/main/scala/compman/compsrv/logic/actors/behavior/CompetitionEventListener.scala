@@ -7,20 +7,17 @@ import cats.implicits._
 import compman.compsrv.logic.actor.kafka.{KafkaConsumerApi, KafkaSupervisorCommand}
 import compman.compsrv.logic.actor.kafka.KafkaConsumerApi._
 import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.{PublishMessage, Subscribe}
-import compman.compsrv.logic.actors.behavior.CompetitionEventListenerSupervisor.{CompetitionDeletedMessage, CompetitionUpdated}
 import compman.compsrv.model
 import compman.compsrv.model.{Errors, Mapping}
 import compman.compsrv.model.Mapping.EventMapping
 import compman.compsrv.model.command.Commands
-import compman.compsrv.model.event.Events
-import compman.compsrv.model.event.Events.{CompetitionCreatedEvent, CompetitionDeletedEvent, CompetitionPropertiesUpdatedEvent}
+import compman.compsrv.model.event.Events.CompetitionDeletedEvent
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.repository._
 import compman.compsrv.query.service.repository.EventOffsetOperations.EventOffsetService
 import compservice.model.protobuf.event.Event
-import compservice.model.protobuf.eventpayload.CompetitionPropertiesUpdatedPayload
 import org.mongodb.scala.MongoClient
 
 import java.util.concurrent.atomic.AtomicReference
@@ -74,44 +71,15 @@ object CompetitionEventListener {
     implicit val eventOffsetService: EventOffsetService[IO]       = EventOffsetOperations.test
   }
 
-  private[behavior] case class ActorState()
-
   def behavior(
     competitionId: String,
     topic: String,
     callbackTopic: String,
     context: ActorContext,
     kafkaSupervisorActor: ActorRef[KafkaSupervisorCommand],
-    competitionEventListenerSupervisor: ActorRef[CompetitionEventListenerSupervisor.ActorMessages],
     websocketConnectionSupervisor: ActorRef[WebsocketConnectionSupervisor.ApiCommand]
   ): Behavior[ApiCommand] = {
     import context._
-    def notifyEventListenerSupervisor(topic: String, event: Event, mapped: Events.Event[Any]): IO[Unit] = {
-      mapped match {
-        case CompetitionCreatedEvent(_, _, _, _) => for {
-            payload <- IO
-              .fromOption(event.messageInfo.flatMap(_.payload.competitionCreatedPayload))(new Exception("No Payload"))
-            _ <- IO {
-              competitionEventListenerSupervisor ! CompetitionUpdated(
-                CompetitionPropertiesUpdatedPayload().update(_.properties.setIfDefined(payload.properties)),
-                topic
-              )
-            }
-          } yield ()
-        case _: CompetitionPropertiesUpdatedEvent => for {
-            payload <- IO
-              .fromOption(event.messageInfo.flatMap(_.payload.competitionPropertiesUpdatedPayload))(new Exception(
-                "No Payload"
-              ))
-            _ <- IO { competitionEventListenerSupervisor ! CompetitionUpdated(payload, topic) }
-          } yield ()
-        case CompetitionDeletedEvent(competitionId, _) => for {
-            id <- IO.fromOption(competitionId)(new Exception("No Competition ID"))
-            _  <- IO { competitionEventListenerSupervisor ! CompetitionDeletedMessage(id) }
-          } yield ()
-        case _ => IO.unit
-      }
-    }
 
     def sendSuccessfulExecutionCallbacks(event: Event): Unit = {
       kafkaSupervisorActor ! PublishMessage(Commands.createSuccessCallbackMessageParameters(
@@ -164,7 +132,6 @@ object CompetitionEventListener {
               (for {
                 mapped <- EventMapping.mapEventDto[IO](event)
                 res    <- EventProcessors.applyEvent[IO](mapped).attempt
-                _      <- notifyEventListenerSupervisor(topic, event, mapped)
                 _ <- IO {
                   res match {
                     case Left(value) => sendErrorCallback(event, value)

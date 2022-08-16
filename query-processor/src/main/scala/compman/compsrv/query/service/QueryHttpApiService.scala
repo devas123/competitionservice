@@ -83,6 +83,8 @@ object QueryHttpApiService {
             RemoveCompetitionImage(competitionId = id, request = request)
           )
         } yield res
+      case GET -> Root / "competition" / id / "image" =>
+        sendApiCommandAndReturnResponse(competitionApiActor, GetCompetitionImage(id))
       case GET -> Root / "defaultfightresults" =>
         sendApiCommandAndReturnResponse(competitionApiActor, GetDefaultFightResults)
       case GET -> Root / "defaultrestrictions" =>

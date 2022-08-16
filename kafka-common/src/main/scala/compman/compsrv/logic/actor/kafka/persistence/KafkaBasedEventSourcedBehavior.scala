@@ -40,9 +40,8 @@ abstract class KafkaBasedEventSourcedBehavior[State, KafkaCommand, KafkaEvent, E
   private val producer = producerFlow
 
   source.via(eventSourcingStage).map { msg =>
-    println(s"Event sourcing stage produced a message $msg")
     ProducerMessage.multi(msg.map(evt => new ProducerRecord(eventsTopic, competitionId, serializeEvent(evt))))
-  }.via(producer).runWith(Sink.foreach(msg => println(s"Produced a message with result $msg")))
+  }.via(producer).runWith(Sink.ignore)
 
   final override def onMessage(msg: KafkaBasedEventSourcedBehaviorApi): Behavior[KafkaBasedEventSourcedBehaviorApi] =
     msg match {
