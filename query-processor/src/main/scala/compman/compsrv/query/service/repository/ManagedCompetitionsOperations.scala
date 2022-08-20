@@ -4,7 +4,6 @@ import cats.Monad
 import cats.effect.IO
 import cats.implicits.toFunctorOps
 import compman.compsrv.query.model.{CompetitionProperties, CompetitionState, ManagedCompetition, RegistrationInfo}
-import compman.compsrv.query.model.CompetitionState.CompetitionInfo
 import compservice.model.protobuf.model.CompetitionStatus
 import org.mongodb.scala.MongoClient
 import org.mongodb.scala.bson.BsonDocument
@@ -93,16 +92,16 @@ object ManagedCompetitionsOperations {
           registrationGroups = Map.empty,
           registrationPeriods = Map.empty,
           registrationOpen = false
-        )),
-        info = Some(CompetitionInfo(None, None))
+        ))
       )
       insertElement(competitionStateCollection)(competition.id, state)
     }
 
     override def competitionExists(id: String): IO[Boolean] = for {
       collection <- managedCompetitionCollection
-      select = collection.countDocuments(Filters.and(not(Filters.eq("properties.status", CompetitionStatus.DELETED)), Filters.eq(idField, id)))
-        .map(_ > 0)
+      select = collection.countDocuments(
+        Filters.and(not(Filters.eq("properties.status", CompetitionStatus.DELETED)), Filters.eq(idField, id))
+      ).map(_ > 0)
       res <- IO.fromFuture(IO(select.toFuture())).map(_.headOption.getOrElse(false))
     } yield res
   }

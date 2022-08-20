@@ -49,6 +49,8 @@ object EmbeddedMongoDb {
       .live(mongoClient, mongodbConfig.queryDatabaseName)
     implicit val managedCompetitionsOperations: ManagedCompetitionsOperations.ManagedCompetitionService[IO] =
       ManagedCompetitionsOperations.live(mongoClient, mongodbConfig.queryDatabaseName)
+
+    implicit val blobOperations: BlobOperations.BlobService[IO] = BlobOperations.live(mongoClient, mongodbConfig.queryDatabaseName)
   }
 
   def context(port: Int) = new EmbeddedMongoContext(port)

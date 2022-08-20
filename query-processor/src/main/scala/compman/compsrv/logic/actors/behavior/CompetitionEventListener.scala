@@ -16,6 +16,7 @@ import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.service.event.EventProcessors
 import compman.compsrv.query.service.repository._
+import compman.compsrv.query.service.repository.BlobOperations.BlobService
 import compman.compsrv.query.service.repository.EventOffsetOperations.EventOffsetService
 import compservice.model.protobuf.event.Event
 import org.mongodb.scala.MongoClient
@@ -36,6 +37,7 @@ object CompetitionEventListener {
     implicit val fightQueryOperations: FightQueryOperations[IO]
     implicit val fightUpdateOperations: FightUpdateOperations[IO]
     implicit val eventOffsetService: EventOffsetService[IO]
+    implicit val blobOperations: BlobService[IO]
   }
 
   case class Live(mongoClient: MongoClient, mongodbConfig: MongodbConfig) extends ActorContext {
@@ -49,6 +51,8 @@ object CompetitionEventListener {
     implicit val fightUpdateOperations: FightUpdateOperations[IO] = FightUpdateOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
     implicit val eventOffsetService: EventOffsetService[IO] = EventOffsetOperations
+      .live(mongoClient, mongodbConfig.queryDatabaseName)
+    override implicit val blobOperations: BlobService[IO] = BlobOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
   }
 
@@ -69,6 +73,7 @@ object CompetitionEventListener {
     implicit val fightUpdateOperations: FightUpdateOperations[IO] = FightUpdateOperations.test(fights)
     implicit val fightQueryOperations: FightQueryOperations[IO]   = FightQueryOperations.test(fights, stages)
     implicit val eventOffsetService: EventOffsetService[IO]       = EventOffsetOperations.test
+    override implicit val blobOperations: BlobService[IO]         = BlobOperations.test[IO]
   }
 
   def behavior(

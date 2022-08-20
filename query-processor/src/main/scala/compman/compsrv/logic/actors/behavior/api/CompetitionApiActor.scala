@@ -16,6 +16,7 @@ import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository._
+import compman.compsrv.query.service.repository.BlobOperations.BlobService
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
 import compservice.model.protobuf.model
 import compservice.model.protobuf.query.{MatFightsQueryResult, MatsQueryResult, _}
@@ -36,6 +37,7 @@ object CompetitionApiActor {
       .live(mongoClient, mongodbConfig.queryDatabaseName)
     implicit val managedCompetitionService: ManagedCompetitionService[IO] = ManagedCompetitionsOperations
       .live(mongoClient, mongodbConfig.queryDatabaseName)
+    implicit val blobOperations: BlobService[IO] = BlobOperations.live(mongoClient, mongodbConfig.queryDatabaseName)
   }
 
   case class Test(
@@ -55,6 +57,7 @@ object CompetitionApiActor {
     implicit val fightQueryOperations: FightQueryOperations[IO] = FightQueryOperations.test[IO](fights)
     implicit val managedCompetitionService: ManagedCompetitionService[IO] = ManagedCompetitionsOperations
       .test[IO](competitions)
+    implicit val blobOperations: BlobService[IO] = BlobOperations.test[IO]
   }
 
   trait ActorContext extends WithIORuntime {
@@ -62,6 +65,7 @@ object CompetitionApiActor {
     implicit val competitionUpdateOperations: CompetitionUpdateOperations[IO]
     implicit val fightQueryOperations: FightQueryOperations[IO]
     implicit val managedCompetitionService: ManagedCompetitionService[IO]
+    implicit val blobOperations: BlobService[IO]
   }
 
   def behavior(ctx: ActorContext): Behavior[CompetitionApiCommand] = Behaviors.setup { context =>
@@ -106,7 +110,7 @@ object CompetitionApiActor {
         runEffectAndReply(context, c.replyTo, io)
 
       case c @ GetCompetitionInfoTemplate(competitionId) =>
-        val io = CompetitionQueryOperations[IO].getCompetitionInfoTemplate(competitionId).map(res =>
+        val io = BlobOperations.getCompetitionInfo[IO](competitionId).map(res =>
           QueryServiceResponse().withGetCompetitionInfoTemplateResponse(GetCompetitionInfoTemplateResponse(
             ByteString.copyFrom(res.getOrElse(Array.emptyByteArray))
           ))
@@ -114,7 +118,7 @@ object CompetitionApiActor {
         runEffectAndReply(context, c.replyTo, io)
 
       case c @ GetCompetitionImage(competitionId) =>
-        val io = CompetitionQueryOperations[IO].getCompetitionInfoImage(competitionId).map(res =>
+        val io = BlobOperations.getCompetitionImage[IO](competitionId).map(res =>
           QueryServiceResponse().withGetCompetitionInfoImageResponse(GetCompetitionInfoImageResponse(
             ByteString.copyFrom(res.getOrElse(Array.emptyByteArray))
           ))
@@ -123,8 +127,8 @@ object CompetitionApiActor {
 
       case c @ PutCompetitionInfo(competitionId, request) =>
         if (request.payload.isAddCompetitionInfoRequest) {
-          val io = CompetitionUpdateOperations[IO]
-            .addCompetitionInfoTemplate(competitionId)(request.getAddCompetitionInfoRequest.competitionInfo.toByteArray)
+          val io = BlobOperations
+            .saveCompetitionInfo(competitionId, request.getAddCompetitionInfoRequest.competitionInfo.toByteArray)
             .map(_ => QueryServiceResponse.defaultInstance)
           runEffectAndReply(context, c.replyTo, io)
         } else {
@@ -135,8 +139,8 @@ object CompetitionApiActor {
 
       case c @ PutCompetitionImage(competitionId, request) =>
         if (request.payload.isAddCompetitionImageRequest) {
-          val io = CompetitionUpdateOperations[IO]
-            .addCompetitionInfoImage(competitionId)(request.getAddCompetitionImageRequest.image.toByteArray)
+          val io = BlobOperations
+            .saveCompetitionImage[IO](competitionId, request.getAddCompetitionImageRequest.image.toByteArray)
             .map(_ => QueryServiceResponse.defaultInstance)
           runEffectAndReply(context, c.replyTo, io)
         } else {
@@ -145,8 +149,7 @@ object CompetitionApiActor {
           Behaviors.same[CompetitionApiCommand]
         }
       case c @ RemoveCompetitionImage(competitionId, _) =>
-        val io = CompetitionUpdateOperations[IO].removeCompetitionInfoImage(competitionId)
-          .map(_ => QueryServiceResponse.defaultInstance)
+        val io = BlobOperations.deleteCompetitionImage(competitionId).map(_ => QueryServiceResponse.defaultInstance)
         runEffectAndReply(context, c.replyTo, io)
 
       case c @ GetSchedule(competitionId) =>

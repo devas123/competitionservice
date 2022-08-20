@@ -5,7 +5,6 @@ import compman.compsrv.logic.competitor.CompetitorService
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.SpecBase
 import compman.compsrv.logic.actors.behavior.WithIORuntime
-import compman.compsrv.query.model.CompetitionState
 
 import scala.util.Using
 
@@ -32,38 +31,31 @@ class CompetitionOperationsTest extends SpecBase with TestEntities with Embedded
       } yield assert(props.isDefined)).unsafeRunSync()
     }.get
   }
+  private val bytes: Array[Byte] = scala.util.Random.nextBytes(256)
   test("should save and load competition info template") {
     Using(embeddedMongo()) { mongo =>
-      val context                 = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
-      val competitionInfoTemplate = CompetitionState.CompetitionInfo(Some(scala.util.Random.nextBytes(256)), None)
+      val context = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
       import context._
       (for {
-        _ <- CompetitionUpdateOperations[IO].removeCompetitionState(competitionId)
-        _ <- ManagedCompetitionsOperations.addManagedCompetition[IO](managedCompetition)
-        _ <- CompetitionUpdateOperations[IO]
-          .addCompetitionInfoTemplate(competitionId)(competitionInfoTemplate.template.getOrElse(Array.emptyByteArray))
-        template <- CompetitionQueryOperations.getCompetitionInfoTemplate(competitionId)
+        _        <- BlobOperations.saveCompetitionInfo(competitionId, bytes)
+        template <- BlobOperations.getCompetitionInfo(competitionId)
         _ <- IO {
           assert(template.isDefined)
-          assert(template.exists(_.sameElements(competitionInfoTemplate.template.getOrElse(Array.emptyByteArray))))
+          assert(template.exists(_.sameElements(bytes)))
         }
       } yield ()).unsafeRunSync()
     }.get
   }
   test("should save and load competition info image") {
     Using(embeddedMongo()) { mongo =>
-      val context                 = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
-      val competitionInfoTemplate = CompetitionState.CompetitionInfo(None, Some(scala.util.Random.nextBytes(256)))
+      val context = EmbeddedMongoDb.context(mongo.getFirstMappedPort.intValue())
       import context._
       (for {
-        _ <- CompetitionUpdateOperations[IO].removeCompetitionState(competitionId)
-        _ <- ManagedCompetitionsOperations.addManagedCompetition[IO](managedCompetition)
-        _ <- CompetitionUpdateOperations[IO]
-          .addCompetitionInfoImage(competitionId)(competitionInfoTemplate.template.getOrElse(Array.emptyByteArray))
-        template <- CompetitionQueryOperations.getCompetitionInfoImage(competitionId)
+        _        <- BlobOperations.saveCompetitionImage(competitionId, bytes)
+        template <- BlobOperations.getCompetitionImage(competitionId)
         _ <- IO {
           assert(template.isDefined)
-          assert(template.exists(_.sameElements(competitionInfoTemplate.template.getOrElse(Array.emptyByteArray))))
+          assert(template.exists(_.sameElements(bytes)))
         }
       } yield ()).unsafeRunSync()
     }.get

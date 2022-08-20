@@ -14,10 +14,6 @@ trait CompetitionQueryOperations[F[+_]] {
   def getCompetitionProperties(id: String): F[Option[CompetitionProperties]]
   def getCategoriesByCompetitionId(competitionId: String): F[List[Category]]
   def getNumberOfCompetitorsForCategory(competitionId: String)(categoryId: String): F[Int]
-
-  def getCompetitionInfoTemplate(competitionId: String): F[Option[Array[Byte]]]
-  def getCompetitionInfoImage(competitionId: String): F[Option[Array[Byte]]]
-
   def getCategoryById(competitionId: String)(id: String): F[Option[Category]]
 
   def searchCategory(
@@ -77,8 +73,6 @@ object CompetitionQueryOperations {
         case None        => Monad[F].pure(List.empty)
       }
     }
-
-    override def getCompetitionInfoTemplate(competitionId: String): F[Option[Array[Byte]]] = Monad[F].pure(none)
 
     override def getCategoryById(competitionId: String)(id: String): F[Option[Category]] =
       getById[F, Category](categories)(id)
@@ -152,8 +146,6 @@ object CompetitionQueryOperations {
       cmtrs <- competitors
       result = cmtrs.get.values.count(_.categories.contains(categoryId))
     } yield Monad[F].pure(result)).getOrElse(Monad[F].pure(0))
-
-    override def getCompetitionInfoImage(competitionId: String): F[Option[Array[Byte]]] = Monad[F].pure(none)
   }
 
   def live(mongo: MongoClient, name: String): CompetitionQueryOperations[IO] = new CompetitionQueryOperations[IO]
@@ -161,10 +153,8 @@ object CompetitionQueryOperations {
 
     import org.mongodb.scala.model.Projections._
 
-    private val includeCompetitionInfoTemplateProjection  = include("info.template")
-    private val includeCompetitionInfoImageProjection  = include("info.image")
-    private val includeRegistrationInfoProjection = include("registrationInfo")
-    private val includePeriodsProjection          = include("periods")
+    private val includeRegistrationInfoProjection        = include("registrationInfo")
+    private val includePeriodsProjection                 = include("periods")
 
     private val competitionPropertiesProjection = include("properties")
     private val categoriesProjection            = include("categories")
@@ -187,15 +177,6 @@ object CompetitionQueryOperations {
         select = collection.find(equal(idField, competitionId)).projection(categoriesProjection).map(_.categories)
         res <- IO.fromFuture(IO(select.toFuture()))
       } yield res.headOption.flatten.map(_.values.toList).getOrElse(List.empty)
-    }
-
-    override def getCompetitionInfoTemplate(competitionId: String): IO[Option[Array[Byte]]] = {
-      for {
-        collection <- competitionStateCollection
-        select = collection.find(equal(idField, competitionId)).projection(includeCompetitionInfoTemplateProjection)
-          .map(_.info.flatMap(_.template))
-        res <- selectOne(select)
-      } yield res.flatten
     }
 
     override def getCategoryById(competitionId: String)(id: String): IO[Option[Category]] = {
@@ -358,13 +339,6 @@ object CompetitionQueryOperations {
         res <- IO.fromFuture(IO(select.toFuture())).map(_.toInt)
       } yield res
     }
-
-    override def getCompetitionInfoImage(competitionId: String): IO[Option[Array[Byte]]] = for {
-      collection <- competitionStateCollection
-      select = collection.find(equal(idField, competitionId)).projection(includeCompetitionInfoImageProjection)
-        .map(_.info.flatMap(_.image))
-      res <- selectOne(select)
-    } yield res.flatten
   }
 
   def getCompetitionProperties[F[+_]: CompetitionQueryOperations](id: String): F[Option[CompetitionProperties]] =
@@ -372,11 +346,6 @@ object CompetitionQueryOperations {
 
   def getCategoriesByCompetitionId[F[+_]: CompetitionQueryOperations](competitionId: String): F[List[Category]] =
     CompetitionQueryOperations[F].getCategoriesByCompetitionId(competitionId)
-
-  def getCompetitionInfoTemplate[F[+_]: CompetitionQueryOperations](competitionId: String): F[Option[Array[Byte]]] =
-    CompetitionQueryOperations[F].getCompetitionInfoTemplate(competitionId)
-  def getCompetitionInfoImage[F[+_]: CompetitionQueryOperations](competitionId: String): F[Option[Array[Byte]]] =
-    CompetitionQueryOperations[F].getCompetitionInfoImage(competitionId)
 
   def getCategoryById[F[+_]: CompetitionQueryOperations](competitionId: String)(id: String): F[Option[Category]] =
     CompetitionQueryOperations[F].getCategoryById(competitionId)(id)
