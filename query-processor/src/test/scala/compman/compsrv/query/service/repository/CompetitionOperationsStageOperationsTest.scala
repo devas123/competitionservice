@@ -2,7 +2,7 @@ package compman.compsrv.query.service.repository
 
 import cats.effect.IO
 import compman.compsrv.SpecBase
-import compman.compsrv.logic.actors.behavior.WithIORuntime
+import compman.compsrv.query.actors.behavior.WithIORuntime
 
 import scala.util.Using
 

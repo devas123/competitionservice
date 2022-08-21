@@ -1,9 +1,9 @@
-package compman.compsrv.logic.actors.behavior.api
+package compman.compsrv.query.actors.behavior.api
 
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import cats.effect.IO
-import compman.compsrv.logic.actors.behavior.WithIORuntime
+import compman.compsrv.query.actors.behavior.WithIORuntime
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.query.service.repository.{AcademyOperations, Pagination}

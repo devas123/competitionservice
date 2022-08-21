@@ -4,8 +4,8 @@ import akka.actor.typed.{ActorRef, ActorSystem, Scheduler}
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.util.Timeout
 import cats.effect.IO
-import compman.compsrv.logic.actors.behavior.api.AcademyApiActor.{AcademyApiCommand, GetAcademies, GetAcademy}
-import compman.compsrv.logic.actors.behavior.api.CompetitionApiCommands._
+import compman.compsrv.query.actors.behavior.api.AcademyApiActor.{AcademyApiCommand, GetAcademies, GetAcademy}
+import compman.compsrv.query.actors.behavior.api.CompetitionApiCommands._
 import compman.compsrv.query.service.repository.Pagination
 import compservice.model.protobuf.query.{
   GenerateCategoriesFromRestrictionsRequest,

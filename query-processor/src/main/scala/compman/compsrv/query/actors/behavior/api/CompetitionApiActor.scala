@@ -1,4 +1,4 @@
-package compman.compsrv.logic.actors.behavior.api
+package compman.compsrv.query.actors.behavior.api
 
 import akka.actor.typed.{scaladsl, ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
@@ -8,10 +8,10 @@ import cats.effect.unsafe.IORuntime
 import com.google.protobuf.timestamp.Timestamp
 import com.google.protobuf.util.Timestamps
 import com.google.protobuf.ByteString
-import compman.compsrv.logic.actors.behavior.WithIORuntime
-import compman.compsrv.logic.actors.behavior.api.CompetitionApiCommands._
+import CompetitionApiCommands._
 import compman.compsrv.logic.category.CategoryGenerateService
 import compman.compsrv.logic.fight.FightResultOptionConstants
+import compman.compsrv.query.actors.behavior.WithIORuntime
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model._
 import compman.compsrv.query.model.mapping.DtoMapping

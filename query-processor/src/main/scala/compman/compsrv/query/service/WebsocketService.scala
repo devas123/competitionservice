@@ -2,7 +2,7 @@ package compman.compsrv.query.service
 
 import akka.actor.typed.ActorRef
 import cats.effect.{std, IO}
-import compman.compsrv.logic.actors.behavior.WebsocketConnectionSupervisor
+import compman.compsrv.query.actors.behavior.WebsocketConnectionSupervisor
 import compman.compsrv.query.service.QueryHttpApiService.ServiceIO
 import compservice.model.protobuf.event.Event
 import fs2.concurrent.SignallingRef

@@ -1,4 +1,4 @@
-package compman.compsrv.logic.actors.behavior
+package compman.compsrv.query.actors.behavior
 
 import cats.effect.unsafe.IORuntime
 

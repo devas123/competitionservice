@@ -4,9 +4,9 @@ import akka.actor.typed.{ActorRef, Scheduler}
 import akka.actor.typed.scaladsl.AskPattern.{schedulerFromActorSystem, Askable}
 import akka.util.Timeout
 import cats.effect.{std, IO}
-import compman.compsrv.logic.actors.behavior.{WebsocketCompetitionConnectionSupervisor, WithIORuntime}
 import compman.compsrv.query.service.repository.TestEntities
 import compman.compsrv.SpecBase
+import compman.compsrv.query.actors.behavior.{WebsocketCompetitionConnectionSupervisor, WithIORuntime}
 import compman.compsrv.query.service.QueryHttpApiService.ServiceIO
 import compservice.model.protobuf.event.Event
 import fs2.concurrent.SignallingRef

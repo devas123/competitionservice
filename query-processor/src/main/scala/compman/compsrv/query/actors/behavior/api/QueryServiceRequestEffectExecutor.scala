@@ -1,4 +1,4 @@
-package compman.compsrv.logic.actors.behavior.api
+package compman.compsrv.query.actors.behavior.api
 
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors

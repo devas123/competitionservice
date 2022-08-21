@@ -4,7 +4,7 @@ import cats.effect.IO
 import compman.compsrv.model.extensions.InstantOps
 import compman.compsrv.query.model.{FightOrderUpdateExtended, Mat}
 import compman.compsrv.SpecBase
-import compman.compsrv.logic.actors.behavior.WithIORuntime
+import compman.compsrv.query.actors.behavior.WithIORuntime
 import compservice.model.protobuf.eventpayload.FightOrderUpdate
 import compservice.model.protobuf.model.FightStatus
 

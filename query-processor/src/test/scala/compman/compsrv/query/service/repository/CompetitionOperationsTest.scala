@@ -4,7 +4,7 @@ import cats.effect.IO
 import compman.compsrv.logic.competitor.CompetitorService
 import compman.compsrv.query.model.mapping.DtoMapping
 import compman.compsrv.SpecBase
-import compman.compsrv.logic.actors.behavior.WithIORuntime
+import compman.compsrv.query.actors.behavior.WithIORuntime
 
 import scala.util.Using
 

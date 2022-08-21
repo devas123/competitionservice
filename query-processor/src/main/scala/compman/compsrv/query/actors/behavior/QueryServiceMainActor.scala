@@ -1,4 +1,4 @@
-package compman.compsrv.logic.actors.behavior
+package compman.compsrv.query.actors.behavior
 
 import akka.actor.typed.{ActorSystem, Behavior, SupervisorStrategy}
 import akka.actor.typed.scaladsl.Behaviors
@@ -6,7 +6,7 @@ import akka.kafka.{ConsumerSettings, ProducerSettings}
 import com.mongodb.connection.ClusterSettings
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.{CreateTopicIfMissing, KafkaTopicConfig}
-import compman.compsrv.logic.actors.behavior.api.{AcademyApiActor, CompetitionApiActor}
+import compman.compsrv.query.actors.behavior.api.{AcademyApiActor, CompetitionApiActor}
 import compman.compsrv.query.config.AppConfig
 import compman.compsrv.query.service.{QueryHttpApiService, WebsocketService}
 import compman.compsrv.query.service.QueryHttpApiService.ServiceIO

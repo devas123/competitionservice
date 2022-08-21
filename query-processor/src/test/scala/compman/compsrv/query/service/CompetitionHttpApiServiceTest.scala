@@ -1,13 +1,13 @@
 package compman.compsrv.query.service
 
 import akka.actor.typed.ActorSystem
-import compman.compsrv.logic.actors.behavior.api.AcademyApiActor.AcademyApiCommand
-import compman.compsrv.logic.actors.behavior.api.CompetitionApiActor
+import compman.compsrv.query.actors.behavior.api.AcademyApiActor.AcademyApiCommand
 import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.service.QueryHttpApiService.ServiceIO
 import compman.compsrv.query.service.repository.TestEntities
 import compman.compsrv.SpecBase
-import compman.compsrv.logic.actors.behavior.WithIORuntime
+import compman.compsrv.query.actors.behavior.api.CompetitionApiActor
+import compman.compsrv.query.actors.behavior.WithIORuntime
 import compservice.model.protobuf.query.QueryServiceResponse
 import org.http4s._
 import org.http4s.implicits._

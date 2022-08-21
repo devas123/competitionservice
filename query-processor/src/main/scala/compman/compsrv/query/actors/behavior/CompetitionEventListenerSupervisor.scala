@@ -1,4 +1,4 @@
-package compman.compsrv.logic.actors.behavior
+package compman.compsrv.query.actors.behavior
 
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import akka.actor.typed.scaladsl.Behaviors
@@ -6,7 +6,7 @@ import cats.effect.IO
 import compman.compsrv.logic.actor.kafka.{KafkaConsumerApi, KafkaSupervisorCommand}
 import compman.compsrv.logic.actor.kafka.KafkaConsumerApi._
 import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.SubscribeToEnd
-import compman.compsrv.logic.actors.behavior.CompetitionEventListener.Stop
+import CompetitionEventListener.Stop
 import compman.compsrv.query.config.MongodbConfig
 import compman.compsrv.query.model.ManagedCompetition
 import compman.compsrv.query.model.mapping.DtoMapping.toInstant
