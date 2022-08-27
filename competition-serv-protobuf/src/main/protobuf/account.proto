@@ -1,0 +1,43 @@
+syntax = "proto3";
+package compservice.model.protobuf;
+import "model.proto";
+import "google/protobuf/timestamp.proto";
+
+message AccountServiceRequest {
+  oneof payload {
+    AddAccountRequestPayload addAccount = 1;
+    UpdateAccountRequestPayload updateAccount = 2;
+    UpdateProfilePictureRequestPayload updateProfilePictureRequestPayload = 3;
+  }
+}
+
+message AccountServiceResponse {
+  oneof payload {
+    ErrorResponse errorResponse = 100000;
+  }
+}
+
+message Account {
+  string userId = 1;
+  string firstName = 2;
+  string lastName = 3;
+  string email = 4;
+  google.protobuf.Timestamp birthDate = 5;
+}
+
+message AddAccountRequestPayload {
+  string firstName = 2;
+  string lastName = 3;
+  string email = 4;
+  google.protobuf.Timestamp birthDate = 5;
+}
+message UpdateProfilePictureRequestPayload {
+  bytes picture = 1;
+  string userId = 2;
+}
+message GetAccountResponsePayload {
+  Account account = 1;
+}
+message UpdateAccountRequestPayload {
+  Account account = 1;
+}

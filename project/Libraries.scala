@@ -1,24 +1,30 @@
 import sbt._
 
 object Libraries {
-  val circe                 = "0.14.1"
-  val cats                  = "2.7.0"
-  val catsEffect            = "3.3.11"
-  val guava                 = "30.1.1-jre"
-  val log4j                 = "2.17.2"
-  val disruptor             = "3.4.4"
-  val kafka                 = "2.8.1"
-  val rocksdb: String       = "7.1.2"
-  val http4s: String        = "1.0.0-M27"
-  val mongodb: String       = "4.5.0"
-  val testContainers        = "1.17.1"
-  val akka                  = "2.6.19"
-  val akkaKafkaVersion      = "3.0.0"
+  val circe            = "0.14.1"
+  val cats             = "2.7.0"
+  val catsEffect       = "3.3.11"
+  val guava            = "30.1.1-jre"
+  val log4j            = "2.17.2"
+  val disruptor        = "3.4.4"
+  val kafka            = "2.8.1"
+  val rocksdb: String  = "7.1.2"
+  val http4s: String   = "1.0.0-M27"
+  val mongodb: String  = "4.5.0"
+  val testContainers   = "1.17.1"
+  val akka             = "2.6.19"
+  val akkaHttpVersion  = "10.2.9"
+  val akkaKafkaVersion = "3.0.0"
 
   val monocle: String = "3.1.0"
 
+  val akkaActorsDependency    = "com.typesafe.akka"    %% "akka-actor-typed" % akka
+  val akkaStreamsDependency   = "com.typesafe.akka"    %% "akka-stream"      % akka
+  val akkaHttpDependency      = "com.typesafe.akka"    %% "akka-http"        % akkaHttpVersion
+  val scalaPbJson4sDependency = "com.thesamet.scalapb" %% "scalapb-json4s"   % "0.12.0"
+
   val akkaKafka: Seq[ModuleID] =
-    Seq("com.typesafe.akka" %% "akka-stream-kafka" % akkaKafkaVersion, "com.typesafe.akka" %% "akka-stream" % akka)
+    Seq("com.typesafe.akka" %% "akka-stream-kafka" % akkaKafkaVersion, akkaStreamsDependency)
 
   val akkaKafkaTests: Seq[ModuleID] = Seq(
     "com.typesafe.akka" %% "akka-stream-kafka-testkit" % akkaKafkaVersion % Test,
@@ -26,10 +32,10 @@ object Libraries {
   )
 
   val guavaDependency = "com.google.guava" % "guava" % guava
-  val akkaDependencies: Seq[ModuleID] = Seq(
-    "com.typesafe.akka" %% "akka-actor-typed"         % akka,
-    "com.typesafe.akka" %% "akka-actor-testkit-typed" % akka % Test
-  )
+  val akkaTestDependency: ModuleID = "com.typesafe.akka" %% "akka-actor-testkit-typed" % akka % Test
+
+  val akkaDependencies: Seq[ModuleID] =
+    Seq(akkaActorsDependency, akkaTestDependency)
 
   val rocksDbDependency             = "org.rocksdb"             % "rocksdbjni"         % rocksdb
   val mongoDbScalaDriver            = "org.mongodb.scala"      %% "mongo-scala-driver" % mongodb
@@ -55,11 +61,8 @@ object Libraries {
 
   val scalaTestDependency = "org.scalatest" %% "scalatest" % "3.2.12" % Test
 
-  val log4jDependencies: Seq[ModuleID] = Seq(
-    "org.apache.logging.log4j" % "log4j-core"        % log4j,
-    "org.apache.logging.log4j" % "log4j-slf4j-impl"  % log4j
-  )
-
+  val log4jDependencies: Seq[ModuleID] =
+    Seq("org.apache.logging.log4j" % "log4j-core" % log4j, "org.apache.logging.log4j" % "log4j-slf4j-impl" % log4j)
 
   val http4sDependencies: Seq[ModuleID] = Seq(
     "org.http4s" %% "http4s-dsl"          % http4s,

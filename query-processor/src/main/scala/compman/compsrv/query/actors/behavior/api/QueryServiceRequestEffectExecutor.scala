@@ -4,7 +4,8 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
-import compservice.model.protobuf.query.{ErrorResponse, QueryServiceResponse}
+import compservice.model.protobuf.model.ErrorResponse
+import compservice.model.protobuf.query.QueryServiceResponse
 
 import scala.concurrent.duration.FiniteDuration
 import scala.util.{Failure, Success, Try}

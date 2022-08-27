@@ -19,6 +19,7 @@ import compman.compsrv.query.service.repository._
 import compman.compsrv.query.service.repository.BlobOperations.BlobService
 import compman.compsrv.query.service.repository.ManagedCompetitionsOperations.ManagedCompetitionService
 import compservice.model.protobuf.model
+import compservice.model.protobuf.model.ErrorResponse
 import compservice.model.protobuf.query.{MatFightsQueryResult, MatsQueryResult, _}
 import org.mongodb.scala.MongoClient
 

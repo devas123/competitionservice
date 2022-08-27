@@ -540,3 +540,8 @@ message FightStartTimePair {
   string scheduleEntryId = 7;
   bool invalid = 8;
 }
+
+message ErrorResponse {
+  optional string errorMessage = 1;
+  optional string errorReason = 2;
+}

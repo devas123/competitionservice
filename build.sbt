@@ -38,7 +38,7 @@ lazy val commons = module("commons", "command-processor/commons")
   .dependsOn(competitionServiceModelProtobuf)
 
 lazy val competitionservice = project.in(file(".")).settings(publish / skip := true)
-  .aggregate(commandProcessor, queryProcessor, gatewayService, kafkaCommons)
+  .aggregate(commandProcessor, queryProcessor, gatewayService, kafkaCommons, accountService)
 
 lazy val commandProcessor = module("command-processor", "command-processor")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv"))
@@ -58,11 +58,30 @@ lazy val queryProcessor = module("query-processor", "query-processor")
       testContainersDependency,
       testContainersMongoDependency,
       scalaTestDependency,
-      "com.thesamet.scalapb" %% "scalapb-json4s" % "0.12.0"
+      scalaPbJson4sDependency
     ) ++ akkaDependencies,
     testFrameworks       := Seq(TestFrameworks.ScalaTest),
     Docker / packageName := "query-processor"
   ).settings(stdSettings("query-processor", Seq.empty)).dependsOn(commons, kafkaCommons)
+
+lazy val accountService = module("account-service", "account-service")
+  .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.logic"))
+  .settings(
+    libraryDependencies ++= catsDependencies ++ monocleDependencies ++ Seq(
+      mongoDbScalaDriver,
+      disruptorDependency,
+      testContainersDependency,
+      testContainersMongoDependency,
+      scalaTestDependency,
+      akkaActorsDependency,
+      akkaStreamsDependency,
+      akkaHttpDependency,
+      scalaPbJson4sDependency,
+      akkaTestDependency
+    ),
+    testFrameworks       := Seq(TestFrameworks.ScalaTest),
+    Docker / packageName := "account-service"
+  ).settings(stdSettings("account-service", Seq.empty)).dependsOn(commons, kafkaCommons)
 
 lazy val gatewayService = module("gateway-service", "gateway-service")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.gateway"))
