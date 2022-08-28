@@ -67,7 +67,7 @@ lazy val queryProcessor = module("query-processor", "query-processor")
 lazy val accountService = module("account-service", "account-service")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.logic"))
   .settings(
-    libraryDependencies ++= catsDependencies ++ monocleDependencies ++ Seq(
+    libraryDependencies ++= log4jDependencies ++ catsDependencies ++ monocleDependencies ++ http4sDependencies ++ Seq(
       mongoDbScalaDriver,
       disruptorDependency,
       testContainersDependency,
@@ -75,13 +75,12 @@ lazy val accountService = module("account-service", "account-service")
       scalaTestDependency,
       akkaActorsDependency,
       akkaStreamsDependency,
-      akkaHttpDependency,
       scalaPbJson4sDependency,
       akkaTestDependency
     ),
     testFrameworks       := Seq(TestFrameworks.ScalaTest),
     Docker / packageName := "account-service"
-  ).settings(stdSettings("account-service", Seq.empty)).dependsOn(commons, kafkaCommons)
+  ).settings(stdSettings("account-service", Seq.empty)).dependsOn(commons)
 
 lazy val gatewayService = module("gateway-service", "gateway-service")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.gateway"))

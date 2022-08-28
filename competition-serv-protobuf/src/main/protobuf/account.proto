@@ -13,6 +13,7 @@ message AccountServiceRequest {
 
 message AccountServiceResponse {
   oneof payload {
+    GetAccountResponsePayload getAccountResponsePayload = 1;
     ErrorResponse errorResponse = 100000;
   }
 }

@@ -13,29 +13,26 @@ object Libraries {
   val mongodb: String  = "4.5.0"
   val testContainers   = "1.17.1"
   val akka             = "2.6.19"
-  val akkaHttpVersion  = "10.2.9"
+  val scalaPbVersion   = "0.12.0"
   val akkaKafkaVersion = "3.0.0"
 
-  val monocle: String = "3.1.0"
-
+  val monocle: String         = "3.1.0"
   val akkaActorsDependency    = "com.typesafe.akka"    %% "akka-actor-typed" % akka
   val akkaStreamsDependency   = "com.typesafe.akka"    %% "akka-stream"      % akka
-  val akkaHttpDependency      = "com.typesafe.akka"    %% "akka-http"        % akkaHttpVersion
-  val scalaPbJson4sDependency = "com.thesamet.scalapb" %% "scalapb-json4s"   % "0.12.0"
+  val scalaPbJson4sDependency = "com.thesamet.scalapb" %% "scalapb-json4s"   % scalaPbVersion
 
   val akkaKafka: Seq[ModuleID] =
     Seq("com.typesafe.akka" %% "akka-stream-kafka" % akkaKafkaVersion, akkaStreamsDependency)
 
-  val akkaKafkaTests: Seq[ModuleID] = Seq(
-    "com.typesafe.akka" %% "akka-stream-kafka-testkit" % akkaKafkaVersion % Test,
-    "com.typesafe.akka" %% "akka-stream-testkit"       % akka             % Test
-  )
+  val akkaStreamsTestKit: ModuleID     = "com.typesafe.akka" %% "akka-stream-testkit"       % akka             % Test
+  val akkaStreamKafkaTestKit: ModuleID = "com.typesafe.akka" %% "akka-stream-kafka-testkit" % akkaKafkaVersion % Test
 
-  val guavaDependency = "com.google.guava" % "guava" % guava
+  val akkaKafkaTests: Seq[ModuleID] = Seq(akkaStreamKafkaTestKit, akkaStreamsTestKit)
+
+  val guavaDependency              = "com.google.guava"   % "guava"                    % guava
   val akkaTestDependency: ModuleID = "com.typesafe.akka" %% "akka-actor-testkit-typed" % akka % Test
 
-  val akkaDependencies: Seq[ModuleID] =
-    Seq(akkaActorsDependency, akkaTestDependency)
+  val akkaDependencies: Seq[ModuleID] = Seq(akkaActorsDependency, akkaTestDependency)
 
   val rocksDbDependency             = "org.rocksdb"             % "rocksdbjni"         % rocksdb
   val mongoDbScalaDriver            = "org.mongodb.scala"      %% "mongo-scala-driver" % mongodb
@@ -72,7 +69,7 @@ object Libraries {
 
   val scalapbProtobufDepenedency: Seq[ModuleID] = Seq(
     "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
-    "com.thesamet.scalapb" %% "scalapb-json4s"  % "0.12.0"
+    scalaPbJson4sDependency
   )
 
   val protobufUtils: Seq[ModuleID] = Seq("com.google.protobuf" % "protobuf-java-util" % protobufUtilsVersion)

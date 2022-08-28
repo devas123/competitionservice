@@ -14,18 +14,21 @@ final case class MongodbConfig(
                                 accountDatabaseName: String
 )
 
-case class AccountServiceConfig(mongo: MongodbConfig, version: String, requestTimeout: FiniteDuration)
+case class AccountServiceConfig(mongo: MongodbConfig, version: String, requestTimeout: FiniteDuration, port: Int)
 object AccountServiceConfig {
-  def load(config: Config): AccountServiceConfig = AccountServiceConfig(
-    mongo = MongodbConfig(
-      host = config.getString("mongo.host"),
-      port = config.getInt("mongo.port"),
-      username = config.getString("mongo.username"),
-      password = config.getString("mongo.password"),
-      authenticationDb = config.getString("mongo.authenticationDb"),
-      accountDatabaseName = config.getString("mongo.accountDatabaseName")
-    ),
-    version = config.getString("version"),
-    requestTimeout = FiniteDuration(config.getDuration("requestTimeout").toMillis, TimeUnit.MILLISECONDS)
-  )
-}
+  def load(globalConfig: Config): AccountServiceConfig = {
+    val accountConfig = globalConfig.getConfig("account")
+    AccountServiceConfig(
+      mongo = MongodbConfig(
+        host = accountConfig.getString("mongo.host"),
+        port = accountConfig.getInt("mongo.port"),
+        username = accountConfig.getString("mongo.username"),
+        password = accountConfig.getString("mongo.password"),
+        authenticationDb = accountConfig.getString("mongo.authenticationDb"),
+        accountDatabaseName = accountConfig.getString("mongo.accountDatabaseName")
+      ),
+      version = accountConfig.getString("version"),
+      port = accountConfig.getInt("port"),
+      requestTimeout = FiniteDuration(accountConfig.getDuration("requestTimeout").toMillis, TimeUnit.MILLISECONDS)
+    )
+  }}

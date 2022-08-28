@@ -5,6 +5,7 @@ import akka.actor.typed.scaladsl.Behaviors
 import compman.compsrv.account.actors.AccountRepositoryWriterActor.{AccountRepositoryWriterActorApi, AddAccount, DeleteAccount, UpdateAccount}
 import compman.compsrv.account.model.InternalAccount
 import compman.compsrv.account.service.AccountRepository
+import compservice.model.protobuf.account.AccountServiceResponse
 
 import java.util.UUID
 import scala.concurrent.duration.FiniteDuration
@@ -12,19 +13,14 @@ import scala.concurrent.duration.FiniteDuration
 object AccountRepositorySupervisorActor {
 
   sealed trait AccountServiceQueryRequest
-  final case class GetAccountRequest(id: String, replyTo: ActorRef[AccountServiceQueryResponse])
+  final case class GetAccountRequest(id: String, replyTo: ActorRef[AccountServiceResponse])
       extends AccountServiceQueryRequest
-  final case class SaveAccountRequest(account: InternalAccount, replyTo: ActorRef[AccountServiceQueryResponse])
+  final case class SaveAccountRequest(account: InternalAccount, replyTo: ActorRef[AccountServiceResponse])
       extends AccountServiceQueryRequest
-  final case class UpdateAccountRequest(account: InternalAccount, replyTo: ActorRef[AccountServiceQueryResponse])
+  final case class UpdateAccountRequest(account: InternalAccount, replyTo: ActorRef[AccountServiceResponse])
       extends AccountServiceQueryRequest
-  final case class DeleteAccontRequest(accountId: String, replyTo: ActorRef[AccountServiceQueryResponse])
+  final case class DeleteAccontRequest(accountId: String, replyTo: ActorRef[AccountServiceResponse])
       extends AccountServiceQueryRequest
-  sealed trait AccountServiceQueryResponse
-  final case class GetAccountResponse(option: Option[InternalAccount]) extends AccountServiceQueryResponse
-  final object WriteResponseOk                                         extends AccountServiceQueryResponse
-  final case class ErrorResponse(reason: String)                       extends AccountServiceQueryResponse
-
   private def initialized(
     accountWriter: ActorRef[AccountRepositoryWriterActorApi],
     accountService: AccountRepository,

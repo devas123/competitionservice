@@ -2,9 +2,12 @@ package compman.compsrv.account.actors
 
 import akka.actor.typed.{ActorSystem, Behavior, PostStop}
 import akka.actor.typed.scaladsl.Behaviors
+import cats.effect.{ExitCode, IO}
 import com.mongodb.connection.ClusterSettings
 import compman.compsrv.account.config.AccountServiceConfig
 import compman.compsrv.account.service.{AccountRepository, HttpServer}
+import org.http4s.blaze.server.BlazeServerBuilder
+import org.http4s.server.Router
 import org.mongodb.scala.{MongoClient, MongoClientSettings, MongoCredential, ServerAddress}
 
 import scala.concurrent.ExecutionContextExecutor
@@ -35,12 +38,16 @@ object AccountServiceMainActor {
       AccountRepositorySupervisorActor.behavior(accountRepository, config.requestTimeout),
       "accountRepositorySupervisor"
     )
-    val bindingFuture = HttpServer.runServer(config, accountRepoSupervisor)
-    Behaviors.receiveSignal[AccountServiceMainActorApi] { case (_, PostStop) =>
-      bindingFuture.flatMap(_.unbind())
-      Behaviors.same
-    }
 
+    val prefix  = s"/accountsrv/${config.version}"
+    val httpApp = Router[IO](prefix -> HttpServer.routes(accountRepoSupervisor)).orNotFound
+
+    val bindingFuture = BlazeServerBuilder[IO](ex).bindHttp(8080, "localhost").withHttpApp(httpApp).resource
+      .use(_ => IO.never).as(ExitCode.Success)
+
+    ctx.spawn(AccountHttpServiceRunner.behavior(bindingFuture), "httpServer")
+
+    ctx.log.info(s"Started server at http://localhost:${config.port}$prefix")
+    Behaviors.receiveSignal[AccountServiceMainActorApi] { case (_, PostStop) => Behaviors.same }
   }
-
 }
