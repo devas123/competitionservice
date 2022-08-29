@@ -42,8 +42,10 @@ object AccountServiceMainActor {
     val prefix  = s"/accountsrv/${config.version}"
     val httpApp = Router[IO](prefix -> HttpServer.routes(accountRepoSupervisor)).orNotFound
 
-    val bindingFuture = BlazeServerBuilder[IO](ex).bindHttp(8080, "localhost").withHttpApp(httpApp).resource
-      .use(_ => IO.never).as(ExitCode.Success)
+    val bindingFuture = BlazeServerBuilder[IO](ex).bindHttp(config.port, "localhost").withHttpApp(httpApp)
+      .serve
+      .compile.drain
+      .as(ExitCode.Success)
 
     ctx.spawn(AccountHttpServiceRunner.behavior(bindingFuture), "httpServer")
 

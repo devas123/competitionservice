@@ -10,7 +10,6 @@ import org.http4s.implicits.http4sLiteralsSyntax
 
 class HttpRoutesTest extends SpecBase {
 
-  val version                                    = "v1"
   implicit val actorSystem: ActorSystem[Nothing] = actorTestKit.system
   implicit val runtime: IORuntime                = cats.effect.unsafe.IORuntime.global
 
@@ -18,7 +17,7 @@ class HttpRoutesTest extends SpecBase {
     val repositoryActor: TestProbe[AccountServiceQueryRequest] = actorTestKit
       .createTestProbe[AccountServiceQueryRequest]()
     // tests:
-    val response = HttpServer.routes(repositoryActor.ref).orNotFound.run(Request[IO](Method.GET, uri"/account/test"))
+    HttpServer.routes(repositoryActor.ref).orNotFound.run(Request[IO](Method.GET, uri"/account/test"))
       .unsafeRunSync()
     repositoryActor.expectMessageType[GetAccountRequest]
   }
