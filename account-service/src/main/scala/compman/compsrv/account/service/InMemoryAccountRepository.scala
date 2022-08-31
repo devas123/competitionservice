@@ -7,9 +7,9 @@ import scala.collection.mutable
 
 case class InMemoryAccountRepository(accounts: mutable.Map[String, InternalAccount] = mutable.Map.empty)
     extends AccountRepository {
-  override def saveAccount(account: InternalAccount): IO[Unit] = IO { accounts.put(account.userId, account) }
+  override def saveAccount(account: InternalAccount): IO[Unit] = IO { accounts.put(account.userId, account) }.void
 
-  override def deleteAccount(id: String): IO[Unit] = IO { accounts.remove(id) }
+  override def deleteAccount(id: String): IO[Unit] = IO { accounts.remove(id) }.void
 
   override def getAccount(id: String): IO[Option[InternalAccount]] = IO { accounts.get(id) }
 

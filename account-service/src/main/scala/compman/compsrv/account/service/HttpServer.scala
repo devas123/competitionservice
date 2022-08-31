@@ -9,14 +9,12 @@ import compman.compsrv.account.model.mapping.DtoMapping
 import compservice.model.protobuf.account._
 import org.http4s.{HttpRoutes, Response}
 import org.http4s.dsl.Http4sDsl
-import org.slf4j.LoggerFactory
 
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 
 object HttpServer {
 
-  private val logger            = LoggerFactory.getLogger(classOf[HttpServer.type])
   implicit val timeout: Timeout = 3.seconds
   private val dsl               = Http4sDsl[IO]
 
