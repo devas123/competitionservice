@@ -6,9 +6,11 @@ import akka.util.Timeout
 import cats.effect.IO
 import compman.compsrv.account.actors.AccountRepositorySupervisorActor._
 import compman.compsrv.account.model.mapping.DtoMapping
+import compman.compsrv.http4s.loggerMiddleware
 import compservice.model.protobuf.account._
 import org.http4s.{HttpRoutes, Response}
 import org.http4s.dsl.Http4sDsl
+import org.slf4j.LoggerFactory
 
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
@@ -29,7 +31,13 @@ object HttpServer {
       case Right(value) => Ok(value.toByteArray)
     }
   }
-  def routes(
+
+  private val log = LoggerFactory.getLogger(classOf[HttpServer.type])
+
+  def routes(accountRepoSupervisor: ActorRef[AccountServiceQueryRequest])(implicit
+    system: ActorSystem[_]
+  ): HttpRoutes[IO] = loggerMiddleware(rawRoutes(accountRepoSupervisor))(log)
+  private def rawRoutes(
     accountRepoSupervisor: ActorRef[AccountServiceQueryRequest]
   )(implicit system: ActorSystem[_]): HttpRoutes[IO] = {
     import akka.actor.typed.scaladsl.AskPattern.schedulerFromActorSystem

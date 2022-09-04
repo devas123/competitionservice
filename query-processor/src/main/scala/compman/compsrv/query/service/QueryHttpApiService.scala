@@ -4,6 +4,7 @@ import akka.actor.typed.{ActorRef, ActorSystem, Scheduler}
 import akka.actor.typed.scaladsl.AskPattern._
 import akka.util.Timeout
 import cats.effect.IO
+import compman.compsrv.http4s
 import compman.compsrv.query.actors.behavior.api.AcademyApiActor.{AcademyApiCommand, GetAcademies, GetAcademy}
 import compman.compsrv.query.actors.behavior.api.CompetitionApiCommands._
 import compman.compsrv.query.service.repository.Pagination
@@ -14,6 +15,7 @@ import compservice.model.protobuf.query.{
 }
 import org.http4s.{HttpRoutes, Response}
 import org.http4s.dsl.Http4sDsl
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration.DurationInt
 
@@ -36,12 +38,17 @@ object QueryHttpApiService {
   type ServiceIO[A] = IO[A]
 
   private val dsl = Http4sDsl[ServiceIO]
+  private val log = LoggerFactory.getLogger(classOf[QueryHttpApiService.type])
 
   import dsl._
 
   def service(competitionApiActor: ActorRef[CompetitionApiCommand], academyApiActor: ActorRef[AcademyApiCommand])(
     implicit system: ActorSystem[_]
-  ): HttpRoutes[ServiceIO] = {
+  ): HttpRoutes[ServiceIO] = http4s.loggerMiddleware(internalService(competitionApiActor, academyApiActor))(log)
+  def internalService(
+    competitionApiActor: ActorRef[CompetitionApiCommand],
+    academyApiActor: ActorRef[AcademyApiCommand]
+  )(implicit system: ActorSystem[_]): HttpRoutes[ServiceIO] = {
     HttpRoutes.of[ServiceIO] {
       case req @ POST -> Root / "generatecategories" / _ => for {
           body <- req.body.covary[ServiceIO].chunkAll.compile.toList

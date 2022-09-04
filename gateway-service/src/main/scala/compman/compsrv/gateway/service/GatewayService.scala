@@ -7,6 +7,7 @@ import cats.effect.IO
 import cats.implicits.catsSyntaxApplicative
 import compman.compsrv.gateway.actors.CommandForwardingActor
 import compman.compsrv.gateway.actors.CommandForwardingActor.GatewayApiCommand
+import compman.compsrv.http4s
 import compservice.model.protobuf.callback.CommandCallback
 import compservice.model.protobuf.command.Command
 import org.http4s.{HttpRoutes, Response}
@@ -33,7 +34,9 @@ object GatewayService {
   import dsl._
   import QueryParameters._
 
-  def service(apiActor: ActorRef[GatewayApiCommand])(implicit system: ActorSystem[_]): HttpRoutes[ServiceIO] =
+  def service(apiActor: ActorRef[GatewayApiCommand])(implicit system: ActorSystem[_]): HttpRoutes[ServiceIO] = http4s
+    .loggerMiddleware(internalService(apiActor))(log)
+  def internalService(apiActor: ActorRef[GatewayApiCommand])(implicit system: ActorSystem[_]): HttpRoutes[ServiceIO] =
     HttpRoutes.of[ServiceIO] {
       case req @ POST -> Root / "competition" / "command" :? CompetitionIdParamMatcher(competitionId) => for {
           _ <- IO.raiseError(new RuntimeException("competition id missing"))
@@ -73,23 +76,4 @@ object GatewayService {
       case Right(value) => Ok(value.toByteArray)
     }
   }
-
-//  private def sendApiCommandAndReturnResponse[Command](
-//    apiActor: ActorRef[Command],
-//    apiCommandWithCallbackCreator: ActorRef[CommandCallback] => Command
-//  ): ServiceIO[Response[ServiceIO]] = {
-//    import compman.compsrv.logic.actors.patterns.Patterns._
-//    for {
-//      response <- (apiActor ? apiCommandWithCallbackCreator)
-//        .onError(err => Logging.error(s"Error while getting response: $err"))
-//      _ <- Logging.debug(s"Sending response: $response")
-//      bytes = response.map(_.toByteArray)
-//      _ <- Logging.debug(s"Sending bytes: ${new String(bytes.getOrElse(Array.empty))}")
-//      m <- bytes match {
-//        case Some(value) => Ok(value)
-//        case None        => RequestTimeout()
-//      }
-//    } yield m
-//  }
-
 }
