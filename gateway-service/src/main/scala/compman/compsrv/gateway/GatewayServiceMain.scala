@@ -10,7 +10,13 @@ import compman.compsrv.gateway.service.GatewayService
 import compman.compsrv.gateway.service.GatewayService.ServiceIO
 import compman.compsrv.logic.actor.kafka.KafkaSupervisor
 import compman.compsrv.logic.actor.kafka.KafkaSupervisorCommand.{CreateTopicIfMissing, KafkaTopicConfig}
-import org.apache.kafka.common.serialization.{ByteArrayDeserializer, ByteArraySerializer, StringDeserializer, StringSerializer}
+import org.apache.kafka.common.serialization.{
+  ByteArrayDeserializer,
+  ByteArraySerializer,
+  StringDeserializer,
+  StringSerializer
+}
+import org.http4s.blaze.client.BlazeClientBuilder
 import org.http4s.blaze.server.BlazeServerBuilder
 
 object GatewayServiceMain extends App {
@@ -47,8 +53,11 @@ object GatewayServiceMain extends App {
 
     implicit val actorSystem: ActorSystem[Nothing] = context.system
     implicit val runtime: IORuntime                = IORuntime.global
-    BlazeServerBuilder[ServiceIO].bindHttp(8080, "0.0.0.0").withWebSockets(true).withSocketKeepAlive(true)
-      .withHttpApp(GatewayService.service(commandForwardingActor).orNotFound).serve.compile.drain.unsafeRunSync()
+
+    BlazeClientBuilder[ServiceIO](executionContext = actorSystem.executionContext).resource.use(client =>
+      BlazeServerBuilder[ServiceIO].bindHttp(8080, "0.0.0.0").withWebSockets(true).withSocketKeepAlive(true)
+        .withHttpApp(GatewayService.service(commandForwardingActor, client, config.proxy).orNotFound).serve.compile.drain
+    ).unsafeRunSync()
     Behaviors.ignore
   }
 

@@ -89,7 +89,7 @@ lazy val accountService = module("account-service", "account-service")
 lazy val gatewayService = module("gateway-service", "gateway-service")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.gateway"))
   .settings(
-    libraryDependencies ++= akkaDependencies ++ Seq(scalaTestDependency),
+    libraryDependencies ++= akkaDependencies ++ Seq(scalaTestDependency, jwtCore),
     testFrameworks       := Seq(TestFrameworks.ScalaTest),
     Docker / packageName := "gateway-service"
   ).settings(stdSettings("gateway-service")).dependsOn(commons, kafkaCommons, httpCommon)

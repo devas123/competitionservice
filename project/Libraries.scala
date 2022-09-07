@@ -15,6 +15,7 @@ object Libraries {
   val akka             = "2.6.19"
   val scalaPbVersion   = "0.12.0"
   val akkaKafkaVersion = "3.0.0"
+  val jwt              = "9.1.0"
 
   val monocle: String         = "3.1.0"
   val akkaActorsDependency    = "com.typesafe.akka"    %% "akka-actor-typed" % akka
@@ -33,16 +34,16 @@ object Libraries {
   val akkaTestDependency: ModuleID = "com.typesafe.akka" %% "akka-actor-testkit-typed" % akka % Test
 
   val akkaDependencies: Seq[ModuleID] = Seq(akkaActorsDependency, akkaTestDependency)
-
-  val rocksDbDependency             = "org.rocksdb"             % "rocksdbjni"         % rocksdb
-  val mongoDbScalaDriver            = "org.mongodb.scala"      %% "mongo-scala-driver" % mongodb
-  val testContainersDependency      = "org.testcontainers"      % "testcontainers"     % testContainers % "test"
-  val testContainersMongoDependency = "org.testcontainers"      % "mongodb"            % testContainers % "test"
-  val testContainersKafkaDependency = "org.testcontainers"      % "kafka"              % testContainers % "test"
-  val javaPoetDependency            = "com.squareup"            % "javapoet"           % "1.13.0"
-  val autoServiceDependency         = "com.google.auto.service" % "auto-service"       % "1.0.1"
-  val lombokDependency              = "org.projectlombok"       % "lombok"             % "1.18.24"
-  val protobufUtilsVersion          = "3.21.1"
+  val jwtCore                         = "com.github.jwt-scala"   %% "jwt-core"           % jwt
+  val rocksDbDependency               = "org.rocksdb"             % "rocksdbjni"         % rocksdb
+  val mongoDbScalaDriver              = "org.mongodb.scala"      %% "mongo-scala-driver" % mongodb
+  val testContainersDependency        = "org.testcontainers"      % "testcontainers"     % testContainers % "test"
+  val testContainersMongoDependency   = "org.testcontainers"      % "mongodb"            % testContainers % "test"
+  val testContainersKafkaDependency   = "org.testcontainers"      % "kafka"              % testContainers % "test"
+  val javaPoetDependency              = "com.squareup"            % "javapoet"           % "1.13.0"
+  val autoServiceDependency           = "com.google.auto.service" % "auto-service"       % "1.0.1"
+  val lombokDependency                = "org.projectlombok"       % "lombok"             % "1.18.24"
+  val protobufUtilsVersion            = "3.21.1"
 
   val disruptorDependency = "com.lmax" % "disruptor" % disruptor
 
