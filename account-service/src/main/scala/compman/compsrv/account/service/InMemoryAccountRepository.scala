@@ -11,7 +11,10 @@ case class InMemoryAccountRepository(accounts: mutable.Map[String, InternalAccou
 
   override def deleteAccount(id: String): IO[Unit] = IO { accounts.remove(id) }.void
 
-  override def getAccount(id: String): IO[Option[InternalAccount]] = IO { accounts.get(id) }
+  override def getAccountById(id: String): IO[Option[InternalAccount]] = IO { accounts.get(id) }
 
   override def updateAccount(account: InternalAccount): IO[Unit] = saveAccount(account)
+
+  override def getAccountByUserName(userName: String): IO[Option[InternalAccount]] =
+    IO { accounts.find(_._2.email == userName).map(_._2) }
 }

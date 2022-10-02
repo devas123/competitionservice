@@ -1,6 +1,6 @@
-package compman.compsrv.gateway.auth.jwt
+package compman.compsrv.http4s.auth
 
-import compman.compsrv.gateway.auth.jwt.JwtAuthTypes.JwtToken
+import compman.compsrv.http4s.auth.JwtAuthTypes.JwtToken
 import org.http4s.{AuthScheme, Request}
 import org.http4s.headers.Authorization
 import org.http4s.Credentials.Token

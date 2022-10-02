@@ -16,11 +16,13 @@ object Libraries {
   val scalaPbVersion   = "0.12.0"
   val akkaKafkaVersion = "3.0.0"
   val jwt              = "9.1.0"
+  val pbkdf2 = "0.7.0"
 
   val monocle: String         = "3.1.0"
   val akkaActorsDependency    = "com.typesafe.akka"    %% "akka-actor-typed" % akka
   val akkaStreamsDependency   = "com.typesafe.akka"    %% "akka-stream"      % akka
   val scalaPbJson4sDependency = "com.thesamet.scalapb" %% "scalapb-json4s"   % scalaPbVersion
+  val pbkdf2Depencendy = "io.github.nremond" %% "pbkdf2-scala" % pbkdf2
 
   val akkaKafka: Seq[ModuleID] =
     Seq("com.typesafe.akka" %% "akka-stream-kafka" % akkaKafkaVersion, akkaStreamsDependency)

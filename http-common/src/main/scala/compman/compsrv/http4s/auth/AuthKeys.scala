@@ -1,9 +1,9 @@
-package compman.compsrv.gateway.auth.jwt
+package compman.compsrv.http4s.auth
 
 import cats.ApplicativeThrow
 import cats.implicits.toFunctorOps
-import pdi.jwt.algorithms.{JwtAsymmetricAlgorithm, JwtECDSAAlgorithm, JwtEdDSAAlgorithm, JwtRSAAlgorithm}
 import pdi.jwt.{JwtBase64, JwtUtils}
+import pdi.jwt.algorithms.{JwtAsymmetricAlgorithm, JwtECDSAAlgorithm, JwtEdDSAAlgorithm, JwtRSAAlgorithm}
 
 import java.security.{KeyFactory, PrivateKey, PublicKey}
 import java.security.spec.{PKCS8EncodedKeySpec, X509EncodedKeySpec}

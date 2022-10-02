@@ -1,22 +1,18 @@
 package compman.compsrv
 
-import cats.data.{Kleisli, OptionT}
+import cats.data.Kleisli
 import cats.effect.IO
-import org.http4s.{HttpRoutes, Request}
+import cats.Monad
+import cats.implicits._
+import org.http4s.{Http, Request}
 import org.slf4j.Logger
 
 package object http4s {
-  def loggerMiddleware(service: HttpRoutes[IO])(log: Logger): HttpRoutes[IO] = {
-    Kleisli { req: Request[IO] =>
-      for {
-        _ <- OptionT.liftF(IO {
-          log.info(s"Request: $req")
-        })
-        response <- service(req)
-        _ <- OptionT.liftF(IO {
-          log.info(s"Response: $response")
-        })
-      } yield response
-    }
+  def loggerMiddleware[G[_]: Monad](service: Http[G, IO])(log: Logger): Http[G, IO] = Kleisli { req: Request[IO] =>
+    for {
+      _        <- log.info(s"Request: $req").pure[G]
+      response <- service(req)
+      _        <- log.info(s"Response: $response").pure[G]
+    } yield response
   }
 }

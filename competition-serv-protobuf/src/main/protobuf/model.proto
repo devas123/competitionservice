@@ -2,6 +2,10 @@ syntax = "proto3";
 package compservice.model.protobuf;
 import "google/protobuf/timestamp.proto";
 
+message AuthenticationResponsePayload {
+  string token = 1;
+}
+
 message AdjacencyList {
   int32 root = 1;
   repeated AdjacencyListEntry vertices = 2;

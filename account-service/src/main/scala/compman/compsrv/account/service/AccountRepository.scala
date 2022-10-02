@@ -7,7 +7,8 @@ import org.mongodb.scala.MongoClient
 trait AccountRepository {
   def saveAccount(account: InternalAccount): IO[Unit]
   def deleteAccount(id: String): IO[Unit]
-  def getAccount(id: String): IO[Option[InternalAccount]]
+  def getAccountById(id: String): IO[Option[InternalAccount]]
+  def getAccountByUserName(userName: String): IO[Option[InternalAccount]]
   def updateAccount(account: InternalAccount): IO[Unit]
 }
 

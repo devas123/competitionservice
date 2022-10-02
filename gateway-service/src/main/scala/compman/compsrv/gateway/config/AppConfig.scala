@@ -8,7 +8,8 @@ final case class AppConfig(
   producer: ProducerConfig,
   consumer: ConsumerConfig,
   callbackTimeoutMs: Int,
-  proxy: ProxyConfig
+  proxy: ProxyConfig,
+  authentication: AuthenticationConfig
 )
 
 final case class ConsumerConfig(
@@ -18,22 +19,29 @@ final case class ConsumerConfig(
   academyNotificationsTopic: String
 )
 
-final case class ProxyLocation(host: String, port: Int, protocol: String = "http") {
+final case class ProxyLocation(prefix: String, host: String, port: Int, auth: Boolean, appendUserId: Boolean,protocol: String = "http") {
   def toProxyPass = s"$protocol://$host:$port"
 }
-final case class ProxyConfig(locations: Map[String, ProxyLocation])
+final case class ProxyConfig(locations: List[ProxyLocation])
 
 object ProxyConfig {
   def load(config: Config): ProxyConfig = {
-    val locations = config.getConfig("locations")
-    val proxyLocations = locations.entrySet().asScala.map { e =>
-      val proxyLocationConfig = locations.getConfig(e.getKey)
-      e.getKey -> ProxyLocation(proxyLocationConfig.getString("host"), proxyLocationConfig.getInt("port"))
-    }.toMap
+    val locations = config.getConfigList("locations")
+    val proxyLocations = locations.asScala.map { proxyLocationConfig =>
+      ProxyLocation(
+        proxyLocationConfig.getString("prefix"),
+        proxyLocationConfig.getString("host"),
+        proxyLocationConfig.getInt("port"),
+        proxyLocationConfig.getBoolean("auth"),
+        proxyLocationConfig.getBoolean("appendUserId"),
+      )
+    }.toList
     ProxyConfig(proxyLocations)
   }
 
 }
+
+final case class AuthenticationConfig(jwtSecretKey: String)
 
 final case class ProducerConfig(bootstrapServers: String, globalCommandsTopic: String, academyCommandsTopic: String)
 object AppConfig {
@@ -51,6 +59,7 @@ object AppConfig {
       academyNotificationsTopic = config.getString("gateway.consumer.academyNotificationsTopic")
     ),
     callbackTimeoutMs = config.getInt("gateway.callbackTimeoutMs"),
-    proxy = ProxyConfig.load(config.getConfig("proxy"))
+    proxy = ProxyConfig.load(config.getConfig("gateway.proxy")),
+    authentication = AuthenticationConfig(config.getString("gateway.authentication.jwt-secret-key"))
   )
 }

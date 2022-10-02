@@ -9,18 +9,19 @@ import cats.implicits._
 import cats.MonadThrow
 import compman.compsrv.gateway.actors.CommandForwardingActor
 import compman.compsrv.gateway.actors.CommandForwardingActor.GatewayApiCommand
-import compman.compsrv.gateway.auth.jwt.{AuthUser, JwtAuthMiddleware}
-import compman.compsrv.gateway.auth.jwt.JwtAuthTypes.{JwtNoValidation, JwtToken}
-import compman.compsrv.gateway.config.{ProxyConfig, ProxyLocation}
+import compman.compsrv.gateway.config.{AppConfig, AuthenticationConfig, ProxyConfig, ProxyLocation}
 import compman.compsrv.http4s
+import compman.compsrv.http4s.auth.{AuthUser, JwtAuthMiddleware}
+import compman.compsrv.http4s.auth.JwtAuthTypes._
 import compservice.model.protobuf.callback.CommandCallback
 import compservice.model.protobuf.command.Command
 import org.http4s._
 import org.http4s.client.Client
 import org.http4s.dsl.Http4sDsl
-import org.http4s.headers.{`X-Forwarded-For`, Host}
+import org.http4s.headers.{`X-Forwarded-For`, Authorization, Host}
+import org.http4s.server.AuthMiddleware
 import org.slf4j.LoggerFactory
-import pdi.jwt.JwtClaim
+import pdi.jwt.{JwtAlgorithm, JwtClaim}
 
 import scala.concurrent.duration.DurationInt
 
@@ -42,23 +43,58 @@ object GatewayService {
   import dsl._
   import QueryParameters._
 
-  def service(apiActor: ActorRef[GatewayApiCommand], client: Client[ServiceIO], proxyConfig: ProxyConfig)(implicit
+  def service(apiActor: ActorRef[GatewayApiCommand], client: Client[ServiceIO], config: AppConfig)(implicit
     system: ActorSystem[_]
   ): HttpRoutes[ServiceIO] = {
-    http4s.loggerMiddleware(internalService(apiActor))(log) <+> proxyService(client, proxyConfig)
+    unAuthedProxyRoutes(client, config.proxy) <+>
+      http4s.loggerMiddleware(commandProcessorRoutes(apiActor, config.authentication))(log) <+>
+      authedProxyRoutes(client, config.proxy, config.authentication)
   }
 
-  def proxyService(client: Client[ServiceIO], proxyConfig: ProxyConfig): HttpRoutes[ServiceIO] = {
-    val routes: HttpRoutes[ServiceIO] = HttpRoutes.of { case req: Request[ServiceIO] =>
-      val pathRendered = req.uri.path.renderString
-      val proxy        = proxyConfig.locations.find(e => pathRendered.startsWith(e._1)).map(_._2)
-      proxy.fold(Response[ServiceIO](Status.NotFound).withEntity("No Route Found").pure[ServiceIO])(
-        proxyThrough[ServiceIO](_).flatMap(uri =>
-          client.toHttpApp(req.removeHeader[Host].withUri(uri.addPath(pathRendered)))
-        )
-      )
+  val authenticate: JwtToken => JwtClaim => IO[Option[AuthUser]] =
+    _ /*_token_*/ => _ /*_claim_*/ => AuthUser("joe").some.pure[IO]
+
+  def authedProxyRoutes(
+    client: Client[ServiceIO],
+    proxyConfig: ProxyConfig,
+    authConfig: AuthenticationConfig
+  ): HttpRoutes[ServiceIO] = {
+    val jwtAuthMiddleware = createJwtAuthMiddleware(authConfig)
+    val authLocations     = proxyConfig.locations.filter(_.auth)
+    val authedRoutes: AuthedRoutes[AuthUser, ServiceIO] = AuthedRoutes.of {
+      case req: AuthedRequest[ServiceIO, AuthUser]
+          if authLocations.exists(e => req.req.uri.path.renderString.startsWith(e.prefix)) =>
+        val pathRendered = req.req.uri.path.renderString
+        val proxy        = authLocations.find(e => pathRendered.startsWith(e.prefix))
+        proxy.fold(Response[ServiceIO](Status.NotFound).withEntity("No Route Found").pure[ServiceIO]) { proxyLocation =>
+          proxyThrough[ServiceIO](proxyLocation).flatMap(uri =>
+            http4s.loggerMiddleware(client.toHttpApp)(log)
+              .run(req.req.removeHeader[Host].removeHeader[Authorization].withUri(uri.resolve(req.req.uri)))
+          )
+        }
     }
-    xForwardedMiddleware(routes)
+    xForwardedMiddleware(jwtAuthMiddleware(authedRoutes))
+  }
+  def unAuthedProxyRoutes(client: Client[ServiceIO], proxyConfig: ProxyConfig): HttpRoutes[ServiceIO] = {
+    val unAuthLocations = proxyConfig.locations.filterNot(_.auth)
+    val unAuthedRoutes: HttpRoutes[ServiceIO] = HttpRoutes.of {
+      case req: Request[ServiceIO] if unAuthLocations.exists(e => req.uri.path.renderString.startsWith(e.prefix)) =>
+        val pathRendered = req.uri.path.renderString
+        val proxy        = unAuthLocations.find(e => pathRendered.startsWith(e.prefix))
+        proxy.fold(Response[ServiceIO](Status.NotFound).withEntity("No Route Found").pure[ServiceIO]) { proxyLocation =>
+          proxyThrough[ServiceIO](proxyLocation).flatMap(uri =>
+            http4s.loggerMiddleware(client.toHttpApp)(log)
+              .run(req.removeHeader[Host].removeHeader[Authorization].withUri(uri.resolve(req.uri)))
+          )
+        }
+    }
+    xForwardedMiddleware(unAuthedRoutes)
+  }
+
+  private def createJwtAuthMiddleware(authConfig: AuthenticationConfig) = {
+    val jwtAuth                                         = JwtAuth.hmac(authConfig.jwtSecretKey, JwtAlgorithm.HS512)
+    val jwtAuthMiddleware: AuthMiddleware[IO, AuthUser] = JwtAuthMiddleware[IO, AuthUser](jwtAuth, authenticate)
+    jwtAuthMiddleware
   }
 
   private def proxyThrough[F[_]: MonadThrow](proxyLocation: ProxyLocation): F[Uri] = Uri
@@ -82,17 +118,11 @@ object GatewayService {
     }
   }
 
-  private def internalService(
-    apiActor: ActorRef[GatewayApiCommand]
-  )(implicit system: ActorSystem[_]): HttpRoutes[ServiceIO] = {
-    val unauthedRoutes = HttpRoutes.of[ServiceIO] { case req @ POST -> Root / "account" / "create" =>
-      for {
-        body    <- req.body.covary[ServiceIO].chunkAll.compile.toList
-        command <- IO(body.flatMap(_.toList).toArray)
-        _       <- IO(log.info(s"Forwarding create account request"))
-        resp    <- Ok()
-      } yield resp
-    }
+  private def commandProcessorRoutes(apiActor: ActorRef[GatewayApiCommand], authenticationConfig: AuthenticationConfig)(
+    implicit system: ActorSystem[_]
+  ): HttpRoutes[ServiceIO] = {
+    val jwtAuthMiddleware = createJwtAuthMiddleware(authenticationConfig)
+
     val authedRoutes = AuthedRoutes.of[AuthUser, ServiceIO] {
       case req @ POST -> Root / "competition" / "command" :? CompetitionIdParamMatcher(competitionId) as _ /* user */ =>
         for {
@@ -117,13 +147,7 @@ object GatewayService {
           resp <- sendApiCommandAndReturnResponse(apiActor, createCommandForwarderCommand(competitionId, command))
         } yield resp
     }
-    val authenticate: JwtToken => JwtClaim => IO[Option[AuthUser]] =
-      _ /*_token_*/ => _ /*_claim_*/ => AuthUser("joe").some.pure[IO]
-
-    val jwtAuth = JwtNoValidation
-//    val jwtAuth    = JwtAuth.hmac("53cr3t", JwtAlgorithm.HS256)
-    val middleware = JwtAuthMiddleware[IO, AuthUser](jwtAuth, authenticate)
-    middleware(authedRoutes)
+    jwtAuthMiddleware(authedRoutes)
   }
 
   private def createCommandForwarderCommand(competitionId: Option[String], body: Array[Byte])(

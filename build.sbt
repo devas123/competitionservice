@@ -38,7 +38,7 @@ lazy val commons = module("commons", "command-processor/commons")
   .dependsOn(competitionServiceModelProtobuf)
 
 lazy val httpCommon = module("http-common", "http-common")
-  .settings(libraryDependencies ++= catsDependencies ++ http4sDependencies ++ log4jDependencies)
+  .settings(libraryDependencies ++= catsDependencies ++ http4sDependencies ++ log4jDependencies ++ Seq(jwtCore))
 
 
 lazy val competitionservice = project.in(file(".")).settings(publish / skip := true)
@@ -80,7 +80,8 @@ lazy val accountService = module("account-service", "account-service")
       akkaActorsDependency,
       akkaStreamsDependency,
       scalaPbJson4sDependency,
-      akkaTestDependency
+      akkaTestDependency,
+      pbkdf2Depencendy
     ),
     testFrameworks       := Seq(TestFrameworks.ScalaTest),
     Docker / packageName := "account-service"
@@ -89,7 +90,7 @@ lazy val accountService = module("account-service", "account-service")
 lazy val gatewayService = module("gateway-service", "gateway-service")
   .enablePlugins(BuildInfoPlugin, DockerPlugin, JavaAppPackaging).settings(buildInfoSettings("compman.compsrv.gateway"))
   .settings(
-    libraryDependencies ++= akkaDependencies ++ Seq(scalaTestDependency, jwtCore),
+    libraryDependencies ++= akkaDependencies ++ Seq(scalaTestDependency),
     testFrameworks       := Seq(TestFrameworks.ScalaTest),
     Docker / packageName := "gateway-service"
   ).settings(stdSettings("gateway-service")).dependsOn(commons, kafkaCommons, httpCommon)

@@ -19,7 +19,7 @@ case class MongoAccountRepository(mongo: MongoClient, databaseName: String)
     _ <- IO.fromFuture(IO(delete.toFuture()))
   } yield ()
 
-  override def getAccount(id: String): IO[Option[InternalAccount]] = for {
+  override def getAccountById(id: String): IO[Option[InternalAccount]] = for {
     collection <- accountCollection
     select = collection.find(Filters.eq(idField, id))
     res <- selectOne(select)
@@ -34,4 +34,11 @@ case class MongoAccountRepository(mongo: MongoClient, databaseName: String)
   override def mongoClient: MongoClient = mongo
 
   override def dbName: String = databaseName
+
+  override def getAccountByUserName(userName: String): IO[Option[InternalAccount]] = for {
+    collection <- accountCollection
+    select = collection.find(Filters.eq(email, userName))
+    res <- selectOne(select)
+  } yield res
+
 }

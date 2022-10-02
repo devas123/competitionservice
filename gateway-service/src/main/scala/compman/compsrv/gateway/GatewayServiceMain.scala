@@ -56,7 +56,7 @@ object GatewayServiceMain extends App {
 
     BlazeClientBuilder[ServiceIO](executionContext = actorSystem.executionContext).resource.use(client =>
       BlazeServerBuilder[ServiceIO].bindHttp(8080, "0.0.0.0").withWebSockets(true).withSocketKeepAlive(true)
-        .withHttpApp(GatewayService.service(commandForwardingActor, client, config.proxy).orNotFound).serve.compile.drain
+        .withHttpApp(GatewayService.service(commandForwardingActor, client, config).orNotFound).serve.compile.drain
     ).unsafeRunSync()
     Behaviors.ignore
   }

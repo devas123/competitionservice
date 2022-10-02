@@ -1,8 +1,8 @@
-package compman.compsrv.gateway.auth.jwt
+package compman.compsrv.http4s.auth
 
 import cats.{Applicative, ApplicativeError, ApplicativeThrow}
 import cats.implicits.{catsSyntaxApplicativeId, catsSyntaxTry}
-import compman.compsrv.gateway.auth.jwt.AuthKeys._
+import compman.compsrv.http4s.auth.AuthKeys.{JwtPrivateKey, JwtPublicKey}
 import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim, JwtOptions}
 import pdi.jwt.algorithms.JwtHmacAlgorithm
 
@@ -44,6 +44,6 @@ object JwtAuthTypes {
   ): F[JwtToken] = JwtToken(Jwt.encode(jwtClaim, jwtSecretKey.value, jwtAlgorithm)).pure[F]
 
   def jwtEncode[F[_]](jwtClaim: JwtClaim, jwtPrivateKey: JwtPrivateKey)(implicit
-    F: ApplicativeError[F, Throwable]
+                                                                        F: ApplicativeError[F, Throwable]
   ): F[JwtToken] = F.catchNonFatal(JwtToken(Jwt.encode(jwtClaim, jwtPrivateKey.key, jwtPrivateKey.algorithm)))
 }

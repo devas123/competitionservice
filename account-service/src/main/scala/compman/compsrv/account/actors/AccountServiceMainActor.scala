@@ -35,7 +35,7 @@ object AccountServiceMainActor {
     val accountRepository = AccountRepository.mongoAccountRepository(mongodbSession, mongodbConfig.accountDatabaseName)
 
     val accountRepoSupervisor = ctx.spawn(
-      AccountRepositorySupervisorActor.behavior(accountRepository, config.requestTimeout),
+      AccountRepositorySupervisorActor.behavior(accountRepository, config),
       "accountRepositorySupervisor"
     )
 

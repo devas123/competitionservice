@@ -6,15 +6,23 @@ import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.FiniteDuration
 
 final case class MongodbConfig(
-                                host: String,
-                                port: Int,
-                                username: String,
-                                password: String,
-                                authenticationDb: String,
-                                accountDatabaseName: String
+  host: String,
+  port: Int,
+  username: String,
+  password: String,
+  authenticationDb: String,
+  accountDatabaseName: String
 )
 
-case class AccountServiceConfig(mongo: MongodbConfig, version: String, requestTimeout: FiniteDuration, port: Int)
+final case class AuthenticationConfig(jwtSecretKey: String)
+
+final case class AccountServiceConfig(
+  mongo: MongodbConfig,
+  version: String,
+  requestTimeout: FiniteDuration,
+  port: Int,
+  authentication: AuthenticationConfig
+)
 object AccountServiceConfig {
   def load(globalConfig: Config): AccountServiceConfig = {
     val accountConfig = globalConfig.getConfig("account")
@@ -29,6 +37,8 @@ object AccountServiceConfig {
       ),
       version = accountConfig.getString("version"),
       port = accountConfig.getInt("port"),
-      requestTimeout = FiniteDuration(accountConfig.getDuration("requestTimeout").toMillis, TimeUnit.MILLISECONDS)
+      requestTimeout = FiniteDuration(accountConfig.getDuration("requestTimeout").toMillis, TimeUnit.MILLISECONDS),
+      authentication = AuthenticationConfig(accountConfig.getString("authentication.jwt-secret-key"))
     )
-  }}
+  }
+}

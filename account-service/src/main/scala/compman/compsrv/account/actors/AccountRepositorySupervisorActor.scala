@@ -3,6 +3,8 @@ package compman.compsrv.account.actors
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import compman.compsrv.account.actors.AccountRepositoryWriterActor.{AccountRepositoryWriterActorApi, AddAccount, DeleteAccount, UpdateAccount}
+import compman.compsrv.account.actors.AccountServiceAuthenticateActor.{AccountServiceAuthenticateActorApi, Authenticate}
+import compman.compsrv.account.config.AccountServiceConfig
 import compman.compsrv.account.model.InternalAccount
 import compman.compsrv.account.service.AccountRepository
 import compservice.model.protobuf.account.AccountServiceResponse
@@ -21,15 +23,21 @@ object AccountRepositorySupervisorActor {
       extends AccountServiceQueryRequest
   final case class DeleteAccontRequest(accountId: String, replyTo: ActorRef[AccountServiceResponse])
       extends AccountServiceQueryRequest
+  final case class AuthenticateAccountRequest(username: String, password: String, replyTo: ActorRef[AccountServiceResponse])
+      extends AccountServiceQueryRequest
   private def initialized(
     accountWriter: ActorRef[AccountRepositoryWriterActorApi],
+    accountAuthenticator: ActorRef[AccountServiceAuthenticateActorApi],
     accountService: AccountRepository,
     requestTimeout: FiniteDuration
   ): Behavior[AccountServiceQueryRequest] = Behaviors.setup { ctx =>
     Behaviors.receiveMessage {
+      case AuthenticateAccountRequest(username, password, replyTo) =>
+        accountAuthenticator ! Authenticate(username, password)(replyTo)
+        Behaviors.same
       case GetAccountRequest(id, replyTo) =>
         ctx.spawn(
-          AccountRepositoryReadExecutorActor.behavior(accountService.getAccount(id), requestTimeout, replyTo),
+          AccountRepositoryReadExecutorActor.behavior(accountService.getAccountById(id), requestTimeout, replyTo),
           UUID.randomUUID().toString
         )
         Behaviors.same
@@ -46,11 +54,12 @@ object AccountRepositorySupervisorActor {
   }
   def behavior(
     accountService: AccountRepository,
-    requestTimeout: FiniteDuration
+    config: AccountServiceConfig
   ): Behavior[AccountServiceQueryRequest] = Behaviors.setup { ctx =>
     // We will have one (or a pool in future) writer
     // and we will create short-lived readers for each read request.
     val accountWriter = ctx.spawn(AccountRepositoryWriterActor.behavior(accountService), "accountWriter")
-    initialized(accountWriter, accountService, requestTimeout)
+    val accountAuthenticator = ctx.spawn(AccountServiceAuthenticateActor.behavior(accountService, config.authentication), "accountAuthenticator")
+    initialized(accountWriter, accountAuthenticator, accountService, config.requestTimeout)
   }
 }
