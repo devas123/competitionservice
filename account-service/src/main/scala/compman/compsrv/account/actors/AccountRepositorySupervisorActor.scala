@@ -58,7 +58,7 @@ object AccountRepositorySupervisorActor {
   ): Behavior[AccountServiceQueryRequest] = Behaviors.setup { ctx =>
     // We will have one (or a pool in future) writer
     // and we will create short-lived readers for each read request.
-    val accountWriter = ctx.spawn(AccountRepositoryWriterActor.behavior(accountService), "accountWriter")
+    val accountWriter = ctx.spawn(AccountRepositoryWriterActor.behavior(accountService, config.addMockUser), "accountWriter")
     val accountAuthenticator = ctx.spawn(AccountServiceAuthenticateActor.behavior(accountService, config.authentication), "accountAuthenticator")
     initialized(accountWriter, accountAuthenticator, accountService, config.requestTimeout)
   }

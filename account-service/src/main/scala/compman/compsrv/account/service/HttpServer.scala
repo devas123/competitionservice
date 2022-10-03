@@ -47,8 +47,7 @@ object HttpServer {
       case req @ POST -> Root / "account" / "authenticate" => for {
           body <- req.body.covary[IO].chunkAll.compile.toList
           bytes = body.flatMap(_.toList).toArray
-//          authenticateRequestPayload = JsonFormat.fromJsonString[AuthenticateRequestPayload](new String(bytes))
-          authenticateRequestPayload = AccountServiceRequest.parseFrom(bytes).getAuthenticateRequestPayload
+          authenticateRequestPayload = AuthenticateRequestPayload.parseFrom(bytes)
           res <- IO.fromFuture[AccountServiceResponse](IO(accountRepoSupervisor.ask(replyTo =>
             AuthenticateAccountRequest(
               authenticateRequestPayload.username,

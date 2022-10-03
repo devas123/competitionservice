@@ -6,7 +6,6 @@ import cats.data.EitherT
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
 import compman.compsrv.account.config.AuthenticationConfig
-import compman.compsrv.account.model.InternalAccount
 import compman.compsrv.account.service.AccountRepository
 import compman.compsrv.http4s.auth.JwtAuthTypes
 import compman.compsrv.http4s.auth.JwtAuthTypes.JwtSecretKey
@@ -30,8 +29,7 @@ object AccountServiceAuthenticateActor {
     implicit val runtime: IORuntime = IORuntime.global
     Behaviors.receiveMessage { case req @ Authenticate(username, password) =>
       val effect = for {
-//        user          <- EitherT.fromOptionF(repository.getAccountByUserName(username), "User missing")
-        user          <- EitherT.pure[IO, String](InternalAccount("1", "Valera", "Protas", username, None, SecureHash.createHash("bananas")))
+        user          <- EitherT.fromOptionF(repository.getAccountByUserName(username), "User missing")
         passwordValid <- EitherT.liftF(IO { SecureHash.validatePassword(password, user.password) })
         token <- EitherT {
           if (passwordValid) JwtAuthTypes.jwtEncode[IO](JwtClaim(), JwtSecretKey(authConfig.jwtSecretKey), HS512)

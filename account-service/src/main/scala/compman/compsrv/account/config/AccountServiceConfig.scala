@@ -21,7 +21,8 @@ final case class AccountServiceConfig(
   version: String,
   requestTimeout: FiniteDuration,
   port: Int,
-  authentication: AuthenticationConfig
+  authentication: AuthenticationConfig,
+  addMockUser: Boolean
 )
 object AccountServiceConfig {
   def load(globalConfig: Config): AccountServiceConfig = {
@@ -38,7 +39,8 @@ object AccountServiceConfig {
       version = accountConfig.getString("version"),
       port = accountConfig.getInt("port"),
       requestTimeout = FiniteDuration(accountConfig.getDuration("requestTimeout").toMillis, TimeUnit.MILLISECONDS),
-      authentication = AuthenticationConfig(accountConfig.getString("authentication.jwt-secret-key"))
+      authentication = AuthenticationConfig(accountConfig.getString("authentication.jwt-secret-key")),
+      addMockUser = accountConfig.getBoolean("authentication.addMockUser")
     )
   }
 }
