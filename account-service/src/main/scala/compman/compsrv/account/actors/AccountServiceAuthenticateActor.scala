@@ -32,7 +32,8 @@ object AccountServiceAuthenticateActor {
         user          <- EitherT.fromOptionF(repository.getAccountByUserName(username), "User missing")
         passwordValid <- EitherT.liftF(IO { SecureHash.validatePassword(password, user.password) })
         token <- EitherT {
-          if (passwordValid) JwtAuthTypes.jwtEncode[IO](JwtClaim(), JwtSecretKey(authConfig.jwtSecretKey), HS512)
+          if (passwordValid) JwtAuthTypes.jwtEncode[IO](JwtClaim(subject = Some(user.userId),
+            issuedAt = Some(System.currentTimeMillis())), JwtSecretKey(authConfig.jwtSecretKey), HS512)
             .map(Right(_))
           else { IO(Left("Wrong password")) }
         }

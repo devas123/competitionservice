@@ -30,7 +30,7 @@ object JwtAuthMiddleware {
 
     val authUser: Kleisli[F, Request[F], Either[String, A]] = Kleisli { request =>
       AuthHeaders.getBearerToken(request).fold("Bearer token not found".asLeft[A].pure[F]) { token =>
-        jwtDecode[F](token, jwtAuth).flatMap(authenticate(token)).map(_.fold("not found".asLeft[A])(_.asRight[String]))
+        jwtDecode[F](token, jwtAuth).flatMap(claim => authenticate(token)(claim)).map(_.fold("User ID is not found".asLeft[A])(_.asRight[String]))
           .recover { case e: JwtException => s"Invalid access token: $e".asLeft[A] }
       }
     }

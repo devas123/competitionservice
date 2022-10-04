@@ -52,7 +52,7 @@ object GatewayService {
   }
 
   val authenticate: JwtToken => JwtClaim => IO[Option[AuthUser]] =
-    _ /*_token_*/ => _ /*_claim_*/ => AuthUser("joe").some.pure[IO]
+    _ /*_token_*/ => claim /*_claim_*/ => claim.subject.map(AuthUser).pure[IO]
 
   def authedProxyRoutes(
     client: Client[ServiceIO],
@@ -67,10 +67,13 @@ object GatewayService {
         val pathRendered = req.req.uri.path.renderString
         val proxy        = authLocations.find(e => pathRendered.startsWith(e.prefix))
         proxy.fold(Response[ServiceIO](Status.NotFound).withEntity("No Route Found").pure[ServiceIO]) { proxyLocation =>
-          proxyThrough[ServiceIO](proxyLocation).flatMap(uri =>
+          proxyThrough[ServiceIO](proxyLocation).flatMap { uri =>
+            val updatedUri =
+              if (proxyLocation.appendUserId) { req.req.uri / req.context.userId }
+              else { req.req.uri }
             http4s.loggerMiddleware(client.toHttpApp)(log)
-              .run(req.req.removeHeader[Host].removeHeader[Authorization].withUri(uri.resolve(req.req.uri)))
-          )
+              .run(req.req.removeHeader[Host].removeHeader[Authorization].withUri(uri.resolve(updatedUri)))
+          }
         }
     }
     xForwardedMiddleware(jwtAuthMiddleware(authedRoutes))
